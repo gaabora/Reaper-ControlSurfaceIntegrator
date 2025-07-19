@@ -5,6 +5,18 @@
     "version": "0.2.0",
     "configurations": [
       {
+        "name": "(lldb) Launch",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "/Applications/REAPER.app",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${fileDirname}",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "lldb"
+      },
+      {
         "name": "(Windows) Debug in REAPER",
         "type": "cppvsdbg",
         "request": "launch",
