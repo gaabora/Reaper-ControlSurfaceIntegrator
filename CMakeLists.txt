@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 # Enable policy for INTERPROCEDURAL_OPTIMIZATION if supported
 if(POLICY CMP0069)
@@ -61,11 +61,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 include(FetchContent)
 set(PROJECT_LIB_DIR ${PROJECT_SOURCE_DIR}/lib)
 
-FetchContent_Declare(reaper-sdk
-  GIT_REPOSITORY https://github.com/justinfrankel/reaper-sdk
-  GIT_TAG        origin/main
-  SOURCE_DIR     "${PROJECT_LIB_DIR}/reaper-sdk"
-)
+# FetchContent_Declare(reaper-sdk
+#   GIT_REPOSITORY https://github.com/justinfrankel/reaper-sdk
+#   GIT_TAG        origin/main
+#   SOURCE_DIR     "${PROJECT_LIB_DIR}/reaper-sdk"
+# )
 
 FetchContent_Declare(WDL
   GIT_REPOSITORY https://github.com/justinfrankel/WDL
@@ -73,23 +73,24 @@ FetchContent_Declare(WDL
   SOURCE_DIR     "${PROJECT_LIB_DIR}/WDL"
 )
 
-FetchContent_Declare(GSL
-  GIT_REPOSITORY "https://github.com/microsoft/GSL"
-  GIT_TAG        origin/main
-  SOURCE_DIR     "${PROJECT_LIB_DIR}/GSL"
-)
+# FetchContent_Declare(GSL
+#   GIT_REPOSITORY "https://github.com/microsoft/GSL"
+#   GIT_TAG        origin/main
+#   SOURCE_DIR     "${PROJECT_LIB_DIR}/GSL"
+# )
 
-FetchContent_MakeAvailable(reaper-sdk GSL WDL)
+FetchContent_MakeAvailable(WDL)
+# FetchContent_MakeAvailable(reaper-sdk GSL WDL)
 
 # ------------------------------------------------------------------------------
 # Symlink WDL into reaper-sdk
 # ------------------------------------------------------------------------------
 
-execute_process(
-  COMMAND ${CMAKE_COMMAND} -E create_symlink
-          "${PROJECT_LIB_DIR}/WDL/WDL"
-          "${PROJECT_LIB_DIR}/reaper-sdk/WDL"
-)
+# execute_process(
+#   COMMAND ${CMAKE_COMMAND} -E create_symlink
+#           "${PROJECT_LIB_DIR}/WDL/WDL"
+#           "${PROJECT_LIB_DIR}/reaper-sdk/WDL"
+# )
 
 # ------------------------------------------------------------------------------
 # VCPKG Integration
@@ -107,9 +108,9 @@ endif()
 # Header Paths and Compiler Flags
 # ------------------------------------------------------------------------------
 
-set(header_paths ${PROJECT_LIB_DIR}/reaper-sdk/sdk
-  # add possible include directories for reaper plugin
-)
+# set(header_paths ${PROJECT_LIB_DIR}/reaper-sdk/sdk
+#   # add possible include directories for reaper plugin
+# )
 file(GLOB_RECURSE headers CONFIGURE_DEPENDS ${PROJECT_LIB_DIR}/*.h*)
 
 foreach(header ${headers})
@@ -124,9 +125,9 @@ endforeach()
 # Setup Interface Library for reaper-sdk
 # ------------------------------------------------------------------------------
 
-add_library(reaper-sdk INTERFACE)
-target_include_directories(reaper-sdk INTERFACE ${header_paths} ${CMAKE_BINARY_DIR})
-target_link_libraries(reaper-sdk INTERFACE GSL)
+# add_library(reaper-sdk INTERFACE)
+# target_include_directories(reaper-sdk INTERFACE ${header_paths} ${CMAKE_BINARY_DIR})
+# target_link_libraries(reaper-sdk INTERFACE GSL)
 
 # ------------------------------------------------------------------------------
 # Find and Link WDL + SWELL
@@ -138,9 +139,9 @@ if(NOT WIN32)
   find_package(SWELL REQUIRED)
 endif()
 
-target_link_libraries(reaper-sdk INTERFACE WDL::WDL)
+# target_link_libraries(${PROJECT_NAME} INTERFACE WDL::WDL)
 if(SWELL_FOUND)
-  target_link_libraries(reaper-sdk INTERFACE SWELL::swell)
+  target_link_libraries(${PROJECT_NAME} INTERFACE SWELL::swell)
 endif()
 
 # ------------------------------------------------------------------------------
@@ -191,7 +192,7 @@ add_library(${PROJECT_NAME} SHARED
 )
 
 add_subdirectory(reaper_csurf_integrator) #TODO: move and change to src 
-target_link_libraries(${PROJECT_NAME} PRIVATE reaper-sdk)
+# target_link_libraries(${PROJECT_NAME} PRIVATE reaper-sdk)
 
 
 # ------------------------------------------------------------------------------
@@ -429,17 +430,6 @@ endif()
 # Custom CPack naming
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}-macOS")
-endif()
-
-# Add README and LICENSE to installer if they exist
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
-  execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/README.md" "${CMAKE_CURRENT_BINARY_DIR}/link_readme.txt")
-  set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_BINARY_DIR}/link_readme.txt")
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
-  execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" "${CMAKE_CURRENT_BINARY_DIR}/link_license.txt")
-  set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_BINARY_DIR}/link_license.txt")
 endif()
 
 set(CPACK_COMPONENT_${PROJECT_NAME}_REQUIRED ON)
