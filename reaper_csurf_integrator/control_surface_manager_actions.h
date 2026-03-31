@@ -1125,4 +1125,35 @@ public:
     }
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class ToggleOSK : public Action
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+{
+public:
+    ActionType GetType() const override { return ActionType::ToggleOSK; }
+
+    void RequestUpdate(ActionContext *context) override {
+        context->UpdateWidgetValue(context->GetSurface()->GetOskEnabled() ? 1.0 : 0.0);
+    }
+
+    void Do(ActionContext *context, double value) override {
+        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
+        
+        ControlSurface *surface = context->GetSurface();
+        bool newState = !surface->GetOskEnabled();
+        surface->SetOskEnabled(newState);
+        
+        if (newState) {
+            surface->PublishOSKLayout();
+            surface->PublishOSKLabels();
+            surface->PublishOSKState();
+            context->GetCSI()->PublishOSKSurfacesList();
+            context->GetCSI()->OpenOSKPanel();
+        } else {
+            context->GetCSI()->PublishOSKSurfacesList();
+            context->GetCSI()->CloseOSKPanel();
+        }
+    }
+};
+
 #endif /* control_surface_manager_actions_h */
