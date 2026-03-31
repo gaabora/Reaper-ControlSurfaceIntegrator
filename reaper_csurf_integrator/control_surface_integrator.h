@@ -696,7 +696,7 @@ public:
         return names;
     }
 
-    virtual const char *GetName() { return "Navigator"; }
+    // virtual const char *GetName() { return "Navigator"; }
     virtual MediaTrack *GetTrack() { return NULL; }
     virtual int GetChannelNum() { return 0; }
 

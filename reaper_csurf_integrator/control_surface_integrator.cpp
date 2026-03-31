@@ -3041,7 +3041,7 @@ void ZoneManager::SetListenerCategories(PropertyList &pList)
     
     if (const char *property =  pList.get_prop(PropertyType_Modifiers))
         if (IsSameString(property, "Yes"))
-            surface_->SetListensToModifiers();;
+            surface_->SetListensToModifiers();
 }
 
 void ZoneManager::CheckFocusedFXState()
