@@ -469,7 +469,7 @@ public:
         if (track == GetMasterTrack(NULL)) {
             int muteSoloFlags = GetMasterMuteSoloFlags();
             if (muteSoloFlags & 2) {
-                muteSoloFlags &= !2;
+                muteSoloFlags &= ~2;
             } else {
                 muteSoloFlags |= 2;
             }
