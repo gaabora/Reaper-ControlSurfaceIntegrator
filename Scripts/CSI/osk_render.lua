@@ -264,12 +264,17 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
     end
 end
 
-local function DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, label, currentValue, commandValueMapper, trackTop, trackBottom)
+local function DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, label, currentValue, commandValueMapper, trackTop, trackBottom, valueHitTest)
     local id = "##fader_" .. (cell.name or "")
     local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
     imgui.InvisibleButton(ctx, id, bw, visualH)
 
     local hovered = imgui.IsItemHovered(ctx)
+    local valueHitHovered = false
+    if hovered and valueHitTest then
+        local mouseX, mouseY = imgui.GetMousePos(ctx)
+        valueHitHovered = valueHitTest(mouseX, mouseY)
+    end
     if hovered then
         data.DebugFader(surfName, cell.name or "", string.format("hover visualH=%.2f layoutH=%.2f currentNormalized=%.6f mapper=%s", visualH, layoutH, clampNormalized(currentValue), tostring(commandValueMapper ~= nil)), 0.50, "hover")
         ShowDelayedTooltip(ctx, surfName, cell.name or "", label, data.GetPressTarget(surfName, cell))
@@ -283,7 +288,7 @@ local function DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, l
         configModule.OpenConfigEditor(surfName, cell.name)
     end
 
-    osk_input.HandleFader(ctx, surfName, cell, trackTop, trackBottom, currentValue, commandValueMapper)
+    osk_input.HandleFader(ctx, surfName, cell, trackTop, trackBottom, currentValue, commandValueMapper, valueHitHovered)
 
     imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
     imgui.Dummy(ctx, bw, layoutH)
@@ -600,11 +605,20 @@ local function DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, hitH
 
     local knobH = 8
     local knobCol = data.applyAlpha(0xDDDDDDff, btnAlpha)
-    imgui.DrawList_AddRectFilled(drawList, trackL - 4, fillTop - knobH / 2, trackR + 4, fillTop + knobH / 2, knobCol, 2)
+    local knobL = trackL - 4
+    local knobR = trackR + 4
+    local knobT = fillTop - knobH / 2
+    local knobB = fillTop + knobH / 2
+    imgui.DrawList_AddRectFilled(drawList, knobL, knobT, knobR, knobB, knobCol, 2)
 
     RenderCenteredWrappedText(ctx, drawList, label, cursorX + bw / 2, drawY + visualH - 9, bw - 8, 16)
+    local function faderValueHitTest(mouseX, mouseY)
+        local onTrack = mouseX >= trackL and mouseX <= trackR and mouseY >= trackT and mouseY <= trackB
+        local onKnob = mouseX >= knobL and mouseX <= knobR and mouseY >= knobT and mouseY <= knobB
+        return onTrack or onKnob
+    end
     imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
-    DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, label, value, commandValueMapper, trackT, trackB)
+    DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, label, value, commandValueMapper, trackT, trackB, faderValueHitTest)
 end
 
 function M.RenderOSDBar(ctx, surfName)

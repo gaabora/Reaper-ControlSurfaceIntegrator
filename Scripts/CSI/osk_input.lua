@@ -133,7 +133,7 @@ function M.HandleWheel(ctx, surfaceName, cell)
     SendPendingWheelCommand(wheelState, now)
 end
 
-function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentValue, commandValueMapper)
+function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentValue, commandValueMapper, valueHitHovered)
     if not cell or not cell.name then return end
     if not data.vars.interactive then return end
     if not trackTop or not trackBottom or trackBottom <= trackTop then return end
@@ -143,7 +143,7 @@ function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentVal
     local stateKey = GetInteractionStateKey(surfaceName, valueTarget)
     if not stateKey then return end
 
-    if imgui.IsItemHovered(ctx) and not imgui.IsItemActive(ctx) then
+    if valueHitHovered and not imgui.IsItemActive(ctx) then
         local wheelValue = imgui.GetMouseWheel(ctx)
         if data.vars.invert_scroll then wheelValue = -wheelValue end
         if wheelValue ~= 0 then
@@ -162,14 +162,14 @@ function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentVal
     end
 
     local faderState = faderStates[stateKey]
-    if imgui.IsItemActivated(ctx) then
+    if imgui.IsItemActivated(ctx) and valueHitHovered then
         faderState = { lastValue = nil, touched = true }
         faderStates[stateKey] = faderState
         data.DebugFader(surfaceName, valueTarget, string.format("activated trackTop=%.2f trackBottom=%.2f currentNormalized=%.6f mapper=%s", trackTop, trackBottom, clampNormalized(currentValue), tostring(commandValueMapper ~= nil)), 0.0, "activated")
         SendFaderTouch(surfaceName, touchTarget, true)
     end
 
-    local active = imgui.IsItemActive(ctx) or imgui.IsItemDeactivated(ctx)
+    local active = (imgui.IsItemActive(ctx) or imgui.IsItemDeactivated(ctx)) and faderState and faderState.touched
     if active then
         local _, mouseY = imgui.GetMousePos(ctx)
         local value = clampNormalized((trackBottom - mouseY) / (trackBottom - trackTop))
