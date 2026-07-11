@@ -487,8 +487,8 @@ static void LoadTemplates(SurfaceFXTemplate* fxTemplate) {
                 if (tokens.size() == 2) {
                     FXRowLayout t;
 
-                    strcpy(t.suffix, tokens[1].c_str());
-                    strcpy(t.modifiers, tokens[0].c_str());
+                    lstrcpyn_safe(t.suffix, tokens[1].c_str(), sizeof(t.suffix));
+                    lstrcpyn_safe(t.modifiers, tokens[0].c_str(), sizeof(t.modifiers));
                     t.modifier = zoneManager->GetSurface()->GetModifierManager()->GetModifierValue(tokens[0].c_str());
                     fxTemplate->fxRowLayouts.push_back(t);
                 }
@@ -532,11 +532,11 @@ static void LoadTemplates(SurfaceFXTemplate* fxTemplate) {
                             fxTemplate->hasColor = true;
                     } else {
                         if (tokens.size() > 1 && tokens[1] == "FXParam")
-                            strcpy(fxTemplate->paramWidget, tokens[0].c_str());
+                            lstrcpyn_safe(fxTemplate->paramWidget, tokens[0].c_str(), sizeof(fxTemplate->paramWidget));
                         if (tokens.size() > 1 && tokens[1] == "FixedTextDisplay")
-                            strcpy(fxTemplate->nameWidget, tokens[0].c_str());
+                            lstrcpyn_safe(fxTemplate->nameWidget, tokens[0].c_str(), sizeof(fxTemplate->nameWidget));
                         if (tokens.size() > 1 && tokens[1] == "FXParamValueDisplay")
-                            strcpy(fxTemplate->valueWidget, tokens[0].c_str());
+                            lstrcpyn_safe(fxTemplate->valueWidget, tokens[0].c_str(), sizeof(fxTemplate->valueWidget));
                     }
                 }
             }
