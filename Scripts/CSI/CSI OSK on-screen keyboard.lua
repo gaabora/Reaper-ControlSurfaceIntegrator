@@ -23,6 +23,7 @@ local imgui = require "imgui" "0.9.3"
 local data = require("osk_data")
 local render = require("osk_render")
 local config = require("osk_config")
+local osd_ui = require("osd_ui")
 
 local ctx = nil
 local FONT = nil
@@ -33,8 +34,22 @@ local requestCloseAll = false
 local WINDOW_FLAGS_BASE = imgui.WindowFlags_NoScrollbar
     | imgui.WindowFlags_NoCollapse
     | imgui.WindowFlags_AlwaysAutoResize
-local WINDOW_FLAGS_COMBINED = WINDOW_FLAGS_BASE | imgui.WindowFlags_NoTitleBar
-local WINDOW_FLAGS_SEPARATE = WINDOW_FLAGS_BASE
+
+local function GetCombinedWindowFlags()
+    local flags = WINDOW_FLAGS_BASE
+    if not data.vars.titlebar_enabled then
+        flags = flags | imgui.WindowFlags_NoTitleBar
+    end
+    return flags
+end
+
+local function GetSeparateWindowFlags()
+    local flags = WINDOW_FLAGS_BASE
+    if not data.vars.titlebar_enabled then
+        flags = flags | imgui.WindowFlags_NoTitleBar
+    end
+    return flags
+end
 
 -- Configurable extra action buttons shown at top of right-click menu.
 -- Each entry: { title = "label", tooltip = "description", action = <REAPER command ID> }
@@ -134,6 +149,11 @@ local function RenderContextMenu(activeCtx, options)
             SetWindowMode("separate")
         end
 
+        imgui.Separator(activeCtx)
+        local toggled
+        toggled, data.vars.titlebar_enabled = imgui.Checkbox(activeCtx, "Show titlebar", data.vars.titlebar_enabled)
+        if toggled then data.SaveSettings() end
+
         if options.allowCloseAll then
             if imgui.MenuItem(activeCtx, "Close all") then
                 requestCloseAll = true
@@ -183,6 +203,9 @@ local function RenderContextMenu(activeCtx, options)
             data.SaveSettings()
         end
 
+        imgui.Separator(activeCtx)
+        osd_ui.RenderSettingsPanel(activeCtx, imgui)
+
         imgui.EndPopup(activeCtx)
     end
 end
@@ -203,7 +226,7 @@ local function main_combined()
     imgui.SetNextWindowBgAlpha(ctx, data.vars.transparency)
 
     local visible, p_open = imgui.Begin(ctx, 'CSI On-Screen Keyboard', true,
-        WINDOW_FLAGS_COMBINED
+        GetCombinedWindowFlags()
     )
     imgui.PopStyleColor(ctx, 2)
 
@@ -269,27 +292,34 @@ main_separate = function()
             imgui.PushStyleColor(ctx, imgui.Col_TitleBgActive, data.COLORS.win_bg)
             imgui.SetNextWindowBgAlpha(ctx, data.vars.transparency)
 
-            local visible, p_open = imgui.Begin(ctx, 'CSI OSK - ' .. surfName, true, WINDOW_FLAGS_SEPARATE)
-            imgui.PopStyleColor(ctx, 2)
+            local visible, p_open = imgui.Begin(ctx, 'CSI OSK - ' .. surfName, true, GetSeparateWindowFlags())
+            
+            if p_open ~= nil then
+                imgui.PopStyleColor(ctx, 2)
 
-            local x, y = imgui.GetWindowPos(ctx)
-            local oldPos = data.surfacePos[surfName]
-            if not oldPos or math.abs(oldPos.x - x) > 0.5 or math.abs(oldPos.y - y) > 0.5 then
-                data.surfacePos[surfName] = { x = x, y = y }
-                data.SaveSettings()
+                local x, y = imgui.GetWindowPos(ctx)
+                local oldPos = data.surfacePos[surfName]
+                if not oldPos or math.abs(oldPos.x - x) > 0.5 or math.abs(oldPos.y - y) > 0.5 then
+                    data.surfacePos[surfName] = { x = x, y = y }
+                    data.SaveSettings()
+                end
+
+                if visible then
+                    imgui.PushFont(ctx, FONT)
+                    RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_" .. surfName, allowSurfaceSelection = false, allowCloseAll = true })
+                    render.RenderSurface(ctx, surfName)
+                    render.RenderOSDBar(ctx)
+                    config.RenderConfigEditor(ctx)
+                    imgui.PopFont(ctx)
+                end
+                imgui.End(ctx)
+
+                win.open = p_open
+            else
+                -- Begin failed (shouldn't happen, but defensive code)
+                imgui.PopStyleColor(ctx, 2)
+                win.open = false
             end
-
-            if visible then
-                imgui.PushFont(ctx, FONT)
-                RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_" .. surfName, allowSurfaceSelection = false, allowCloseAll = true })
-                render.RenderSurface(ctx, surfName)
-                render.RenderOSDBar(ctx)
-                config.RenderConfigEditor(ctx)
-                imgui.PopFont(ctx)
-            end
-            imgui.End(ctx)
-
-            win.open = p_open
         end
     end
 
@@ -321,6 +351,7 @@ end
 local function Init()
     SetToolbarButtonState(1)
     data.LoadSettings()
+    osd_ui.LoadSettings()
 
     ctx = imgui.CreateContext('CSI OSK')
     FONT = imgui.CreateFont('sans-serif', 13)
@@ -341,6 +372,7 @@ local function Init()
     end
     r.atexit(function()
         data.SaveSettings()
+        osd_ui.SaveSettings()
         SetToolbarButtonState(-1)
     end)
 end

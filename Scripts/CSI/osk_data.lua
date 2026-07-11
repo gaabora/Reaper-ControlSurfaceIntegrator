@@ -75,6 +75,7 @@ M.vars = {
     arrow_angle = 120,
     show_all_surfaces = true,
     window_mode = "combined",
+    titlebar_enabled = true,
     surface_pos = "",
     label_replacements = "",
 }

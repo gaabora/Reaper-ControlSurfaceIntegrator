@@ -2,6 +2,7 @@ local r = reaper
 local imgui = require "imgui" "0.9.3"
 
 local data = require("osk_data")
+local osd_ui = require("osd_ui")
 
 local M = {}
 
@@ -13,6 +14,7 @@ local FONT_SMALL = nil
 function M.SetFonts(font, fontSmall)
     FONT = font
     FONT_SMALL = fontSmall
+    osd_ui.SetFont(fontSmall)
 end
 
 local function GetWheelDirection(ctx)
@@ -388,8 +390,12 @@ local function DrawFaderControlSpanning(ctx, drawList, surfName, cell, bw, visua
 end
 
 function M.RenderOSDBar(ctx)
-    data.PollOSD()
-
+    osd_ui.PollOSD()
+    
+    if not osd_ui.vars.osd_enabled or not osd_ui.state.text or osd_ui.state.text == "" then
+        return
+    end
+    
     imgui.Separator(ctx)
     local drawList = imgui.GetWindowDrawList(ctx)
     local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
@@ -400,18 +406,21 @@ function M.RenderOSDBar(ctx)
     local padV = 4
     local barH = lineH + padV * 2
 
-    local bgCol = data.applyAlpha(data.osd.bgColor, data.vars.transparency)
+    local bgCol = osd_ui.state.bgColor
+    if osd_ui.vars.osd_transparency then
+        bgCol = (bgCol & 0xFFFFFF00) | math.floor(osd_ui.vars.osd_transparency * 255)
+    end
     imgui.DrawList_AddRectFilled(drawList, cursorX, cursorY, cursorX + availWidth, cursorY + barH, bgCol, 0)
 
-    local lum = 0.299 * ((data.osd.bgColor >> 24) & 0xFF)
-        + 0.587 * ((data.osd.bgColor >> 16) & 0xFF)
-        + 0.114 * ((data.osd.bgColor >> 8) & 0xFF)
-    local textCol = (lum > 128) and 0x000000ff or 0xffffffff
+    local textCol = osd_ui.getContrastTextColor(string.format("#%06X", (osd_ui.state.bgColor >> 8) & 0xFFFFFF))
+    if osd_ui.vars.osd_transparency then
+        textCol = (textCol & 0xFFFFFF00) | math.floor(osd_ui.vars.osd_transparency * 255)
+    end
 
-    local textWidth = imgui.CalcTextSize(ctx, data.osd.text)
+    local textWidth = imgui.CalcTextSize(ctx, osd_ui.state.text)
     local textX = cursorX + (availWidth - textWidth) / 2
     local textY = cursorY + padV
-    imgui.DrawList_AddText(drawList, textX, textY, textCol, data.osd.text)
+    imgui.DrawList_AddText(drawList, textX, textY, textCol, osd_ui.state.text)
 
     imgui.Dummy(ctx, 0, barH)
     imgui.PopFont(ctx)
