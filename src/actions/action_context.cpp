@@ -313,7 +313,7 @@ void ActionContext::DoAction(double value) {
     // --- Normal action deferred by hold buddy ---
     // When a Hold+ context exists on the same widget, the normal context
     // (holdDelay=0) must defer: fire on release only if the hold didn't fire.
-    if (holdDelayMs == 0 && GetWidget()->HasHoldActions()) {
+    if (!timing_.isDoublePress && holdDelayMs == 0 && GetWidget()->HasHoldActions()) {
         if (value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
             GetWidget()->ClearHoldFired();
             timing_.deferredValue = value;
