@@ -2,6 +2,13 @@
 
 #pragma once
 
+//! @action Rewind
+//!
+//! @brief Starts rewinding (scrubbing backward). Press again or Play/Stop to cancel.
+//!
+//! @zone_usage  WidgetName    Rewind
+//!
+//! @feedback Toggle — 1.0 while rewinding, 0.0 when stopped.
 class Rewind : public TransportAction
 {
 public:
@@ -19,6 +26,15 @@ public:
     }
 };
 
+//! @action MoveEditCursor
+//!
+//! @brief Moves the edit cursor forward/backward by bars or markers, depending on TransportStepAmount.
+//!
+//! @zone_usage  WidgetName    MoveEditCursor
+//!
+//! @feedback Always 1.0 (button stays lit).
+//!
+//! @notes Direction is determined by the incoming value (>0.5=forward, <0.5=backward). Step size is set by TransportStepAmount (Bar or Marker).
 class MoveCursor : public TransportAction
 {
 public:
@@ -50,6 +66,13 @@ public:
     }
 };
 
+//! @action FastForward
+//!
+//! @brief Starts fast-forwarding (scrubbing forward). Press again or Play/Stop to cancel.
+//!
+//! @zone_usage  WidgetName    FastForward
+//!
+//! @feedback Toggle — 1.0 while fast-forwarding, 0.0 when stopped.
 class FastForward : public TransportAction
 {
 public:
@@ -67,6 +90,13 @@ public:
     }
 };
 
+//! @action Play
+//!
+//! @brief Starts or resumes playback.
+//!
+//! @zone_usage  WidgetName    Play
+//!
+//! @feedback Toggle — 1.0 when playing/recording/paused, 0.0 when stopped. Off during rewind/fast-forward.
 class Play : public TransportAction
 {
 public:
@@ -94,6 +124,13 @@ public:
     }
 };
 
+//! @action Stop
+//!
+//! @brief Stops playback/recording.
+//!
+//! @zone_usage  WidgetName    Stop
+//!
+//! @feedback Toggle — 1.0 when stopped or paused, 0.0 when playing/recording.
 class Stop : public TransportAction
 {
 public:
@@ -121,6 +158,13 @@ public:
     }
 };
 
+//! @action Record
+//!
+//! @brief Toggles recording on/off.
+//!
+//! @zone_usage  WidgetName    Record
+//!
+//! @feedback Toggle — 1.0 when recording (or paused while recording), 0.0 when not.
 class Record : public TransportAction
 {
 public:
@@ -147,6 +191,13 @@ public:
     }
 };
 
+//! @action TrackToggleVCASpill
+//!
+//! @brief Toggles VCA spill view for the mapped track (shows VCA follower tracks on the surface).
+//!
+//! @zone_usage  WidgetName    TrackToggleVCASpill
+//!
+//! @feedback Toggle — 1.0 when VCA is spilled for this track, 0.0 when not.
 class TrackToggleVCASpill : public PressOnlyAction
 {
 public:
@@ -165,6 +216,13 @@ public:
     }
 };
 
+//! @action TrackToggleFolderSpill
+//!
+//! @brief Toggles folder spill view for the mapped track (shows child tracks on the surface).
+//!
+//! @zone_usage  WidgetName    TrackToggleFolderSpill
+//!
+//! @feedback Toggle — 1.0 when folder is spilled for this track, 0.0 when not.
 class TrackToggleFolderSpill : public PressOnlyAction //TrackAction?
 {
 public:
@@ -183,6 +241,13 @@ public:
     }
 };
 
+//! @action ClearAllSolo
+//!
+//! @brief Clears solo on all tracks in the project.
+//!
+//! @zone_usage  WidgetName    ClearAllSolo
+//!
+//! @feedback Toggle — 1.0 when any track is soloed, 0.0 when none are.
 class ClearAllSolo : public PressOnlyAction
 {
 public:
@@ -201,6 +266,15 @@ public:
     }
 };
 
+//! @action GlobalAutoMode
+//!
+//! @brief Sets the global automation override mode.
+//!
+//! @zone_usage  WidgetName    GlobalAutoMode 1
+//!
+//! @feedback Toggle — 1.0 when the current global auto mode matches the int param, 0.0 otherwise.
+//!
+//! @params Int param: automation mode (0=trim, 1=read, 2=touch, 3=write, 4=latch).
 class GlobalAutoMode : public PressOnlyAction
 {
 public:
@@ -222,6 +296,15 @@ public:
     }
 };
 
+//! @action TrackAutoMode
+//!
+//! @brief Sets the automation mode for selected tracks.
+//!
+//! @zone_usage  WidgetName    TrackAutoMode 2
+//!
+//! @feedback Toggle — 1.0 when any selected track's auto mode matches the int param.
+//!
+//! @params Int param: automation mode (0=trim, 1=read, 2=touch, 3=write, 4=latch).
 class TrackAutoMode : public PressOnlyTrackAction
 {
 public:
@@ -247,6 +330,13 @@ public:
     }
 };
 
+//! @action CycleTrackAutoMode
+//!
+//! @brief Cycles through automation modes for the mapped track on each press.
+//!
+//! @zone_usage  WidgetName    CycleTrackAutoMode
+//!
+//! @feedback Text — sends the current automation mode name (e.g. "Read", "Touch").
 class CycleTrackAutoMode : public PressOnlyAction
 {
 public:
@@ -264,6 +354,13 @@ public:
     }
 };
 
+//! @action CycleTimeline
+//!
+//! @brief Toggles the timeline repeat/loop state on/off.
+//!
+//! @zone_usage  WidgetName    CycleTimeline
+//!
+//! @feedback Toggle — 1.0 when repeat is on, 0.0 when off.
 class CycleTimeline : public PressOnlyAction
 {
 public:
@@ -282,6 +379,13 @@ public:
     }
 };
 
+//! @action CycleTrackInputMonitor
+//!
+//! @brief Cycles through input monitor modes (off → normal → not-when-playing → off) for the mapped track.
+//!
+//! @zone_usage  WidgetName    CycleTrackInputMonitor
+//!
+//! @feedback None (clears color only).
 class CycleTrackInputMonitor : public PressOnlyAction
 {
 public:
@@ -297,6 +401,13 @@ public:
     }
 };
 
+//! @action TrackAutoModeDisplay
+//!
+//! @brief Displays the current automation mode name for the mapped track.
+//!
+//! @zone_usage  DisplayWidget    TrackAutoModeDisplay
+//!
+//! @feedback Text — sends mode name (e.g. "Trim", "Read", "Touch", "Write", "Latch").
 class TrackAutoModeDisplay : public TrackDisplayAction
 {
 public:
@@ -308,6 +419,13 @@ public:
     }
 };
 
+//! @action TrackVCALeaderDisplay
+//!
+//! @brief Displays "Leader" if the mapped track is a VCA leader, empty string otherwise.
+//!
+//! @zone_usage  DisplayWidget    TrackVCALeaderDisplay
+//!
+//! @feedback Text — "Leader" or "".
 class TrackVCALeaderDisplay : public TrackDisplayAction
 {
 public:
@@ -324,6 +442,13 @@ public:
     }
 };
 
+//! @action TrackFolderParentDisplay
+//!
+//! @brief Displays "Parent" if the mapped track is a folder parent, empty string otherwise.
+//!
+//! @zone_usage  DisplayWidget    TrackFolderParentDisplay
+//!
+//! @feedback Text — "Parent" or "".
 class TrackFolderParentDisplay : public TrackDisplayAction
 {
 public:
@@ -340,6 +465,13 @@ public:
     }
 };
 
+//! @action ToggleFolderView
+//!
+//! @brief Toggles folder view mode on the surface (shows only folder parent tracks).
+//!
+//! @zone_usage  WidgetName    ToggleFolderView
+//!
+//! @feedback Toggle — 1.0 when folder view is active, 0.0 when not.
 class ToggleFolderView : public PressOnlyAction
 {
 public:
@@ -357,6 +489,15 @@ public:
     }
 };
 
+//! @action TrackEnterFolder
+//!
+//! @brief Enters a folder (sets it as the current navigation scope and selects the first child track).
+//!
+//! @zone_usage  WidgetName    TrackEnterFolder
+//!
+//! @feedback None (clears color only).
+//!
+//! @see ExitCurrentFolder
 class TrackEnterFolder : public PressOnlyAction
 {
 public:
@@ -377,6 +518,15 @@ public:
     }
 };
 
+//! @action ExitCurrentFolder
+//!
+//! @brief Exits the current folder scope and selects the parent folder track.
+//!
+//! @zone_usage  WidgetName    ExitCurrentFolder
+//!
+//! @feedback Toggle — 1.0 when inside a folder (can exit), 0.0 when at root level.
+//!
+//! @see TrackEnterFolder
 class ExitCurrentFolder : public PressOnlyAction
 {
 public:
@@ -398,6 +548,13 @@ public:
     }
 };
 
+//! @action GlobalAutoModeDisplay
+//!
+//! @brief Displays the current global automation override mode name.
+//!
+//! @zone_usage  DisplayWidget    GlobalAutoModeDisplay
+//!
+//! @feedback Text — sends mode name string.
 class GlobalAutoModeDisplay : public DisplayAction
 {
 public:
@@ -409,6 +566,13 @@ public:
     }
 };
 
+//! @action TrackInputMonitorDisplay
+//!
+//! @brief Displays the current input monitor mode for the mapped track.
+//!
+//! @zone_usage  DisplayWidget    TrackInputMonitorDisplay
+//!
+//! @feedback Text — sends mode name (e.g. "Off", "Normal", "Not when playing").
 class TrackInputMonitorDisplay : public TrackDisplayAction
 {
 public:
@@ -420,6 +584,13 @@ public:
     }
 };
 
+//! @action MCUTimeDisplay
+//!
+//! @brief Sends time display data formatted for MCU-protocol displays (7-segment LED).
+//!
+//! @zone_usage  TimeDisplay    MCUTimeDisplay
+//!
+//! @feedback Value — sends 0.0 (MCU time display formatting is handled by the feedback processor).
 class MCUTimeDisplay : public DisplayAction
 {
 public:
@@ -430,6 +601,13 @@ public:
     }
 };
 
+//! @action OSCTimeDisplay
+//!
+//! @brief Sends formatted time position string for OSC displays.
+//!
+//! @zone_usage  DisplayWidget    OSCTimeDisplay
+//!
+//! @feedback Text — sends formatted time string based on current time display mode (bars+beats, hh:mm:ss:fff, samples, or frames).
 class OSCTimeDisplay : public DisplayAction
 {
 public:

@@ -35,7 +35,7 @@ void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens
                 properties.set_prop(prop, value.c_str());
             } else {
                 properties.set_prop(prop, token.data()); // unknown properties are preserved as Unknown, key=value pair
-                if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] CSI does not support property named %s\n", key.c_str());
+                if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] not supported property %s\n", key.c_str());
             }
         }
     }

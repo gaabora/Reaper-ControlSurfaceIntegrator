@@ -387,7 +387,7 @@ public:
         else
             currentFolderTrackID_ = CSurf_TrackToID(track, followMCP_);
         trackOffset_ = 0;
-        // If CSI follows the TCP or the MPC, then the selection cannot be outside the folder we just enter:
+        // If follows the TCP or the MPC, then the selection cannot be outside the folder we just enter:
         // as we were previously outside this folder, the selected track cannot be inside: it needs to be changed.
         // Select the first track in the folder
         if (isScrollLinkEnabled_) return GetTrackFromId(currentFolderTrackID_ + 1);
@@ -397,7 +397,7 @@ public:
     MediaTrack* ExitCurrentFolder() {
         MediaTrack* exitedFolderTrack = GetTrackFromId(currentFolderTrackID_);
         SetCurrentFolder(parentOfCurrentFolderTrack_); // parentOfCurrentFolderTrack_ will be updated on track list rebuild
-        // If CSI follows the TCP or the MPC, then the selection cannot be outside the folder we just enter:
+        // If follows the TCP or the MPC, then the selection cannot be outside the folder we just enter:
         // as we were previously in a child folder, the selected track cannot be at this level: it needs to be changed.
         // Select the folder just exited
         if (isScrollLinkEnabled_) return exitedFolderTrack;

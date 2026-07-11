@@ -1,6 +1,6 @@
 #pragma once
 // fb_generic.h — Generic/protocol-agnostic MIDI feedback processors: TwoState, Fader14Bit, FaderportClassicFader14Bit, Fader7Bit, Encoder, ConsoleOneVUMeter, ConsoleOneGainReductionMeter, MFT_RGB.
-//  Requires the full CSI preamble (preamble.h + feedback.h) to be in scope.
+//  Requires the full preamble (preamble.h + feedback.h) to be in scope.
 
 class TwoState_Midi_FeedbackProcessor : public Midi_FeedbackProcessor
 {

@@ -4,6 +4,13 @@
 //
 #include "preamble.h"
 
+//! @action (abstract base)
+//!
+//! @brief Root base class for all actions. Provides virtual Do/RequestUpdate/Touch/GetCurrentNormalizedValue interface.
+//!
+//! @feedback None (subclasses override RequestUpdate to send widget feedback).
+//!
+//! @notes Actions are singletons registered by name. ActionContext binds an Action to a Widget+Zone+params. Subclasses override Do() for press, RequestUpdate() for LED/display feedback, Touch() for fader touch automation.
 class Action
 {
 public:

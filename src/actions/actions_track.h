@@ -1,12 +1,32 @@
 // track volume/pan/mute/solo/select/arm actions.
 #pragma once
 
+//! @action TrackVolume
+//!
+//! @brief Controls the volume fader for the mapped track.
+//!
+//! @zone_usage  Fader|    TrackVolume
+//!
+//! @feedback Continuous — sends normalized volume (0.0–1.0) to a motorized fader or knob.
+//!
+//! @notes Supports touch for automation write. Inherits full get/set/touch from VolumeAction base.
+//!
+//! @see SoftTakeover7BitTrackVolume, SoftTakeover14BitTrackVolume, TrackVolumeDB
 class TrackVolume : public VolumeAction
 {
 public:
     ActionType GetType() const override { return ActionType::TrackVolume; }
 };
 
+//! @action SoftTakeover7BitTrackVolume
+//!
+//! @brief Volume fader with 7-bit soft-takeover to prevent value jumps when physical fader doesn't match track volume.
+//!
+//! @zone_usage  Fader|    SoftTakeover7BitTrackVolume
+//!
+//! @feedback Continuous — sends normalized volume (0.0–1.0).
+//!
+//! @notes Only applies the change when fader is within 2.5% of the actual track volume. For 7-bit (0–127) MIDI controllers.
 class SoftTakeover7BitTrackVolume : public VolumeAction
 {
 public:
@@ -28,6 +48,15 @@ public:
     }
 };
 
+//! @action SoftTakeover14BitTrackVolume
+//!
+//! @brief Volume fader with 14-bit soft-takeover. Tighter tolerance than 7-bit variant.
+//!
+//! @zone_usage  Fader|    SoftTakeover14BitTrackVolume
+//!
+//! @feedback Continuous — sends normalized volume (0.0–1.0).
+//!
+//! @notes Uses TRACK_VOLUME_TOLERANCE (0.0025) for matching. For 14-bit (0–16383) MIDI controllers.
 class SoftTakeover14BitTrackVolume : public VolumeAction
 {
 public:
@@ -49,6 +78,15 @@ public:
     }
 };
 
+//! @action TrackVolumeDB
+//!
+//! @brief Track volume in decibels (dB) for OSC displays or dB-native widgets.
+//!
+//! @zone_usage  WidgetName    TrackVolumeDB
+//!
+//! @feedback Continuous — sends volume as dB value (e.g. -inf to +12.0).
+//!
+//! @notes Touch writes automation in dB. Different from TrackVolume which uses normalized 0–1 range.
 class TrackVolumeDB : public VolumeAction
 {
 public:
@@ -82,6 +120,17 @@ public:
     }
 };
 
+//! @action TrackPan
+//!
+//! @brief Controls the track pan knob (standard or balance mode, not dual pan).
+//!
+//! @zone_usage  Rotary|    TrackPan
+//!
+//! @feedback Continuous — sends normalized pan (0.0=left, 0.5=center, 1.0=right).
+//!
+//! @notes Skipped when pan mode is dual pan. Touch writes automation.
+//!
+//! @see TrackPanL, TrackPanR, TrackPanAutoLeft, TrackPanAutoRight
 class TrackPan : public PanAction
 {
 public:
@@ -122,6 +171,13 @@ public:
     }
 };
 
+//! @action TrackPanPercent
+//!
+//! @brief Track pan as a percentage value (-100 to +100) for OSC displays.
+//!
+//! @zone_usage  WidgetName    TrackPanPercent
+//!
+//! @feedback Continuous — sends pan as percentage (-100.0 to +100.0). Skipped in dual pan mode.
 class TrackPanPercent : public PanAction
 {
 public:
@@ -156,6 +212,15 @@ public:
     }
 };
 
+//! @action TrackPanWidth
+//!
+//! @brief Controls the track stereo width. Only active when NOT in dual pan mode.
+//!
+//! @zone_usage  Rotary|    TrackPanWidth
+//!
+//! @feedback Continuous — sends normalized width (0.0–1.0).
+//!
+//! @see TrackPanWidthPercent
 class TrackPanWidth : public PanAction
 {
 public:
@@ -190,6 +255,13 @@ public:
     }
 };
 
+//! @action TrackPanWidthPercent
+//!
+//! @brief Track stereo width as percentage (-100 to +100) for OSC displays. Only active when NOT in dual pan mode.
+//!
+//! @zone_usage  WidgetName    TrackPanWidthPercent
+//!
+//! @feedback Continuous — sends width as percentage.
 class TrackPanWidthPercent : public PanAction
 {
 public:
@@ -218,6 +290,15 @@ public:
     }
 };
 
+//! @action TrackPanL
+//!
+//! @brief Controls the left channel pan in dual pan mode. Only active when pan mode IS dual pan.
+//!
+//! @zone_usage  Rotary|    TrackPanL
+//!
+//! @feedback Continuous — sends normalized left pan (0.0–1.0).
+//!
+//! @see TrackPanR, TrackPanAutoLeft
 class TrackPanL : public PanAction
 {
 public:
@@ -252,6 +333,13 @@ public:
     }
 };
 
+//! @action TrackPanLPercent
+//!
+//! @brief Left channel pan as percentage in dual pan mode. Only active when pan mode IS dual pan.
+//!
+//! @zone_usage  WidgetName    TrackPanLPercent
+//!
+//! @feedback Continuous — sends left pan as percentage.
 class TrackPanLPercent : public PanAction
 {
 public:
@@ -285,6 +373,15 @@ public:
     }
 };
 
+//! @action TrackPanR
+//!
+//! @brief Controls the right channel pan in dual pan mode. Only active when pan mode IS dual pan.
+//!
+//! @zone_usage  Rotary|    TrackPanR
+//!
+//! @feedback Continuous — sends normalized right pan (0.0–1.0).
+//!
+//! @see TrackPanL, TrackPanAutoRight
 class TrackPanR : public PanAction
 {
 public:
@@ -319,6 +416,13 @@ public:
     }
 };
 
+//! @action TrackPanRPercent
+//!
+//! @brief Right channel pan as percentage in dual pan mode. Only active when pan mode IS dual pan.
+//!
+//! @zone_usage  WidgetName    TrackPanRPercent
+//!
+//! @feedback Continuous — sends right pan as percentage.
 class TrackPanRPercent : public PanAction
 {
 public:
@@ -352,6 +456,15 @@ public:
     }
 };
 
+//! @action TrackPanAutoLeft
+//!
+//! @brief Auto-switching left pan: uses pan in standard mode, left dual-pan channel in dual pan mode.
+//!
+//! @zone_usage  Rotary|    TrackPanAutoLeft
+//!
+//! @feedback Continuous — sends normalized pan value. Automatically picks the correct parameter based on pan mode.
+//!
+//! @see TrackPanAutoRight, TrackPan, TrackPanL
 class TrackPanAutoLeft : public PanAction
 {
 public:
@@ -402,6 +515,15 @@ public:
     }
 };
 
+//! @action TrackPanAutoRight
+//!
+//! @brief Auto-switching right control: uses width in standard mode, right dual-pan channel in dual pan mode.
+//!
+//! @zone_usage  Rotary|    TrackPanAutoRight
+//!
+//! @feedback Continuous — sends normalized value. Automatically picks width or right pan based on pan mode.
+//!
+//! @see TrackPanAutoLeft, TrackPanWidth, TrackPanR
 class TrackPanAutoRight : public PanAction
 {
 public:
@@ -449,6 +571,13 @@ public:
     }
 };
 
+//! @action TrackRecordArm
+//!
+//! @brief Toggles record arm on/off for selected tracks. Excludes master track.
+//!
+//! @zone_usage  WidgetName    TrackRecordArm
+//!
+//! @feedback Toggle — 1.0 when armed, 0.0 when disarmed.
 class TrackRecordArm : public PressOnlyTrackAction
 {
 protected:
@@ -466,6 +595,13 @@ public:
     }
 };
 
+//! @action TrackRecordArmDisplay
+//!
+//! @brief Displays "ARM" when the track is record-armed, empty string when not.
+//!
+//! @zone_usage  DisplayWidget    TrackRecordArmDisplay
+//!
+//! @feedback Text — "ARM" or "".
 class TrackRecordArmDisplay : public TrackDisplayAction
 {
 public:
@@ -484,6 +620,13 @@ public:
     }
 };
 
+//! @action TrackMute
+//!
+//! @brief Toggles mute on/off for selected tracks.
+//!
+//! @zone_usage  WidgetName    TrackMute
+//!
+//! @feedback Toggle — 1.0 when muted, 0.0 when unmuted.
 class TrackMute : public PressOnlyTrackAction
 {
 public:
@@ -498,6 +641,13 @@ public:
     }
 };
 
+//! @action TrackEffectsBypass
+//!
+//! @brief Toggles the FX bypass state for selected tracks.
+//!
+//! @zone_usage  WidgetName    TrackEffectsBypass
+//!
+//! @feedback Toggle — 1.0 when FX are bypassed, 0.0 when active.
 class TrackEffectsBypass : public PressOnlyTrackAction
 {
 public:
@@ -512,6 +662,13 @@ public:
     }
 };
 
+//! @action TrackSolo
+//!
+//! @brief Toggles solo on/off for selected tracks.
+//!
+//! @zone_usage  WidgetName    TrackSolo
+//!
+//! @feedback Toggle — 1.0 when soloed, 0.0 when not soloed.
 class TrackSolo : public PressOnlyTrackAction
 {
 public:
@@ -526,6 +683,13 @@ public:
     }
 };
 
+//! @action TrackInvertPolarity
+//!
+//! @brief Toggles phase/polarity inversion for selected tracks.
+//!
+//! @zone_usage  WidgetName    TrackInvertPolarity
+//!
+//! @feedback Toggle — 1.0 when inverted, 0.0 when normal.
 class TrackInvertPolarity : public PressOnlyTrackAction //TODO: rename TrackInvertPhase
 {
 public:
@@ -540,6 +704,15 @@ public:
     }
 };
 
+//! @action TrackSelect
+//!
+//! @brief Toggles track selection on/off. Allows multi-selection (adds/removes from current selection).
+//!
+//! @zone_usage  WidgetName    TrackSelect
+//!
+//! @feedback Toggle — 1.0 when selected, 0.0 when not.
+//!
+//! @see TrackUniqueSelect, TrackRangeSelect
 class TrackSelect : public PressOnlyAction
 {
 public:
@@ -567,6 +740,15 @@ public:
     }
 };
 
+//! @action TrackUniqueSelect
+//!
+//! @brief Selects this track exclusively — deselects all others first.
+//!
+//! @zone_usage  WidgetName    TrackUniqueSelect
+//!
+//! @feedback Toggle — 1.0 when selected, 0.0 when not.
+//!
+//! @see TrackSelect, TrackRangeSelect
 class TrackUniqueSelect : public PressOnlyAction // TrackAction?
 {
 public:
@@ -594,6 +776,17 @@ public:
     }
 };
 
+//! @action TrackRangeSelect
+//!
+//! @brief Selects a contiguous range of tracks from the currently selected track to this track.
+//!
+//! @zone_usage  WidgetName    TrackRangeSelect
+//!
+//! @feedback Toggle — 1.0 when selected, 0.0 when not.
+//!
+//! @notes Only works when exactly one track is currently selected. Selects all visible tracks between the two.
+//!
+//! @see TrackSelect, TrackUniqueSelect
 class TrackRangeSelect : public PressOnlyAction // TrackAction?
 {
 public:

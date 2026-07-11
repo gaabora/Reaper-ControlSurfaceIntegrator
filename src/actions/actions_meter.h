@@ -1,6 +1,15 @@
 // Meter and gain reduction actions.
 #pragma once
 
+//! @action TrackOutputMeter
+//!
+//! @brief Displays the track output meter level for a specific channel.
+//!
+//! @zone_usage  VUMeter|    TrackOutputMeter 0   (0=left, 1=right)
+//!
+//! @feedback Continuous — sends normalized peak level (0.0–1.0). Clears when track is not soloed and another track is.
+//!
+//! @params Int param: channel index (0=left, 1=right).
 class TrackOutputMeter : public TrackMeterAction
 {
 public:
@@ -17,6 +26,13 @@ public:
     }
 };
 
+//! @action TrackOutputMeterAverageLR
+//!
+//! @brief Displays the average of left and right track output meter levels.
+//!
+//! @zone_usage  VUMeter|    TrackOutputMeterAverageLR
+//!
+//! @feedback Continuous — sends normalized average L+R peak level (0.0–1.0).
 class TrackOutputMeterAverageLR : public TrackMeterAction
 {
 public:
@@ -35,6 +51,15 @@ public:
     }
 };
 
+//! @action TrackVolumeWithMeterAverageLR
+//!
+//! @brief Dual-purpose: shows volume fader position when stopped, average L+R meter when playing.
+//!
+//! @zone_usage  Fader|    TrackVolumeWithMeterAverageLR
+//!
+//! @feedback Continuous — normalized volume when stopped/paused, normalized average meter when playing.
+//!
+//! @notes Also supports Do/Touch for setting track volume. Combines fader position display with metering.
 class TrackVolumeWithMeterAverageLR : public TrackMeterAction
 {
 public:
@@ -83,6 +108,13 @@ public:
     }
 };
 
+//! @action TrackOutputMeterMaxPeakLR
+//!
+//! @brief Displays the maximum of left and right track output meter levels.
+//!
+//! @zone_usage  VUMeter|    TrackOutputMeterMaxPeakLR
+//!
+//! @feedback Continuous — sends normalized max(L,R) peak level (0.0–1.0).
 class TrackOutputMeterMaxPeakLR : public TrackMeterAction
 {
 public:
@@ -104,6 +136,15 @@ public:
     }
 };
 
+//! @action TrackVolumeWithMeterMaxPeakLR
+//!
+//! @brief Dual-purpose: shows volume fader position when stopped, max(L,R) meter when playing.
+//!
+//! @zone_usage  Fader|    TrackVolumeWithMeterMaxPeakLR
+//!
+//! @feedback Continuous — normalized volume when stopped/paused, normalized max peak when playing.
+//!
+//! @notes Also supports Do/Touch for setting track volume. Combines fader position display with metering.
 class TrackVolumeWithMeterMaxPeakLR : public TrackMeterAction
 {
 public:
@@ -155,6 +196,15 @@ public:
     }
 };
 
+//! @action FXGainReductionMeter
+//!
+//! @brief Displays the gain reduction meter for a compressor/limiter FX in a specific slot.
+//!
+//! @zone_usage  VUMeter|    FXGainReductionMeter
+//!
+//! @feedback Continuous — sends normalized gain reduction (0.0–1.0, derived from GainReduction_dB / -20.0).
+//!
+//! @notes Requires the FX to support the "GainReduction_dB" named config parameter.
 class FXGainReductionMeter : public TrackMeterAction
 {
 public:

@@ -3,8 +3,22 @@
 #ifndef control_surface_manager_actions_h
 #define control_surface_manager_actions_h
 
+//! @action (manager press-only base)
+//!
+//! @brief Base for manager actions that fire on press only. Most navigation and utility actions derive from this.
 class ManagerPressOnlyAction : public PressOnlyAction {};
 
+//! @action SendMIDIMessage
+//!
+//! @brief Sends a raw MIDI message (3-byte or SysEx) to the surface's MIDI output.
+//!
+//! @zone_usage  WidgetName    SendMIDIMessage "90 01 7F"   or   SendMIDIMessage "F0 7E 7F 09 01 F7"
+//!
+//! @feedback None.
+//!
+//! @params String param: space-separated hex bytes (e.g. "90 3C 7F").
+//!
+//! @notes 3-byte messages use SendMidiMessage(); longer messages use SendMidiSysExMessage().
 class SendMIDIMessage : public ManagerPressOnlyAction
 {
 public:
@@ -34,6 +48,15 @@ public:
     }
 };
 
+//! @action SendOSCMessage
+//!
+//! @brief Sends a raw OSC message to the surface's OSC output.
+//!
+//! @zone_usage  WidgetName    SendOSCMessage "/path/to/param 1.0"
+//!
+//! @feedback None.
+//!
+//! @params String param: "address [value]" — value auto-detected as int, double, or string.
 class SendOSCMessage : public ManagerPressOnlyAction
 {
 public:
@@ -70,6 +93,15 @@ public:
     }
 };
 
+//! @action Speak
+//!
+//! @brief Speaks a text message via OSARA accessibility screen reader.
+//!
+//! @zone_usage  WidgetName    Speak "Hello World"
+//!
+//! @feedback None (clears color only).
+//!
+//! @params String param: the message text to speak.
 class SpeakOSARAMessage : public ManagerPressOnlyAction
 {
 public:
@@ -84,6 +116,15 @@ public:
     }
 };
 
+//! @action SetXTouchDisplayColors
+//!
+//! @brief Sets the X-Touch display scribble strip colors for all widgets in the current zone.
+//!
+//! @zone_usage  WidgetName    SetXTouchDisplayColors "colors_string"
+//!
+//! @feedback None.
+//!
+//! @params String param: color configuration string (surface-specific format).
 class SetXTouchDisplayColors : public ManagerPressOnlyAction
 {
 public:
@@ -94,6 +135,13 @@ public:
     }
 };
 
+//! @action RestoreXTouchDisplayColors
+//!
+//! @brief Restores X-Touch display scribble strip colors to their previous state.
+//!
+//! @zone_usage  WidgetName    RestoreXTouchDisplayColors
+//!
+//! @feedback None.
 class RestoreXTouchDisplayColors : public ManagerPressOnlyAction
 {
 public:
@@ -104,6 +152,13 @@ public:
     }
 };
 
+//! @action SaveProject
+//!
+//! @brief Saves the current Reaper project if it has unsaved changes.
+//!
+//! @zone_usage  WidgetName    SaveProject
+//!
+//! @feedback Toggle — 1.0 when project is dirty (unsaved changes), 0.0 when clean.
 class SaveProject : public ManagerPressOnlyAction
 {
 public:
@@ -122,6 +177,13 @@ public:
     }
 };
 
+//! @action Undo
+//!
+//! @brief Undoes the last Reaper action if undo history is available.
+//!
+//! @zone_usage  WidgetName    Undo
+//!
+//! @feedback Toggle — 1.0 when undo is available, 0.0 when not.
 class Undo : public ManagerPressOnlyAction
 {
 public:
@@ -140,6 +202,13 @@ public:
     }
 };
 
+//! @action Redo
+//!
+//! @brief Redoes the last undone Reaper action if redo history is available.
+//!
+//! @zone_usage  WidgetName    Redo
+//!
+//! @feedback Toggle — 1.0 when redo is available, 0.0 when not.
 class Redo : public ManagerPressOnlyAction
 {
 public:
@@ -158,6 +227,13 @@ public:
     }
 };
 
+//! @action ToggleSynchPageBanking
+//!
+//! @brief Toggles synchronized banking across pages (all surfaces bank together).
+//!
+//! @zone_usage  WidgetName    ToggleSynchPageBanking
+//!
+//! @feedback Toggle — 1.0 when synch is enabled, 0.0 when disabled.
 class ToggleSynchPageBanking : public ManagerPressOnlyAction
 {
 public:
@@ -172,6 +248,13 @@ public:
     }
 };
 
+//! @action ToggleFollowMCP
+//!
+//! @brief Toggles whether the surface track layout follows the Mixer Control Panel order.
+//!
+//! @zone_usage  WidgetName    ToggleFollowMCP
+//!
+//! @feedback Toggle — 1.0 when following MCP, 0.0 when not.
 class ToggleFollowMCP : public ManagerPressOnlyAction
 {
 public:
@@ -186,6 +269,15 @@ public:
     }
 };
 
+//! @action ToggleScrollLink
+//!
+//! @brief Toggles scroll-link: syncs Reaper's mixer scroll position with the surface's current bank.
+//!
+//! @zone_usage  WidgetName    ToggleScrollLink   or   WidgetName    ToggleScrollLink 1
+//!
+//! @feedback Toggle — 1.0 when scroll-link is enabled, 0.0 when disabled.
+//!
+//! @params Optional int param: link mode (0=default, 1=alternative).
 class ToggleScrollLink : public ManagerPressOnlyAction
 {
 public:
@@ -200,6 +292,15 @@ public:
     }
 };
 
+//! @action ToggleRestrictTextLength
+//!
+//! @brief Toggles text length restriction on display widgets (truncates long names to fit scribble strips).
+//!
+//! @zone_usage  WidgetName    ToggleRestrictTextLength 7
+//!
+//! @feedback None.
+//!
+//! @params Int param: maximum character count.
 class ToggleRestrictTextLength : public ManagerPressOnlyAction
 {
 public:
@@ -210,6 +311,13 @@ public:
     }
 };
 
+//! @action CSINameDisplay
+//!
+//! @brief Displays the application name on a text widget.
+//!
+//! @zone_usage  DisplayWidget    CSINameDisplay
+//!
+//! @feedback Text — always sends "CSI".
 class CSINameDisplay : public DisplayAction
 {
 public:
@@ -220,6 +328,13 @@ public:
     }
 };
 
+//! @action CSIVersionDisplay
+//!
+//! @brief Displays the current version string on a text widget.
+//!
+//! @zone_usage  DisplayWidget    CSIVersionDisplay
+//!
+//! @feedback Text — always sends the version string (e.g. "v7.0").
 class CSIVersionDisplay : public DisplayAction
 {
 public:
@@ -230,6 +345,13 @@ public:
     }
 };
 
+//! @action GlobalModeDisplay
+//!
+//! @brief Displays the Global modifier state on a text widget.
+//!
+//! @zone_usage  DisplayWidget    GlobalModeDisplay
+//!
+//! @feedback Toggle (double) — sends 1.0 when Global modifier is engaged, 0.0 when not.
 class GlobalModeDisplay : public DisplayAction
 {
 public:
@@ -240,6 +362,13 @@ public:
     }
 };
 
+//! @action CycleTimeDisplayModes
+//!
+//! @brief Cycles through time display modes (bars+beats, seconds, samples, frames, etc.).
+//!
+//! @zone_usage  WidgetName    CycleTimeDisplayModes
+//!
+//! @feedback None (clears color only).
 class CycleTimeDisplayModes : public ManagerPressOnlyAction
 {
 public:
@@ -254,6 +383,13 @@ public:
     }
 };
 
+//! @action NextPage
+//!
+//! @brief Switches to the next page in the page list.
+//!
+//! @zone_usage  WidgetName    NextPage
+//!
+//! @feedback None (clears color only).
 class GoNextPage : public ManagerPressOnlyAction
 {
 public:
@@ -268,6 +404,15 @@ public:
     }
 };
 
+//! @action GoPage
+//!
+//! @brief Switches to a named page.
+//!
+//! @zone_usage  WidgetName    GoPage "PageName"
+//!
+//! @feedback None (clears color only).
+//!
+//! @params String param: name of the target page.
 class GoPage : public ManagerPressOnlyAction
 {
 public:
@@ -282,6 +427,13 @@ public:
     }
 };
 
+//! @action PageNameDisplay
+//!
+//! @brief Displays the current page name on a text widget.
+//!
+//! @zone_usage  DisplayWidget    PageNameDisplay
+//!
+//! @feedback Text — sends the current page name string.
 class PageNameDisplay : public DisplayAction
 {
 public:
@@ -292,6 +444,15 @@ public:
     }
 };
 
+//! @action GoHome
+//!
+//! @brief Deactivates all goZones and returns to the Home zone.
+//!
+//! @zone_usage  WidgetName    GoHome
+//!
+//! @feedback Toggle — 1.0 when NOT at home (a goZone is active), 0.0 when at home.
+//!
+//! @see GoZone, LeaveSubZone, AllSurfacesGoHome
 class GoHome : public ManagerPressOnlyAction
 {
 public:
@@ -309,6 +470,15 @@ public:
     }
 };
 
+//! @action AllSurfacesGoHome
+//!
+//! @brief Sends GoHome to all surfaces on the current page, not just the current surface.
+//!
+//! @zone_usage  WidgetName    AllSurfacesGoHome
+//!
+//! @feedback None.
+//!
+//! @see GoHome
 class AllSurfacesGoHome : public ManagerPressOnlyAction
 {
 public:
@@ -319,6 +489,19 @@ public:
     }
 };
 
+//! @action GoSubZone
+//!
+//! @brief Activates a named sub-zone within the current zone. Deactivates other sub-zones.
+//!
+//! @zone_usage  WidgetName    GoSubZone "SubZoneName"
+//!
+//! @feedback None (always sends 0.0).
+//!
+//! @params String param: name of the sub-zone to activate.
+//!
+//! @notes Sub-zones are child zones declared via SubZones directive. Use LeaveSubZone to deactivate.
+//!
+//! @see LeaveSubZone, GoZone
 class GoSubZone : public ManagerPressOnlyAction
 {
 public:
@@ -333,6 +516,17 @@ public:
     }
 };
 
+//! @action LeaveSubZone
+//!
+//! @brief Deactivates the current zone (works for both goZones and sub-zones).
+//!
+//! @zone_usage  WidgetName    LeaveSubZone
+//!
+//! @feedback Always sends 1.0 (LED stays lit while the zone is active). Supports Blink property.
+//!
+//! @notes Generic "deactivate myself" action — calls zone->Deactivate(). For returning to Home zone specifically, prefer GoHome.
+//!
+//! @see GoSubZone, GoHome
 class LeaveSubZone : public ManagerPressOnlyAction
 {
 public:
@@ -347,6 +541,15 @@ public:
     }
 };
 
+//! @action GoFXSlot
+//!
+//! @brief Opens the FX zone for a specific FX slot on the current track.
+//!
+//! @zone_usage  WidgetName    GoFXSlot
+//!
+//! @feedback None (clears color only).
+//!
+//! @notes Slot index comes from the zone's navigator. Triggers DeclareGoFXSlot on the ZoneManager.
 class GoFXSlot : public ManagerPressOnlyAction
 {
 public:
@@ -362,6 +565,13 @@ public:
     }
 };
 
+//! @action ShowFXSlot
+//!
+//! @brief Opens the FX plugin GUI window for a specific slot on the current track.
+//!
+//! @zone_usage  WidgetName    ShowFXSlot
+//!
+//! @feedback None.
 class ShowFXSlot : public ManagerPressOnlyAction
 {
 public:
@@ -373,6 +583,13 @@ public:
     }
 };
 
+//! @action HideFXSlot
+//!
+//! @brief Closes the FX plugin GUI window for a specific slot on the current track.
+//!
+//! @zone_usage  WidgetName    HideFXSlot
+//!
+//! @feedback None.
 class HideFXSlot : public ManagerPressOnlyAction
 {
 public:
@@ -384,6 +601,13 @@ public:
     }
 };
 
+//! @action ToggleUseLocalModifiers
+//!
+//! @brief Toggles whether this surface uses its own local modifier state instead of shared modifiers.
+//!
+//! @zone_usage  WidgetName    ToggleUseLocalModifiers
+//!
+//! @feedback None.
 class ToggleUseLocalModifiers : public ManagerPressOnlyAction
 {
 public:
@@ -394,6 +618,13 @@ public:
     }
 };
 
+//! @action ToggleUseLocalFXSlot
+//!
+//! @brief Toggles whether each surface tracks its own FX slot index independently.
+//!
+//! @zone_usage  WidgetName    ToggleUseLocalFXSlot
+//!
+//! @feedback Toggle — 1.0 when local FX slot is enabled, 0.0 when shared.
 class ToggleUseLocalFXSlot : public ManagerPressOnlyAction
 {
 public:
@@ -408,6 +639,9 @@ public:
     }
 };
 
+//! @action (range-validated settings base)
+//!
+//! @brief Base for settings actions that clamp an integer param to a valid [min, max] range and log warnings on out-of-range values.
 class RangeValidatedSettingsAction : public SettingsAction
 {
 protected:
@@ -423,6 +657,13 @@ public:
     }
 };
 
+//! @action SetLatchTime
+//!
+//! @brief Sets the modifier latch time in milliseconds. When a modifier button is pressed and released faster than this, it locks.
+//!
+//! @zone_usage  WidgetName    SetLatchTime 500
+//!
+//! @params Int param: latch time in ms (50–5000).
 class SetLatchTime : public RangeValidatedSettingsAction
 {
 public:
@@ -431,6 +672,13 @@ public:
     void ApplyValue(ActionContext* context, int value) override { context->GetSurface()->SetLatchTime(value); }
 };
 
+//! @action SetBlinkTime
+//!
+//! @brief Sets the default LED blink interval in milliseconds for this surface.
+//!
+//! @zone_usage  WidgetName    SetBlinkTime 500
+//!
+//! @params Int param: blink interval in ms (50–2000). Used when Blink property is set without an explicit interval.
 class SetBlinkTime : public RangeValidatedSettingsAction
 {
 public:
@@ -439,6 +687,13 @@ public:
     void ApplyValue(ActionContext* context, int value) override { context->GetSurface()->SetBlinkTime(value); }
 };
 
+//! @action SetHoldTime
+//!
+//! @brief Sets the default hold delay in milliseconds. Hold+ actions fire after the button is held this long.
+//!
+//! @zone_usage  WidgetName    SetHoldTime 1000
+//!
+//! @params Int param: hold delay in ms (50–10000). Used when HoldDelay is not explicitly set on the action.
 class SetHoldTime : public RangeValidatedSettingsAction
 {
 public:
@@ -447,6 +702,13 @@ public:
     void ApplyValue(ActionContext* context, int value) override { context->GetSurface()->SetHoldTime(value); }
 };
 
+//! @action SetDoublePressTime
+//!
+//! @brief Sets the double-press detection window in milliseconds.
+//!
+//! @zone_usage  WidgetName    SetDoublePressTime 400
+//!
+//! @params Int param: window in ms (100–2000). Two presses within this window trigger a DoublePress+ action.
 class SetDoublePressTime : public RangeValidatedSettingsAction
 {
 public:
@@ -455,6 +717,13 @@ public:
     void ApplyValue(ActionContext* context, int value) override { context->GetSurface()->SetDoublePressTime(value); }
 };
 
+//! @action SetOSDTime
+//!
+//! @brief Sets the on-screen display timeout in milliseconds.
+//!
+//! @zone_usage  WidgetName    SetOSDTime 3000
+//!
+//! @params Int param: timeout in ms (100–30000). OSD messages disappear after this duration.
 class SetOSDTime : public RangeValidatedSettingsAction
 {
 public:
@@ -463,6 +732,13 @@ public:
     void ApplyValue(ActionContext* context, int value) override { context->GetSurface()->SetOSDTime(value); }
 };
 
+//! @action SetDebugLevel
+//!
+//! @brief Sets the global debug logging level.
+//!
+//! @zone_usage  WidgetName    SetDebugLevel 2
+//!
+//! @params Int param: debug level 0–4 (0=off, 1=error, 2=warning, 3=info, 4=debug).
 class SetDebugLevel : public RangeValidatedSettingsAction
 {
 public:
@@ -471,6 +747,13 @@ public:
     void ApplyValue(ActionContext* context, int value) override { g_debugLevel = value; }
 };
 
+//! @action CycleDebugLevel
+//!
+//! @brief Cycles through debug levels 0–4 on each press.
+//!
+//! @zone_usage  WidgetName    CycleDebugLevel
+//!
+//! @feedback None.
 class CycleDebugLevel : public SettingsAction
 {
 public:
@@ -482,6 +765,15 @@ public:
     }
 };
 
+//! @action EnableOSD
+//!
+//! @brief Enables or disables the on-screen display for this surface.
+//!
+//! @zone_usage  WidgetName    EnableOSD   or   WidgetName    EnableOSD "No"
+//!
+//! @feedback None.
+//!
+//! @params String param: "No" to disable, anything else (or empty) to enable.
 class EnableOSD : public SettingsAction
 {
 public:
@@ -492,6 +784,13 @@ public:
     }
 };
 
+//! @action ToggleEnableFocusedFXMapping
+//!
+//! @brief Toggles automatic mapping of the currently focused FX to the surface.
+//!
+//! @zone_usage  WidgetName    ToggleEnableFocusedFXMapping
+//!
+//! @feedback Toggle — 1.0 when focused FX mapping is enabled, 0.0 when disabled.
 class ToggleEnableFocusedFXMapping : public ManagerPressOnlyAction
 {
 public:
@@ -506,6 +805,13 @@ public:
     }
 };
 
+//! @action DisableFocusedFXMapping
+//!
+//! @brief Disables focused FX mapping (one-way — use ToggleEnableFocusedFXMapping to re-enable).
+//!
+//! @zone_usage  WidgetName    DisableFocusedFXMapping
+//!
+//! @feedback Toggle — 1.0 when focused FX mapping is enabled, 0.0 when disabled.
 class DisableFocusedFXMapping : public ManagerPressOnlyAction
 {
 public:
@@ -520,6 +826,13 @@ public:
     }
 };
 
+//! @action ToggleEnableLastTouchedFXParamMapping
+//!
+//! @brief Toggles automatic mapping of the last-touched FX parameter to the surface.
+//!
+//! @zone_usage  WidgetName    ToggleEnableLastTouchedFXParamMapping
+//!
+//! @feedback Toggle — 1.0 when enabled, 0.0 when disabled.
 class ToggleEnableLastTouchedFXParamMapping : public ManagerPressOnlyAction
 {
 public:
@@ -534,6 +847,13 @@ public:
     }
 };
 
+//! @action DisableLastTouchedFXParamMapping
+//!
+//! @brief Disables last-touched FX param mapping (one-way).
+//!
+//! @zone_usage  WidgetName    DisableLastTouchedFXParamMapping
+//!
+//! @feedback Toggle — 1.0 when enabled, 0.0 when disabled.
 class DisableLastTouchedFXParamMapping : public ManagerPressOnlyAction
 {
 public:
@@ -548,6 +868,13 @@ public:
     }
 };
 
+//! @action LearnFocusedFX
+//!
+//! @brief Opens the FX zone learning dialog for the currently focused FX.
+//!
+//! @zone_usage  WidgetName    LearnFocusedFX
+//!
+//! @feedback None.
 class LearnFocusedFX : public ManagerPressOnlyAction
 {
 public:
@@ -558,6 +885,17 @@ public:
     }
 };
 
+//! @action GoZone
+//!
+//! @brief Activates a named top-level goZone, deactivating other goZones. Acts as a toggle: if already active, deactivates it.
+//!
+//! @zone_usage  WidgetName    GoZone "MasterTrack"   or   GoZone "SelectedTrackFX"
+//!
+//! @feedback Toggle — 1.0 when the named zone is active, 0.0 when not.
+//!
+//! @params String param: zone name. Special names (Folder, VCA, TrackSend, TrackReceive, etc.) route via Page::GoZone for multi-surface propagation.
+//!
+//! @see GoHome, GoSubZone
 class GoZone : public ManagerPressOnlyAction
 {
 public:
@@ -579,6 +917,13 @@ public:
     }
 };
 
+//! @action ClearLastTouchedFXParam
+//!
+//! @brief Clears the last-touched FX parameter mapping zone.
+//!
+//! @zone_usage  WidgetName    ClearLastTouchedFXParam
+//!
+//! @feedback None.
 class ClearLastTouchedFXParam : public ManagerPressOnlyAction
 {
 public:
@@ -589,6 +934,13 @@ public:
     }
 };
 
+//! @action ClearFocusedFX
+//!
+//! @brief Clears the focused FX mapping zone.
+//!
+//! @zone_usage  WidgetName    ClearFocusedFX
+//!
+//! @feedback None.
 class ClearFocusedFX : public ManagerPressOnlyAction
 {
 public:
@@ -599,6 +951,13 @@ public:
     }
 };
 
+//! @action ClearSelectedTrackFX
+//!
+//! @brief Clears the selected track FX mapping zone.
+//!
+//! @zone_usage  WidgetName    ClearSelectedTrackFX
+//!
+//! @feedback None.
 class ClearSelectedTrackFX : public ManagerPressOnlyAction
 {
 public:
@@ -609,6 +968,13 @@ public:
     }
 };
 
+//! @action ClearFXSlot
+//!
+//! @brief Clears the FX slot mapping zone.
+//!
+//! @zone_usage  WidgetName    ClearFXSlot
+//!
+//! @feedback None.
 class ClearFXSlot : public ManagerPressOnlyAction
 {
 public:
@@ -619,6 +985,15 @@ public:
     }
 };
 
+//! @action Bank
+//!
+//! @brief Adjusts the track bank offset (scrolls channels left/right on the surface).
+//!
+//! @zone_usage  WidgetName    Bank "TrackNavigator" 8   or   WidgetName    Bank "TrackNavigator" -1
+//!
+//! @feedback None (clears color only).
+//!
+//! @params String param: navigator name. Int param: bank step size (positive=right, negative=left). Supports Increase/Decrease pseudo-modifiers.
 class Bank : public Action
 {
 public:
@@ -636,6 +1011,15 @@ public:
     }
 };
 
+//! @action Shift
+//!
+//! @brief Engages/disengages the Shift modifier. Supports latch (quick tap locks, hold+release unlocks).
+//!
+//! @zone_usage  WidgetName    Shift
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged. Supports Blink for visual latch indication.
+//!
+//! @see SetOption, SetControl, SetAlt, SetFlip, SetGlobal, ClearModifier, ClearModifiers
 class SetShift : public ModifierAction
 {
 public:
@@ -650,6 +1034,13 @@ public:
     }
 };
 
+//! @action Option
+//!
+//! @brief Engages/disengages the Option modifier. Supports latch.
+//!
+//! @zone_usage  WidgetName    Option
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetOption : public ModifierAction
 {
 public:
@@ -664,6 +1055,13 @@ public:
     }
 };
 
+//! @action Control
+//!
+//! @brief Engages/disengages the Control modifier. Supports latch.
+//!
+//! @zone_usage  WidgetName    Control
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetControl : public ModifierAction
 {
 public:
@@ -678,6 +1076,13 @@ public:
     }
 };
 
+//! @action Alt
+//!
+//! @brief Engages/disengages the Alt modifier. Supports latch.
+//!
+//! @zone_usage  WidgetName    Alt
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetAlt : public ModifierAction
 {
 public:
@@ -692,6 +1097,13 @@ public:
     }
 };
 
+//! @action Flip
+//!
+//! @brief Engages/disengages the Flip modifier (swaps fader/knob assignments). Supports latch.
+//!
+//! @zone_usage  WidgetName    Flip
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetFlip : public ModifierAction
 {
 public:
@@ -706,6 +1118,13 @@ public:
     }
 };
 
+//! @action Global
+//!
+//! @brief Engages/disengages the Global modifier. Supports latch.
+//!
+//! @zone_usage  WidgetName    Global
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetGlobal : public ModifierAction
 {
 public:
@@ -720,6 +1139,13 @@ public:
     }
 };
 
+//! @action Marker
+//!
+//! @brief Engages/disengages the Marker modifier. Mutually exclusive with Nudge, Zoom, and Scrub.
+//!
+//! @zone_usage  WidgetName    Marker
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetMarker : public ModifierAction
 {
 public:
@@ -734,6 +1160,13 @@ public:
     }
 };
 
+//! @action Nudge
+//!
+//! @brief Engages/disengages the Nudge modifier. Mutually exclusive with Marker, Zoom, and Scrub.
+//!
+//! @zone_usage  WidgetName    Nudge
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetNudge : public ModifierAction
 {
 public:
@@ -748,6 +1181,13 @@ public:
     }
 };
 
+//! @action Zoom
+//!
+//! @brief Engages/disengages the Zoom modifier. Mutually exclusive with Marker, Nudge, and Scrub.
+//!
+//! @zone_usage  WidgetName    Zoom
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetZoom : public ModifierAction
 {
 public:
@@ -762,6 +1202,13 @@ public:
     }
 };
 
+//! @action Scrub
+//!
+//! @brief Engages/disengages the Scrub modifier. Mutually exclusive with Marker, Nudge, and Zoom.
+//!
+//! @zone_usage  WidgetName    Scrub
+//!
+//! @feedback Toggle — 1.0 when engaged, 0.0 when disengaged.
 class SetScrub : public ModifierAction
 {
 public:
@@ -776,6 +1223,15 @@ public:
     }
 };
 
+//! @action ClearModifier
+//!
+//! @brief Clears a specific named modifier (disengages and unlocks it).
+//!
+//! @zone_usage  WidgetName    ClearModifier "Shift"
+//!
+//! @feedback None.
+//!
+//! @params String param: modifier name (Shift, Option, Control, Alt, Flip, Global, Marker, Nudge, Zoom, Scrub).
 class ClearModifier : public ModifierAction
 {
 public:
@@ -787,6 +1243,13 @@ public:
     }
 };
 
+//! @action ClearModifiers
+//!
+//! @brief Clears all modifiers at once (disengages and unlocks all).
+//!
+//! @zone_usage  WidgetName    ClearModifiers
+//!
+//! @feedback None.
 class ClearModifiers : public ModifierAction
 {
 public:
@@ -797,6 +1260,13 @@ public:
     }
 };
 
+//! @action ToggleChannel
+//!
+//! @brief Toggles the channel toggle state for the widget's channel number (used for per-channel mode switching).
+//!
+//! @zone_usage  WidgetName    ToggleChannel
+//!
+//! @feedback None (clears color only).
 class SetToggleChannel : public ManagerPressOnlyAction
 {
 public:
@@ -811,6 +1281,15 @@ public:
     }
 };
 
+//! @action ToggleOSK
+//!
+//! @brief Toggles the On-Screen Keyboard (OSK) overlay for this surface.
+//!
+//! @zone_usage  WidgetName    ToggleOSK
+//!
+//! @feedback Toggle — 1.0 when OSK is enabled, 0.0 when disabled.
+//!
+//! @notes When enabling, publishes OSK layout, labels, and state. When disabling, closes the OSK panel.
 class ToggleOSK : public ManagerPressOnlyAction
 {
 public:

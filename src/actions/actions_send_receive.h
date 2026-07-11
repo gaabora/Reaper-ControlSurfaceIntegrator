@@ -29,6 +29,15 @@ using SendReceiveBase = std::conditional_t<Dir == SendDirection::Send, TrackSend
 // ─────────────────────────────────────────────────────────────────────────────
 // 1.  Volume  (VolumeAction base — inherits IsVolumeRelated)
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendVolume / TrackReceiveVolume
+//!
+//! @brief Controls the volume of a track send or receive.
+//!
+//! @zone_usage  Fader|    TrackSendVolume   or   Fader|    TrackReceiveVolume
+//!
+//! @feedback Continuous — sends normalized volume (0.0–1.0).
+//!
+//! @notes Touch for automation. Template instantiated for Send and Receive directions.
 template <SendDirection Dir>
 class TrackSendReceiveVolume : public VolumeAction
 {
@@ -88,9 +97,14 @@ using TrackReceiveVolume = TrackSendReceiveVolume<SendDirection::Receive>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2.  VolumeDB  (VolumeAction base)
-//     Both Send and Receive now use GetSlotIndex() for reads on the Receive
-//     path, consistent with the non-DB TrackReceiveVolume.
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendVolumeDB / TrackReceiveVolumeDB
+//!
+//! @brief Controls / displays send/receive volume in decibels.
+//!
+//! @zone_usage  WidgetName    TrackSendVolumeDB   or   WidgetName    TrackReceiveVolumeDB
+//!
+//! @feedback Continuous — sends volume as dB value.
 template <SendDirection Dir>
 class TrackSendReceiveVolumeDB : public VolumeAction
 {
@@ -145,6 +159,13 @@ using TrackReceiveVolumeDB = TrackSendReceiveVolumeDB<SendDirection::Receive>;
 // ─────────────────────────────────────────────────────────────────────────────
 // 3.  Pan  (PanAction base — inherits IsPanRelated)
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendPan / TrackReceivePan
+//!
+//! @brief Controls the pan of a track send or receive.
+//!
+//! @zone_usage  Rotary|    TrackSendPan   or   Rotary|    TrackReceivePan
+//!
+//! @feedback Continuous — sends normalized pan (0.0=left, 0.5=center, 1.0=right).
 template <SendDirection Dir>
 class TrackSendReceivePan : public PanAction
 {
@@ -205,6 +226,13 @@ using TrackReceivePan = TrackSendReceivePan<SendDirection::Receive>;
 // ─────────────────────────────────────────────────────────────────────────────
 // 4.  PanPercent  (PanAction base)
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendPanPercent / TrackReceivePanPercent
+//!
+//! @brief Controls send/receive pan as a percentage value (-100 to +100).
+//!
+//! @zone_usage  WidgetName    TrackSendPanPercent   or   WidgetName    TrackReceivePanPercent
+//!
+//! @feedback Continuous — sends pan as percentage.
 template <SendDirection Dir>
 class TrackSendReceivePanPercent : public PanAction
 {
@@ -257,8 +285,15 @@ using TrackSendPanPercent = TrackSendReceivePanPercent<SendDirection::Send>;
 using TrackReceivePanPercent = TrackSendReceivePanPercent<SendDirection::Receive>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5.  Mute  (TrackSendAction / TrackReceiveAction base — fixes §2.3 issue)
+// 5.  Mute  (TrackSendAction / TrackReceiveAction base)
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendMute / TrackReceiveMute
+//!
+//! @brief Toggles mute on/off for a track send or receive.
+//!
+//! @zone_usage  WidgetName    TrackSendMute   or   WidgetName    TrackReceiveMute
+//!
+//! @feedback Toggle — 1.0 when muted, 0.0 when unmuted.
 template <SendDirection Dir>
 class TrackSendReceiveMute : public SendReceiveBase<Dir>
 {
@@ -303,8 +338,15 @@ using TrackSendMute = TrackSendReceiveMute<SendDirection::Send>;
 using TrackReceiveMute = TrackSendReceiveMute<SendDirection::Receive>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6.  InvertPolarity  (fixes §2.3: was Action, now TrackSend/ReceiveAction)
+// 6.  InvertPolarity
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendInvertPolarity / TrackReceiveInvertPolarity
+//!
+//! @brief Toggles phase/polarity inversion for a track send or receive.
+//!
+//! @zone_usage  WidgetName    TrackSendInvertPolarity   or   WidgetName    TrackReceiveInvertPolarity
+//!
+//! @feedback Toggle — 1.0 when inverted, 0.0 when normal.
 template <SendDirection Dir>
 class TrackSendReceiveInvertPolarity : public SendReceiveBase<Dir>
 {
@@ -339,8 +381,15 @@ using TrackSendInvertPolarity = TrackSendReceiveInvertPolarity<SendDirection::Se
 using TrackReceiveInvertPolarity = TrackSendReceiveInvertPolarity<SendDirection::Receive>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7.  StereoMonoToggle  (fixes §2.3)
+// 7.  StereoMonoToggle
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendStereoMonoToggle / TrackReceiveStereoMonoToggle
+//!
+//! @brief Toggles stereo/mono mode for a track send or receive.
+//!
+//! @zone_usage  WidgetName    TrackSendStereoMonoToggle   or   WidgetName    TrackReceiveStereoMonoToggle
+//!
+//! @feedback Toggle — 1.0 when mono, 0.0 when stereo.
 template <SendDirection Dir>
 class TrackSendReceiveStereoMonoToggle : public SendReceiveBase<Dir>
 {
@@ -375,8 +424,17 @@ using TrackSendStereoMonoToggle = TrackSendReceiveStereoMonoToggle<SendDirection
 using TrackReceiveStereoMonoToggle = TrackSendReceiveStereoMonoToggle<SendDirection::Receive>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 8.  PrePost  (fixes §2.3)
+// 8.  PrePost
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendPrePost / TrackReceivePrePost
+//!
+//! @brief Cycles the send/receive routing mode: Post-Pan → Pre-FX → Post-FX → Post-Pan.
+//!
+//! @zone_usage  WidgetName    TrackSendPrePost   or   WidgetName    TrackReceivePrePost
+//!
+//! @feedback None (clears color only).
+//!
+//! @see TrackSendPrePostDisplay, TrackReceivePrePostDisplay
 template <SendDirection Dir>
 class TrackSendReceivePrePost : public SendReceiveBase<Dir>
 {
@@ -412,6 +470,13 @@ using TrackReceivePrePost = TrackSendReceivePrePost<SendDirection::Receive>;
 // ─────────────────────────────────────────────────────────────────────────────
 // 9.  NameDisplay  (TrackDisplayAction base)
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendNameDisplay / TrackReceiveNameDisplay
+//!
+//! @brief Displays the destination (send) or source (receive) track name.
+//!
+//! @zone_usage  DisplayWidget    TrackSendNameDisplay   or   DisplayWidget    TrackReceiveNameDisplay
+//!
+//! @feedback Text — sends the linked track's name string.
 template <SendDirection Dir>
 class TrackSendReceiveNameDisplay : public TrackDisplayAction
 {
@@ -439,9 +504,14 @@ using TrackReceiveNameDisplay = TrackSendReceiveNameDisplay<SendDirection::Recei
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 10.  VolumeDisplay  (TrackDisplayAction base)
-//      Send:    GetTrackSendUIVolPan + numHardwareSends → VAL2DB
-//      Receive: GetTrackSendInfo_Value "D_VOL" → VAL2DB
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendVolumeDisplay / TrackReceiveVolumeDisplay
+//!
+//! @brief Displays the send/receive volume in dB as formatted text.
+//!
+//! @zone_usage  DisplayWidget    TrackSendVolumeDisplay   or   DisplayWidget    TrackReceiveVolumeDisplay
+//!
+//! @feedback Text — sends formatted dB string (e.g. "  -6.02").
 template <SendDirection Dir>
 class TrackSendReceiveVolumeDisplay : public TrackDisplayAction
 {
@@ -478,9 +548,14 @@ using TrackReceiveVolumeDisplay = TrackSendReceiveVolumeDisplay<SendDirection::R
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 11.  PanDisplay  (TrackDisplayAction base)
-//      Send:    GetTrackSendUIVolPan + numHardwareSends → GetPanValueString
-//      Receive: GetTrackSendInfo_Value "D_PAN"         → GetPanValueString
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendPanDisplay / TrackReceivePanDisplay
+//!
+//! @brief Displays the send/receive pan position as formatted text.
+//!
+//! @zone_usage  DisplayWidget    TrackSendPanDisplay   or   DisplayWidget    TrackReceivePanDisplay
+//!
+//! @feedback Text — sends formatted pan string (e.g. "<50", "C", "30>").
 template <SendDirection Dir>
 class TrackSendReceivePanDisplay : public TrackDisplayAction
 {
@@ -515,8 +590,15 @@ using TrackSendPanDisplay = TrackSendReceivePanDisplay<SendDirection::Send>;
 using TrackReceivePanDisplay = TrackSendReceivePanDisplay<SendDirection::Receive>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 12.  StereoMonoDisplay  (TrackDisplayAction — fixes §2.3: was Action)
+// 12.  StereoMonoDisplay  (TrackDisplayAction)
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendStereoMonoDisplay / TrackReceiveStereoMonoDisplay
+//!
+//! @brief Displays the stereo/mono state of a send or receive.
+//!
+//! @zone_usage  DisplayWidget    TrackSendStereoMonoDisplay   or   DisplayWidget    TrackReceiveStereoMonoDisplay
+//!
+//! @feedback Text — "mono" or "stereo".
 template <SendDirection Dir>
 class TrackSendReceiveStereoMonoDisplay : public TrackDisplayAction
 {
@@ -544,6 +626,13 @@ using TrackReceiveStereoMonoDisplay = TrackSendReceiveStereoMonoDisplay<SendDire
 // ─────────────────────────────────────────────────────────────────────────────
 // 13.  PrePostDisplay  (TrackDisplayAction base)
 // ─────────────────────────────────────────────────────────────────────────────
+//! @action TrackSendPrePostDisplay / TrackReceivePrePostDisplay
+//!
+//! @brief Displays the send/receive routing mode as text.
+//!
+//! @zone_usage  DisplayWidget    TrackSendPrePostDisplay   or   DisplayWidget    TrackReceivePrePostDisplay
+//!
+//! @feedback Text — "PostPan", "PreFX", or "PostFX".
 template <SendDirection Dir>
 class TrackSendReceivePrePostDisplay : public TrackDisplayAction
 {

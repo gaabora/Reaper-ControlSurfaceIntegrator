@@ -2,6 +2,13 @@
 
 #pragma once
 
+//! @action FXNameDisplay
+//!
+//! @brief Displays the zone alias/name for the current FX mapping.
+//!
+//! @zone_usage  DisplayWidget    FXNameDisplay
+//!
+//! @feedback Text — sends the zone alias name string.
 class FXNameDisplay : public DisplayAction
 {
 public:
@@ -15,6 +22,13 @@ public:
     }
 };
 
+//! @action FXMenuNameDisplay
+//!
+//! @brief Displays the FX plugin name for the current slot (for FX menu navigation).
+//!
+//! @zone_usage  DisplayWidget    FXMenuNameDisplay
+//!
+//! @feedback Text — sends the FX plugin alias/name. Clears if slot is empty.
 class FXMenuNameDisplay : public DisplayAction
 {
 public:
@@ -34,6 +48,13 @@ public:
     }
 };
 
+//! @action SpeakFXMenuName
+//!
+//! @brief Speaks the FX plugin name for the current slot via OSARA screen reader.
+//!
+//! @zone_usage  WidgetName    SpeakFXMenuName
+//!
+//! @feedback None.
 class SpeakFXMenuName : public PressOnlyAction
 {
 public:
@@ -51,6 +72,13 @@ public:
     }
 };
 
+//! @action FXParamNameDisplay
+//!
+//! @brief Displays the name of an FX parameter for the current slot and param index.
+//!
+//! @zone_usage  DisplayWidget    FXParamNameDisplay
+//!
+//! @feedback Text — sends the FX parameter name string. Uses custom display name if set, otherwise queries Reaper.
 class FXParamNameDisplay : public DisplayAction
 {
 public:
@@ -70,6 +98,15 @@ public:
     }
 };
 
+//! @action TCPFXParamNameDisplay
+//!
+//! @brief Displays the name of a TCP-exposed FX parameter.
+//!
+//! @zone_usage  DisplayWidget    TCPFXParamNameDisplay 0
+//!
+//! @feedback Text — sends the parameter name. Clears if the TCP param index doesn't exist.
+//!
+//! @params Int param: TCP FX parameter index.
 class TCPFXParamNameDisplay : public DisplayAction
 {
 public:
@@ -95,6 +132,13 @@ public:
     }
 };
 
+//! @action FXParamValueDisplay
+//!
+//! @brief Displays the formatted value of an FX parameter for the current slot and param index.
+//!
+//! @zone_usage  DisplayWidget    FXParamValueDisplay
+//!
+//! @feedback Text — sends the formatted parameter value string (e.g. "3.5 dB", "100%").
 class FXParamValueDisplay : public DisplayAction
 {
 public:
@@ -110,6 +154,15 @@ public:
     }
 };
 
+//! @action TCPFXParamValueDisplay
+//!
+//! @brief Displays the formatted value of a TCP-exposed FX parameter.
+//!
+//! @zone_usage  DisplayWidget    TCPFXParamValueDisplay 0
+//!
+//! @feedback Text — sends the formatted parameter value. Clears if TCP param index doesn't exist.
+//!
+//! @params Int param: TCP FX parameter index.
 class TCPFXParamValueDisplay : public DisplayAction
 {
 public:
@@ -136,6 +189,13 @@ public:
     }
 };
 
+//! @action LastTouchedFXParamNameDisplay
+//!
+//! @brief Displays the name of the globally last-touched FX parameter.
+//!
+//! @zone_usage  DisplayWidget    LastTouchedFXParamNameDisplay
+//!
+//! @feedback Text — sends the parameter name string. Clears if no FX param was recently touched.
 class LastTouchedFXParamNameDisplay : public DisplayAction
 {
 public:
@@ -157,6 +217,13 @@ public:
     }
 };
 
+//! @action LastTouchedFXParamValueDisplay
+//!
+//! @brief Displays the formatted value of the globally last-touched FX parameter.
+//!
+//! @zone_usage  DisplayWidget    LastTouchedFXParamValueDisplay
+//!
+//! @feedback Text — sends the formatted value string. Clears if no FX param was recently touched.
 class LastTouchedFXParamValueDisplay : public DisplayAction
 {
 public:
@@ -178,6 +245,13 @@ public:
     }
 };
 
+//! @action SpeakTrackSendDestination
+//!
+//! @brief Speaks the send destination track name and number via OSARA screen reader.
+//!
+//! @zone_usage  WidgetName    SpeakTrackSendDestination
+//!
+//! @feedback None.
 class SpeakTrackSendDestination : public PressOnlyAction
 {
 public:
@@ -197,6 +271,13 @@ public:
     }
 };
 
+//! @action SpeakTrackReceiveSource
+//!
+//! @brief Speaks the receive source track name and number via OSARA screen reader.
+//!
+//! @zone_usage  WidgetName    SpeakTrackReceiveSource
+//!
+//! @feedback None.
 class SpeakTrackReceiveSource : public PressOnlyAction
 {
 public:
@@ -216,6 +297,15 @@ public:
     }
 };
 
+//! @action FixedTextDisplay
+//!
+//! @brief Displays a fixed text string on a display widget (never changes).
+//!
+//! @zone_usage  DisplayWidget    FixedTextDisplay "My Label"
+//!
+//! @feedback Text — always sends the string param value.
+//!
+//! @params String param: the text to display.
 class FixedTextDisplay : public DisplayAction
 {
 public:
@@ -226,6 +316,15 @@ public:
     }
 };
 
+//! @action FixedRGBColorDisplay
+//!
+//! @brief Sets a fixed RGB color on a color-capable widget (e.g. scribble strip background).
+//!
+//! @zone_usage  DisplayWidget    FixedRGBColorDisplay
+//!
+//! @feedback Value — sends 0.0 (color is set via the widget's color properties, not the value).
+//!
+//! @properties OnColor, OffColor, etc.
 class FixedRGBColorDisplay : public DisplayAction
 {
 public:
@@ -236,6 +335,13 @@ public:
     }
 };
 
+//! @action TrackNameDisplay
+//!
+//! @brief Displays the track name for the mapped track.
+//!
+//! @zone_usage  DisplayWidget    TrackNameDisplay
+//!
+//! @feedback Text — sends the track name string.
 class TrackNameDisplay : public TrackDisplayAction
 {
 public:
@@ -253,6 +359,13 @@ public:
     }
 };
 
+//! @action TrackNumberDisplay
+//!
+//! @brief Displays the track number (1-based index) for the mapped track.
+//!
+//! @zone_usage  DisplayWidget    TrackNumberDisplay
+//!
+//! @feedback Text — sends the track number as a string.
 class TrackNumberDisplay : public TrackDisplayAction
 {
 public:
@@ -270,6 +383,13 @@ public:
     }
 };
 
+//! @action TrackRecordInputDisplay
+//!
+//! @brief Displays the current record input configuration for the mapped track.
+//!
+//! @zone_usage  DisplayWidget    TrackRecordInputDisplay
+//!
+//! @feedback Text — sends input description (e.g. "None", "MD All", "MD 5", "1+2", "Mno 3", "Multi").
 class TrackRecordInputDisplay : public TrackDisplayAction
 {
 public:
@@ -314,6 +434,13 @@ public:
     }
 };
 
+//! @action TrackInvertPolarityDisplay
+//!
+//! @brief Displays the polarity/phase state for the mapped track.
+//!
+//! @zone_usage  DisplayWidget    TrackInvertPolarityDisplay
+//!
+//! @feedback Text — "Normal" or "Invert".
 class TrackInvertPolarityDisplay : public TrackDisplayAction
 {
 public:
@@ -330,6 +457,13 @@ public:
     }
 };
 
+//! @action TrackVolumeDisplay
+//!
+//! @brief Displays the track volume in dB for the mapped track.
+//!
+//! @zone_usage  DisplayWidget    TrackVolumeDisplay
+//!
+//! @feedback Text — sends volume as formatted dB string (e.g. "  -6.02").
 class TrackVolumeDisplay : public TrackDisplayAction
 {
 public:
@@ -349,6 +483,13 @@ public:
     }
 };
 
+//! @action TrackPanDisplay
+//!
+//! @brief Displays the track pan position as a formatted string.
+//!
+//! @zone_usage  DisplayWidget    TrackPanDisplay
+//!
+//! @feedback Text — sends pan value string (e.g. "<50", "C", "30>").
 class TrackPanDisplay : public TrackDisplayAction
 {
 public:
@@ -367,6 +508,13 @@ public:
     }
 };
 
+//! @action TrackPanWidthDisplay
+//!
+//! @brief Displays the track stereo width as a formatted string.
+//!
+//! @zone_usage  DisplayWidget    TrackPanWidthDisplay
+//!
+//! @feedback Text — sends width value string.
 class TrackPanWidthDisplay : public TrackDisplayAction
 {
 public:
@@ -384,6 +532,13 @@ public:
     }
 };
 
+//! @action TrackPanLeftDisplay
+//!
+//! @brief Displays the left channel dual-pan position as a formatted string.
+//!
+//! @zone_usage  DisplayWidget    TrackPanLeftDisplay
+//!
+//! @feedback Text — sends pan L value string (e.g. "L<50", "LC", "L30>").
 class TrackPanLeftDisplay : public TrackDisplayAction
 {
 public:
@@ -401,6 +556,13 @@ public:
     }
 };
 
+//! @action TrackPanRightDisplay
+//!
+//! @brief Displays the right channel dual-pan position as a formatted string.
+//!
+//! @zone_usage  DisplayWidget    TrackPanRightDisplay
+//!
+//! @feedback Text — sends pan R value string.
 class TrackPanRightDisplay : public TrackDisplayAction
 {
 public:
@@ -418,6 +580,15 @@ public:
     }
 };
 
+//! @action TrackPanAutoLeftDisplay
+//!
+//! @brief Displays the auto-left pan value: standard pan in normal mode, left dual-pan in dual pan mode.
+//!
+//! @zone_usage  DisplayWidget    TrackPanAutoLeftDisplay
+//!
+//! @feedback Text — sends formatted pan or left-pan string depending on pan mode.
+//!
+//! @see TrackPanAutoRightDisplay
 class TrackPanAutoLeftDisplay : public TrackDisplayAction
 {
 public:
@@ -440,6 +611,15 @@ public:
     }
 };
 
+//! @action TrackPanAutoRightDisplay
+//!
+//! @brief Displays the auto-right value: width in normal mode, right dual-pan in dual pan mode.
+//!
+//! @zone_usage  DisplayWidget    TrackPanAutoRightDisplay
+//!
+//! @feedback Text — sends formatted width or right-pan string depending on pan mode.
+//!
+//! @see TrackPanAutoLeftDisplay
 class TrackPanAutoRightDisplay : public TrackDisplayAction
 {
 public:

@@ -1,6 +1,6 @@
 #pragma once
 //
-//  preamble.h — Common includes required by all CSI class headers.
+//  preamble.h — Common includes required by all class headers.
 //  Each extracted class header includes this first, then adds class-specific includes.
 //
 

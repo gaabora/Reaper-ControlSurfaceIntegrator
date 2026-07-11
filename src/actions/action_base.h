@@ -3,6 +3,13 @@
 #ifndef control_surface_action_contexts_h
     #define control_surface_action_contexts_h
 
+//! @action NoAction
+//!
+//! @brief Clears the widget to zero/empty. Used when no action is mapped.
+//!
+//! @zone_usage  WidgetName    NoAction
+//!
+//! @feedback Clears widget value to 0.0 and text to "".
 class NoAction : public Action
 {
 public:
@@ -14,12 +21,30 @@ public:
     }
 };
 
+//! @action InvalidAction
+//!
+//! @brief Placeholder created when an unrecognized action name is used in a .zon file. Behaves like NoAction.
+//!
+//! @zone_usage  (generated automatically for unknown action names)
+//!
+//! @feedback Clears widget (inherited from NoAction).
 class InvalidAction : public NoAction
 {
 public:
     ActionType GetType() const override { return ActionType::InvalidAction; }
 };
 
+//! @action Reaper
+//!
+//! @brief Executes a native Reaper action by command ID or named command string.
+//!
+//! @zone_usage  WidgetName    Reaper 40340   or   WidgetName    Reaper _SWS_SHOWMASTER
+//!
+//! @feedback Toggle — queries GetToggleCommandState(); 1.0 if on, 0.0 if off or stateless.
+//!
+//! @params First param: command ID (int) or named command string (e.g. _SWS_SHOWMASTER).
+//!
+//! @notes Supports Increase/Decrease pseudo-modifiers for directional actions. Can trigger ReloadPluginException for project-switching commands.
 class ReaperAction : public Action
 {
 public:
@@ -52,6 +77,13 @@ public:
     }
 };
 
+//! @action (FX base)
+//!
+//! @brief Base class for FX parameter control actions. Reads/writes FX param values with context validation and touch support.
+//!
+//! @feedback Continuous — sends FX param value (0.0–1.0) to widget. Skips update if value unchanged.
+//!
+//! @notes Subclasses override CheckCurrentContext() to validate track/FX/param existence. Supports touch for automation write via EndTrackFxParamEdit.
 class FXAction : public Action
 {
 public:
@@ -89,6 +121,9 @@ public:
     }
 };
 
+//! @action (settings base)
+//!
+//! @brief Base for configuration actions (SetBlinkTime, SetHoldTime, etc.). Ignores button release.
 class SettingsAction : public Action
 {
 public:
@@ -96,18 +131,31 @@ public:
     bool IgnoresRelease() const override { return true; }
 };
 
+//! @action (press-only base)
+//!
+//! @brief Base for actions that fire on press only, ignoring button release (value=0.0).
 class PressOnlyAction : public Action
 {
 public:
     bool IgnoresRelease() const override { return true; }
 };
 
+//! @action (switch base)
+//!
+//! @brief Base for toggle/switch actions that respond to both press AND release.
 class SwitchAction : public Action
 {
 public:
     virtual bool IsSwitch() { return true; }
     bool IgnoresRelease() const override { return false; }
 };
+//! @action (modifier base)
+//!
+//! @brief Base for modifier actions (Shift, Option, Control, etc.). Feedback reflects the modifier's engaged state.
+//!
+//! @feedback Toggle — sends 1.0 when modifier is engaged, 0.0 when disengaged.
+//!
+//! @notes Supports Blink property for visual indication of latched/held state. Both press and release are processed to handle latch timing.
 class ModifierAction : public Action
 {
 public:
@@ -117,6 +165,9 @@ public:
     }
 };
 
+//! @action (transport base)
+//!
+//! @brief Base for transport-related actions (Play, Stop, Record, Rewind, etc.). Ignores button release.
 class TransportAction : public Action
 {
 public:
@@ -124,11 +175,21 @@ public:
     bool IgnoresRelease() const override { return true; }
 };
 
+//! @action (display base)
+//!
+//! @brief Base for display-only actions that send text/value to a display widget but have no Do() behavior.
 class DisplayAction : public Action
 {
 public:
     virtual bool IsDisplayRelated() { return true; }
 };
+//! @action (track base)
+//!
+//! @brief Base for track-related actions. Provides helpers to read/toggle boolean track states across selected tracks.
+//!
+//! @feedback Sends current track state value. Clears widget if no selected tracks.
+//!
+//! @notes Uses GetSelectedTracks() which returns the navigator's track(s). IncludeMasterTrack() controls whether master track is included — overridden to false for actions like TrackRecordArm.
 class TrackAction : public Action
 {
 protected:
@@ -162,30 +223,45 @@ public:
     }
 };
 
+//! @action (press-only track base)
+//!
+//! @brief Track action that fires on press only, ignoring button release.
 class PressOnlyTrackAction : public TrackAction
 {
 public:
     bool IgnoresRelease() const override { return true; }
 };
 
+//! @action (track send base)
+//!
+//! @brief Base for track send actions. Used as the base class for Send-direction template instantiations.
 class TrackSendAction : public TrackAction
 {
 public:
     virtual bool IsTrackSendRelated() { return true; }
 };
 
+//! @action (press-only FX base)
+//!
+//! @brief FX action that fires on press only, ignoring button release. Used for ToggleFXBypass, ToggleFXOffline.
 class PressOnlyFXAction : public FXAction
 {
 public:
     bool IgnoresRelease() const override { return true; }
 };
 
+//! @action (track receive base)
+//!
+//! @brief Base for track receive actions. Used as the base class for Receive-direction template instantiations.
 class TrackReceiveAction : public TrackAction
 {
 public:
     virtual bool IsTrackReceiveRelated() { return true; }
 };
 
+//! @action (track display base)
+//!
+//! @brief Base for track-related display actions. Clears widget when no track is available; otherwise delegates to GetCurrentNormalizedValue.
 class TrackDisplayAction : public TrackAction
 {
 public:
@@ -199,12 +275,22 @@ public:
     }
 };
 
+//! @action (track meter base)
+//!
+//! @brief Base for meter/level display actions (TrackOutputMeter, FXGainReductionMeter, etc.).
 class TrackMeterAction : public TrackAction
 {
 public:
     virtual bool IsMeterRelated() { return true; }
 };
 
+//! @action (volume base)
+//!
+//! @brief Base for volume fader actions. Provides full get/set/touch cycle with CheckCurrentTrackContext validation.
+//!
+//! @feedback Continuous — sends normalized volume (0.0–1.0) to motorized fader or knob widget.
+//!
+//! @notes Touch support writes automation. Do() skips if value unchanged (prevents feedback loop).
 class VolumeAction : public TrackAction
 {
 public:
@@ -246,6 +332,9 @@ public:
     }
 };
 
+//! @action (pan base)
+//!
+//! @brief Base for pan/width actions. Marker class — concrete pan logic is in subclasses.
 class PanAction : public TrackAction
 
 {
