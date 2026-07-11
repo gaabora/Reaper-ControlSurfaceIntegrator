@@ -683,7 +683,7 @@ struct LEDRingRangeColor
     }
 };
 
-vector<LEDRingRangeColor> s_encoderRingColors;
+static vector<LEDRingRangeColor> s_encoderRingColors;
 
 static const vector<LEDRingRangeColor> &GetColorValues(const string &inputProperty)
 {
@@ -2716,7 +2716,7 @@ static unsigned char s_colorMap7[128][3] = { {0, 0, 0},    // 0
     {225, 240, 240}    // 127 - White ?
 };
 
-int GetColorIntFromRGB(int r, int g, int b)
+inline int GetColorIntFromRGB(int r, int g, int b)
 {
     if (b == 0 && g == 0 && r == 0)
         return 0;

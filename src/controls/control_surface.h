@@ -164,7 +164,13 @@ public:
         widgetsByName_.clear();
         CSIMessageGeneratorsByMessage_.clear();
     }
-    
+
+    // Used by widget-type handlers in widget_registrations.cpp to insert message generators.
+    void AddCSIMessageGenerator(const string &key, unique_ptr<CSIMessageGenerator> gen)
+    {
+        CSIMessageGeneratorsByMessage_.insert(make_pair(key, std::move(gen)));
+    }
+
     void Stop();
     void Play();
     void Record();
