@@ -25,6 +25,8 @@ struct ActionColorState {
     // Looks for a { … } block containing R G B triplets, #RRGGBB hex strings, or "Track".
     void ParseColors(const vector<string>& params);
 
+    bool HasConfiguredColor() const { return supportsColor || supportsTrackColor; }
+
 private:
     // Convert a list of hex-color strings (e.g. "#FF8000") to rgba_color values.
     void GetColorValues(vector<rgba_color>& result, const vector<string>& colors);

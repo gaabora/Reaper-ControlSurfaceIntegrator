@@ -90,6 +90,9 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         value_.rangeMaximum = 100.0;
     }
 
+    if (params.size() > 0)
+        color_.ParseColors(params);
+
     if ((actionName == "Reaper" || actionName == "ReaperDec" || actionName == "ReaperInc") && params.size() > 1) {
         if (isdigit(params[1][0])) {
             commandId_ = atol(params[1].c_str());
@@ -111,7 +114,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         }
 
         int feedbackState = GetToggleCommandState(commandId_);
-        if (feedbackState == -1 && provideFeedback_) {
+        if (feedbackState == -1 && provideFeedback_ && !color_.HasConfiguredColor()) {
             provideFeedback_ = false;
             this->LogMessage(string("action '") + DAW::GetCommandName(commandId_) + "' does not provide feedback", DEBUG_LEVEL_DEBUG);
         }
@@ -136,9 +139,6 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         stringParam_ = params[1];
         paramIndex_ = atol(params[2].c_str());
     }
-
-    if (params.size() > 0)
-        color_.ParseColors(params);
 
     GetSteppedValues(widget, action_, zone_, paramIndex_, params, widgetProperties_, value_.deltaValue, value_.acceleratedDeltaValues, value_.rangeMinimum, value_.rangeMaximum, value_.steppedValues, value_.acceleratedTickValues);
 
