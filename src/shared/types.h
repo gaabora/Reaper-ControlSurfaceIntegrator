@@ -69,7 +69,7 @@ static const char* const s_EndAutoSection = "#End auto generated section";
 // -------------------------------------------------------------------------
 // struct osd_data
 // -------------------------------------------------------------------------
-static vector<string> ExplodeString(const char separator, const string& value) {
+inline vector<string> ExplodeString(const char separator, const string& value) {
     vector<string> result;
     size_t start = 0;
     size_t end = value.find(separator);
