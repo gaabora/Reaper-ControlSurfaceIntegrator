@@ -16,10 +16,13 @@ local host = dofile(scriptDir .. "script_host.lua")
 local imgui = host.RequireImGui(scriptDir)
 if not imgui then return end
 
+local font_cache = require("font_cache")
 local osd_ui = require("osd_ui")
+local theme = require("theme_settings")
 
 local ctx = nil
 local FONT_SMALL = nil
+local fontCache = nil
 
 local function main()
     if not host.IsContextValid(ctx) then
@@ -29,7 +32,7 @@ local function main()
 
     osd_ui.PollOSD()
 
-    local screenW, screenH = 1920, 1080
+    local screenW, screenH = theme.OSD.fallback_screen_width, theme.OSD.fallback_screen_height
     local originX, originY = 0, 0
 
     -- Prefer REAPER client rectangle to avoid covering app title bar.
@@ -63,13 +66,12 @@ local function Init()
     host.SetToolbarState(1)
     osd_ui.LoadSettings()
 
-    local fonts
-    ctx, fonts = host.CreateContext("CSI OSD", {
-        { key = "default", family = "sans-serif", size = 13 },
-        { key = "small", family = "sans-serif", size = 11 },
-    })
+    ctx = host.CreateContext("CSI OSD")
+    fontCache = font_cache.New(imgui, ctx)
+    local fonts = fontCache:Build(theme.DEFAULT_FONT_DEFINITIONS)
     FONT_SMALL = fonts.small
     osd_ui.SetFont(FONT_SMALL)
+    osd_ui.SetFontCache(fontCache)
 
     host.OnExit(function()
         osd_ui.SaveSettings()

@@ -7,7 +7,7 @@
 ## Ownership
 
 - `CSI OSK on-screen keyboard.lua` and `CSI OSD on-screen display.lua` entry scripts.
-- `osk_data.lua`, `osk_render.lua`, `osk_input.lua`, `osk_config.lua`, `osd_ui.lua`, `ui_components.lua`, `script_host.lua`, `action_line.lua`, `layout_parser.lua`, `label_replacements.lua`, and `self_checks.lua` shared modules.
+- `osk_data.lua`, `osk_render.lua`, `osk_input.lua`, `osk_config.lua`, `osd_ui.lua`, `ui_components.lua`, `script_host.lua`, `action_line.lua`, `layout_parser.lua`, `label_replacements.lua`, `self_checks.lua`, `theme_settings.lua`, `font_cache.lua`, `settings_store.lua`, `osk_settings_ui.lua`, `osk_widget_math.lua`, `osk_draw_primitives.lua`, `osk_widget_drawers.lua`, `osk_config_model.lua`, `osk_config_protocol.lua`, and `osk_config_view.lua` shared modules.
 
 ## Local Contracts
 
@@ -35,12 +35,15 @@
 
 ## Work Guidance
 
-- Keep data acquisition/parsing in `osk_data.lua`, drawing in `osk_render.lua`, input dispatch state in `osk_input.lua`, binding editing in `osk_config.lua`, and OSD behavior in `osd_ui.lua`.
+- Keep data acquisition/parsing in `osk_data.lua`, drawing coordination in `osk_render.lua`, input dispatch state in `osk_input.lua`, binding editing coordination in `osk_config.lua`, and OSD behavior in `osd_ui.lua`.
 - Keep reusable ReaImGui widget helpers in `ui_components.lua` so entry scripts and feature modules do not re-implement the same UI patterns.
 - Keep shared script startup, context creation, toolbar state, and shutdown boilerplate in `script_host.lua` so the entry scripts stay thin orchestration layers.
 - Keep serialized action-line, layout, and label-replacement contracts in `action_line.lua`, `layout_parser.lua`, and `label_replacements.lua` so UI modules do not own those formats.
 - Keep pure Lua parser checks registered through `self_checks.lua` when adding or changing parser module self-checks.
 - Keep OSD color, alpha, contrast, and centered text drawing in `osd_ui.lua` so standalone OSD and the embedded OSK bar share one renderer.
+- Keep visual defaults, reusable style tokens, and color/font helpers in `theme_settings.lua`; keep per-context font attachment/caching in `font_cache.lua`; keep typed ExtState setting coercion in `settings_store.lua`.
+- Keep OSK context-menu settings UI in `osk_settings_ui.lua`, low-level widget math in `osk_widget_math.lua`, reusable draw primitives in `osk_draw_primitives.lua`, and widget shape drawing/interaction plumbing in `osk_widget_drawers.lua`.
+- Keep config binding parsing/state helpers in `osk_config_model.lua`, ExtState request/response handling in `osk_config_protocol.lua`, and config-window rendering in `osk_config_view.lua`.
 - Avoid duplicating shared UI behavior in the entry scripts.
 - Keep action edits reversible until the user explicitly saves them.
 

@@ -1,4 +1,5 @@
 local imgui = require "imgui" "0.9.3"
+local theme = require("theme_settings")
 
 local M = {}
 
@@ -45,9 +46,9 @@ end
 
 function M.DirtyActionButton(ctx, label, enabled, onClick)
     local clicked = M.Disabled(ctx, not enabled, function()
-        imgui.PushStyleColor(ctx, imgui.Col_Button, 0x8f2424ff)
-        imgui.PushStyleColor(ctx, imgui.Col_ButtonHovered, 0xb83232ff)
-        imgui.PushStyleColor(ctx, imgui.Col_ButtonActive, 0x701b1bff)
+        imgui.PushStyleColor(ctx, imgui.Col_Button, theme.DIRTY_BUTTON_COLORS.button)
+        imgui.PushStyleColor(ctx, imgui.Col_ButtonHovered, theme.DIRTY_BUTTON_COLORS.hovered)
+        imgui.PushStyleColor(ctx, imgui.Col_ButtonActive, theme.DIRTY_BUTTON_COLORS.active)
         local pressed = imgui.Button(ctx, label)
         imgui.PopStyleColor(ctx, 3)
         return pressed
@@ -95,6 +96,29 @@ function M.SliderWithInput(ctx, label, currentValue, minValue, maxValue, step, o
     end
 
     return changed, newValue
+end
+
+function M.ComboEnum(ctx, label, currentValue, items)
+    local labels = {}
+    local selectedIndex = 0
+    for index, item in ipairs(items or {}) do
+        labels[#labels + 1] = item.label
+        if item.value == currentValue then
+            selectedIndex = index - 1
+        end
+    end
+    local changed
+    changed, selectedIndex = imgui.Combo(ctx, label, selectedIndex, table.concat(labels, "\0") .. "\0")
+    if not changed then return false, currentValue, selectedIndex end
+    local selected = items and items[selectedIndex + 1]
+    return true, selected and selected.value or currentValue, selectedIndex
+end
+
+function M.SaveCancelButtons(ctx, saveId, cancelId, buttonWidth)
+    local saveClicked = imgui.Button(ctx, saveId, buttonWidth, 0)
+    imgui.SameLine(ctx)
+    local cancelClicked = imgui.Button(ctx, cancelId, buttonWidth, 0)
+    return saveClicked, cancelClicked
 end
 
 function M.LabelReplacementEditor(ctx, label, value, helpText, options)

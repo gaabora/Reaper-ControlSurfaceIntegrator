@@ -1,6 +1,8 @@
 local r = reaper
 local layout_parser = require("layout_parser")
 local label_replacements = require("label_replacements")
+local settings_store = require("settings_store")
+local theme = require("theme_settings")
 
 local M = {}
 
@@ -11,21 +13,6 @@ M.EXT_SETTINGS = "ReaCtrlSurf_OSK_SETTINGS"
 local SURFACE_POSITION_PREFIX = "SurfacePosition_"
 local SURFACE_ENABLED_PREFIX = "SurfaceEnabled_"
 local POSITION_SAVE_DELAY_SECONDS = 0.25
-
-M.COLORS = {
-    win_bg = 0x1e1e1eff,
-    button_off = 0x3a3a3aff,
-    button_on = 0xffb029ff,
-    button_hover = 0x4a6a9aff,
-    text_normal = 0x000000ff,
-    text_dim = 0x444444ff,
-    round_off = 0x444444ff,
-    round_on_play = 0x40a040ff,
-    round_on_stop = 0x808080ff,
-    round_on_rec = 0xcc3030ff,
-    arrow_off = 0x505050ff,
-    arrow_on = 0x70b070ff,
-}
 
 M.surfaces = {}
 M.layouts = {}
@@ -51,19 +38,17 @@ M.LABEL_REPLACEMENTS = {}
 M.labelReplacementRules = {}
 
 M.vars = {
-    zoom = 0.9, interactive = true, aspect = 1.4,
-    font_size = 13,
-    font_family = "sans-serif",
-    line_height = 0.6,
-    label_case = "original",
+    interactive = true,
     invert_scroll = false,
-    pad_h = 6, pad_v = 6,
-    transparency = 0.6,
-    btn_transparency = 0.9,
     tooltip_delay = 1.0,
-    arrow_angle = 120,
-    titlebar_enabled = true,
     label_replacements = "",
+}
+
+local SETTINGS_SCHEMA = {
+    interactive = { type = "boolean", default = true },
+    invert_scroll = { type = "boolean", default = false },
+    tooltip_delay = { type = "number", default = 1.0, min = 0.0, max = 5.0 },
+    label_replacements = { type = "string", default = "" },
 }
 
 local function clearTable(tbl)
@@ -148,49 +133,6 @@ function M.GetFaderLocalValue(surfName, widgetName, rawValue)
     return localValue.displayValue
 end
 
-function M.hexToImCol(hex)
-    if not hex then return M.COLORS.button_off end
-    if hex:sub(1, 1) == "#" then hex = hex:sub(2) end
-    if #hex < 6 then return M.COLORS.button_off end
-    local red = tonumber(hex:sub(1, 2), 16) or 0
-    local green = tonumber(hex:sub(3, 4), 16) or 0
-    local blue = tonumber(hex:sub(5, 6), 16) or 0
-    return (red << 24) | (green << 16) | (blue << 8) | 0xFF
-end
-
-function M.dimColor(col, factor)
-    local red = math.floor(((col >> 24) & 0xFF) * factor)
-    local green = math.floor(((col >> 16) & 0xFF) * factor)
-    local blue = math.floor(((col >> 8) & 0xFF) * factor)
-    return (red << 24) | (green << 16) | (blue << 8) | 0xFF
-end
-
-function M.brightenColor(col, amount)
-    local red = math.min(255, ((col >> 24) & 0xFF) + amount)
-    local green = math.min(255, ((col >> 16) & 0xFF) + amount)
-    local blue = math.min(255, ((col >> 8) & 0xFF) + amount)
-    return (red << 24) | (green << 16) | (blue << 8) | 0xFF
-end
-
-function M.ensureMinLuminance(col, minLum)
-    minLum = minLum or 80
-    local red = (col >> 24) & 0xFF
-    local green = (col >> 16) & 0xFF
-    local blue = (col >> 8) & 0xFF
-    local luminance = 0.299 * red + 0.587 * green + 0.114 * blue
-    if luminance < minLum then
-        local add = minLum - luminance
-        red = math.min(255, math.floor(red + add))
-        green = math.min(255, math.floor(green + add))
-        blue = math.min(255, math.floor(blue + add))
-    end
-    return (red << 24) | (green << 16) | (blue << 8) | 0xFF
-end
-
-function M.applyAlpha(col, alpha)
-    return (col & 0xFFFFFF00) | math.floor(alpha * 255)
-end
-
 function M.stripLabelPrefix(text)
     return label_replacements.StripLabelPrefix(text)
 end
@@ -232,7 +174,7 @@ local function applySentenceCase(text)
 end
 
 function M.applyLabelCase(text)
-    local mode = tostring(M.vars.label_case or "original")
+    local mode = tostring(theme.osk.label_case or "original")
     if mode == "title" then return applyTitleCase(text) end
     if mode == "sentence" then return applySentenceCase(text) end
     if mode == "upper" then return tostring(text or ""):upper() end
@@ -242,7 +184,7 @@ end
 
 function M.getProcessedLabel(text)
     if not text or text == "" then return "" end
-    local cacheKey = tostring(M.vars.label_case or "original") .. "\0" .. text
+    local cacheKey = tostring(theme.osk.label_case or "original") .. "\0" .. text
     local cached = M.processedLabelCache[cacheKey]
     if cached then return cached end
     cached = M.applyLabelCase(M.processLabel(text))
@@ -421,7 +363,7 @@ function M.ParseState(stateStr)
         local kind = rest:match("K:([%a]+)") or ""
         result[name] = {
             value = value,
-            color = M.hexToImCol(colorHex),
+            color = theme.HexToImCol(colorHex, theme.OSK_COLORS.button_off),
             hasValue = availability ~= "0",
             kind = kind,
         }
@@ -449,44 +391,17 @@ function M.ParseLabelMap(str)
 end
 
 function M.LoadSettings()
-    for key, value in pairs(M.vars) do
-        if r.HasExtState(M.EXT_SETTINGS, key) then
-            local extValue = r.GetExtState(M.EXT_SETTINGS, key)
-            if type(value) == "number" then
-                M.vars[key] = tonumber(extValue) or value
-            elseif type(value) == "boolean" then
-                M.vars[key] = extValue == "true"
-            else
-                M.vars[key] = extValue
-            end
-        end
-    end
-    M.vars.font_size = math.max(8, math.min(32, tonumber(M.vars.font_size) or 13))
-    M.vars.line_height = math.max(0.45, math.min(1.25, tonumber(M.vars.line_height) or 0.6))
-    if M.vars.font_family ~= "sans-serif" and M.vars.font_family ~= "serif" and M.vars.font_family ~= "monospace" then
-        M.vars.font_family = "sans-serif"
-    end
-    if M.vars.label_case ~= "original" and M.vars.label_case ~= "title" and M.vars.label_case ~= "sentence" and M.vars.label_case ~= "upper" and M.vars.label_case ~= "lower" then
-        M.vars.label_case = "original"
-    end
+    settings_store.Load(M.EXT_SETTINGS, SETTINGS_SCHEMA, M.vars)
     M.parseLabelReplacements(M.vars.label_replacements)
 end
 
 function M.SaveSettings()
-    for key, value in pairs(M.vars) do
-        r.SetExtState(M.EXT_SETTINGS, key, tostring(value), true)
-    end
+    settings_store.Save(M.EXT_SETTINGS, SETTINGS_SCHEMA, M.vars)
 end
 
 function M.LoadSurfacePosition(surfName)
     if M.surfacePos[surfName] then return M.surfacePos[surfName] end
-    local rawPosition = r.GetExtState(M.EXT_SETTINGS, SURFACE_POSITION_PREFIX .. surfName)
-    local xText, yText = rawPosition:match("^([%-%d%.]+),([%-%d%.]+)$")
-    local x = tonumber(xText)
-    local y = tonumber(yText)
-    if x and y then
-        M.surfacePos[surfName] = { x = x, y = y }
-    end
+    M.surfacePos[surfName] = settings_store.ReadPair(M.EXT_SETTINGS, SURFACE_POSITION_PREFIX .. surfName)
     return M.surfacePos[surfName]
 end
 
@@ -501,8 +416,7 @@ function M.FlushSurfacePositions(force)
     for surfName in pairs(dirtySurfacePositions) do
         local position = M.surfacePos[surfName]
         if position then
-            local serialized = string.format("%.3f,%.3f", position.x, position.y)
-            r.SetExtState(M.EXT_SETTINGS, SURFACE_POSITION_PREFIX .. surfName, serialized, true)
+            settings_store.WritePair(M.EXT_SETTINGS, SURFACE_POSITION_PREFIX .. surfName, position)
         end
         dirtySurfacePositions[surfName] = nil
     end

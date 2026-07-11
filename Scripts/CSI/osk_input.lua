@@ -2,22 +2,17 @@ local r = reaper
 local imgui = require "imgui" "0.9.3"
 
 local data = require("osk_data")
+local math_utils = require("osk_widget_math")
 
 local M = {}
 
 local WHEEL_SEND_INTERVAL_SECONDS = 0.040
 local WHEEL_MAX_EVENTS_PER_COMMAND = 8
-local FADER_VALUE_EPSILON = 0.0005
 local FADER_WHEEL_STEP = 0.02
 
 local pressedWidgets = {}  -- surface|widget -> true, tracks buttons currently held down
 local wheelStates = {}
 local faderStates = {}
-
-local function GetInteractionStateKey(surfaceName, widgetName)
-    if not surfaceName or surfaceName == "" or not widgetName or widgetName == "" then return nil end
-    return surfaceName .. "|" .. widgetName
-end
 
 local function GetWheelAccelerationIndex(eventInterval, wheelMagnitude)
     local accelerationIndex = 0
@@ -46,22 +41,18 @@ local function SendPendingWheelCommand(wheelState, now)
     return true
 end
 
-local function clampNormalized(value)
-    return math.max(0.0, math.min(1.0, tonumber(value) or 0.0))
-end
-
 local function SendFaderTouch(surfaceName, widgetName, touched)
     data.DebugFader(surfaceName, widgetName, "send WidgetTouch=" .. tostring(touched and 1 or 0), 0.0, "touch-" .. tostring(touched))
     r.SetExtState(data.EXT_CMD_SECTION, "WidgetTouch", table.concat({ surfaceName, widgetName, touched and 1 or 0 }, "|"), false)
 end
 
 local function SendFaderValue(surfaceName, widgetName, value, commandValueMapper)
-    local commandValue = clampNormalized(value)
+    local commandValue = math_utils.ClampNormalized(value)
     local mapped = false
     if commandValueMapper then commandValue = commandValueMapper(commandValue) end
     if commandValueMapper then mapped = true end
-    data.SetFaderLocalValue(surfaceName, widgetName, clampNormalized(value), commandValue)
-    data.DebugFader(surfaceName, widgetName, string.format("send WidgetValue displayNormalized=%.6f commandValue=%.6f mapped=%s", clampNormalized(value), tonumber(commandValue) or 0.0, tostring(mapped)), 0.0, "value")
+    data.SetFaderLocalValue(surfaceName, widgetName, math_utils.ClampNormalized(value), commandValue)
+    data.DebugFader(surfaceName, widgetName, string.format("send WidgetValue displayNormalized=%.6f commandValue=%.6f mapped=%s", math_utils.ClampNormalized(value), tonumber(commandValue) or 0.0, tostring(mapped)), 0.0, "value")
     r.SetExtState(data.EXT_CMD_SECTION, "WidgetValue", table.concat({ surfaceName, widgetName, string.format("%.6f", commandValue) }, "|"), false)
 end
 
@@ -70,7 +61,7 @@ function M.HandlePressDown(surfaceName, cell)
     local targetName = data.GetPressTarget(surfaceName, cell)
     if not targetName or targetName == "" then return end
 
-    local stateKey = GetInteractionStateKey(surfaceName, cell.name)
+    local stateKey = math_utils.GetInteractionStateKey(surfaceName, cell.name)
     if not stateKey then return end
 
     r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressDown", surfaceName .. "|" .. targetName, false)
@@ -78,7 +69,7 @@ function M.HandlePressDown(surfaceName, cell)
 end
 
 function M.HandlePressUp(surfaceName, cell)
-    local stateKey = GetInteractionStateKey(surfaceName, cell and cell.name)
+    local stateKey = math_utils.GetInteractionStateKey(surfaceName, cell and cell.name)
     if not stateKey or not pressedWidgets[stateKey] then return end
 
     local targetName = pressedWidgets[stateKey]
@@ -93,7 +84,7 @@ function M.HandleWheel(ctx, surfaceName, cell)
     if not imgui.IsItemHovered(ctx) then return end
     if not data.vars.interactive then return end
 
-    local stateKey = GetInteractionStateKey(surfaceName, targetName)
+    local stateKey = math_utils.GetInteractionStateKey(surfaceName, targetName)
     if not stateKey then return end
 
     local wheelState = wheelStates[stateKey]
@@ -140,21 +131,21 @@ function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentVal
     local valueTarget = data.GetValueTarget(surfaceName, cell) or cell.name
     local touchTarget = data.GetTouchTarget(surfaceName, cell) or valueTarget
 
-    local stateKey = GetInteractionStateKey(surfaceName, valueTarget)
+    local stateKey = math_utils.GetInteractionStateKey(surfaceName, valueTarget)
     if not stateKey then return end
 
     if valueHitHovered and not imgui.IsItemActive(ctx) then
         local wheelValue = imgui.GetMouseWheel(ctx)
         if data.vars.invert_scroll then wheelValue = -wheelValue end
         if wheelValue ~= 0 then
-            local value = clampNormalized((currentValue or 0.0) + wheelValue * FADER_WHEEL_STEP)
-            data.DebugFader(surfaceName, valueTarget, string.format("wheel rawWheel=%.6f currentNormalized=%.6f targetNormalized=%.6f mapper=%s", wheelValue, clampNormalized(currentValue), value, tostring(commandValueMapper ~= nil)), 0.0, "wheel")
+            local value = math_utils.ClampNormalized((currentValue or 0.0) + wheelValue * FADER_WHEEL_STEP)
+            data.DebugFader(surfaceName, valueTarget, string.format("wheel rawWheel=%.6f currentNormalized=%.6f targetNormalized=%.6f mapper=%s", wheelValue, math_utils.ClampNormalized(currentValue), value, tostring(commandValueMapper ~= nil)), 0.0, "wheel")
             local faderState = faderStates[stateKey]
             if not faderState then
                 faderState = { lastValue = nil, touched = false }
                 faderStates[stateKey] = faderState
             end
-            if not faderState.lastValue or math.abs(value - faderState.lastValue) >= FADER_VALUE_EPSILON then
+            if not faderState.lastValue or math.abs(value - faderState.lastValue) >= math_utils.FADER_VALUE_EPSILON then
                 SendFaderValue(surfaceName, valueTarget, value, commandValueMapper)
                 faderState.lastValue = value
             end
@@ -165,20 +156,20 @@ function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentVal
     if imgui.IsItemActivated(ctx) and valueHitHovered then
         faderState = { lastValue = nil, touched = true }
         faderStates[stateKey] = faderState
-        data.DebugFader(surfaceName, valueTarget, string.format("activated trackTop=%.2f trackBottom=%.2f currentNormalized=%.6f mapper=%s", trackTop, trackBottom, clampNormalized(currentValue), tostring(commandValueMapper ~= nil)), 0.0, "activated")
+        data.DebugFader(surfaceName, valueTarget, string.format("activated trackTop=%.2f trackBottom=%.2f currentNormalized=%.6f mapper=%s", trackTop, trackBottom, math_utils.ClampNormalized(currentValue), tostring(commandValueMapper ~= nil)), 0.0, "activated")
         SendFaderTouch(surfaceName, touchTarget, true)
     end
 
     local active = (imgui.IsItemActive(ctx) or imgui.IsItemDeactivated(ctx)) and faderState and faderState.touched
     if active then
         local _, mouseY = imgui.GetMousePos(ctx)
-        local value = clampNormalized((trackBottom - mouseY) / (trackBottom - trackTop))
+        local value = math_utils.ClampNormalized((trackBottom - mouseY) / (trackBottom - trackTop))
         data.DebugFader(surfaceName, valueTarget, string.format("drag mouseY=%.2f trackTop=%.2f trackBottom=%.2f targetNormalized=%.6f deactivated=%s", mouseY, trackTop, trackBottom, value, tostring(imgui.IsItemDeactivated(ctx))), 0.10, "drag")
         if not faderState then
             faderState = { lastValue = nil, touched = false }
             faderStates[stateKey] = faderState
         end
-        if not faderState.lastValue or math.abs(value - faderState.lastValue) >= FADER_VALUE_EPSILON or imgui.IsItemDeactivated(ctx) then
+        if not faderState.lastValue or math.abs(value - faderState.lastValue) >= math_utils.FADER_VALUE_EPSILON or imgui.IsItemDeactivated(ctx) then
             SendFaderValue(surfaceName, valueTarget, value, commandValueMapper)
             faderState.lastValue = value
         end
