@@ -9,6 +9,7 @@ M.EXT_CMD_SECTION = "ReaCtrlSurf_OSK_CMD"
 M.EXT_SETTINGS = "ReaCtrlSurf_OSK_SETTINGS"
 
 local SURFACE_POSITION_PREFIX = "SurfacePosition_"
+local SURFACE_ENABLED_PREFIX = "SurfaceEnabled_"
 local POSITION_SAVE_DELAY_SECONDS = 0.25
 
 M.COLORS = {
@@ -55,6 +56,7 @@ M.vars = {
     font_family = "sans-serif",
     line_height = 0.6,
     label_case = "original",
+    invert_scroll = false,
     pad_h = 6, pad_v = 6,
     transparency = 0.6,
     btn_transparency = 0.9,
@@ -107,6 +109,17 @@ end
 function M.GetStateValue(surfName, widgetName)
     local state = M.states[surfName] and M.states[surfName][widgetName]
     return state and state.value or 0.0
+end
+
+function M.HasStateValue(surfName, widgetName)
+    local state = M.states[surfName] and M.states[surfName][widgetName]
+    if not state then return false end
+    return state.hasValue ~= false
+end
+
+function M.GetStateKind(surfName, widgetName)
+    local state = M.states[surfName] and M.states[surfName][widgetName]
+    return state and state.kind or ""
 end
 
 function M.SetFaderLocalValue(surfName, widgetName, displayValue, commandValue)
@@ -301,8 +314,15 @@ function M.GetCellInfo(surfName, widgetName)
     return nil
 end
 
-function M.IsRelativeWidget(surfName, widgetName)
-    local cell = M.GetCellInfo(surfName, widgetName)
+local function cellHasInput(cell, inputName)
+    return cell and cell.inputs and cell.inputs[inputName] == true
+end
+
+local function cellHasFeedback(cell, feedbackName)
+    return cell and cell.feedbacks and cell.feedbacks[feedbackName] == true
+end
+
+local function isRelativeByFallback(cell)
     if not cell then return false end
     local name = tostring(cell.name or ""):lower()
     local group = tostring(cell.group or ""):lower()
@@ -315,6 +335,70 @@ function M.IsRelativeWidget(surfName, widgetName)
         or name:find("encoder", 1, true) ~= nil
         or group:find("rotary", 1, true) ~= nil
         or group:find("encoder", 1, true) ~= nil
+end
+
+function M.GetWidgetRole(surfName, widgetName)
+    local cell = M.GetCellInfo(surfName, widgetName)
+    if not cell then return "unknown" end
+    local role = tostring(cell.role or ""):lower()
+    if role ~= "" and role ~= "unknown" then return role end
+    if cellHasInput(cell, "absolute") or tostring(cell.shape or ""):lower() == "fader" then return "fader" end
+    if cellHasInput(cell, "relative") or isRelativeByFallback(cell) then return "rotary" end
+    if cellHasInput(cell, "press") then return "button" end
+    return "button"
+end
+
+function M.IsFaderWidget(surfName, widgetName)
+    return M.GetWidgetRole(surfName, widgetName) == "fader"
+end
+
+function M.IsRotaryWidget(surfName, widgetName)
+    return M.GetWidgetRole(surfName, widgetName) == "rotary"
+end
+
+function M.IsButtonWidget(surfName, widgetName)
+    return M.GetWidgetRole(surfName, widgetName) == "button"
+end
+
+function M.IsRelativeWidget(surfName, widgetName)
+    local cell = M.GetCellInfo(surfName, widgetName)
+    if cellHasInput(cell, "relative") then return true end
+    if cell and tostring(cell.input or "") ~= "" then return false end
+    return isRelativeByFallback(cell)
+end
+
+function M.HasValueFeedback(surfName, widgetName)
+    local cell = M.GetCellInfo(surfName, widgetName)
+    return cellHasFeedback(cell, "value")
+end
+
+function M.GetPressTarget(surfName, cell)
+    if not cell then return nil end
+    if cell.pressTarget and cell.pressTarget ~= "" then return cell.pressTarget end
+    if cellHasInput(cell, "press") then return cell.name end
+    if tostring(cell.input or "") == "" and not M.IsRelativeWidget(surfName, cell.name) then return cell.name end
+    return nil
+end
+
+function M.GetScrollTarget(surfName, cell)
+    if not cell then return nil end
+    if cell.scrollTarget and cell.scrollTarget ~= "" then return cell.scrollTarget end
+    if M.IsRelativeWidget(surfName, cell.name) then return cell.name end
+    return nil
+end
+
+function M.GetValueTarget(surfName, cell)
+    if not cell then return nil end
+    if cell.valueTarget and cell.valueTarget ~= "" then return cell.valueTarget end
+    if M.IsFaderWidget(surfName, cell.name) or cellHasInput(cell, "absolute") then return cell.name end
+    return nil
+end
+
+function M.GetTouchTarget(surfName, cell)
+    if not cell then return nil end
+    if cell.touchTarget and cell.touchTarget ~= "" then return cell.touchTarget end
+    if cellHasInput(cell, "touch") then return cell.name end
+    return nil
 end
 
 function M.ParseKeyValueList(str, entryParser)
@@ -333,9 +417,13 @@ function M.ParseState(stateStr)
     return M.ParseKeyValueList(stateStr, function(result, name, rest)
         local value = tonumber(rest:match("V:([%d%.%-]+)")) or 0
         local colorHex = rest:match("C:(#%x+)") or "#333333"
+        local availability = rest:match("A:(%d+)")
+        local kind = rest:match("K:([%a]+)") or ""
         result[name] = {
             value = value,
             color = M.hexToImCol(colorHex),
+            hasValue = availability ~= "0",
+            kind = kind,
         }
     end)
 end
@@ -421,6 +509,13 @@ function M.FlushSurfacePositions(force)
     surfacePositionSaveDue = 0
 end
 
+function M.SetSurfaceEnabled(surfName, enabled)
+    if not surfName or surfName == "" then return end
+    local value = enabled and "true" or "false"
+    r.SetExtState(M.EXT_SETTINGS, SURFACE_ENABLED_PREFIX .. surfName, value, true)
+    r.SetExtState(M.EXT_CMD_SECTION, "SurfaceEnabled", surfName .. "|" .. (enabled and "1" or "0"), false)
+end
+
 function M.PollData()
     if r.HasExtState(M.EXT_SECTION, "Command") then
         local cmd = r.GetExtState(M.EXT_SECTION, "Command")
@@ -454,12 +549,12 @@ function M.PollData()
         if stateChanged then
             for _, row in ipairs(M.layouts[surfName] or {}) do
                 for _, cell in ipairs(row) do
-                    if not cell.isSpacer and tostring(cell.shape or ""):lower() == "fader" then
+                    if not cell.isSpacer and (M.IsFaderWidget(surfName, cell.name) or M.IsRotaryWidget(surfName, cell.name)) then
                         local state = M.states[surfName] and M.states[surfName][cell.name]
                         if state then
-                            M.DebugFader(surfName, cell.name, string.format("state rawValue=%.6f shape=%s rowSpan=%s rawStateLen=%d", tonumber(state.value) or 0.0, tostring(cell.shape), tostring(cell.rowSpan), #(M.rawStates[surfName] or "")), 0.0, "state")
+                            M.DebugFader(surfName, cell.name, string.format("state rawValue=%.6f role=%s shape=%s rowSpan=%s rawStateLen=%d", tonumber(state.value) or 0.0, tostring(M.GetWidgetRole(surfName, cell.name)), tostring(cell.shape), tostring(cell.rowSpan), #(M.rawStates[surfName] or "")), 0.0, "state")
                         else
-                            M.DebugFader(surfName, cell.name, "state missing for fader in parsed state", 0.0, "state-missing")
+                            M.DebugFader(surfName, cell.name, "state missing for value widget in parsed state", 0.0, "state-missing")
                         end
                     end
                 end

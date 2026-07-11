@@ -9,6 +9,8 @@
  * Version: 1.0.0
 --]]
 
+-- local VSDEBUG = dofile("t:/apps/DevTools/VSCode/data/extensions/antoinebalaine.reascript-docs-0.1.16/debugger/LoadDebug.lua") -- TODO: move to some common script where it can be adjusted centralized so it can be used for all scripts
+
 local r = reaper
 local scriptDir = debug.getinfo(1, "S").source:match("@(.+[\\/])") or ""
 local host = dofile(scriptDir .. "script_host.lua")
@@ -24,6 +26,7 @@ local ui = require("ui_components")
 local ctx = nil
 local FONT = nil
 local FONT_SMALL = nil
+local CONFIG_FONT = nil
 local surfaceWindows = {}
 local fontCache = {}
 
@@ -147,7 +150,7 @@ local function AnyWindowOpen()
     return false
 end
 
-local function RenderContextMenu(activeCtx, popupId)
+local function RenderContextMenu(activeCtx, popupId, surfName)
     if not imgui.BeginPopupContextWindow(activeCtx, popupId) then return end
 
     for _, action in ipairs(TOOLBAR_ACTIONS) do
@@ -195,6 +198,9 @@ local function RenderContextMenu(activeCtx, popupId)
     changed, data.vars.interactive = imgui.Checkbox(activeCtx, "Interactive controls", data.vars.interactive)
     if changed then data.SaveSettings() end
     imgui.SameLine(activeCtx)
+    changed, data.vars.invert_scroll = imgui.Checkbox(activeCtx, "Invert scroll", data.vars.invert_scroll)
+    if changed then data.SaveSettings() end
+    imgui.SameLine(activeCtx)
     changed, data.vars.titlebar_enabled = imgui.Checkbox(activeCtx, "Show titlebar", data.vars.titlebar_enabled)
     if changed then data.SaveSettings() end
 
@@ -212,7 +218,7 @@ local function RenderContextMenu(activeCtx, popupId)
     end
 
     imgui.Separator(activeCtx)
-    osd_ui.RenderOSKPositionToggle(activeCtx, imgui)
+    osd_ui.RenderOSKPositionToggle(activeCtx, imgui, surfName)
     imgui.EndPopup(activeCtx)
 end
 
@@ -226,6 +232,8 @@ local function main()
         r.defer(main)
         return
     end
+
+    osd_ui.PollOSD()
 
     EnsureSurfaceWindows()
     for _, surfName in ipairs(data.surfaces) do
@@ -252,19 +260,22 @@ local function main()
             if visible then
                 imgui.PushFont(ctx, FONT)
                 if not config.ShouldSuppressContextMenu or not config.ShouldSuppressContextMenu() then
-                    RenderContextMenu(ctx, "OSK_ContextMenu_" .. surfName)
+                    RenderContextMenu(ctx, "OSK_ContextMenu_" .. surfName, surfName)
                 end
-                if osd_ui.vars.osk_bar_position == "top" then render.RenderOSDBar(ctx) end
+                if osd_ui.GetOSKBarPosition(surfName) == "top" then render.RenderOSDBar(ctx, surfName) end
                 render.RenderSurface(ctx, surfName)
-                if osd_ui.vars.osk_bar_position == "bottom" then render.RenderOSDBar(ctx) end
+                if osd_ui.GetOSKBarPosition(surfName) == "bottom" then render.RenderOSDBar(ctx, surfName) end
                 imgui.PopFont(ctx)
             end
             imgui.End(ctx)
+            if window.open and not open then
+                data.SetSurfaceEnabled(surfName, false)
+            end
             window.open = open
         end
     end
 
-    config.RenderConfigEditor(ctx)
+    config.RenderConfigEditor(ctx, CONFIG_FONT)
     data.FlushSurfacePositions(false)
 
     if AnyWindowOpen() then
@@ -289,6 +300,7 @@ local function Init()
     })
     FONT = fonts.default
     FONT_SMALL = fonts.small
+    CONFIG_FONT = fonts.default
     RebuildFonts()
     if render.SetConfigModule then render.SetConfigModule(config) end
 

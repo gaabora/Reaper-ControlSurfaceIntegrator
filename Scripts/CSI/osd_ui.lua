@@ -32,13 +32,17 @@ M.vars = {
 
 M.EXT_SECTION = "ReaCtrlSurf_OSD"
 M.EXT_KEY = "OSD"
+M.EXT_ID_KEY = "OSD_ID"
 M.EXT_SETTINGS_SECTION = "ReaCtrlSurf_OSD_SETTINGS"
+M.OSK_SETTINGS_SECTION = "ReaCtrlSurf_OSK_SETTINGS"
 
 M.settingsBackup = nil  -- Backup of settings when menu opens (for Cancel revert)
 
 local FONT_SMALL = nil
 local FONT_CACHE = {}
 local DEBUG_OSD = false
+local oskBarPositions = {}
+local lastSeenOSDEventId = nil
 
 local function clamp(value, minVal, maxVal)
     return math.max(minVal, math.min(maxVal, value))
@@ -164,29 +168,33 @@ end
 function M.PollOSD()
     if r.HasExtState(M.EXT_SECTION, M.EXT_KEY) then
         local msg = r.GetExtState(M.EXT_SECTION, M.EXT_KEY)
-        r.DeleteExtState(M.EXT_SECTION, M.EXT_KEY, false)
-        if not msg or msg == "" then
-            resetHiddenState()
-            return
+        local eventId = r.GetExtState(M.EXT_SECTION, M.EXT_ID_KEY)
+        if eventId == "" then eventId = msg or "" end
+        if eventId ~= lastSeenOSDEventId then
+            lastSeenOSDEventId = eventId
+            if not msg or msg == "" then
+                resetHiddenState()
+                return
+            end
+
+            -- Parse message format: "text;bgState;timeoutMs"
+            local text, bgState, timeoutStr = msg:match("([^;]*);?([^;]*);?([^;]*)")
+            text = text and text:match("^%s*(.-)%s*$") or ""
+
+            local timeout = tonumber(timeoutStr) or 3000  -- default 3 seconds
+            if bgState and bgState:sub(1, 1) == "#" then
+                M.state.bgColor = M.hexToImCol(bgState)
+            elseif bgState == "1" then
+                M.state.bgColor = M.hexToImCol(M.vars.osd_bg_on)
+            else
+                M.state.bgColor = M.hexToImCol(M.vars.osd_bg_off)
+            end
+
+            M.state.text = text
+            local now = r.time_precise()
+            M.state.showUntil = now + (timeout / 1000)
+            DebugLog("eventId=", eventId, "msg=", msg, "timeoutMs=", timeout, "showUntil=", string.format("%.3f", M.state.showUntil))
         end
-
-        -- Parse message format: "text;bgState;timeoutMs"
-        local text, bgState, timeoutStr = msg:match("([^;]*);?([^;]*);?([^;]*)")
-        text = text and text:match("^%s*(.-)%s*$") or ""
-
-        local timeout = tonumber(timeoutStr) or 3000  -- default 3 seconds
-        if bgState and bgState:sub(1, 1) == "#" then
-            M.state.bgColor = M.hexToImCol(bgState)
-        elseif bgState == "1" then
-            M.state.bgColor = M.hexToImCol(M.vars.osd_bg_on)
-        else
-            M.state.bgColor = M.hexToImCol(M.vars.osd_bg_off)
-        end
-
-        M.state.text = text
-        local now = r.time_precise()
-        M.state.showUntil = now + (timeout / 1000)
-        DebugLog("msg=", msg, "timeoutMs=", timeout, "showUntil=", string.format("%.3f", M.state.showUntil))
     end
 
     -- Check if OSD should still be visible
@@ -198,6 +206,32 @@ function M.PollOSD()
             resetHiddenState()
         end
     end
+end
+
+local function getOskBarSettingsKey(surfaceName)
+    return "OSDBarPosition_" .. tostring(surfaceName or "")
+end
+
+function M.GetOSKBarPosition(surfaceName)
+    surfaceName = tostring(surfaceName or "")
+    if surfaceName == "" then return M.vars.osk_bar_position end
+    if oskBarPositions[surfaceName] then return oskBarPositions[surfaceName] end
+    local value = r.GetExtState(M.OSK_SETTINGS_SECTION, getOskBarSettingsKey(surfaceName))
+    if value ~= "top" and value ~= "bottom" and value ~= "off" then value = M.vars.osk_bar_position or "off" end
+    oskBarPositions[surfaceName] = value
+    return value
+end
+
+function M.SetOSKBarPosition(surfaceName, value)
+    surfaceName = tostring(surfaceName or "")
+    if value ~= "top" and value ~= "bottom" then value = "off" end
+    if surfaceName == "" then
+        M.vars.osk_bar_position = value
+        M.SaveSettings()
+        return
+    end
+    oskBarPositions[surfaceName] = value
+    r.SetExtState(M.OSK_SETTINGS_SECTION, getOskBarSettingsKey(surfaceName), value, true)
 end
 
 ---Load settings from ExtState
@@ -389,11 +423,12 @@ end
 ---Render OSD position toggle for OSK (simple on/off/top/bottom)
 ---@param ctx ImGui context
 ---@param imgui ImGui module
-function M.RenderOSKPositionToggle(ctx, imgui)
+function M.RenderOSKPositionToggle(ctx, imgui, surfaceName)
+    local currentPosition = M.GetOSKBarPosition(surfaceName)
     local posIdx
-    if M.vars.osk_bar_position == "off" then
+    if currentPosition == "off" then
         posIdx = 0
-    elseif M.vars.osk_bar_position == "top" then
+    elseif currentPosition == "top" then
         posIdx = 1
     else
         posIdx = 2
@@ -403,13 +438,12 @@ function M.RenderOSKPositionToggle(ctx, imgui)
     rv, posIdx = imgui.Combo(ctx, "OSK OSD Position##osk_osd_pos", posIdx, "Off\0Top\0Bottom\0")
     if rv then
         if posIdx == 0 then
-            M.vars.osk_bar_position = "off"
+            M.SetOSKBarPosition(surfaceName, "off")
         elseif posIdx == 1 then
-            M.vars.osk_bar_position = "top"
+            M.SetOSKBarPosition(surfaceName, "top")
         else
-            M.vars.osk_bar_position = "bottom"
+            M.SetOSKBarPosition(surfaceName, "bottom")
         end
-        M.SaveSettings()
     end
 end
 

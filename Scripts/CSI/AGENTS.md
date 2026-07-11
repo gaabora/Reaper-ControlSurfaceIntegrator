@@ -23,10 +23,14 @@
 - Always apply built-in OSK label replacements; merge user replacements on top with user rules taking priority and longer phrases evaluated before shorter phrases.
 - Send OSK wheel input as rate-limited semantic acceleration packets; do not generate MIDI messages or expose device IDs from Lua.
 - Send OSK fader drag and wheel input as absolute normalized `WidgetValue` packets; when fader feedback is dB-valued, convert it for display and send matching dB command values for DB actions.
+- Prefer OSK layout `Role`, `Input`, `Feedback`, and semantic target metadata over `Shape`, widget name, or group heuristics when choosing widget behavior.
 - Treat the OSK/OSD Lua interface as pre-release: use only current `ReaCtrlSurf_*` sections and settings, with no legacy aliases unless publication changes that requirement.
 - Keep one OSK window per surface and persist each surface position independently without writing persistent ExtState on every movement frame.
+- Keep OSK surface enabled/hidden state persisted per surface and mirrored to C++ through `SurfaceEnabled` when a window closes.
+- Keep OSK widget config window geometry persistent, keep its font independent from OSK button font settings, and keep embedded OSD bar position scoped per surface.
 - Keep standalone OSD settings reachable by right-clicking a visible OSD overlay; do not add an idle launcher window.
 - Keep OSK font size, font family, wrapped-label line-height, and label-case controls in the OSK context menu near zoom.
+- Keep OSK wheel inversion in the context menu with interactive-control settings; ReaImGui exposes wheel delta but not reliable mouse-wheel versus trackpad source.
 - Show OSK hover tooltips with the default binding first and `+ `-prefixed alternate bindings for modifiers, Hold, DoublePress, and combined pseudo-modifier entries.
 
 ## Work Guidance

@@ -42,6 +42,15 @@ private:
         string label;
         bool hidden = false;
         string color; // optional default active color (RRGGBB)
+        string widgetClass;
+        string role;
+        string input;
+        string feedback;
+        string pressTarget;
+        string scrollTarget;
+        string valueTarget;
+        string touchTarget;
+        string rotaryStyle;
     };
 
     struct OskCell {
@@ -65,6 +74,8 @@ private:
     int oskRunCounter_ = 0;
 
     void ParseOskProperties(const string& propsPart, OskWidgetInfo& info);
+    void ApplyOskWidgetMetadata(OskWidgetInfo& info);
+    void ApplyGroupedOskTargets(const vector<OskWidgetInfo>& hiddenWidgets);
     void BuildCachedLayoutString();
     bool GetModifierState(bool (ModifierManager::*getter)());
     void ApplyToBroadcastModifierListeners(void (ModifierManager::*method)());
@@ -123,6 +134,7 @@ protected:
             channelToggle.channelNum = i;
             channelToggles_.push_back(channelToggle);
         }
+        LoadOskEnabledSetting();
     }
 
     void InitZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& fxZoneFolder) {
@@ -431,7 +443,8 @@ public:
     void SetOsdEnabled(bool value) { isOsdEnabled_ = value; }
 
     bool GetOskEnabled() const { return isOskEnabled_; }
-    void SetOskEnabled(bool value) { isOskEnabled_ = value; }
+    void LoadOskEnabledSetting();
+    void SetOskEnabled(bool value);
     void ParseOSKLayout(const string& surfaceFilePath);
     void PublishOSKLayout();
     void PublishOSKState();

@@ -222,4 +222,17 @@ void CSurfIntegrator::Init() {
             surface->ForceClear();
         page->OnInitialization();
     }
+
+    if (HasAnyOSKEnabled()) {
+        PublishOSKSurfacesList();
+        if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
+            for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+                if (!surface->GetOskEnabled()) continue;
+                surface->PublishOSKLayout();
+                surface->PublishOSKLabels();
+                surface->PublishOSKState();
+            }
+        }
+        OpenOSKPanel();
+    }
 }

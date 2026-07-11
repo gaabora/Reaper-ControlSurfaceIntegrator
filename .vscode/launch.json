@@ -38,6 +38,16 @@
             "value": "${env:REAPER_RESOURCE_PATH}"
           }
         ]
+      },
+      {
+        "type": "lua",
+        "request": "attach",
+        "name": "LuaPanda",
+        "cwd": "${workspaceFolder}",
+        "connectionPort": 8818,
+        "stopOnEntry": false,
+        "useCHook": true,
+        // "address": "localhost"
       }
     ]
   }

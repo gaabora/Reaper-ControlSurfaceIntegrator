@@ -267,6 +267,26 @@ public:
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetTouch: surface '%s' not found\n", surfName.c_str());
     }
 
+    void DispatchOSKSurfaceEnabled(const string& surfName, bool enabled) {
+        if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return;
+        for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->SetOskEnabled(enabled);
+                PublishOSKSurfacesList();
+                if (enabled) {
+                    surface->PublishOSKLayout();
+                    surface->PublishOSKLabels();
+                    surface->PublishOSKState();
+                    OpenOSKPanel();
+                } else if (!HasAnyOSKEnabled()) {
+                    CloseOSKPanel();
+                }
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKSurfaceEnabled: surface '%s' not found\n", surfName.c_str());
+    }
+
     void DispatchOSKConfigQuery(const string& surfName, const string& widgetName) {
         if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
         for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
@@ -399,6 +419,13 @@ public:
                     else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid WidgetTouch payload: '%s'\n", payload.c_str());
                 }
             }
+        }
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "SurfaceEnabled")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "SurfaceEnabled");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "SurfaceEnabled", false);
+            auto sep = payload.find('|');
+            if (sep != string::npos)
+                DispatchOSKSurfaceEnabled(payload.substr(0, sep), payload.substr(sep + 1) == "1");
         }
         if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigQuery")) {
             string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigQuery");

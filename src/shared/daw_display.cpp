@@ -12,13 +12,17 @@ namespace DAW {
     void ShowOSD(const osd_data& osdData) { //FIXME: why this tiny thing have 2 dedicated files (.h + .cpp) and OSK related stuff is not here but together with many other stuff? maybe move OSK here?
         static string lastValue;
         static DWORD lastUpdateTs = 0;
+        static unsigned int eventId = 0;
         DWORD now = GetTickCount();
-        if (lastValue == osdData.lastValue) {
+        const string nextValue = osdData.toString();
+        if (lastValue == nextValue) {
             if (osdData.timeoutMs == -1) return;
             if (osdData.timeoutMs >= 0 && (now - lastUpdateTs) < (DWORD) osdData.timeoutMs) return;
         }
-        lastValue = osdData.toString();
+        lastValue = nextValue;
         lastUpdateTs = now;
+        const string eventIdValue = std::to_string(++eventId);
         ::SetExtState("ReaCtrlSurf_OSD", "OSD", lastValue.c_str(), false);
+        ::SetExtState("ReaCtrlSurf_OSD", "OSD_ID", eventIdValue.c_str(), false);
     }
 } // namespace DAW

@@ -10,6 +10,19 @@ local function trim(text)
     return tostring(text or ""):match("^%s*(.-)%s*$")
 end
 
+local function lower(text)
+    return tostring(text or ""):lower()
+end
+
+local function parseSet(text)
+    local set = {}
+    for token in tostring(text or ""):gmatch("[^,%+]+") do
+        token = lower(trim(token))
+        if token ~= "" then set[token] = true end
+    end
+    return set
+end
+
 local function unquote(text)
     text = trim(text)
     if #text >= 2 and text:sub(1, 1) == '"' and text:sub(-1) == '"' then
@@ -120,13 +133,25 @@ function M.ParseLayout(layoutStr)
                     local properties = M.ParseLayoutCellProperties(cellStr)
                     cell.isSpacer = false
                     cell.name = cellStr:match("^([^:]+)")
-                    cell.shape = tostring(properties.Shape or "rect"):lower()
+                    cell.shape = lower(properties.Shape or "rect")
+                    cell.role = lower(properties.Role or "")
+                    if cell.role == "" and cell.shape == "fader" then cell.role = "fader" end
                     cell.width = tonumber(properties.Width) or 1.0
                     cell.height = tonumber(properties.Height) or 1.0
                     cell.top = tonumber(properties.Top) or 0.0
-                    if cell.shape == "fader" then cell.rowSpan = cell.height else cell.rowSpan = 1 end
+                    if cell.role == "fader" or cell.shape == "fader" then cell.rowSpan = cell.height else cell.rowSpan = 1 end
                     cell.group = properties.Group or ""
                     cell.label = properties.Label or ""
+                    cell.widgetClass = properties.Class or properties.WidgetClass or ""
+                    cell.input = lower(properties.Input or "")
+                    cell.feedback = lower(properties.Feedback or "")
+                    cell.inputs = parseSet(cell.input)
+                    cell.feedbacks = parseSet(cell.feedback)
+                    cell.pressTarget = properties.PressTarget or properties.PushTarget or ""
+                    cell.scrollTarget = properties.ScrollTarget or ""
+                    cell.valueTarget = properties.ValueTarget or ""
+                    cell.touchTarget = properties.TouchTarget or ""
+                    cell.rotaryStyle = lower(properties.RotaryStyle or "")
                     local colorHex = tostring(properties.Color or ""):match("^#?%x+")
                     if colorHex then cell.color = M.HexToImCol(colorHex) end
                 end
@@ -139,11 +164,15 @@ function M.ParseLayout(layoutStr)
 end
 
 function M.RunSelfChecks()
-    local rows = M.ParseLayout('Rotary1:Shape=Round,Width=1.00,Height=1.00,Group=Rotary,Label="Hello, \\"there\\" | friend",Color=#FF8800|Rotary2:Shape=Round,Group=Rotary\nSPACER:0.5|Fader1:Shape=Fader,Height=3,Top=0.5')
+    local rows = M.ParseLayout('Rotary1:Role=Rotary,Input=Relative,Feedback=Value,Class=RotaryWidgetClass,Width=1.00,Height=1.00,Group=Rotary,Label="Hello, \\"there\\" | friend",Color=#FF8800,PressTarget=Rotary1Push,RotaryStyle=Wiper|Rotary2:Shape=Round,Group=Rotary\nSPACER:0.5|Fader1:Role=Fader,Input=Absolute+Touch,Height=3,Top=0.5')
     assertEqual(#rows, 2, "row count")
     assertEqual(#rows[1], 1, "grouped duplicate count")
     assertEqual(rows[1][1].label, 'Hello, "there" | friend', "quoted label parse")
     assertEqual(rows[1][1].color, M.HexToImCol("#FF8800"), "color parse")
+    assertEqual(rows[1][1].role, "rotary", "role parse")
+    assertEqual(rows[1][1].inputs.relative, true, "input parse")
+    assertEqual(rows[1][1].pressTarget, "Rotary1Push", "target parse")
+    assertEqual(rows[1][1].rotaryStyle, "wiper", "rotary style parse")
     assertEqual(rows[2][2].rowSpan, 3, "fader row span")
     return true
 end

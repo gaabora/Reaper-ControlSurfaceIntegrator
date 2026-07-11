@@ -27,6 +27,52 @@ static vector<vector<string>> GetTokenLines(ifstream& file, string endToken, int
     return tokenLines;
 }
 
+static bool StartsWithToken(const string& value, const char* prefix) {
+    return value.rfind(prefix, 0) == 0;
+}
+
+static void MarkMidiWidgetOskCapabilities(Widget* widget, const string& widgetType) {
+    if (!widget) return;
+
+    if (IsSameString(widgetType.c_str(), "Press") || IsSameString(widgetType.c_str(), "AnyPress")) {
+        widget->MarkOskPressInput();
+    } else if (IsSameString(widgetType.c_str(), "Touch")) {
+        widget->MarkOskTouchInput();
+    } else if (IsSameString(widgetType.c_str(), "Encoder") || IsSameString(widgetType.c_str(), "MFTEncoder") || IsSameString(widgetType.c_str(), "EncoderPlain") || IsSameString(widgetType.c_str(), "Encoder7Bit")) {
+        widget->MarkOskRelativeInput();
+        widget->MarkOskValueFeedback();
+    } else if (IsSameString(widgetType.c_str(), "Fader14Bit") || IsSameString(widgetType.c_str(), "FaderportClassicFader14Bit") || IsSameString(widgetType.c_str(), "Fader7Bit")) {
+        widget->MarkOskAbsoluteInput();
+        widget->MarkOskValueFeedback();
+    } else if (StartsWithToken(widgetType, "FB_Fader") || IsSameString(widgetType.c_str(), "FB_Encoder") || IsSameString(widgetType.c_str(), "FB_AsparionEncoder") || IsSameString(widgetType.c_str(), "FB_SCE24Encoder") || IsSameString(widgetType.c_str(), "FB_FaderportValueBar")) {
+        widget->MarkOskValueFeedback();
+    } else if (StartsWithToken(widgetType, "FB_MCU") || widgetType.find("Display") != string::npos || widgetType.find("Scribble") != string::npos) {
+        widget->MarkOskTextFeedback();
+    } else if (widgetType.find("VUMeter") != string::npos || widgetType.find("Meter") != string::npos) {
+        widget->MarkOskMeterFeedback();
+        widget->MarkOskValueFeedback();
+    } else if (widgetType.find("RGB") != string::npos || widgetType.find("TwoState") != string::npos) {
+        widget->MarkOskToggleFeedback();
+        widget->MarkOskColorFeedback();
+    }
+}
+
+static void MarkOscWidgetOskCapabilities(Widget* widget, const string& widgetType) {
+    if (!widget) return;
+
+    if (IsSameString(widgetType.c_str(), "AnyPress")) widget->MarkOskPressInput();
+    else if (IsSameString(widgetType.c_str(), "Touch")) widget->MarkOskTouchInput();
+    else if (IsSameString(widgetType.c_str(), "X32Fader")) {
+        widget->MarkOskAbsoluteInput();
+        widget->MarkOskValueFeedback();
+    } else if (IsSameString(widgetType.c_str(), "X32RotaryToEncoder")) {
+        widget->MarkOskRelativeInput();
+        widget->MarkOskValueFeedback();
+    } else if (widgetType.find("Processor") != string::npos) {
+        widget->MarkOskValueFeedback();
+    }
+}
+
 // ===========================================================================
 // MIDI
 // ===========================================================================
@@ -90,6 +136,7 @@ void SurfaceTemplateParser::ParseMidiWidget(int& lineNumber, ifstream& file, con
         LogToConsole("[ERROR] FAILED to ParseMidiWidget: no widget found by name '%s'. Line %d\n", tokens[1].c_str(), lineNumber);
         return;
     }
+    widget->SetOskWidgetClass(widgetClass);
 
     vector<vector<string>> tokenLines = GetTokenLines(file, "WidgetEnd", lineNumber);
     if (tokenLines.empty()) return;
@@ -121,6 +168,7 @@ void SurfaceTemplateParser::ParseMidiWidget(int& lineNumber, ifstream& file, con
         }
 
         const string& widgetType = tokenLines[i][0];
+        MarkMidiWidgetOskCapabilities(widget, widgetType);
         if (!MidiWidgetRegistry::Dispatch(widgetType, ctx))
             if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARN] Unknown MIDI widget type '%s' in widget '%s'. Line %d\n", widgetType.c_str(), tokens[1].c_str(), lineNumber);
     }
@@ -186,10 +234,12 @@ void SurfaceTemplateParser::ParseOSCWidget(int& lineNumber, ifstream& file, cons
         LogToConsole("[ERROR] FAILED to ParseOSCWidget: widget not found by name %s. Line %d\n", tokens[1].c_str(), lineNumber);
         return;
     }
+    if (tokens.size() > 2) widget->SetOskWidgetClass(tokens[2]);
 
     vector<vector<string>> tokenLines = GetTokenLines(file, "WidgetEnd", lineNumber);
 
     for (int i = 0; i < (int) tokenLines.size(); ++i) {
+        if (!tokenLines[i].empty()) MarkOscWidgetOskCapabilities(widget, tokenLines[i][0]);
         if (tokenLines[i].size() > 1 && tokenLines[i][0] == "Control")
             surface->MessageGeneratorsByMessage_.insert(make_pair(tokenLines[i][1],
                 make_unique<MessageGenerator>(surface->csi_, widget)));

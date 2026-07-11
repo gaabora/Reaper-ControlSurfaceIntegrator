@@ -29,6 +29,16 @@ protected:
     bool hasDoublePressActions_ = false;
     bool hasHoldActions_ = false;
     bool holdFired_ = false;
+    string oskWidgetClass_;
+    bool oskPressInput_ = false;
+    bool oskRelativeInput_ = false;
+    bool oskAbsoluteInput_ = false;
+    bool oskTouchInput_ = false;
+    bool oskValueFeedback_ = false;
+    bool oskToggleFeedback_ = false;
+    bool oskColorFeedback_ = false;
+    bool oskTextFeedback_ = false;
+    bool oskMeterFeedback_ = false;
 
 public:
     // all Widgets are owned by their ControlSurface!
@@ -76,6 +86,35 @@ public:
     void SetIsTwoState() { isTwoState_ = true; }
     bool IsModifier() const { return isModifier_; }
     void SetIsModifier() { isModifier_ = true; }
+
+    void SetOskWidgetClass(const string& widgetClass) { oskWidgetClass_ = widgetClass; }
+    const string& GetOskWidgetClass() const { return oskWidgetClass_; }
+    void MarkOskPressInput() { oskPressInput_ = true; }
+    void MarkOskRelativeInput() { oskRelativeInput_ = true; }
+    void MarkOskAbsoluteInput() { oskAbsoluteInput_ = true; }
+    void MarkOskTouchInput() { oskTouchInput_ = true; }
+    void MarkOskValueFeedback() { oskValueFeedback_ = true; }
+    void MarkOskToggleFeedback() { oskToggleFeedback_ = true; }
+    void MarkOskColorFeedback() { oskColorFeedback_ = true; }
+    void MarkOskTextFeedback() { oskTextFeedback_ = true; }
+    void MarkOskMeterFeedback() { oskMeterFeedback_ = true; }
+    bool HasOskPressInput() const { return oskPressInput_; }
+    bool HasOskRelativeInput() const { return oskRelativeInput_; }
+    bool HasOskAbsoluteInput() const { return oskAbsoluteInput_; }
+    bool HasOskTouchInput() const { return oskTouchInput_; }
+    bool HasOskValueFeedback() const { return oskValueFeedback_; }
+    bool HasOskToggleFeedback() const { return oskToggleFeedback_; }
+    bool HasOskColorFeedback() const { return oskColorFeedback_; }
+    bool HasOskTextFeedback() const { return oskTextFeedback_; }
+    bool HasOskMeterFeedback() const { return oskMeterFeedback_; }
+    string GetOskRole() const {
+        if (oskAbsoluteInput_) return "fader";
+        if (oskRelativeInput_ || oskWidgetClass_.find("Rotary") != string::npos || oskWidgetClass_.find("Encoder") != string::npos) return "rotary";
+        if (oskMeterFeedback_) return "meter";
+        if (oskTextFeedback_) return "display";
+        if (oskPressInput_) return "button";
+        return "unknown";
+    }
 
     void SetAccelerationValues(const vector<double> accelerationValues) { accelerationValues_ = accelerationValues; }
     const vector<double>& GetAccelerationValues() { return accelerationValues_; }

@@ -43,20 +43,38 @@ static string GetConfiguredOskLabel(ActionContext* context) {
     return "";
 }
 
+static string GetConfiguredOskKeyLabel(ActionContext* context) {
+    if (!context) return "";
+    if (const char* keyLabel = context->GetWidgetProperties().get_prop(PropertyType_KeyLabel))
+        if (keyLabel[0] != '\0') return keyLabel;
+    return "";
+}
+
 static double ClampOskNormalizedValue(double value) {
     return (std::max)(0.0, (std::min)(value, 1.0));
 }
 
-static bool IsOskFaderValueAction(Action* action) {
+static bool IsOskContinuousValueAction(Action* action) {
     if (!action || action->IsDisplayRelated()) return false;
     return action->IsVolumeRelated() || action->IsPanRelated() || action->IsFxRelated() || action->IsTrackSendRelated() || action->IsTrackReceiveRelated() || action->IsMeterRelated();
 }
 
 static bool IsOskColorMeaningful(const rgba_color& color) {
-    return color.r > 10 || color.g > 10 || color.b > 10 || color.a > 10;
+    return color.r > 10 || color.g > 10 || color.b > 10;
 }
 
-static double MapOskFaderValueToAction(Action* action, double value) {
+static bool IsOskContinuousWidgetRole(const string& role) {
+    return IsSameString(role.c_str(), "fader") || IsSameString(role.c_str(), "rotary");
+}
+
+static const char* GetOskContinuousKind(Action* action) {
+    if (!action) return "";
+    if (action->IsVolumeRelated()) return "V";
+    if (action->IsPanRelated()) return "P";
+    return "";
+}
+
+static double MapOskContinuousValueToAction(Action* action, double value) {
     if (!action) return value;
     const bool isNormalizedValue = value >= 0.0 && value <= 1.0;
 
@@ -110,7 +128,6 @@ static bool HasBalancedBindingSyntax(const string& actionText, string& errorMess
     for (const char character : actionText) {
         if (character == '"') {
             insideQuote = !insideQuote;
-            continue;
         }
         if (insideQuote) continue;
 
@@ -373,7 +390,6 @@ static vector<string> CollectWidgetInlineComments(const vector<string>& original
             vector<string> zoneTokens;
             GetTokens(zoneTokens, trimmed);
             inTargetZone = zoneTokens.size() >= 2 && IsSameString(zoneTokens[1], targetZoneName);
-            continue;
         }
         if (inTargetZone && IsSameString(trimmed, "ZoneEnd"))
             break;
@@ -502,6 +518,16 @@ static string EscapeOskLayoutValue(const string& value) {
     return result;
 }
 
+static string JoinOskList(const vector<string>& values) {
+    string result;
+    for (const auto& value : values) {
+        if (value.empty()) continue;
+        if (!result.empty()) result += "+";
+        result += value;
+    }
+    return result;
+}
+
 void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& info) {
     if (propsPart.empty()) return;
     vector<string> tokens;
@@ -531,6 +557,68 @@ void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& 
         else if (key == "Group") info.group = val;
         else if (key == "Label") info.label = val;
         else if (key == "Color") info.color = val;
+        else if (key == "Class" || key == "WidgetClass") info.widgetClass = val;
+        else if (key == "Role") info.role = val;
+        else if (key == "Input") info.input = val;
+        else if (key == "Feedback") info.feedback = val;
+        else if (key == "PressTarget" || key == "PushTarget") info.pressTarget = val;
+        else if (key == "ScrollTarget") info.scrollTarget = val;
+        else if (key == "ValueTarget") info.valueTarget = val;
+        else if (key == "TouchTarget") info.touchTarget = val;
+        else if (key == "RotaryStyle") info.rotaryStyle = val;
+    }
+}
+
+void ControlSurface::ApplyOskWidgetMetadata(OskWidgetInfo& info) {
+    Widget* widget = this->GetWidgetByName(info.name);
+    if (!widget) return;
+
+    if (info.widgetClass.empty()) info.widgetClass = widget->GetOskWidgetClass();
+    if (info.role.empty()) info.role = widget->GetOskRole();
+
+    if (info.input.empty()) {
+        vector<string> inputTypes;
+        if (widget->HasOskPressInput()) inputTypes.push_back("press");
+        if (widget->HasOskRelativeInput()) inputTypes.push_back("relative");
+        if (widget->HasOskAbsoluteInput()) inputTypes.push_back("absolute");
+        if (widget->HasOskTouchInput()) inputTypes.push_back("touch");
+        info.input = JoinOskList(inputTypes);
+    }
+
+    if (info.feedback.empty()) {
+        vector<string> feedbackTypes;
+        if (widget->HasOskValueFeedback()) feedbackTypes.push_back("value");
+        if (widget->HasOskToggleFeedback()) feedbackTypes.push_back("toggle");
+        if (widget->HasOskColorFeedback()) feedbackTypes.push_back("color");
+        if (widget->HasOskTextFeedback()) feedbackTypes.push_back("text");
+        if (widget->HasOskMeterFeedback()) feedbackTypes.push_back("meter");
+        info.feedback = JoinOskList(feedbackTypes);
+    }
+
+    if (info.pressTarget.empty() && widget->HasOskPressInput()) info.pressTarget = info.name;
+    if (info.scrollTarget.empty() && widget->HasOskRelativeInput()) info.scrollTarget = info.name;
+    if (info.valueTarget.empty() && widget->HasOskAbsoluteInput()) info.valueTarget = info.name;
+    if (info.touchTarget.empty() && widget->HasOskTouchInput()) info.touchTarget = info.name;
+    if (info.rotaryStyle.empty() && IsSameString(info.role.c_str(), "rotary")) info.rotaryStyle = "wiper";
+}
+
+void ControlSurface::ApplyGroupedOskTargets(const vector<OskWidgetInfo>& hiddenWidgets) {
+    for (auto& row : this->oskLayout_) {
+        for (auto& cell : row.cells) {
+            if (cell.isSpacer || !cell.widget.pressTarget.empty() || cell.widget.group.empty() || !IsSameString(cell.widget.role.c_str(), "rotary")) continue;
+
+            string targetName;
+            int targetCount = 0;
+            for (const auto& hiddenWidget : hiddenWidgets) {
+                if (!IsSameString(hiddenWidget.group.c_str(), cell.widget.group.c_str())) continue;
+                Widget* hiddenNativeWidget = this->GetWidgetByName(hiddenWidget.name);
+                if (!hiddenNativeWidget || !hiddenNativeWidget->HasOskPressInput()) continue;
+                targetName = hiddenWidget.name;
+                ++targetCount;
+            }
+
+            if (targetCount == 1) cell.widget.pressTarget = targetName;
+        }
     }
 }
 
@@ -551,25 +639,36 @@ void ControlSurface::BuildCachedLayoutString() {
                 this->cachedOskLayoutString_ += buf;
             } else {
                 this->cachedOskLayoutString_ += cell.widget.name;
-                this->cachedOskLayoutString_ += ":Shape=";
-                this->cachedOskLayoutString_ += EscapeOskLayoutValue(cell.widget.shape);
-
+                this->cachedOskLayoutString_ += ":";
+                bool firstProperty = true;
+                auto appendProperty = [&](const char* key, const string& value) {
+                    if (value.empty()) return;
+                    if (!firstProperty) this->cachedOskLayoutString_ += ",";
+                    firstProperty = false;
+                    this->cachedOskLayoutString_ += key;
+                    this->cachedOskLayoutString_ += "=";
+                    this->cachedOskLayoutString_ += EscapeOskLayoutValue(value);
+                };
+                appendProperty("Shape", cell.widget.shape);
                 char buf[64];
-                snprintf(buf, sizeof(buf), ",Width=%.2f,Height=%.2f,Top=%.2f", cell.widget.width, cell.widget.height, cell.widget.top);
-                this->cachedOskLayoutString_ += buf;
-
-                if (!cell.widget.group.empty()) {
-                    this->cachedOskLayoutString_ += ",Group=";
-                    this->cachedOskLayoutString_ += EscapeOskLayoutValue(cell.widget.group);
-                }
-                if (!cell.widget.label.empty()) {
-                    this->cachedOskLayoutString_ += ",Label=";
-                    this->cachedOskLayoutString_ += EscapeOskLayoutValue(cell.widget.label);
-                }
-                if (!cell.widget.color.empty()) {
-                    this->cachedOskLayoutString_ += ",Color=";
-                    this->cachedOskLayoutString_ += EscapeOskLayoutValue(cell.widget.color);
-                }
+                snprintf(buf, sizeof(buf), "%.2f", cell.widget.width);
+                appendProperty("Width", buf);
+                snprintf(buf, sizeof(buf), "%.2f", cell.widget.height);
+                appendProperty("Height", buf);
+                snprintf(buf, sizeof(buf), "%.2f", cell.widget.top);
+                appendProperty("Top", buf);
+                appendProperty("Group", cell.widget.group);
+                appendProperty("Label", cell.widget.label);
+                appendProperty("Color", cell.widget.color);
+                appendProperty("Class", cell.widget.widgetClass);
+                appendProperty("Role", cell.widget.role);
+                appendProperty("Input", cell.widget.input);
+                appendProperty("Feedback", cell.widget.feedback);
+                appendProperty("PressTarget", cell.widget.pressTarget);
+                appendProperty("ScrollTarget", cell.widget.scrollTarget);
+                appendProperty("ValueTarget", cell.widget.valueTarget);
+                appendProperty("TouchTarget", cell.widget.touchTarget);
+                appendProperty("RotaryStyle", cell.widget.rotaryStyle);
             }
         }
     }
@@ -582,6 +681,7 @@ void ControlSurface::ParseOSKLayout(const string& surfaceFilePath) {
         ifstream file(surfaceFilePath);
         if (!file.is_open()) return;
         OskRow currentRow;
+        vector<OskWidgetInfo> hiddenWidgets;
         bool hasRow = false;
         for (string line; getline(file, line);) {
             TrimLine(line);
@@ -616,8 +716,12 @@ void ControlSurface::ParseOSKLayout(const string& surfaceFilePath) {
                 OskWidgetInfo info;
                 info.name = tokens[1];
                 ParseOskProperties(propsPart, info);
+                ApplyOskWidgetMetadata(info);
 
-                if (info.hidden) continue; // Skip hidden widgets
+                if (info.hidden) {
+                    hiddenWidgets.push_back(info);
+                    continue;
+                }
                 if (!hasRow) {
                     currentRow = OskRow();
                     hasRow = true;
@@ -631,6 +735,7 @@ void ControlSurface::ParseOSKLayout(const string& surfaceFilePath) {
 
         if (hasRow && !currentRow.cells.empty())
             oskLayout_.push_back(std::move(currentRow));
+        ApplyGroupedOskTargets(hiddenWidgets);
         BuildCachedLayoutString();
     } catch (const std::exception& e) {
         LogToConsole("[ERROR] ParseOSKLayout failed for %s: %s\n", surfaceFilePath.c_str(), e.what());
@@ -649,6 +754,7 @@ void ControlSurface::PublishOSKState() {
     // Throttle to ~10Hz (every 3rd call of 30Hz)
     if (++oskRunCounter_ < 3) return;
     oskRunCounter_ = 0;
+    this->PublishOSKLabels();
     string state;
     for (const auto& row : oskLayout_) {
         for (const auto& cell : row.cells) {
@@ -656,29 +762,29 @@ void ControlSurface::PublishOSKState() {
             Widget* widget = GetWidgetByName(cell.widget.name);
             if (!widget) continue;
             double value = widget->GetLastFeedbackValue();
-            if (this->zoneManager_ && IsSameString(cell.widget.shape.c_str(), "fader")) {
+            bool isContinuousWidget = IsOskContinuousWidgetRole(cell.widget.role);
+            bool hasValue = !isContinuousWidget;
+            const char* continuousKind = "";
+            rgba_color color = (!isContinuousWidget || widget->HasOskColorFeedback()) ? widget->GetLastFeedbackColor() : rgba_color();
+            if (this->zoneManager_ && isContinuousWidget) {
                 const auto& contexts = this->zoneManager_->GetCurrentActionContextsForWidget(widget);
                 for (const auto& context : contexts) {
                     Action* action = context->GetAction();
-                    if (!IsOskFaderValueAction(action)) continue;
+                    if (!IsOskContinuousValueAction(action)) continue;
                     value = ClampOskNormalizedValue(action->GetCurrentNormalizedValue(context.get()));
+                    hasValue = true;
+                    continuousKind = GetOskContinuousKind(action);
+                    if (MediaTrack* track = context->GetTrack()) {
+                        rgba_color trackColor = DAW::GetTrackColor(track);
+                        if (IsOskColorMeaningful(trackColor)) color = trackColor;
+                    }
                     break;
                 }
             }
-            rgba_color color = widget->GetLastFeedbackColor();
-            if (this->zoneManager_ && IsSameString(cell.widget.shape.c_str(), "fader") && !IsOskColorMeaningful(color)) {
-                const auto& contexts = this->zoneManager_->GetCurrentActionContextsForWidget(widget);
-                for (const auto& context : contexts) {
-                    if (!IsOskFaderValueAction(context->GetAction())) continue;
-                    if (MediaTrack* track = context->GetTrack()) {
-                        color = DAW::GetTrackColor(track);
-                        break;
-                    }
-                }
-            }
+            if (!hasValue) value = 0.0;
             if (!state.empty()) state += ";";
-            char buf[128];
-            snprintf(buf, sizeof(buf), "%s=V:%.2f,C:#%02X%02X%02X", cell.widget.name.c_str(), value, (unsigned char) color.r, (unsigned char) color.g, (unsigned char) color.b);
+            char buf[192];
+            snprintf(buf, sizeof(buf), "%s=V:%.2f,C:#%02X%02X%02X,A:%d,K:%s", cell.widget.name.c_str(), value, (unsigned char) color.r, (unsigned char) color.g, (unsigned char) color.b, hasValue ? 1 : 0, continuousKind);
             state += buf;
         }
     }
@@ -708,8 +814,24 @@ void ControlSurface::PublishOSKLabels() {
 
             string keyLabel;
             for (const auto& ctx : contexts) {
-                keyLabel = GetConfiguredOskLabel(ctx.get());
+                keyLabel = GetConfiguredOskKeyLabel(ctx.get());
                 if (!keyLabel.empty()) break;
+            }
+
+            if (keyLabel.empty() && IsOskContinuousWidgetRole(cell.widget.role)) {
+                for (const auto& ctx : contexts) {
+                    Action* action = ctx->GetAction();
+                    if (!action || (!action->IsVolumeRelated() && !action->IsPanRelated())) continue;
+                    if (MediaTrack* track = ctx->GetTrack()) {
+                        keyLabel = DAW::GetTrackName(track);
+                        break;
+                    }
+                }
+            }
+
+            for (const auto& ctx : contexts) {
+                if (!keyLabel.empty()) break;
+                keyLabel = GetConfiguredOskLabel(ctx.get());
             }
 
             // Fallback: use action title
@@ -795,8 +917,8 @@ void ControlSurface::InjectOSKValue(const string& widgetName, double value) {
     const auto& contexts = this->zoneManager_->GetCurrentActionContextsForWidget(widget);
     for (const auto& context : contexts) {
         Action* action = context->GetAction();
-        if (!IsOskFaderValueAction(action)) continue;
-        context->DoRangeBoundAction(MapOskFaderValueToAction(action, faderValue));
+        if (!IsOskContinuousValueAction(action)) continue;
+        context->DoRangeBoundAction(MapOskContinuousValueToAction(action, faderValue));
         dispatchedToFaderContext = true;
     }
     if (dispatchedToFaderContext) {
@@ -1075,6 +1197,30 @@ void ControlSurface::PublishOSKLabelMap() {
     };
 
     string labelMap;
+    auto appendLabelMapEntry = [&](const string& mapWidgetName, Widget* widget, const OskWidgetInfo& widgetInfo) {
+        if (!widget) return;
+
+        map<int, const vector<unique_ptr<ActionContext>>*> modContexts;
+        zoneManager_->CollectAllModifierContextsForWidget(widget, modContexts);
+        if (modContexts.empty()) return;
+
+        string entries;
+        for (const auto& [mod, ctxs] : modContexts) {
+            for (const auto& ctx : *ctxs) {
+                const ActionType actionType = ctx->GetAction()->GetType();
+                if (actionType == ActionType::NoAction) continue;
+
+                const string modName = BuildOskTooltipModifierName(mod, ctx.get());
+                string label = getLabel(ctx.get(), widgetInfo);
+                if (!entries.empty()) entries += "|";
+                entries += modName + ":" + label;
+            }
+        }
+
+        if (entries.empty()) return;
+        if (!labelMap.empty()) labelMap += ";";
+        labelMap += mapWidgetName + "=" + entries;
+    };
 
     for (const auto& row : oskLayout_) {
         for (const auto& cell : row.cells) {
@@ -1082,33 +1228,12 @@ void ControlSurface::PublishOSKLabelMap() {
 
             Widget* w = GetWidgetByName(cell.widget.name);
             if (!w) continue;
-
-            // Collect all modifier -> context-vector pairs from the first active zone
-            // that defines this widget (mirrors the priority order of GetCurrentActionContextsForWidget).
-            map<int, const vector<unique_ptr<ActionContext>>*> modContexts;
-            zoneManager_->CollectAllModifierContextsForWidget(w, modContexts);
-            if (modContexts.empty()) continue;
-
-            // Build per-widget portion: "widgetName=modName:label|modName:label|..."
-            string entries;
-            for (const auto& [mod, ctxs] : modContexts) {
-                for (const auto& ctx : *ctxs) {
-                    const string modName = BuildOskTooltipModifierName(mod, ctx.get());
-
-                    string label = getLabel(ctx.get(), cell.widget);
-
-                    // Skip pure feedback (Feedback=No) NoAction contexts — they add noise.
-                    const ActionType at = ctx->GetAction()->GetType();
-                    if (at == ActionType::NoAction) continue;
-
-                    if (!entries.empty()) entries += "|";
-                    entries += modName + ":" + label;
-                }
-            }
-
-            if (!entries.empty()) {
-                if (!labelMap.empty()) labelMap += ";";
-                labelMap += cell.widget.name + "=" + entries;
+            appendLabelMapEntry(cell.widget.name, w, cell.widget);
+            if (!cell.widget.pressTarget.empty() && !IsSameString(cell.widget.pressTarget.c_str(), cell.widget.name.c_str())) {
+                OskWidgetInfo targetInfo = cell.widget;
+                targetInfo.name = cell.widget.pressTarget;
+                targetInfo.label.clear();
+                appendLabelMapEntry(cell.widget.pressTarget, GetWidgetByName(cell.widget.pressTarget), targetInfo);
             }
         }
     }

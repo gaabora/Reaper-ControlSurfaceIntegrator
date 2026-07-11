@@ -32,10 +32,15 @@ local state = {
 	queryExpectedSerialized = nil,
 	forceAcceptQuery = false,
 	saveAfterApply = false,
+	windowGeometryApplied = false,
+	windowPosition = nil,
+	windowSize = nil,
 }
 
 local SEARCH_MODE_ITEMS = "all\0csi\0reaper\0"
 local SEARCH_MODE_BY_INDEX = { "all", "csi", "reaper" }
+local CONFIG_POSITION_KEY = "WidgetConfigPosition"
+local CONFIG_SIZE_KEY = "WidgetConfigSize"
 local CONFIG_WINDOW_FLAGS = imgui.WindowFlags_NoCollapse
 if imgui.WindowFlags_NoSavedSettings then
 	CONFIG_WINDOW_FLAGS = CONFIG_WINDOW_FLAGS | imgui.WindowFlags_NoSavedSettings
@@ -69,6 +74,36 @@ local COLOR_PALETTE = {
 	{ name = "Blue", value = 0x4080ffff },
 	{ name = "Purple", value = 0xa060e0ff },
 }
+
+local function parsePair(rawValue)
+	local first, second = tostring(rawValue or ""):match("^([%-%d%.]+),([%-%d%.]+)$")
+	first = tonumber(first)
+	second = tonumber(second)
+	if first and second then return { x = first, y = second } end
+	return nil
+end
+
+local function loadWindowGeometry()
+	state.windowPosition = parsePair(r.GetExtState(data.EXT_SETTINGS, CONFIG_POSITION_KEY))
+	state.windowSize = parsePair(r.GetExtState(data.EXT_SETTINGS, CONFIG_SIZE_KEY))
+end
+
+local function saveWindowGeometry(ctx)
+	local x, y = imgui.GetWindowPos(ctx)
+	local width, height = imgui.GetWindowSize(ctx)
+	local oldPosition = state.windowPosition
+	local oldSize = state.windowSize
+
+	if not oldPosition or math.abs(oldPosition.x - x) > 0.5 or math.abs(oldPosition.y - y) > 0.5 then
+		state.windowPosition = { x = x, y = y }
+		r.SetExtState(data.EXT_SETTINGS, CONFIG_POSITION_KEY, string.format("%.3f,%.3f", x, y), true)
+	end
+
+	if not oldSize or math.abs(oldSize.x - width) > 0.5 or math.abs(oldSize.y - height) > 0.5 then
+		state.windowSize = { x = width, y = height }
+		r.SetExtState(data.EXT_SETTINGS, CONFIG_SIZE_KEY, string.format("%.3f,%.3f", width, height), true)
+	end
+end
 
 local TABLE_FLAGS = imgui.TableFlags_Borders
 	| imgui.TableFlags_RowBg
@@ -739,6 +774,7 @@ function M.OpenConfigEditor(surfName, widgetName)
 	state.selectedBinding = 1
 	state.status = ""
 	state.searchSelected = 0
+	state.windowGeometryApplied = false
 	syncSearchIndexFromMode()
 
 	state.suppressWindowContextMenuUntil = os.clock() + 0.20
@@ -813,22 +849,34 @@ local function renderConfigToolbar(ctx)
 	imgui.EndTable(ctx)
 end
 
-function M.RenderConfigEditor(ctx)
+function M.RenderConfigEditor(ctx, font)
 	if not state.isOpen then return end
 
 	pollConfigResponses()
 
 	local dirtyMarker = state.isDirty and " *" or ""
 	local title = "Widget config: [" .. state.widgetName .. "]  @" .. state.surfaceName .. "/" .. state.zoneName .. dirtyMarker .. " ###osk_widget_config"
-	imgui.SetNextWindowSize(ctx, 720, 620, imgui.Cond_Appearing)
+	if not state.windowGeometryApplied then
+		loadWindowGeometry()
+		if state.windowPosition then imgui.SetNextWindowPos(ctx, state.windowPosition.x, state.windowPosition.y, imgui.Cond_Appearing) end
+		if state.windowSize then
+			imgui.SetNextWindowSize(ctx, state.windowSize.x, state.windowSize.y, imgui.Cond_Appearing)
+		else
+			imgui.SetNextWindowSize(ctx, 720, 620, imgui.Cond_Appearing)
+		end
+		state.windowGeometryApplied = true
+	end
+	if font then imgui.PushFont(ctx, font) end
 	local visible, open = imgui.Begin(ctx, title, true, CONFIG_WINDOW_FLAGS)
 	if open == false then
 		closeEditor()
 		imgui.End(ctx)
+		if font then imgui.PopFont(ctx) end
 		return
 	end
 
 	if visible then
+		saveWindowGeometry(ctx)
 		renderConfigToolbar(ctx)
 		imgui.Separator(ctx)
 		local bodyVisible = imgui.BeginChild(ctx, "##config_body", -1, -1, 0, 0)
@@ -1002,6 +1050,7 @@ function M.RenderConfigEditor(ctx)
 	end
 
 	imgui.End(ctx)
+	if font then imgui.PopFont(ctx) end
 end
 
 return M

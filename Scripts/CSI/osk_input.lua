@@ -67,36 +67,40 @@ end
 
 function M.HandlePressDown(surfaceName, cell)
     if not data.vars.interactive or not cell or not cell.name then return end
+    local targetName = data.GetPressTarget(surfaceName, cell)
+    if not targetName or targetName == "" then return end
 
     local stateKey = GetInteractionStateKey(surfaceName, cell.name)
     if not stateKey then return end
 
-    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressDown", surfaceName .. "|" .. cell.name, false)
-    pressedWidgets[stateKey] = true
+    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressDown", surfaceName .. "|" .. targetName, false)
+    pressedWidgets[stateKey] = targetName
 end
 
 function M.HandlePressUp(surfaceName, cell)
     local stateKey = GetInteractionStateKey(surfaceName, cell and cell.name)
     if not stateKey or not pressedWidgets[stateKey] then return end
 
+    local targetName = pressedWidgets[stateKey]
     pressedWidgets[stateKey] = nil
-    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressUp", surfaceName .. "|" .. cell.name, false)
+    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressUp", surfaceName .. "|" .. targetName, false)
 end
 
 function M.HandleWheel(ctx, surfaceName, cell)
     if not cell or not cell.name then return end
-    if not data.IsRelativeWidget(surfaceName, cell.name) then return end
+    local targetName = data.GetScrollTarget(surfaceName, cell)
+    if not targetName or targetName == "" then return end
     if not imgui.IsItemHovered(ctx) then return end
     if not data.vars.interactive then return end
 
-    local stateKey = GetInteractionStateKey(surfaceName, cell.name)
+    local stateKey = GetInteractionStateKey(surfaceName, targetName)
     if not stateKey then return end
 
     local wheelState = wheelStates[stateKey]
     if not wheelState then
         wheelState = {
             surfaceName = surfaceName,
-            widgetName = cell.name,
+            widgetName = targetName,
             direction = 0,
             pendingEvents = 0,
             accelerationIndex = 0,
@@ -108,6 +112,7 @@ function M.HandleWheel(ctx, surfaceName, cell)
 
     local now = r.time_precise()
     local wheelValue = imgui.GetMouseWheel(ctx)
+    if data.vars.invert_scroll then wheelValue = -wheelValue end
     if wheelValue ~= 0 then
         local direction = wheelValue > 0 and 1 or -1
         local eventInterval = wheelState.lastInputTime > 0 and now - wheelState.lastInputTime or math.huge
@@ -132,22 +137,25 @@ function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentVal
     if not cell or not cell.name then return end
     if not data.vars.interactive then return end
     if not trackTop or not trackBottom or trackBottom <= trackTop then return end
+    local valueTarget = data.GetValueTarget(surfaceName, cell) or cell.name
+    local touchTarget = data.GetTouchTarget(surfaceName, cell) or valueTarget
 
-    local stateKey = GetInteractionStateKey(surfaceName, cell.name)
+    local stateKey = GetInteractionStateKey(surfaceName, valueTarget)
     if not stateKey then return end
 
     if imgui.IsItemHovered(ctx) and not imgui.IsItemActive(ctx) then
         local wheelValue = imgui.GetMouseWheel(ctx)
+        if data.vars.invert_scroll then wheelValue = -wheelValue end
         if wheelValue ~= 0 then
             local value = clampNormalized((currentValue or 0.0) + wheelValue * FADER_WHEEL_STEP)
-            data.DebugFader(surfaceName, cell.name, string.format("wheel rawWheel=%.6f currentNormalized=%.6f targetNormalized=%.6f mapper=%s", wheelValue, clampNormalized(currentValue), value, tostring(commandValueMapper ~= nil)), 0.0, "wheel")
+            data.DebugFader(surfaceName, valueTarget, string.format("wheel rawWheel=%.6f currentNormalized=%.6f targetNormalized=%.6f mapper=%s", wheelValue, clampNormalized(currentValue), value, tostring(commandValueMapper ~= nil)), 0.0, "wheel")
             local faderState = faderStates[stateKey]
             if not faderState then
                 faderState = { lastValue = nil, touched = false }
                 faderStates[stateKey] = faderState
             end
             if not faderState.lastValue or math.abs(value - faderState.lastValue) >= FADER_VALUE_EPSILON then
-                SendFaderValue(surfaceName, cell.name, value, commandValueMapper)
+                SendFaderValue(surfaceName, valueTarget, value, commandValueMapper)
                 faderState.lastValue = value
             end
         end
@@ -157,30 +165,30 @@ function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentVal
     if imgui.IsItemActivated(ctx) then
         faderState = { lastValue = nil, touched = true }
         faderStates[stateKey] = faderState
-        data.DebugFader(surfaceName, cell.name, string.format("activated trackTop=%.2f trackBottom=%.2f currentNormalized=%.6f mapper=%s", trackTop, trackBottom, clampNormalized(currentValue), tostring(commandValueMapper ~= nil)), 0.0, "activated")
-        SendFaderTouch(surfaceName, cell.name, true)
+        data.DebugFader(surfaceName, valueTarget, string.format("activated trackTop=%.2f trackBottom=%.2f currentNormalized=%.6f mapper=%s", trackTop, trackBottom, clampNormalized(currentValue), tostring(commandValueMapper ~= nil)), 0.0, "activated")
+        SendFaderTouch(surfaceName, touchTarget, true)
     end
 
     local active = imgui.IsItemActive(ctx) or imgui.IsItemDeactivated(ctx)
     if active then
         local _, mouseY = imgui.GetMousePos(ctx)
         local value = clampNormalized((trackBottom - mouseY) / (trackBottom - trackTop))
-        data.DebugFader(surfaceName, cell.name, string.format("drag mouseY=%.2f trackTop=%.2f trackBottom=%.2f targetNormalized=%.6f deactivated=%s", mouseY, trackTop, trackBottom, value, tostring(imgui.IsItemDeactivated(ctx))), 0.10, "drag")
+        data.DebugFader(surfaceName, valueTarget, string.format("drag mouseY=%.2f trackTop=%.2f trackBottom=%.2f targetNormalized=%.6f deactivated=%s", mouseY, trackTop, trackBottom, value, tostring(imgui.IsItemDeactivated(ctx))), 0.10, "drag")
         if not faderState then
             faderState = { lastValue = nil, touched = false }
             faderStates[stateKey] = faderState
         end
         if not faderState.lastValue or math.abs(value - faderState.lastValue) >= FADER_VALUE_EPSILON or imgui.IsItemDeactivated(ctx) then
-            SendFaderValue(surfaceName, cell.name, value, commandValueMapper)
+            SendFaderValue(surfaceName, valueTarget, value, commandValueMapper)
             faderState.lastValue = value
         end
     end
 
     if imgui.IsItemDeactivated(ctx) then
         if faderState and faderState.touched then
-            SendFaderTouch(surfaceName, cell.name, false)
+            SendFaderTouch(surfaceName, touchTarget, false)
         end
-        data.DebugFader(surfaceName, cell.name, "deactivated", 0.0, "deactivated")
+        data.DebugFader(surfaceName, valueTarget, "deactivated", 0.0, "deactivated")
         faderStates[stateKey] = nil
     end
 end

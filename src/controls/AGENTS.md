@@ -21,6 +21,9 @@
 - Route OSK wheel acceleration through indexed relative actions using the current structured scroll payload only.
 - Resolve OSK display labels in this order: explicit KeyLabel, meaningful OSD text, action title, then the surface label or widget name.
 - Publish OSK tooltip label maps with distinct NoMod, modifier, Hold, DoublePress, and combined pseudo-modifier names so Lua can present every binding line.
+- Publish OSK layout semantic metadata from parsed widget capabilities, including role, input, feedback, widget class, and press/scroll/value/touch targets; visual shape must not be required for fader or rotary behavior.
+- Publish OSK continuous-widget state with value availability and volume/pan kind, and prefer current action track colors for meaningful fader/rotary feedback colors.
+- Persist OSK enabled state per surface and restore/open enabled OSK surfaces after CSI startup initialization.
 - The pre-release Lua bridge uses only documented `ReaCtrlSurf_*` sections and scoped configuration statuses; do not add legacy aliases without a publication requirement.
 - Surface-independent behavior belongs here; protocol-specific behavior belongs in `midi/` or `osc/`.
 

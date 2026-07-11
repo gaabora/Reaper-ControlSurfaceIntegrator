@@ -68,13 +68,17 @@ local function GetFaderColor(surfName, widgetName, cell)
     local widgetState = data.states[surfName] and data.states[surfName][widgetName]
     if widgetState and colorIsMeaningful(widgetState.color) then return widgetState.color end
     if cell and cell.color then return cell.color end
-    return GetButtonColor(surfName, widgetName, cell)
+    return data.ensureMinLuminance(data.COLORS.button_off, 70)
 end
 
 local function GetButtonValue(surfName, widgetName)
     local state = data.states[surfName] and data.states[surfName][widgetName]
     if state then return state.value end
     return 0
+end
+
+local function GetContinuousKind(surfName, widgetName)
+    return data.GetStateKind(surfName, widgetName)
 end
 
 local function clampNormalized(value)
@@ -96,21 +100,25 @@ local function normalizedToDb(value)
 end
 
 local function GetFaderValueInfo(surfName, widgetName)
+    if not data.HasStateValue(surfName, widgetName) then
+        data.DebugFader(surfName, widgetName, "render value unavailable", 1.50, "render")
+        return 0.0, nil, false
+    end
     local rawValue = GetButtonValue(surfName, widgetName)
     local localValue = data.GetFaderLocalValue(surfName, widgetName, rawValue)
     if localValue then
         data.DebugFader(surfName, widgetName, string.format("render value raw=%.6f mode=local-shadow normalized=%.6f", rawValue, localValue), 1.50, "render")
-        if rawValue < 0.0 or rawValue > 1.0 then return clampNormalized(localValue), function(value) return normalizedToDb(value) end end
-        return clampNormalized(localValue), nil
+        if rawValue < 0.0 or rawValue > 1.0 then return clampNormalized(localValue), function(value) return normalizedToDb(value) end, true end
+        return clampNormalized(localValue), nil, true
     end
     if rawValue < 0.0 or rawValue > 1.0 then
         local normalizedValue = dbToNormalized(rawValue)
         data.DebugFader(surfName, widgetName, string.format("render value raw=%.6f mode=db normalized=%.6f", rawValue, normalizedValue), 1.50, "render")
-        return normalizedValue, function(value) return normalizedToDb(value) end
+        return normalizedValue, function(value) return normalizedToDb(value) end, true
     end
     local normalizedValue = clampNormalized(rawValue)
     data.DebugFader(surfName, widgetName, string.format("render value raw=%.6f mode=normalized normalized=%.6f", rawValue, normalizedValue), 1.50, "render")
-    return normalizedValue, nil
+    return normalizedValue, nil, true
 end
 
 local function GetButtonLabel(surfName, cell)
@@ -120,7 +128,23 @@ local function GetButtonLabel(surfName, cell)
     return cell.name or "?"
 end
 
-local function ShowDelayedTooltip(ctx, surfName, widgetName, text)
+local function appendTooltipLines(lines, modMap, heading)
+    if not modMap or not next(modMap) then return end
+    if heading and heading ~= "" then lines[#lines + 1] = heading end
+    if modMap["NoMod"] then
+        lines[#lines + 1] = data.getProcessedLabel(modMap["NoMod"])
+    end
+    local sortedMods = {}
+    for key in pairs(modMap) do
+        if key ~= "NoMod" then sortedMods[#sortedMods + 1] = key end
+    end
+    table.sort(sortedMods)
+    for _, modName in ipairs(sortedMods) do
+        lines[#lines + 1] = "+ " .. modName .. " -> " .. data.getProcessedLabel(modMap[modName])
+    end
+end
+
+local function ShowDelayedTooltip(ctx, surfName, widgetName, text, pressTarget)
     local stateKey = GetInteractionStateKey(surfName, widgetName)
     if not stateKey then return end
     if imgui.IsItemHovered(ctx) then
@@ -130,20 +154,13 @@ local function ShowDelayedTooltip(ctx, surfName, widgetName, text)
         end
         if now - hoverStartTime[stateKey] >= data.vars.tooltip_delay then
             local modMap = surfName and data.labelMaps[surfName] and data.labelMaps[surfName][widgetName]
+            local pushMap = pressTarget and pressTarget ~= "" and pressTarget ~= widgetName
+                and data.labelMaps[surfName] and data.labelMaps[surfName][pressTarget]
             local tooltipText = text
-            if modMap and next(modMap) then
+            if (modMap and next(modMap)) or (pushMap and next(pushMap)) then
                 local lines = {}
-                if modMap["NoMod"] then
-                    lines[#lines + 1] = data.getProcessedLabel(modMap["NoMod"])
-                end
-                local sortedMods = {}
-                for key in pairs(modMap) do
-                    if key ~= "NoMod" then sortedMods[#sortedMods + 1] = key end
-                end
-                table.sort(sortedMods)
-                for _, modName in ipairs(sortedMods) do
-                    lines[#lines + 1] = "+ " .. modName .. " -> " .. data.getProcessedLabel(modMap[modName])
-                end
+                appendTooltipLines(lines, modMap)
+                appendTooltipLines(lines, pushMap, "Push:")
                 if #lines > 0 then
                     tooltipText = table.concat(lines, "\n")
                 end
@@ -226,7 +243,7 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
     end
 
     if insideShape then
-        ShowDelayedTooltip(ctx, surfName, cell.name or "", label)
+        ShowDelayedTooltip(ctx, surfName, cell.name or "", label, data.GetPressTarget(surfName, cell))
         osk_input.HandleWheel(ctx, surfName, cell)
     elseif cell.name then
         local stateKey = GetInteractionStateKey(surfName, cell.name)
@@ -255,7 +272,7 @@ local function DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, l
     local hovered = imgui.IsItemHovered(ctx)
     if hovered then
         data.DebugFader(surfName, cell.name or "", string.format("hover visualH=%.2f layoutH=%.2f currentNormalized=%.6f mapper=%s", visualH, layoutH, clampNormalized(currentValue), tostring(commandValueMapper ~= nil)), 0.50, "hover")
-        ShowDelayedTooltip(ctx, surfName, cell.name or "", label)
+        ShowDelayedTooltip(ctx, surfName, cell.name or "", label, data.GetPressTarget(surfName, cell))
     elseif cell.name then
         local stateKey = GetInteractionStateKey(surfName, cell.name)
         if stateKey then hoverStartTime[stateKey] = nil end
@@ -272,14 +289,14 @@ local function DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, l
     imgui.Dummy(ctx, bw, layoutH)
 end
 
-local function RenderCenteredWrappedText(ctx, drawList, text, centerX, centerY, maxW, maxH)
+local function RenderCenteredWrappedText(ctx, drawList, text, centerX, centerY, maxW, maxH, textColor)
     imgui.PushFont(ctx, FONT_SMALL)
     local lines = data.wrapText(ctx, text, maxW, imgui)
     local _, fontH = imgui.CalcTextSize(ctx, "M")
     local lineAdvance = fontH * (tonumber(data.vars.line_height) or 0.6)
     local totalH = #lines > 0 and (fontH + (#lines - 1) * lineAdvance) or 0
     local startY = centerY - totalH / 2
-    local textCol = data.applyAlpha(data.COLORS.text_normal, data.vars.btn_transparency)
+    local textCol = data.applyAlpha(textColor or data.COLORS.text_normal, data.vars.btn_transparency)
     for index, line in ipairs(lines) do
         local textWidth = imgui.CalcTextSize(ctx, line)
         local textX = centerX - textWidth / 2
@@ -288,6 +305,18 @@ local function RenderCenteredWrappedText(ctx, drawList, text, centerX, centerY, 
         imgui.DrawList_AddText(drawList, textX, textY, textCol, line)
     end
     imgui.PopFont(ctx)
+end
+
+local function RenderCenteredSingleText(ctx, drawList, text, centerX, centerY, textColor)
+    local pushed = false
+    if FONT then
+        imgui.PushFont(ctx, FONT)
+        pushed = true
+    end
+    local textWidth, textHeight = imgui.CalcTextSize(ctx, text)
+    local textCol = data.applyAlpha(textColor or data.COLORS.text_normal, data.vars.btn_transparency)
+    imgui.DrawList_AddText(drawList, centerX - textWidth / 2, centerY - textHeight / 2, textCol, text)
+    if pushed then imgui.PopFont(ctx) end
 end
 
 local function DrawRectButton(ctx, drawList, surfName, cell, bw, bh, yOffset)
@@ -373,6 +402,88 @@ local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW, y
 
     imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
     DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, roundHitTest)
+end
+
+local function DrawArc(drawList, centerX, centerY, radius, startAngle, endAngle, color, thickness)
+    if math.abs(endAngle - startAngle) < 0.001 then return end
+    if imgui.DrawList_PathStroke then
+        local segments = 48
+        if imgui.DrawList_PathClear then imgui.DrawList_PathClear(drawList) end
+        for index = 0, segments do
+            local t = index / segments
+            local angle = startAngle + (endAngle - startAngle) * t
+            imgui.DrawList_PathLineTo(drawList, centerX + math.cos(angle) * radius, centerY + math.sin(angle) * radius)
+        end
+        imgui.DrawList_PathStroke(drawList, color, 0, thickness)
+        return
+    end
+
+    local segments = 28
+    local previousX, previousY
+    for index = 0, segments do
+        local t = index / segments
+        local angle = startAngle + (endAngle - startAngle) * t
+        local x = centerX + math.cos(angle) * radius
+        local y = centerY + math.sin(angle) * radius
+        if previousX then
+            imgui.DrawList_AddLine(drawList, previousX, previousY, x, y, color, thickness)
+        end
+        previousX, previousY = x, y
+    end
+end
+
+local function DrawRotaryControl(ctx, drawList, surfName, cell, bw, bh, yOffset)
+    local label = data.getProcessedLabel(GetButtonLabel(surfName, cell))
+    local baseColor = GetFaderColor(surfName, cell.name, cell)
+    local btnAlpha = data.vars.btn_transparency
+    local value, _, hasValue = GetFaderValueInfo(surfName, cell.name)
+    local continuousKind = GetContinuousKind(surfName, cell.name)
+    local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
+    local drawY = cursorY + (yOffset or 0)
+    local labelH = hasValue and 16 or 0
+    local valueTopPad = hasValue and math.max(4, bh * 0.12) or 0
+    local visualY = drawY + valueTopPad
+    local visualH = math.max(8, bh - labelH - valueTopPad)
+    local diameter = math.min(bw, visualH) - 4
+    local radius = math.max(4, diameter / 2)
+    local centerX = cursorX + bw / 2
+    local centerY = visualY + visualH / 2
+    local bodyCol = data.applyAlpha(data.dimColor(baseColor, 0.55), btnAlpha)
+    local activeCol = data.applyAlpha(data.brightenColor(baseColor, 35), btnAlpha)
+    local trackCol = data.applyAlpha(data.dimColor(baseColor, 0.30), btnAlpha)
+    local startAngle = math.rad(135)
+    local endAngle = math.rad(405)
+    local currentAngle = startAngle + (endAngle - startAngle) * clampNormalized(value)
+    local textOnDark = 0xffffffff
+
+    imgui.DrawList_AddCircleFilled(drawList, centerX, centerY, radius, bodyCol, 32)
+    if hasValue then
+        local rotaryStyle = tostring(cell.rotaryStyle or "wiper"):lower()
+        if rotaryStyle == "wiper" then
+            DrawArc(drawList, centerX, centerY, radius + 3, startAngle, endAngle, trackCol, 6)
+            DrawArc(drawList, centerX, centerY, radius + 3, startAngle, currentAngle, activeCol, 6)
+            imgui.DrawList_AddCircleFilled(drawList, centerX, centerY, radius * 0.68, data.applyAlpha(data.dimColor(baseColor, 0.45), btnAlpha), 28)
+        else
+            local dotRadius = math.max(3, radius * 0.12)
+            local dotX = centerX + math.cos(currentAngle) * radius * 0.66
+            local dotY = centerY + math.sin(currentAngle) * radius * 0.66
+            imgui.DrawList_AddCircleFilled(drawList, dotX, dotY, dotRadius, activeCol, 12)
+        end
+        if continuousKind == "V" or continuousKind == "P" then
+            RenderCenteredSingleText(ctx, drawList, continuousKind, centerX, centerY, textOnDark)
+        end
+        RenderCenteredWrappedText(ctx, drawList, label, cursorX + bw / 2, visualY + visualH + labelH / 2, bw - 8, labelH, textOnDark)
+    else
+        RenderCenteredWrappedText(ctx, drawList, label, centerX, centerY, diameter - 6, diameter - 6, textOnDark)
+    end
+
+    local function rotaryHitTest(mouseX, mouseY)
+        local dx, dy = mouseX - centerX, mouseY - centerY
+        return dx * dx + dy * dy <= radius * radius
+    end
+
+    imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
+    DrawButtonInteraction(ctx, surfName, cell, bw, bh + (yOffset or 0), label, rotaryHitTest)
 end
 
 local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction, yOffset)
@@ -480,11 +591,11 @@ local function DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, hitH
     local trackT = drawY + pad
     local trackB = drawY + visualH - pad - labelH
 
-    local trackBg = data.applyAlpha(data.dimColor(baseColor, 0.35), btnAlpha)
+    local trackBg = data.applyAlpha(0x262626ff, btnAlpha)
     imgui.DrawList_AddRectFilled(drawList, trackL, trackT, trackR, trackB, trackBg, 3)
 
     local fillTop = trackB - (trackB - trackT) * value
-    local fillCol = data.applyAlpha(data.brightenColor(baseColor, 25), btnAlpha)
+    local fillCol = data.applyAlpha(0xd8d8d8ff, btnAlpha)
     imgui.DrawList_AddRectFilled(drawList, trackL, fillTop, trackR, trackB, fillCol, 3)
 
     local knobH = 8
@@ -496,15 +607,10 @@ local function DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, hitH
     DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, label, value, commandValueMapper, trackT, trackB)
 end
 
-function M.RenderOSDBar(ctx)
-    osd_ui.PollOSD()
-
-    if osd_ui.vars.osk_bar_position == "off" then
+function M.RenderOSDBar(ctx, surfName)
+    if osd_ui.GetOSKBarPosition(surfName) == "off" then
         return
     end
-
-    local topPad = data.vars.pad_v * data.vars.zoom
-    if topPad > 0 then imgui.Dummy(ctx, 0, topPad) end
 
     local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
     local availWidth = imgui.GetContentRegionAvail(ctx)
@@ -519,10 +625,11 @@ end
 
 local function getCellMetrics(cell)
     local shape = (cell.shape or "Rect"):lower()
+    local role = tostring(cell.role or ""):lower()
     local heightFactor = cell.height or 1.0
     local rowSpan = cell.rowSpan or 1
 
-    if shape == "fader" then
+    if role == "fader" or shape == "fader" then
         rowSpan = math.max(1, math.floor((cell.height or 1.0) + 0.5))
         heightFactor = 1.0
     else
@@ -621,7 +728,16 @@ function M.RenderSurface(ctx, surfName)
                     local bh = baseH * heightFactor
                     local topPad = math.max(0, (cell.top or 0.0) * baseH)
 
-                    if shape == "round" then
+                    if data.IsRotaryWidget(surfName, cell.name) then
+                        DrawRotaryControl(ctx, drawList, surfName, cell, bw, bh, topPad)
+                    elseif data.IsFaderWidget(surfName, cell.name) then
+                        if rowSpan > 1 then
+                            local visualH = baseH * heightFactor * rowSpan + padV * (rowSpan - 1)
+                            DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, bh, topPad)
+                        else
+                            DrawFaderControl(ctx, drawList, surfName, cell, bw, bh, nil, topPad)
+                        end
+                    elseif shape == "round" then
                         local visualW = baseH * (cell.width or 1.0)
                         DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW, topPad)
                     elseif shape == "leftarrow" then
@@ -632,13 +748,6 @@ function M.RenderSurface(ctx, surfName)
                         DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "up", topPad)
                     elseif shape == "downarrow" then
                         DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "down", topPad)
-                    elseif shape == "fader" then
-                        if rowSpan > 1 then
-                            local visualH = baseH * heightFactor * rowSpan + padV * (rowSpan - 1)
-                            DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, bh, topPad)
-                        else
-                            DrawFaderControl(ctx, drawList, surfName, cell, bw, bh, nil, topPad)
-                        end
                     else
                         DrawRectButton(ctx, drawList, surfName, cell, bw, bh, topPad)
                     end
