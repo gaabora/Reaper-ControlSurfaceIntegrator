@@ -1,8 +1,8 @@
 #ifdef CSI_UI_INCLUDE_CONFIG_DIALOGS
 static bool s_editMode = false;
 
-static char* s_genericOSCSurface = (char*) "Generic OSC Surface";
-static char* s_BehringerX32Surface = (char*) "Behringer X32 Surface";
+static const char* s_genericOSCSurface = "Generic OSC Surface";
+static const char* s_BehringerX32Surface = "Behringer X32 Surface";
 
 static string s_pageName;
 static string s_oldSurfaceName;
@@ -155,7 +155,7 @@ static void TransferBroadcasters(vector<unique_ptr<Broadcaster>>& source, vector
 
 static vector<unique_ptr<PageLine>> s_pages;
 
-static void AddComboEntry(HWND hwndDlg, int x, char* buf, int comboId) {
+static void AddComboEntry(HWND hwndDlg, int x, const char* buf, int comboId) {
     int a = (int) SendDlgItemMessage(hwndDlg, comboId, CB_ADDSTRING, 0, (LPARAM) buf);
     SendDlgItemMessage(hwndDlg, comboId, CB_SETITEMDATA, a, x);
 }
@@ -252,10 +252,10 @@ static WDL_DLGRET dlgProcPageSurface(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
                         s_surfaceFolders.push_back(file.path().filename().string());
 
             for (auto surfaceFolder : s_surfaceFolders)
-                AddComboEntry(hwndDlg, 0, (char*) surfaceFolder.c_str(), IDC_COMBO_PageSurfaceFolder);
+                AddComboEntry(hwndDlg, 0, surfaceFolder.c_str(), IDC_COMBO_PageSurfaceFolder);
 
             for (auto& surface : s_surfaces)
-                AddComboEntry(hwndDlg, 0, (char*) surface->name.c_str(), IDC_COMBO_PageSurface);
+                AddComboEntry(hwndDlg, 0, surface->name.c_str(), IDC_COMBO_PageSurface);
 
             if (s_editMode) {
                 int index = (int) SendMessage(GetDlgItem(hwndDlg, IDC_COMBO_PageSurfaceFolder), CB_FINDSTRINGEXACT, -1, (LPARAM) s_pageSurfaceFolder.c_str());
@@ -538,11 +538,11 @@ static WDL_DLGRET dlgProcAdvancedSetup(HWND hwndDlg, UINT uMsg, WPARAM wParam, L
             WDL_UTF8_HookComboBox(GetDlgItem(hwndDlg, IDC_AddBroadcaster));
             WDL_UTF8_HookComboBox(GetDlgItem(hwndDlg, IDC_AddListener));
             for (auto& surface : s_surfaces)
-                AddComboEntry(hwndDlg, 0, (char*) surface->name.c_str(), IDC_AddBroadcaster);
+                AddComboEntry(hwndDlg, 0, surface->name.c_str(), IDC_AddBroadcaster);
             SendMessage(GetDlgItem(hwndDlg, IDC_AddBroadcaster), CB_SETCURSEL, 0, 0);
 
             for (auto& surface : s_surfaces)
-                AddComboEntry(hwndDlg, 0, (char*) surface->name.c_str(), IDC_AddListener);
+                AddComboEntry(hwndDlg, 0, surface->name.c_str(), IDC_AddListener);
             SendMessage(GetDlgItem(hwndDlg, IDC_AddListener), CB_SETCURSEL, 0, 0);
 
             TransferBroadcasters(s_pages[s_pageIndex]->broadcasters, s_broadcasters);

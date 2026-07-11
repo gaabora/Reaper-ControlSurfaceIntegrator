@@ -16,7 +16,7 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
         ifstream file(filePath);
 
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] @%s/{%s} # LoadZoneFile: %s\n", zm->surface_->GetName(), zone->GetName(), GetRelativePath(filePath));
+            LogToConsole("[DEBUG] @%s/{%s} # LoadZoneFile: %s\n", zm->surface_->GetName(), zone->GetName(), GetRelativePath(filePath).c_str());
 
         for (string line; getline(file, line);) {
             TrimLine(line);
@@ -50,21 +50,14 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
                 try {
                     zm->LoadZones(zone->GetIncludedZones(), includedZonesList);
                 } catch (const std::exception& e) {
-                    LogToConsole("[ERROR] %s in IncludedZones section in file %s\n",
-                        e.what(),
-                        GetRelativePath(zone->GetSourceFilePath()));
+                    LogToConsole("[ERROR] %s in IncludedZones section in file %s\n", e.what(), GetRelativePath(zone->GetSourceFilePath()).c_str());
                 }
             } else if (isInIncludedZonesSection)
                 includedZonesList.push_back(tokens[0]);
-
-            else if (tokens.size() > 1) {
-                if (tokens.size() < 2) {
-                    LogToConsole("[ERROR] Not enough params at line %d in %s\n",
-                        lineNumber,
-                        GetRelativePath(filePath));
+            else if (tokens.size() < 2) {
+                    LogToConsole("[ERROR] Not enough params at line %d in %s\n", lineNumber, GetRelativePath(filePath).c_str());
                     continue;
-                }
-
+            } else if (tokens.size() > 1) {
                 string widgetName;
                 int modifier = 0;
                 bool isValueInverted = false;
@@ -79,8 +72,7 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
                 Widget* widget = zm->surface_->GetWidgetByName(widgetName);
 
                 if (widget == NULL) {
-                    LogToConsole("[WARNING] Widget '%s' not found in surface '%s' (file: %s, line %d)\n",
-                        widgetName.c_str(), zm->surface_->GetName(), GetRelativePath(filePath), lineNumber);
+                    LogToConsole("[WARNING] Widget '%s' not found in surface '%s' (file: %s, line %d)\n", widgetName.c_str(), zm->surface_->GetName(), GetRelativePath(filePath).c_str(), lineNumber);
                     continue;
                 }
 
@@ -102,8 +94,7 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
                 }
 
                 if (context == NULL) {
-                    LogToConsole("[WARNING] Action '%s' for widget '%s' returned NULL context (file: %s, line %d)\n",
-                        tokens[1].c_str(), widgetName.c_str(), GetRelativePath(filePath), lineNumber);
+                    LogToConsole("[WARNING] Action '%s' for widget '%s' returned NULL context (file: %s, line %d)\n", tokens[1].c_str(), widgetName.c_str(), GetRelativePath(filePath).c_str(), lineNumber);
                     continue;
                 }
 

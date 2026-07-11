@@ -90,8 +90,13 @@ inline void LogMessage(const char* msg) {
         char timeStr[32];
         time_t rawtime;
         time(&rawtime);
-        struct tm* timeinfo = localtime(&rawtime);
-        strftime(timeStr, sizeof(timeStr), "[%y-%m-%d %H:%M:%S] ", timeinfo);
+        struct tm timeinfo_buf;
+#ifdef _WIN32
+        localtime_s(&timeinfo_buf, &rawtime);
+#else
+        localtime_r(&rawtime, &timeinfo_buf);
+#endif
+        strftime(timeStr, sizeof(timeStr), "[%y-%m-%d %H:%M:%S] ", &timeinfo_buf);
         logFile << timeStr << msg;
     }
 }
@@ -167,11 +172,12 @@ inline std::string GetRelativePath(const char* absolutePath) {
 }
 
 inline int ExtractSuffixNumber(const std::string& name) {
+    if (name.empty()) return -1;
     int result = -1;
-    size_t index = name.length() - 1;
-    while (index >= 0 && isdigit(name[index]))
+    int index = static_cast<int>(name.length()) - 1;
+    while (index >= 0 && isdigit(static_cast<unsigned char>(name[index])))
         index--;
-    if (index < name.length() - 1)
+    if (index < static_cast<int>(name.length()) - 1)
         result = stoi(name.substr(index + 1));
     return result;
 }
@@ -201,8 +207,8 @@ inline char* format_number(double v, char* buf, int bufsz) {
     return buf;
 }
 
-inline bool IsCommentedOrEmpty(string& line) {
-    return line == "" || line[0] == '\r' || line[0] == '/' || line[0] == '#';
+inline bool IsCommentedOrEmpty(const string& line) {
+    return line.empty() || line[0] == '\r' || line[0] == '/' || line[0] == '#';
 }
 
 #include "types.h"

@@ -71,7 +71,7 @@ private:
         try {
             ifstream file(filePath);
 
-            if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] LoadZoneMetadata: %s\n", GetRelativePath(filePath));
+            if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] LoadZoneMetadata: %s\n", GetRelativePath(filePath).c_str());
             for (string line; getline(file, line);) {
                 TrimLine(line);
                 lineNumber++;
@@ -569,9 +569,9 @@ public:
             zoneInfo_[name] = zoneInfo;
         } else {
             ZoneInfo& info = zoneInfo_[name];
-            if (!IsSameString(GetRelativePath(zoneInfo.filePath.c_str()), GetRelativePath(zoneInfo_[name].filePath.c_str()))) {
+            if (!IsSameString(GetRelativePath(zoneInfo.filePath.c_str()), GetRelativePath(zoneInfo_[name].filePath.c_str()))) { //FIXME: simplier way? there are more places like this
                 if (g_debugLevel >= DEBUG_LEVEL_WARNING)
-                    LogToConsole("[WARNING] Skipping file '%s': A zone named '%s' has already been loaded. Duplicate zones are not allowed.\n", GetRelativePath(zoneInfo_[name].filePath.c_str()), name.c_str());
+                    LogToConsole("[WARNING] Skipping file '%s': A zone named '%s' has already been loaded. Duplicate zones are not allowed.\n", GetRelativePath(zoneInfo_[name].filePath.c_str()).c_str(), name.c_str());
                 return;
             }
             info.alias = zoneInfo.alias;

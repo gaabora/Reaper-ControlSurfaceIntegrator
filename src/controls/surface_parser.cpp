@@ -43,7 +43,7 @@ void SurfaceTemplateParser::ParseMidiTemplate(const string& filePath,
     try {
         ifstream file(filePath);
 
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] ParseMidiTemplate: %s\n", GetRelativePath(filePath.c_str()));
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] ParseMidiTemplate: %s\n", GetRelativePath(filePath.c_str()).c_str());
 
         for (string line; getline(file, line);) {
             TrimLine(line);
@@ -142,7 +142,7 @@ void SurfaceTemplateParser::ParseOSCTemplate(const string& filePath,
     try {
         ifstream file(filePath);
 
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] ParseOSCTemplate: %s\n", GetRelativePath(filePath.c_str()));
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] ParseOSCTemplate: %s\n", GetRelativePath(filePath.c_str()).c_str());
 
         for (string line; getline(file, line);) {
             TrimLine(line);

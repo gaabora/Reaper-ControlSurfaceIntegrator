@@ -1445,7 +1445,7 @@ void ZoneManager::Initialize() {
         try {
             LoadZones(goZones_, zoneList);
         } catch (const std::exception& e) {
-            LogToConsole("[ERROR] %s in GoZones section in file %s\n", e.what(), GetRelativePath(zoneInfo_["GoZones"].filePath.c_str()));
+            LogToConsole("[ERROR] %s in GoZones section in file %s\n", e.what(), GetRelativePath(zoneInfo_["GoZones"].filePath.c_str()).c_str());
         }
     } else {
         for (const auto& entry : zoneInfo_) {
@@ -1464,8 +1464,8 @@ void ZoneManager::Initialize() {
         for (const auto& entry : zoneInfo_) {
             ZoneInfo zoneInfo = entry.second;
             if (zoneInfo.isLoaded && !zoneInfo.isReferenced)
-                if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Zone '%s' was loaded but never referenced! %s\n", entry.first.c_str(), GetRelativePath(zoneInfo.filePath.c_str()));
-            if (!zoneInfo.isLoaded && zoneInfo.isReferenced) LogToConsole("[ERROR] Zone '%s' was referenced but not loaded! (%s)\n", entry.first.c_str(), GetRelativePath(zoneInfo.filePath.c_str()));
+                if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Zone '%s' was loaded but never referenced! %s\n", entry.first.c_str(), GetRelativePath(zoneInfo.filePath.c_str()).c_str());
+            if (!zoneInfo.isLoaded && zoneInfo.isReferenced) LogToConsole("[ERROR] Zone '%s' was referenced but not loaded! (%s)\n", entry.first.c_str(), GetRelativePath(zoneInfo.filePath.c_str()).c_str());
         }
     }
 
@@ -1479,7 +1479,7 @@ void ZoneManager::PreProcessZoneFile(const string& filePath) {
         ZoneInfo info;
         info.filePath = filePath;
 
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] PreProcessZoneFile: %s\n", GetRelativePath(filePath.c_str()));
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] PreProcessZoneFile: %s\n", GetRelativePath(filePath.c_str()).c_str());
 
         info.isFxZone = 0 == strncmp(fxZoneFolder_.c_str(), filePath.c_str(), fxZoneFolder_.length());
 
@@ -1503,7 +1503,7 @@ void ZoneManager::PreProcessZoneFile(const string& filePath) {
                     if (type != NavigatorType::Invalid) {
                         info.navigator = propValue;
                     } else {
-                        LogToConsole("[ERROR] Invalid value for property NavType=%s (supported: %s) in file %s\n", propValue, JoinStringVector(Navigator::GetSupportedNames(), ", ").c_str(), GetRelativePath(filePath.c_str()));
+                        LogToConsole("[ERROR] Invalid value for property NavType=%s (supported: %s) in file %s\n", propValue, JoinStringVector(Navigator::GetSupportedNames(), ", ").c_str(), GetRelativePath(filePath.c_str()).c_str()); //FIXME review logging and overall approach on string vs char* everywhere, this .c_str()).c_str()).c_str() does not look right
                     }
                 }
                 //TODO: GoSubZone LeaveSubZone GoZone GoHome validity check

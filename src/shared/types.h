@@ -41,32 +41,32 @@ const int SMLBUF = 256;
 // -------------------------------------------------------------------------
 // REAPER command IDs and CSI script paths
 // -------------------------------------------------------------------------
-static const char* const REASCRIPT_PATH__CSI_OSD = "/Scripts/CSI/CSI OSD on-screen display.lua";
-static const char* const REASCRIPT_HASH__CSI_OSD = "_RSba74d8dbb9258d14b5305a183a5f20e8a6e0f64f";
-static const char* const REASCRIPT_PATH__CSI_OSK = "/Scripts/CSI/CSI OSK on-screen keyboard.lua";
-static const int REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES = 41743;
-static const int REAPER__RESET_ALL_MIDI_CONTROL_SURFACE_DEVICES = 42348;
-static const int REAPER__FILE_NEW_PROJECT = 40023;
-static const int REAPER__FILE_OPEN_PROJECT = 40025;
-static const int REAPER__TRACK_INSERT_TRACK_FROM_TEMPLATE = 46000;
-static const int REAPER__CLOSE_CURRENT_PROJECT_TAB = 40860;
-static const int REAPER__SWITCH_TO_NEXT_PROJECT_TAB = 40862;
-static const int REAPER__SWITCH_TO_PREVIOUS_PROJECT_TAB = 40861;
+inline constexpr const char* REASCRIPT_PATH__CSI_OSD = "/Scripts/CSI/CSI OSD on-screen display.lua";
+inline constexpr const char* REASCRIPT_HASH__CSI_OSD = "_RSba74d8dbb9258d14b5305a183a5f20e8a6e0f64f";
+inline constexpr const char* REASCRIPT_PATH__CSI_OSK = "/Scripts/CSI/CSI OSK on-screen keyboard.lua";
+inline constexpr int REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES = 41743;
+inline constexpr int REAPER__RESET_ALL_MIDI_CONTROL_SURFACE_DEVICES = 42348;
+inline constexpr int REAPER__FILE_NEW_PROJECT = 40023;
+inline constexpr int REAPER__FILE_OPEN_PROJECT = 40025;
+inline constexpr int REAPER__TRACK_INSERT_TRACK_FROM_TEMPLATE = 46000;
+inline constexpr int REAPER__CLOSE_CURRENT_PROJECT_TAB = 40860;
+inline constexpr int REAPER__SWITCH_TO_NEXT_PROJECT_TAB = 40862;
+inline constexpr int REAPER__SWITCH_TO_PREVIOUS_PROJECT_TAB = 40861;
 
 // -------------------------------------------------------------------------
 // CSI identification strings
 // -------------------------------------------------------------------------
-static const char* const s_CSIName = "CSI";
-static const char* const s_CSIVersionDisplay = "v7.0";
-static const char* const s_MajorVersionToken = "7.0";
-static const char* const s_PageToken = "Page";
-static const char* const s_MidiSurfaceToken = "MIDI";
-static const char* const s_OSCSurfaceToken = "OSC";
-static const char* const s_OSCX32SurfaceToken = "OSCX32";
+inline constexpr const char* s_CSIName = "CSI";
+inline constexpr const char* s_CSIVersionDisplay = "v7.0";
+inline constexpr const char* s_MajorVersionToken = "7.0";
+inline constexpr const char* s_PageToken = "Page";
+inline constexpr const char* s_MidiSurfaceToken = "MIDI";
+inline constexpr const char* s_OSCSurfaceToken = "OSC";
+inline constexpr const char* s_OSCX32SurfaceToken = "OSCX32";
 
-static const char* const s_BadFileChars = " \\:*?<>|.,()/";
-static const char* const s_BeginAutoSection = "#Begin auto generated section";
-static const char* const s_EndAutoSection = "#End auto generated section";
+inline constexpr const char* s_BadFileChars = " \\:*?<>|.,()/";
+inline constexpr const char* s_BeginAutoSection = "#Begin auto generated section";
+inline constexpr const char* s_EndAutoSection = "#End auto generated section";
 
 // -------------------------------------------------------------------------
 // struct osd_data
@@ -97,13 +97,15 @@ struct osd_data {
 
     osd_data() = default;
 
-    osd_data(string osdValue) {
+    osd_data(const string& osdValue) {
         origValue = osdValue;
 
-        if (osdValue.front() == '\"') osdValue.erase(0, 1);
-        if (osdValue.back() == '\"') osdValue.pop_back();
+        string value = osdValue;
+        if (value.empty()) return;
+        if (value.front() == '\"') value.erase(0, 1);
+        if (value.back() == '\"') value.pop_back();
 
-        vector<string> osdParams = ExplodeString(';', osdValue);
+        vector<string> osdParams = ExplodeString(';', value);
 
         message = osdParams[0];
         if (osdParams.size() >= 2 && !osdParams[1].empty()) bgColors = ExplodeString(' ', osdParams[1]);

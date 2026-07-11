@@ -25,7 +25,8 @@ public:
             midiSysExData.evt.frame_offset = 0;
             midiSysExData.evt.size = 0;
 
-            for (int i = 0; i < tokens.size(); ++i)
+            const int maxSize = static_cast<int>(sizeof(midiSysExData.evt.midi_message) + sizeof(midiSysExData.data));
+            for (int i = 0; i < (int)tokens.size() && midiSysExData.evt.size < maxSize; ++i)
                 midiSysExData.evt.midi_message[midiSysExData.evt.size++] = strToHex(tokens[i]);
 
             context->GetSurface()->SendMidiSysExMessage(&midiSysExData.evt);

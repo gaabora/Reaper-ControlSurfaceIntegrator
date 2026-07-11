@@ -15,7 +15,7 @@ struct LEDRingRangeColor {
     }
 };
 
-static const vector<LEDRingRangeColor>& GetColorValues(const string& inputProperty) {
+inline const vector<LEDRingRangeColor>& GetColorValues(const string& inputProperty) {
     static vector<LEDRingRangeColor> s_encoderRingColors;
     s_encoderRingColors.clear();
 

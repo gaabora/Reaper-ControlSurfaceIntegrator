@@ -23,7 +23,7 @@
 #include "track_nav_manager.h"
 #include "page.h"
 
-static const int s_tickCounts_[] = { 250, 235, 220, 205, 190, 175, 160, 145, 130, 115, 100, 90, 80, 70, 60, 50, 45, 40, 35, 30, 25, 20, 20, 20 };
+inline constexpr int s_tickCounts_[] = { 250, 235, 220, 205, 190, 175, 160, 145, 130, 115, 100, 90, 80, 70, 60, 50, 45, 40, 35, 30, 25, 20, 20, 20 };
 
 class CSurfIntegrator : public IReaperControlSurface
 {
@@ -361,15 +361,15 @@ public:
         return reloadingCommandIds_;
     }
 
-    void ShowErrorOSD(string text) {
+    void ShowErrorOSD(const string& text) {
         ForceOSD(text, osd_data::COLOR_ERROR);
     }
-    void ForceOSD(string text, string bgColor = "") {
+    void ForceOSD(const string& text, const string& bgColor = "") {
         osd_data osdData = osd_data(text);
         osdData.bgColor = bgColor;
         QueuedOSD = osdData;
     }
-    void EnqueueOSD(osd_data osdData_) { QueuedOSD = osdData_; }
+    void EnqueueOSD(const osd_data& osdData_) { QueuedOSD = osdData_; }
 
     void Run() override {
         WDL_MutexLock lock(&csiMutex_);
