@@ -6,7 +6,7 @@
 #ifndef control_surface_OSC_widgets_h
 #define control_surface_OSC_widgets_h
 
-#include "handy_functions.h"
+#include "../../shared/handy_functions.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class OSC_X32FeedbackProcessor : public OSC_FeedbackProcessor

@@ -12,6 +12,18 @@ CSI is a Reaper extension designed to help you integrate hardware control surfac
 xattr -d com.apple.quarantine ~/Library/Application\ Support/REAPER/UserPlugins/reaper_csurf_integrator.dylib
 ```
 
+
+
+
+need to plan way to implement, maybe not thru extState buttons in lua on click should send events to csi, also need to send mouse scroll events for rotary buttons (increase/decrease).
+there was tries to implement, but currently it gives errors like
+"attempt to access a nil value (field 'GetIO')"
+
+
+
+
+
+
 # Development
 based on modified crossplatform automated build template from extension for reaper from https://github.com/ak5k/reaper-sdk-vscode - [Visual Studio Code](https://code.visualstudio.com/) + [CMake](https://cmake.org/) based cross-platform template for developing a [REAPER](https://www.reaper.fm/) [Plug-in Extension](https://www.reaper.fm/sdk/plugin/plugin.php).
 Developed and tested on Windows 10-11, MacOS High Sierra 10.13.6-14.5, and Ubuntu 20.04.1. Instructions are based on clean/fresh installation.

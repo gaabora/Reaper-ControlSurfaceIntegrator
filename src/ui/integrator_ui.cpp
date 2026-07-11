@@ -4,8 +4,8 @@
 //
 //
 
-#include "control_surface_integrator.h"
-#include "resource.h"
+#include "../controls/integrator.h"
+#include "../resource.h"
 
 extern void TrimLine(string &line);
 extern void GetParamStepsString(string &outputString, int numSteps);

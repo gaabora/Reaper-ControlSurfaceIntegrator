@@ -5,13 +5,13 @@
 //
 
 #define INCLUDE_LOCALIZE_IMPORT_H
-#include "control_surface_integrator.h"
-#include "control_surface_midi_widgets.h"
-#include "control_surface_OSC_widgets.h"
-#include "control_surface_Reaper_actions.h"
-#include "control_surface_manager_actions.h"
+#include "integrator.h"
+#include "midi/midi_widgets.h"
+#include "osc/osc_widgets.h"
+#include "../actions/reaper_actions.h"
+#include "../actions/manager_actions.h"
 
-#include "resource.h"
+#include "../resource.h"
 
 extern WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 

@@ -47,9 +47,9 @@ typedef double ReaSample;
 
 #else
 #ifdef USING_CMAKE
-  #include "../lib/WDL/WDL/swell/swell.h"
+  #include "../../lib/WDL/WDL/swell/swell.h"
 #else
-  #include "../WDL/swell/swell.h"
+  #include "../../WDL/swell/swell.h"
 #endif
 #include <pthread.h>
 

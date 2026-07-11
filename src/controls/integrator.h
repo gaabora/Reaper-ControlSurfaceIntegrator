@@ -29,45 +29,45 @@
 #include <algorithm>
 
 #ifdef _WIN32
-#include "oscpkt.hh"
-#include "udp.hh"
+#include "../shared/oscpkt.hh"
+#include "../shared/udp.hh"
 #endif
 
 #include <filesystem>
 #include <map>
 
 #ifdef USING_CMAKE
-  #include "../lib/WDL/WDL/win32_utf8.h"
-  #include "../lib/WDL/WDL/ptrlist.h"
-  #include "../lib/WDL/WDL/queue.h"
+  #include "../../lib/WDL/WDL/win32_utf8.h"
+  #include "../../lib/WDL/WDL/ptrlist.h"
+  #include "../../lib/WDL/WDL/queue.h"
 #else // FIXME: remove WDL from repo everyhere, move to git submodule
     #ifdef _WIN32
     #ifndef strnicmp
       #define strnicmp _strnicmp
     #endif
     #endif
-  #include "../WDL/win32_utf8.h"
-  #include "../WDL/ptrlist.h"
-  #include "../WDL/queue.h"
+  #include "../../WDL/win32_utf8.h"
+  #include "../../WDL/ptrlist.h"
+  #include "../../WDL/queue.h"
 #endif
 
-#include "control_surface_integrator_Reaper.h"
+#include "../shared/daw_api.h"
 
-#include "handy_functions.h"
+#include "../shared/handy_functions.h"
 
 #ifdef INCLUDE_LOCALIZE_IMPORT_H
   #define LOCALIZE_IMPORT_PREFIX "csi_"
   #ifdef USING_CMAKE
-    #include "../lib/WDL/WDL/localize/localize-import.h"
+    #include "../../lib/WDL/WDL/localize/localize-import.h"
   #else
-    #include "../WDL/localize/localize-import.h"
+    #include "../../WDL/localize/localize-import.h"
   #endif
 #endif
 
 #ifdef USING_CMAKE
-  #include "../lib/WDL/WDL/localize/localize.h"
+  #include "../../lib/WDL/WDL/localize/localize.h"
 #else
-  #include "../WDL/localize/localize.h"
+  #include "../../WDL/localize/localize.h"
 #endif
 
 #ifdef _WIN32

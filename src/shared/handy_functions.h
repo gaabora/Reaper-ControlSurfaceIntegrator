@@ -8,9 +8,9 @@
 #define handy_functions_h
 
 #ifdef USING_CMAKE
-  #include "../lib/WDL/WDL/db2val.h"
+  #include "../../lib/WDL/WDL/db2val.h"
 #else
-  #include "../WDL/db2val.h"
+  #include "../../WDL/db2val.h"
 #endif
 
 #ifdef _DEBUG

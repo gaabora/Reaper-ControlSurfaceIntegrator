@@ -7,7 +7,7 @@
 #ifndef control_surface_Reaper_actions_h
 #define control_surface_Reaper_actions_h
 
-#include "control_surface_action_contexts.h"
+#include "action_base.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 class FXParam : public FXAction

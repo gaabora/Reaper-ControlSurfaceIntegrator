@@ -161,7 +161,7 @@ endif()
 # Source Files for Main Library
 # ------------------------------------------------------------------------------
 
-set(SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/reaper_csurf_integrator)
+set(SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(WDL_PATH ${PROJECT_LIB_DIR}/WDL/WDL)
 
 # ------------------------------------------------------------------------------
@@ -191,7 +191,7 @@ add_library(${PROJECT_NAME} SHARED
   ${WDL_PATH}/win32_utf8.c
 )
 
-add_subdirectory(reaper_csurf_integrator) #TODO: move and change to src
+add_subdirectory(src)
 if(NOT WIN32)
   target_link_libraries(${PROJECT_NAME} PRIVATE swell)
 endif()
