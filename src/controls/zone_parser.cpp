@@ -11,6 +11,7 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
     vector<string> includedZonesList;
     bool isInSubZonesSection = false;
     vector<string> subZonesList;
+    map<string, Widget*> modifierActionWidgets;
 
     try {
         ifstream file(filePath);
@@ -69,17 +70,23 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
 
                 zm->GetWidgetNameAndModifiers(tokens[0].c_str(), widgetName, modifier, isValueInverted, isFeedbackInverted, hasHoldModifier, HasDoublePressPseudoModifier, isDecrease, isIncrease);
 
-                if (hasHoldModifier && (modifier & ~3) != 0) {
-                    LogToConsole("[WARNING] Hold should not be combined with other modifiers (mapping: '%s %s', file: %s, line %d)\n", tokens[0].c_str(), tokens[1].c_str(), GetRelativePath(filePath).c_str(), lineNumber);
-                }
-
                 Widget* widget = zm->surface_->GetWidgetByName(widgetName);
+
+                if (widget == NULL) {
+                    const auto aliasIt = modifierActionWidgets.find(widgetName);
+                    if (aliasIt != modifierActionWidgets.end())
+                        widget = aliasIt->second;
+                }
 
                 if (widget == NULL) {
                     LogToConsole("[WARNING] Widget '%s' not found in surface '%s' (file: %s, line %d)\n", widgetName.c_str(), zm->surface_->GetName(), GetRelativePath(filePath).c_str(), lineNumber);
                     continue;
                 }
 
+                if (hasHoldModifier && (!widget->GetIsTwoState() || widget->IsModifier())) {
+                    LogToConsole("[WARNING] Hold modifier will not work without normal button widget (mapping: '%s %s', file: %s, line %d)\n", tokens[0].c_str(), tokens[1].c_str(), GetRelativePath(filePath).c_str(), lineNumber);
+                    continue;
+                }
                 zone->AddWidget(widget);
 
                 vector<string> memberParams;
@@ -100,6 +107,10 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
                 if (context == NULL) {
                     LogToConsole("[WARNING] Action '%s' for widget '%s' returned NULL context (file: %s, line %d)\n", tokens[1].c_str(), widgetName.c_str(), GetRelativePath(filePath).c_str(), lineNumber);
                     continue;
+                }
+
+                if (context->GetAction()->IsModifier() && ModifierManager::IsModifierName(tokens[1].c_str())) {
+                    modifierActionWidgets[tokens[1]] = widget;
                 }
 
                 if (IsSameString(tokens[1], "GoZone") || IsSameString(tokens[1], "GoSubZone")) {

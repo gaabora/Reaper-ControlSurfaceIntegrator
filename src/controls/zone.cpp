@@ -219,6 +219,9 @@ ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, 
     if (!IsSameString(action->GetName(), actionName) && IsSameString(action->GetName(), "InvalidAction"))
         LogToConsole("[ERROR] @%s/{%s} [%s] InvalidAction: %s\n", widget->GetSurface()->GetName(), zone->GetName(), widget->GetName(), actionName);
 
+    if (action->IsModifier())
+        widget->SetIsModifier();
+
     actionContextDictionary_[widget][modifier].push_back(make_unique<ActionContext>(csi_, action, widget, zone, 0, params));
 
     return actionContextDictionary_[widget][modifier].back().get();

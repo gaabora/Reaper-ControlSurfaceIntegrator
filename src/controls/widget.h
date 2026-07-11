@@ -23,6 +23,7 @@ protected:
 
     bool isVirtual_ = false;
     bool isTwoState_ = false;
+    bool isModifier_ = false;
     bool hasDoublePressActions_ = false;
     bool hasHoldActions_ = false;
     bool holdFired_ = false;
@@ -71,6 +72,8 @@ public:
     double GetStepSize() { return stepSize_; }
     bool GetIsTwoState() { return isTwoState_; }
     void SetIsTwoState() { isTwoState_ = true; }
+    bool IsModifier() const { return isModifier_; }
+    void SetIsModifier() { isModifier_ = true; }
 
     void SetAccelerationValues(const vector<double> accelerationValues) { accelerationValues_ = accelerationValues; }
     const vector<double>& GetAccelerationValues() { return accelerationValues_; }

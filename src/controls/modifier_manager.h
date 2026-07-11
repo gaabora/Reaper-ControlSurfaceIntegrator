@@ -128,6 +128,10 @@ public:
         return buf;
     }
 
+    static bool IsModifierName(const char* name) {
+        return modifierFromString(name) != ErrorModifier;
+    }
+
     int GetModifierValue(const char* modifierString) {
         vector<string> modifierTokens;
         GetTokens(modifierTokens, modifierString, '+');
