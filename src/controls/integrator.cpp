@@ -2698,13 +2698,34 @@ void ControlSurface::ClearModifiers() {
 // Midi_ControlSurfaceIO
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void Midi_ControlSurfaceIO::HandleExternalInput(Midi_ControlSurface* surface) {
-    if (midiInput_) {
-        midiInput_->SwapBufsPrecise(GetTickCount(), GetTickCount());
-        MIDI_eventlist* list = midiInput_->GetReadBuf();
-        int bpos = 0;
-        MIDI_event_t* evt;
-        while ((evt = list->EnumItems(&bpos)))
-            surface->ProcessMidiMessage((MIDI_event_ex_t*) evt);
+    // Swap the incoming queue populated by the background reader thread so
+    // we hold the lock for the minimum possible time, then process outside it.
+    std::queue<std::vector<unsigned char>> toProcess;
+    {
+        WDL_MutexLock lock(&incomingMidiMutex_);
+        toProcess.swap(incomingMidiQueue_);
+    }
+
+    while (!toProcess.empty()) {
+        const std::vector<unsigned char>& msgBytes = toProcess.front();
+        const int sz = (int) msgBytes.size();
+
+        // MIDI_event_ex_t::midi_message[4] is only the minimum allocation;
+        // extra bytes after the struct are accessible because the struct and
+        // overflow[] are contiguous on the stack (same pattern as the
+        // outgoing sysex queue in Midi_ControlSurfaceIO::Run()).
+        struct {
+            MIDI_event_ex_t evt;
+            char overflow[508]; // 4 + 508 = 512 bytes total for the message
+        } midiData;
+
+        midiData.evt.frame_offset = 0;
+        midiData.evt.size = sz;
+        if (sz > 0)
+            memcpy(midiData.evt.midi_message, msgBytes.data(), sz);
+
+        toProcess.pop();
+        surface->ProcessMidiMessage(&midiData.evt);
     }
 }
 

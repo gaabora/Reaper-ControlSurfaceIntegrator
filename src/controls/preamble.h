@@ -30,6 +30,9 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <atomic>
+#include <queue>
+#include <thread>
 
 using std::string;
 using std::vector;
