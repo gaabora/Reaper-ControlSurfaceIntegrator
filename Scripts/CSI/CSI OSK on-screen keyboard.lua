@@ -27,6 +27,14 @@ local config = require("osk_config")
 local ctx = nil
 local FONT = nil
 local FONT_SMALL = nil
+local surfaceWindows = {}
+local requestCloseAll = false
+
+local WINDOW_FLAGS_BASE = imgui.WindowFlags_NoScrollbar
+    | imgui.WindowFlags_NoCollapse
+    | imgui.WindowFlags_AlwaysAutoResize
+local WINDOW_FLAGS_COMBINED = WINDOW_FLAGS_BASE | imgui.WindowFlags_NoTitleBar
+local WINDOW_FLAGS_SEPARATE = WINDOW_FLAGS_BASE
 
 -- Configurable extra action buttons shown at top of right-click menu.
 -- Each entry: { title = "label", tooltip = "description", action = <REAPER command ID> }
@@ -35,6 +43,8 @@ local TOOLBAR_ACTIONS = {
     { action = 41175, title = "reset MIDI", tooltip = "Reset all MIDI devices" },
     -- Add more: { title = "Label", tooltip = "Description", action = 12345 },
 }
+
+local main_separate
 
 local function SetToolbarButtonState(set)
     local _, _, sec, cmd = r.get_action_context()
@@ -51,79 +61,145 @@ local function SliderSetting(ctx, label, currentValue, storeKey, min, max, fmt)
     return rv, value
 end
 
-local function RenderContextMenu(ctx)
-    if imgui.BeginPopupContextWindow(ctx, "OSK_ContextMenu") then
+local function EnsureSurfaceWindow(surfName)
+    local win = surfaceWindows[surfName]
+    if win then return win end
+
+    local surfaceCtx = imgui.CreateContext('CSI OSK - ' .. surfName)
+    local surfaceFont = imgui.CreateFont('sans-serif', 13)
+    local surfaceFontSmall = imgui.CreateFont('sans-serif', 11)
+    imgui.Attach(surfaceCtx, surfaceFont)
+    imgui.Attach(surfaceCtx, surfaceFontSmall)
+
+    win = {
+        ctx = surfaceCtx,
+        font = surfaceFont,
+        fontSmall = surfaceFontSmall,
+        open = true,
+    }
+    surfaceWindows[surfName] = win
+    return win
+end
+
+local function EnsureSurfaceWindows()
+    for _, surfName in ipairs(data.surfaces) do
+        EnsureSurfaceWindow(surfName)
+    end
+end
+
+local function AnyWindowOpen()
+    for _, surfName in ipairs(data.surfaces) do
+        local win = surfaceWindows[surfName]
+        if win and win.open then
+            return true
+        end
+    end
+    return false
+end
+
+local function SetWindowMode(mode)
+    if data.vars.window_mode == mode then return end
+    data.vars.window_mode = mode
+    data.SaveSettings()
+
+    if mode == "separate" then
+        EnsureSurfaceWindows()
+        for _, surfName in ipairs(data.surfaces) do
+            local win = surfaceWindows[surfName]
+            if win then win.open = true end
+        end
+    end
+end
+
+local function RenderContextMenu(activeCtx, options)
+    local popupId = options.popupId or "OSK_ContextMenu"
+    if imgui.BeginPopupContextWindow(activeCtx, popupId) then
         -- Extra toolbar action buttons at the top
         if #TOOLBAR_ACTIONS > 0 then
             for _, act in ipairs(TOOLBAR_ACTIONS) do
-                if imgui.MenuItem(ctx, act.title) then
+                if imgui.MenuItem(activeCtx, act.title) then
                     r.Main_OnCommand(act.action, 0)
                     r.ShowConsoleMsg("[CSI OSK] Action: " .. act.action .. " (" .. (act.tooltip or act.title) .. ")\n")
                 end
-                if act.tooltip and imgui.IsItemHovered(ctx) then
-                    if imgui.BeginTooltip(ctx) then
-                        imgui.Text(ctx, act.tooltip)
-                        imgui.EndTooltip(ctx)
+                if act.tooltip and imgui.IsItemHovered(activeCtx) then
+                    if imgui.BeginTooltip(activeCtx) then
+                        imgui.Text(activeCtx, act.tooltip)
+                        imgui.EndTooltip(activeCtx)
                     end
                 end
             end
-            imgui.Separator(ctx)
+            imgui.Separator(activeCtx)
+        end
+
+        local isCombined = data.vars.window_mode ~= "separate"
+        if imgui.MenuItem(activeCtx, "Combined window", nil, isCombined) then
+            SetWindowMode("combined")
+        end
+        if imgui.MenuItem(activeCtx, "Separate windows", nil, not isCombined) then
+            SetWindowMode("separate")
+        end
+
+        if options.allowCloseAll then
+            if imgui.MenuItem(activeCtx, "Close all") then
+                requestCloseAll = true
+            end
+            imgui.Separator(activeCtx)
         end
 
         -- Surface tabs (if multiple surfaces)
-        if #data.surfaces > 1 then
+        if options.allowSurfaceSelection and #data.surfaces > 1 then
             local toggled
-            toggled, data.vars.show_all_surfaces = imgui.Checkbox(ctx, "Show all surfaces", data.vars.show_all_surfaces)
+            toggled, data.vars.show_all_surfaces = imgui.Checkbox(activeCtx, "Show all surfaces", data.vars.show_all_surfaces)
             if toggled then data.SaveSettings() end
 
             if not data.vars.show_all_surfaces then
-                imgui.Separator(ctx)
+                imgui.Separator(activeCtx)
                 for i, name in ipairs(data.surfaces) do
                     local isSelected = (i == data.currentSurface)
-                    if imgui.MenuItem(ctx, name, nil, isSelected) then
+                    if imgui.MenuItem(activeCtx, name, nil, isSelected) then
                         data.currentSurface = i
                     end
                 end
             end
-            imgui.Separator(ctx)
+            imgui.Separator(activeCtx)
         end
 
         -- Settings
         local rv
 
-        rv = SliderSetting(ctx, "Zoom", data.vars.zoom, "zoom", 0.5, 3.0, "%.1f")
-        rv = SliderSetting(ctx, "Aspect (W/H)", data.vars.aspect, "aspect", 0.5, 2.0, "%.2f")
-        rv = SliderSetting(ctx, "H Padding", data.vars.pad_h, "pad_h", 0, 20, "%.0f")
-        rv = SliderSetting(ctx, "V Padding", data.vars.pad_v, "pad_v", 0, 20, "%.0f")
-        rv = SliderSetting(ctx, "Arrow Angle", data.vars.arrow_angle, "arrow_angle", 60, 150, "%.0f")
-        rv = SliderSetting(ctx, "Window Alpha", data.vars.transparency, "transparency", 0.2, 1.0, "%.2f")
-        rv = SliderSetting(ctx, "Button Alpha", data.vars.btn_transparency, "btn_transparency", 0.2, 1.0, "%.2f")
-        rv = SliderSetting(ctx, "Tooltip Delay", data.vars.tooltip_delay, "tooltip_delay", 0.0, 5.0, "%.1fs")
+        rv = SliderSetting(activeCtx, "Zoom", data.vars.zoom, "zoom", 0.5, 3.0, "%.1f")
+        rv = SliderSetting(activeCtx, "Aspect (W/H)", data.vars.aspect, "aspect", 0.5, 2.0, "%.2f")
+        rv = SliderSetting(activeCtx, "H Padding", data.vars.pad_h, "pad_h", 0, 20, "%.0f")
+        rv = SliderSetting(activeCtx, "V Padding", data.vars.pad_v, "pad_v", 0, 20, "%.0f")
+        rv = SliderSetting(activeCtx, "Arrow Angle", data.vars.arrow_angle, "arrow_angle", 60, 150, "%.0f")
+        rv = SliderSetting(activeCtx, "Window Alpha", data.vars.transparency, "transparency", 0.2, 1.0, "%.2f")
+        rv = SliderSetting(activeCtx, "Button Alpha", data.vars.btn_transparency, "btn_transparency", 0.2, 1.0, "%.2f")
+        rv = SliderSetting(activeCtx, "Tooltip Delay", data.vars.tooltip_delay, "tooltip_delay", 0.0, 5.0, "%.1fs")
 
-        rv, data.vars.clickable = imgui.Checkbox(ctx, "Clickable buttons", data.vars.clickable)
+        rv, data.vars.clickable = imgui.Checkbox(activeCtx, "Clickable buttons", data.vars.clickable)
         if rv then data.SaveSettings() end
 
-        imgui.Separator(ctx)
-        imgui.Text(ctx, "Label Replacements (word=replacement):")
+        imgui.Separator(activeCtx)
+        imgui.Text(activeCtx, "Label Replacements (word=replacement):")
         local changed
-        changed, data.vars.label_replacements = imgui.InputText(ctx, "##replacements", data.vars.label_replacements)
+        changed, data.vars.label_replacements = imgui.InputText(activeCtx, "##replacements", data.vars.label_replacements)
         if changed then
             data.parseLabelReplacements(data.vars.label_replacements)
             data.SaveSettings()
         end
 
-        imgui.EndPopup(ctx)
+        imgui.EndPopup(activeCtx)
     end
 end
 
-local function main()
+local function main_combined()
     if not data.PollData() then
         return -- Close requested
     end
     data.PollActiveSurface()
 
     if #data.surfaces == 0 then
-        r.defer(main)
+        r.defer(main_combined)
         return
     end
 
@@ -132,17 +208,14 @@ local function main()
     imgui.SetNextWindowBgAlpha(ctx, data.vars.transparency)
 
     local visible, p_open = imgui.Begin(ctx, 'CSI On-Screen Keyboard', true,
-        imgui.WindowFlags_NoScrollbar
-        | imgui.WindowFlags_NoCollapse
-        | imgui.WindowFlags_AlwaysAutoResize
-        | imgui.WindowFlags_NoTitleBar
+        WINDOW_FLAGS_COMBINED
     )
     imgui.PopStyleColor(ctx, 2)
 
     if visible then
         imgui.PushFont(ctx, FONT)
 
-        RenderContextMenu(ctx)
+        RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_Combined", allowSurfaceSelection = true, allowCloseAll = false })
 
         -- Render surface(s) directly (no BeginChild — allows AlwaysAutoResize to work)
         if data.vars.show_all_surfaces and #data.surfaces > 1 then
@@ -159,13 +232,80 @@ local function main()
         imgui.End(ctx)
     end
 
-    if p_open then
-        r.defer(main)
-    else
+    if not p_open then
         -- Cleanup
         data.SaveSettings()
         SetToolbarButtonState(-1)
+        return
     end
+
+    if data.vars.window_mode == "separate" then
+        EnsureSurfaceWindows()
+        r.defer(main_separate)
+    else
+        r.defer(main_combined)
+    end
+end
+
+main_separate = function()
+    if not data.PollData() then
+        return
+    end
+    data.PollActiveSurface()
+
+    if #data.surfaces == 0 then
+        r.defer(main_separate)
+        return
+    end
+
+    EnsureSurfaceWindows()
+    requestCloseAll = false
+
+    for _, surfName in ipairs(data.surfaces) do
+        local win = surfaceWindows[surfName]
+        if win and win.open then
+            render.SetFonts(win.font, win.fontSmall)
+            imgui.PushStyleColor(win.ctx, imgui.Col_WindowBg, data.COLORS.win_bg)
+            imgui.PushStyleColor(win.ctx, imgui.Col_TitleBgActive, data.COLORS.win_bg)
+            imgui.SetNextWindowBgAlpha(win.ctx, data.vars.transparency)
+
+            local visible, p_open = imgui.Begin(win.ctx, 'CSI OSK - ' .. surfName, true, WINDOW_FLAGS_SEPARATE)
+            imgui.PopStyleColor(win.ctx, 2)
+
+            if visible then
+                imgui.PushFont(win.ctx, win.font)
+                RenderContextMenu(win.ctx, { popupId = "OSK_ContextMenu_" .. surfName, allowSurfaceSelection = false, allowCloseAll = true })
+                render.RenderSurface(win.ctx, surfName)
+                render.RenderOSDBar(win.ctx)
+                config.RenderConfigEditor(win.ctx)
+                imgui.PopFont(win.ctx)
+                imgui.End(win.ctx)
+            end
+
+            win.open = p_open
+        end
+    end
+
+    if requestCloseAll then
+        for _, surfName in ipairs(data.surfaces) do
+            local win = surfaceWindows[surfName]
+            if win then win.open = false end
+        end
+    end
+
+    if data.vars.window_mode ~= "separate" then
+        render.SetFonts(FONT, FONT_SMALL)
+        r.defer(main_combined)
+        return
+    end
+
+    if AnyWindowOpen() then
+        r.defer(main_separate)
+        return
+    end
+
+    data.SaveSettings()
+    SetToolbarButtonState(-1)
 end
 
 -- ================================================================
@@ -186,7 +326,12 @@ local function Init()
     -- Initial poll
     data.PollData()
 
-    main()
+    if data.vars.window_mode == "separate" then
+        EnsureSurfaceWindows()
+        main_separate()
+    else
+        main_combined()
+    end
     r.atexit(function()
         data.SaveSettings()
         SetToolbarButtonState(-1)

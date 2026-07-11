@@ -73,6 +73,7 @@ M.vars = {
     tooltip_delay = 1.0,
     arrow_angle = 120,
     show_all_surfaces = true,
+    window_mode = "combined",
     label_replacements = "",
 }
 
