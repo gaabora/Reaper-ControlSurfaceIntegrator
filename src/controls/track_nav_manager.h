@@ -309,13 +309,9 @@ public:
     }
 
     Navigator* GetNavigatorForChannel(int channelNum) {
-        // Hot path: shared lock — concurrent with audio-thread GetIsControlTouched().
-        {
-            WDL_MutexLockShared rlock(&tracksMutex_);
-            for (auto& trackNavigator : trackNavigators_)
-                if (trackNavigator->GetChannelNum() == channelNum) return trackNavigator.get();
-        }
-        // Slow path (startup only): double-check under exclusive lock.
+        // Exclusive lock: this is an init-only path that may create navigators.
+        // The returned pointer remains valid because trackNavigators_ elements
+        // are stable unique_ptrs (push_back doesn't invalidate existing ones).
         WDL_MutexLockExclusive wlock(&tracksMutex_);
         for (auto& trackNavigator : trackNavigators_)
             if (trackNavigator->GetChannelNum() == channelNum) return trackNavigator.get();
@@ -327,13 +323,7 @@ public:
     }
 
     Navigator* GetNavigatorForTrack(MediaTrack* track) {
-        // Hot path: shared lock.
-        {
-            WDL_MutexLockShared rlock(&tracksMutex_);
-            for (auto& fixedTrackNavigator : fixedTrackNavigators_)
-                if (fixedTrackNavigator->GetTrack() == track) return fixedTrackNavigator.get();
-        }
-        // Slow path (startup only): double-check under exclusive lock.
+        // Exclusive lock: init-only path that may create navigators.
         WDL_MutexLockExclusive wlock(&tracksMutex_);
         for (auto& fixedTrackNavigator : fixedTrackNavigators_)
             if (fixedTrackNavigator->GetTrack() == track) return fixedTrackNavigator.get();

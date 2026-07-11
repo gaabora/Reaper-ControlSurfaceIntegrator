@@ -276,7 +276,8 @@ public:
     void NextPage() {
         if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
             pages_[currentPageIndex_]->LeavePage();
-            { int idx = currentPageIndex_.load(); currentPageIndex_.store(idx == (int)pages_.size() - 1 ? 0 : idx + 1); }
+            int idx = currentPageIndex_.load();
+            currentPageIndex_.store(idx == (int)pages_.size() - 1 ? 0 : idx + 1);
             if (pages_[currentPageIndex_])
                 pages_[currentPageIndex_]->EnterPage();
         }
@@ -288,7 +289,7 @@ public:
                 if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
                     pages_[currentPageIndex_]->LeavePage();
 
-                currentPageIndex_ = i;
+                currentPageIndex_.store(i);
 
                 if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
                     pages_[currentPageIndex_]->EnterPage();
