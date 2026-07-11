@@ -213,8 +213,10 @@ public:
 // enum PropertyType + class PropertyList
 // -------------------------------------------------------------------------
 
-// Forward-declare IsSameString (defined in handy_functions.h / utils.h)
-static bool IsSameString(const char* a, const char* b);
+// PropertyList::prop_from_string uses IsSameString; include utils.h to get
+// the canonical inline definition rather than forward-declaring it static
+// (which conflicts when utils.h is included first in Phase 7 sub-headers).
+#include "utils.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 enum PropertyType {
