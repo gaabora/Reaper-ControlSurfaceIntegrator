@@ -13,7 +13,11 @@ function M.Tooltip(ctx, text, wrapped)
     text = tostring(text or "")
     if text == "" then return end
     if imgui.BeginTooltip(ctx) then
-        if wrapped and imgui.TextWrapped then
+        if wrapped and imgui.PushTextWrapPos then
+            imgui.PushTextWrapPos(ctx, imgui.GetFontSize(ctx) * 42)
+            imgui.Text(ctx, text)
+            imgui.PopTextWrapPos(ctx)
+        elseif wrapped and imgui.TextWrapped then
             imgui.TextWrapped(ctx, text)
         else
             imgui.Text(ctx, text)

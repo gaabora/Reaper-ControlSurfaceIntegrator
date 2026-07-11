@@ -39,7 +39,6 @@ M.settingsBackup = nil  -- Backup of settings when menu opens (for Cancel revert
 local FONT_SMALL = nil
 local FONT_CACHE = {}
 local DEBUG_OSD = false
-local IDLE_SETTINGS_POPUP_ID = "OSD_IdleSettings"
 
 local function clamp(value, minVal, maxVal)
     return math.max(minVal, math.min(maxVal, value))
@@ -193,7 +192,11 @@ function M.PollOSD()
     -- Check if OSD should still be visible
     local now = r.time_precise()
     if M.state.showUntil > 0 and now > M.state.showUntil then
-        resetHiddenState()
+        if M.state.menuOpen then
+            M.state.showUntil = now + 0.25
+        else
+            resetHiddenState()
+        end
     end
 end
 
@@ -241,43 +244,6 @@ function M.SaveSettings()
     end
 end
 
-local function RenderIdleSettingsLauncher(ctx, imgui, screenWidth, originX, originY)
-    if not FONT_SMALL then return false end
-
-    local launcherFlags = imgui.WindowFlags_NoTitleBar
-        | imgui.WindowFlags_NoScrollbar
-        | imgui.WindowFlags_NoMove
-        | imgui.WindowFlags_NoResize
-        | imgui.WindowFlags_NoCollapse
-        | imgui.WindowFlags_AlwaysAutoResize
-    if imgui.WindowFlags_NoSavedSettings then
-        launcherFlags = launcherFlags | imgui.WindowFlags_NoSavedSettings
-    end
-
-    local baseX = originX or 0
-    local baseY = originY or 0
-    imgui.SetNextWindowPos(ctx, baseX + screenWidth - 66, baseY + 12, imgui.Cond_Always)
-    imgui.SetNextWindowBgAlpha(ctx, 0.72)
-    local visible = imgui.Begin(ctx, "##OSD_idle_launcher", true, launcherFlags)
-    local popupOpen = false
-    if visible then
-        imgui.PushFont(ctx, FONT_SMALL)
-        if imgui.Button(ctx, "OSD") then
-            imgui.OpenPopup(ctx, IDLE_SETTINGS_POPUP_ID)
-        end
-        ui.ItemTooltip(ctx, "Open OSD settings")
-        if imgui.BeginPopup(ctx, IDLE_SETTINGS_POPUP_ID) then
-            popupOpen = true
-            M.RenderSettingsPanel(ctx, imgui)
-            imgui.EndPopup(ctx)
-        end
-        imgui.PopFont(ctx)
-    end
-    imgui.End(ctx)
-    finalizeSettingsPopupState(popupOpen)
-    return true
-end
-
 ---Render OSD window (for standalone OSD script)
 ---@param ctx ImGui context
 ---@param imgui ImGui module
@@ -294,9 +260,7 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
     end
 
     local hasText = M.state.text and M.state.text ~= ""
-    if not hasText then
-        return RenderIdleSettingsLauncher(ctx, imgui, screenWidth, originX, originY)
-    end
+    if not hasText and not M.state.menuOpen then return false end
     
     if not FONT_SMALL then return false end
     
@@ -342,11 +306,6 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
         local popupOpen = false
         if FONT_SMALL then imgui.PushFont(ctx, FONT_SMALL) end
         if imgui.BeginPopupContextWindow(ctx, "OSD_ContextMenu") then
-            popupOpen = true
-            M.RenderSettingsPanel(ctx, imgui)
-            imgui.EndPopup(ctx)
-        end
-        if imgui.BeginPopup(ctx, IDLE_SETTINGS_POPUP_ID) then
             popupOpen = true
             M.RenderSettingsPanel(ctx, imgui)
             imgui.EndPopup(ctx)

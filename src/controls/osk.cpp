@@ -52,6 +52,10 @@ static bool IsOskFaderValueAction(Action* action) {
     return action->IsVolumeRelated() || action->IsPanRelated() || action->IsFxRelated() || action->IsTrackSendRelated() || action->IsTrackReceiveRelated() || action->IsMeterRelated();
 }
 
+static bool IsOskColorMeaningful(const rgba_color& color) {
+    return color.r > 10 || color.g > 10 || color.b > 10 || color.a > 10;
+}
+
 static double MapOskFaderValueToAction(Action* action, double value) {
     if (!action) return value;
     const bool isNormalizedValue = value >= 0.0 && value <= 1.0;
@@ -286,6 +290,22 @@ static string BuildWidgetTokenPrefix(int modifierValue, ActionContext* context) 
     }
 
     return prefix;
+}
+
+static string BuildOskTooltipModifierName(int modifierValue, ActionContext* context) {
+    string modifierName;
+
+    if (context && context->IsDoublePress()) modifierName += "DoublePress+";
+    if (context && context->GetHoldDelay() > 0) modifierName += "Hold+";
+
+    if (modifierValue != 0) {
+        char modifierBuffer[128];
+        ModifierManager::GetModifierString(modifierValue, modifierBuffer, sizeof(modifierBuffer));
+        modifierName += modifierBuffer;
+    }
+
+    while (!modifierName.empty() && modifierName.back() == '+') modifierName.pop_back();
+    return modifierName.empty() ? "NoMod" : modifierName;
 }
 
 static bool IsPseudoModifierToken(const string& token) {
@@ -646,6 +666,16 @@ void ControlSurface::PublishOSKState() {
                 }
             }
             rgba_color color = widget->GetLastFeedbackColor();
+            if (this->zoneManager_ && IsSameString(cell.widget.shape.c_str(), "fader") && !IsOskColorMeaningful(color)) {
+                const auto& contexts = this->zoneManager_->GetCurrentActionContextsForWidget(widget);
+                for (const auto& context : contexts) {
+                    if (!IsOskFaderValueAction(context->GetAction())) continue;
+                    if (MediaTrack* track = context->GetTrack()) {
+                        color = DAW::GetTrackColor(track);
+                        break;
+                    }
+                }
+            }
             if (!state.empty()) state += ";";
             char buf[128];
             snprintf(buf, sizeof(buf), "%s=V:%.2f,C:#%02X%02X%02X", cell.widget.name.c_str(), value, (unsigned char) color.r, (unsigned char) color.g, (unsigned char) color.b);
@@ -1063,19 +1093,7 @@ void ControlSurface::PublishOSKLabelMap() {
             string entries;
             for (const auto& [mod, ctxs] : modContexts) {
                 for (const auto& ctx : *ctxs) {
-                    // Name this modifier slot.
-                    // At modifier=0, contexts with HoldDelay>0 are "Hold" pseudo-bindings.
-                    string modName;
-                    if (mod == 0) {
-                        modName = (ctx->GetHoldDelay() > 0) ? "Hold" : "NoMod";
-                    } else {
-                        char buf[64];
-                        ModifierManager::GetModifierString(mod, buf, sizeof(buf));
-                        // GetModifierString appends '+' after each name; strip trailing '+'.
-                        string s(buf);
-                        while (!s.empty() && s.back() == '+') s.pop_back();
-                        modName = s;
-                    }
+                    const string modName = BuildOskTooltipModifierName(mod, ctx.get());
 
                     string label = getLabel(ctx.get(), cell.widget);
 

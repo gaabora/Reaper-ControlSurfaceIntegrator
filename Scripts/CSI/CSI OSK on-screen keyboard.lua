@@ -25,7 +25,21 @@ local ctx = nil
 local FONT = nil
 local FONT_SMALL = nil
 local surfaceWindows = {}
-local requestCloseAll = false
+local fontCache = {}
+
+local FONT_FAMILIES = {
+    { label = "Sans", family = "sans-serif" },
+    { label = "Serif", family = "serif" },
+    { label = "Mono", family = "monospace" },
+}
+
+local LABEL_CASES = {
+    { label = "Original", value = "original" },
+    { label = "Title", value = "title" },
+    { label = "Sentence", value = "sentence" },
+    { label = "UPPER", value = "upper" },
+    { label = "lower", value = "lower" },
+}
 
 local WINDOW_FLAGS_BASE = imgui.WindowFlags_NoScrollbar
     | imgui.WindowFlags_NoCollapse
@@ -51,6 +65,57 @@ local function SliderSetting(activeCtx, label, currentValue, storeKey, minValue,
         data.SaveSettings()
     end
     return changed, value
+end
+
+local function GetFontFamilyIndex()
+    for index, fontInfo in ipairs(FONT_FAMILIES) do
+        if fontInfo.family == data.vars.font_family then return index - 1 end
+    end
+    return 0
+end
+
+local function GetFontFamilyItems()
+    local labels = {}
+    for _, fontInfo in ipairs(FONT_FAMILIES) do
+        labels[#labels + 1] = fontInfo.label
+    end
+    return table.concat(labels, "\0") .. "\0"
+end
+
+local function GetLabelCaseIndex()
+    for index, caseInfo in ipairs(LABEL_CASES) do
+        if caseInfo.value == data.vars.label_case then return index - 1 end
+    end
+    return 0
+end
+
+local function GetLabelCaseItems()
+    local labels = {}
+    for _, caseInfo in ipairs(LABEL_CASES) do
+        labels[#labels + 1] = caseInfo.label
+    end
+    return table.concat(labels, "\0") .. "\0"
+end
+
+local function CreateAttachedFont(family, size)
+    local cacheKey = table.concat({ family, tostring(size) }, "|")
+    if fontCache[cacheKey] then return fontCache[cacheKey] end
+    local ok, font = pcall(imgui.CreateFont, family, size)
+    if ok and font then
+        imgui.Attach(ctx, font)
+        fontCache[cacheKey] = font
+        return font
+    end
+    return nil
+end
+
+local function RebuildFonts()
+    if not ctx then return end
+    local fontSize = math.max(8, math.min(32, tonumber(data.vars.font_size) or 13))
+    local family = data.vars.font_family or "sans-serif"
+    FONT = CreateAttachedFont(family, fontSize) or FONT
+    FONT_SMALL = CreateAttachedFont(family, math.max(8, fontSize - 2)) or FONT_SMALL
+    render.SetFonts(FONT, FONT_SMALL)
 end
 
 local function EnsureSurfaceWindow(surfName)
@@ -94,13 +159,31 @@ local function RenderContextMenu(activeCtx, popupId)
     end
 
     imgui.Separator(activeCtx)
-    local changed
-    changed, data.vars.titlebar_enabled = imgui.Checkbox(activeCtx, "Show titlebar", data.vars.titlebar_enabled)
-    if changed then data.SaveSettings() end
-    if imgui.MenuItem(activeCtx, "Close all") then requestCloseAll = true end
-
-    imgui.Separator(activeCtx)
     SliderSetting(activeCtx, "Zoom", data.vars.zoom, "zoom", 0.5, 3.0, "%.1f")
+
+    local changed
+    changed, data.vars.font_size = imgui.SliderDouble(activeCtx, "Font size", data.vars.font_size, 8, 32, "%.0f px")
+    if changed then
+        data.vars.font_size = math.floor(data.vars.font_size + 0.5)
+        data.SaveSettings()
+        RebuildFonts()
+    end
+    local familyIndex = GetFontFamilyIndex()
+    changed, familyIndex = imgui.Combo(activeCtx, "Font", familyIndex, GetFontFamilyItems())
+    if changed then
+        data.vars.font_family = FONT_FAMILIES[familyIndex + 1] and FONT_FAMILIES[familyIndex + 1].family or "sans-serif"
+        data.SaveSettings()
+        RebuildFonts()
+    end
+    SliderSetting(activeCtx, "Line height", data.vars.line_height, "line_height", 0.45, 1.25, "%.2f")
+    local labelCaseIndex = GetLabelCaseIndex()
+    changed, labelCaseIndex = imgui.Combo(activeCtx, "Label case", labelCaseIndex, GetLabelCaseItems())
+    if changed then
+        data.vars.label_case = LABEL_CASES[labelCaseIndex + 1] and LABEL_CASES[labelCaseIndex + 1].value or "original"
+        data.processedLabelCache = {}
+        data.SaveSettings()
+    end
+
     SliderSetting(activeCtx, "Aspect (W/H)", data.vars.aspect, "aspect", 0.5, 2.0, "%.2f")
     SliderSetting(activeCtx, "H Padding", data.vars.pad_h, "pad_h", 0, 20, "%.0f")
     SliderSetting(activeCtx, "V Padding", data.vars.pad_v, "pad_v", 0, 20, "%.0f")
@@ -110,6 +193,9 @@ local function RenderContextMenu(activeCtx, popupId)
     SliderSetting(activeCtx, "Tooltip Delay", data.vars.tooltip_delay, "tooltip_delay", 0.0, 5.0, "%.1fs")
 
     changed, data.vars.interactive = imgui.Checkbox(activeCtx, "Interactive controls", data.vars.interactive)
+    if changed then data.SaveSettings() end
+    imgui.SameLine(activeCtx)
+    changed, data.vars.titlebar_enabled = imgui.Checkbox(activeCtx, "Show titlebar", data.vars.titlebar_enabled)
     if changed then data.SaveSettings() end
 
     imgui.Separator(activeCtx)
@@ -142,8 +228,6 @@ local function main()
     end
 
     EnsureSurfaceWindows()
-    requestCloseAll = false
-
     for _, surfName in ipairs(data.surfaces) do
         local window = surfaceWindows[surfName]
         if window and window.open then
@@ -183,12 +267,6 @@ local function main()
     config.RenderConfigEditor(ctx)
     data.FlushSurfacePositions(false)
 
-    if requestCloseAll then
-        for _, window in pairs(surfaceWindows) do
-            window.open = false
-        end
-    end
-
     if AnyWindowOpen() then
         r.defer(main)
         return
@@ -211,7 +289,7 @@ local function Init()
     })
     FONT = fonts.default
     FONT_SMALL = fonts.small
-    render.SetFonts(FONT, FONT_SMALL)
+    RebuildFonts()
     if render.SetConfigModule then render.SetConfigModule(config) end
 
     host.OnExit(function()

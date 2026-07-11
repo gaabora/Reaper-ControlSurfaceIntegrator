@@ -25,6 +25,9 @@
 - Send OSK fader drag and wheel input as absolute normalized `WidgetValue` packets; when fader feedback is dB-valued, convert it for display and send matching dB command values for DB actions.
 - Treat the OSK/OSD Lua interface as pre-release: use only current `ReaCtrlSurf_*` sections and settings, with no legacy aliases unless publication changes that requirement.
 - Keep one OSK window per surface and persist each surface position independently without writing persistent ExtState on every movement frame.
+- Keep standalone OSD settings reachable by right-clicking a visible OSD overlay; do not add an idle launcher window.
+- Keep OSK font size, font family, wrapped-label line-height, and label-case controls in the OSK context menu near zoom.
+- Show OSK hover tooltips with the default binding first and `+ `-prefixed alternate bindings for modifiers, Hold, DoublePress, and combined pseudo-modifier entries.
 
 ## Work Guidance
 
@@ -51,6 +54,7 @@
 - Send repeated identical OSD messages and confirm the visible timeout refreshes.
 - Open OSD settings while no OSD message is visible.
 - Check standalone OSD top/bottom placement, left/center/right alignment, margins, size, font size, styling, Save, and Cancel.
+- Verify standalone OSD settings stay open after the message timeout when opened by right-clicking the visible overlay.
 
 ## Child DOX Index
 

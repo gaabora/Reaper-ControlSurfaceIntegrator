@@ -64,6 +64,13 @@ local function GetButtonColor(surfName, widgetName, cellOverride)
     return data.ensureMinLuminance(color, 80)
 end
 
+local function GetFaderColor(surfName, widgetName, cell)
+    local widgetState = data.states[surfName] and data.states[surfName][widgetName]
+    if widgetState and colorIsMeaningful(widgetState.color) then return widgetState.color end
+    if cell and cell.color then return cell.color end
+    return GetButtonColor(surfName, widgetName, cell)
+end
+
 local function GetButtonValue(surfName, widgetName)
     local state = data.states[surfName] and data.states[surfName][widgetName]
     if state then return state.value end
@@ -135,7 +142,7 @@ local function ShowDelayedTooltip(ctx, surfName, widgetName, text)
                 end
                 table.sort(sortedMods)
                 for _, modName in ipairs(sortedMods) do
-                    lines[#lines + 1] = modName .. " -> " .. data.getProcessedLabel(modMap[modName])
+                    lines[#lines + 1] = "+ " .. modName .. " -> " .. data.getProcessedLabel(modMap[modName])
                 end
                 if #lines > 0 then
                     tooltipText = table.concat(lines, "\n")
@@ -268,15 +275,16 @@ end
 local function RenderCenteredWrappedText(ctx, drawList, text, centerX, centerY, maxW, maxH)
     imgui.PushFont(ctx, FONT_SMALL)
     local lines = data.wrapText(ctx, text, maxW, imgui)
-    local _, lineH = imgui.CalcTextSize(ctx, "M")
-    local totalH = #lines * lineH
+    local _, fontH = imgui.CalcTextSize(ctx, "M")
+    local lineAdvance = fontH * (tonumber(data.vars.line_height) or 0.6)
+    local totalH = #lines > 0 and (fontH + (#lines - 1) * lineAdvance) or 0
     local startY = centerY - totalH / 2
     local textCol = data.applyAlpha(data.COLORS.text_normal, data.vars.btn_transparency)
     for index, line in ipairs(lines) do
         local textWidth = imgui.CalcTextSize(ctx, line)
         local textX = centerX - textWidth / 2
-        local textY = startY + (index - 1) * lineH
-        if maxH and textY + lineH > centerY + maxH / 2 then break end
+        local textY = startY + (index - 1) * lineAdvance
+        if maxH and textY + fontH > centerY + maxH / 2 then break end
         imgui.DrawList_AddText(drawList, textX, textY, textCol, line)
     end
     imgui.PopFont(ctx)
@@ -456,7 +464,7 @@ end
 local function DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, hitH, yOffset)
     local layoutH = hitH or visualH
     local label = data.getProcessedLabel(GetButtonLabel(surfName, cell))
-    local baseColor = GetButtonColor(surfName, cell.name, cell)
+    local baseColor = GetFaderColor(surfName, cell.name, cell)
     local btnAlpha = data.vars.btn_transparency
     local bgCol = data.applyAlpha(baseColor, btnAlpha)
     local value, commandValueMapper = GetFaderValueInfo(surfName, cell.name)
@@ -494,6 +502,9 @@ function M.RenderOSDBar(ctx)
     if osd_ui.vars.osk_bar_position == "off" then
         return
     end
+
+    local topPad = data.vars.pad_v * data.vars.zoom
+    if topPad > 0 then imgui.Dummy(ctx, 0, topPad) end
 
     local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
     local availWidth = imgui.GetContentRegionAvail(ctx)

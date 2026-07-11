@@ -51,6 +51,10 @@ M.labelReplacementRules = {}
 
 M.vars = {
     zoom = 0.9, interactive = true, aspect = 1.4,
+    font_size = 13,
+    font_family = "sans-serif",
+    line_height = 0.6,
+    label_case = "original",
     pad_h = 6, pad_v = 6,
     transparency = 0.6,
     btn_transparency = 0.9,
@@ -202,12 +206,34 @@ function M.processLabel(text)
     return label_replacements.ProcessLabel(text, M.labelReplacementRules)
 end
 
+local function applyTitleCase(text)
+    local lowered = tostring(text or ""):lower()
+    return (lowered:gsub("(%a)([%w']*)", function(first, rest)
+        return first:upper() .. rest
+    end))
+end
+
+local function applySentenceCase(text)
+    local lowered = tostring(text or ""):lower()
+    return (lowered:gsub("^%l", string.upper))
+end
+
+function M.applyLabelCase(text)
+    local mode = tostring(M.vars.label_case or "original")
+    if mode == "title" then return applyTitleCase(text) end
+    if mode == "sentence" then return applySentenceCase(text) end
+    if mode == "upper" then return tostring(text or ""):upper() end
+    if mode == "lower" then return tostring(text or ""):lower() end
+    return text
+end
+
 function M.getProcessedLabel(text)
     if not text or text == "" then return "" end
-    local cached = M.processedLabelCache[text]
+    local cacheKey = tostring(M.vars.label_case or "original") .. "\0" .. text
+    local cached = M.processedLabelCache[cacheKey]
     if cached then return cached end
-    cached = M.processLabel(text)
-    M.processedLabelCache[text] = cached
+    cached = M.applyLabelCase(M.processLabel(text))
+    M.processedLabelCache[cacheKey] = cached
     return cached
 end
 
@@ -346,6 +372,14 @@ function M.LoadSettings()
                 M.vars[key] = extValue
             end
         end
+    end
+    M.vars.font_size = math.max(8, math.min(32, tonumber(M.vars.font_size) or 13))
+    M.vars.line_height = math.max(0.45, math.min(1.25, tonumber(M.vars.line_height) or 0.6))
+    if M.vars.font_family ~= "sans-serif" and M.vars.font_family ~= "serif" and M.vars.font_family ~= "monospace" then
+        M.vars.font_family = "sans-serif"
+    end
+    if M.vars.label_case ~= "original" and M.vars.label_case ~= "title" and M.vars.label_case ~= "sentence" and M.vars.label_case ~= "upper" and M.vars.label_case ~= "lower" then
+        M.vars.label_case = "original"
     end
     M.parseLabelReplacements(M.vars.label_replacements)
 end

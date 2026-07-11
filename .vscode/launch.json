@@ -27,7 +27,7 @@
         ],
         "stopAtEntry": false,
         "cwd": "${env:REAPER_RESOURCE_PATH}",
-        "console": "externalTerminal",
+        "console": "integratedTerminal",
         "environment": [
           {
             "name": "REAPER_EXE_PATH",
