@@ -46,7 +46,7 @@ set(CMAKE_PROJECT_VERSION_COMMIT "\"${CMAKE_PROJECT_VERSION_COMMIT}\"")
 # General Build Settings
 # ------------------------------------------------------------------------------
 
-add_definitions(-DUSING_CMAKE) # for #ifdef USING_CMAKE
+# USING_CMAKE ifdefs removed — CMake is the only supported build system.
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -300,9 +300,18 @@ endif()
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 
+# Precompiled header preamble.h includes all heavy/stable headers (STL, WDL, REAPER SDK, oscpkt).
+# Without PCH, each of ~20 .cpp files re-parses this entire header tree independently.
+target_precompile_headers(${PROJECT_NAME} PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/controls/preamble.h>")
+
+# main.cpp must NOT use the PCH it #defines REAPERAPI_IMPLEMENT before including reaper_plugin_functions.h to provide function-pointer definitions.
+# The PCH already contains the extern declarations (via preamble.h), whose include-guard would prevent the definitions from being emitted.
+# integrator.cpp must NOT use the PCH it #defines INCLUDE_LOCALIZE_IMPORT_H before preamble.h to include localize-import.h (which MUST precede localize.h and provides the sole definition of __localizeFunc with external linkage).
+set_source_files_properties(src/main.cpp src/controls/integrator.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+
 # Platform-specific compile warnings
 if(WIN32)
-  target_compile_options(${PROJECT_NAME} PRIVATE /W3 /wd4996)
+  target_compile_options(${PROJECT_NAME} PRIVATE /W3 /wd4996 /MP)  # /MP = parallel compilation
   target_compile_definitions(${PROJECT_NAME} PRIVATE NOMINMAX _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
 else()
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)

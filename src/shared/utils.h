@@ -4,13 +4,8 @@
 #ifndef csi_utils_h
 #define csi_utils_h
 
-#ifdef USING_CMAKE
-  #include "../../lib/WDL/WDL/db2val.h"
-  #include "../../lib/WDL/WDL/wdlcstring.h"
-#else
-  #include "../../WDL/db2val.h"
-  #include "../../WDL/wdlcstring.h"
-#endif
+#include "../../lib/WDL/WDL/db2val.h"
+#include "../../lib/WDL/WDL/wdlcstring.h"
 
 #ifdef _DEBUG
   #if defined(__cpp_lib_stacktrace)

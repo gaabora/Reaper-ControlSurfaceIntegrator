@@ -52,42 +52,25 @@ namespace filesystem = std::filesystem;
 #include "../shared/oscpkt.hh"
 #include "../shared/udp.hh"
 
-#ifdef USING_CMAKE
-  #include "../../lib/WDL/WDL/win32_utf8.h"
-  #include "../../lib/WDL/WDL/ptrlist.h"
-  #include "../../lib/WDL/WDL/queue.h"
-  #include "../../lib/WDL/WDL/mutex.h"
-#else
-  #ifdef _WIN32
-  #ifndef strnicmp
-    #define strnicmp _strnicmp
-  #endif
-  #endif
-  #include "../../WDL/win32_utf8.h"
-  #include "../../WDL/ptrlist.h"
-  #include "../../WDL/queue.h"
-  #include "../../WDL/mutex.h"
-#endif
+#include "../../lib/WDL/WDL/win32_utf8.h"
+#include "../../lib/WDL/WDL/ptrlist.h"
+#include "../../lib/WDL/WDL/queue.h"
+#include "../../lib/WDL/WDL/mutex.h"
 
 // KbdSectionInfo (used by localize-import.h) comes from the REAPER SDK.
 // Include it here so it's available before localize-import.h is pulled in.
 #include "../shared/reaper_plugin_functions.h"
 
 // localize-import.h MUST come before localize.h — handled here to guarantee ordering.
+// Only integrator.cpp defines INCLUDE_LOCALIZE_IMPORT_H (it provides the one
+// definition of __localizeFunc with external linkage; other TUs use the extern
+// declaration from localize.h).  integrator.cpp skips the PCH for this reason.
 #ifdef INCLUDE_LOCALIZE_IMPORT_H
   #define LOCALIZE_IMPORT_PREFIX "csi_"
-  #ifdef USING_CMAKE
-    #include "../../lib/WDL/WDL/localize/localize-import.h"
-  #else
-    #include "../../WDL/localize/localize-import.h"
-  #endif
+  #include "../../lib/WDL/WDL/localize/localize-import.h"
 #endif
 
-#ifdef USING_CMAKE
-  #include "../../lib/WDL/WDL/localize/localize.h"
-#else
-  #include "../../WDL/localize/localize.h"
-#endif
+#include "../../lib/WDL/WDL/localize/localize.h"
 
 #ifdef _WIN32
 #include "commctrl.h"

@@ -17,13 +17,8 @@
 #include <functional>
 
 // WDL utilities needed by PropertyList (lstrcpyn_safe, snprintf_append, WDL_NOT_NORMALLY)
-#ifdef USING_CMAKE
-  #include "../../lib/WDL/WDL/wdltypes.h"
-  #include "../../lib/WDL/WDL/wdlcstring.h"
-#else
-  #include "../../WDL/wdltypes.h"
-  #include "../../WDL/wdlcstring.h"
-#endif
+#include "../../lib/WDL/WDL/wdltypes.h"
+#include "../../lib/WDL/WDL/wdlcstring.h"
 
 // Forward-declare REAPER types needed by MIDI_event_ex_t
 #include "reaper_plugin_functions.h"
