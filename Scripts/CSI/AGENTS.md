@@ -7,7 +7,7 @@
 ## Ownership
 
 - `CSI OSK on-screen keyboard.lua` and `CSI OSD on-screen display.lua` entry scripts.
-- `osk_data.lua`, `osk_render.lua`, `osk_config.lua`, `osd_ui.lua`, and `ui_components.lua` shared modules.
+- `osk_data.lua`, `osk_render.lua`, `osk_config.lua`, `osd_ui.lua`, `ui_components.lua`, and `script_host.lua` shared modules.
 
 ## Local Contracts
 
@@ -29,6 +29,7 @@
 
 - Keep data acquisition/parsing in `osk_data.lua`, drawing in `osk_render.lua`, binding editing in `osk_config.lua`, and OSD behavior in `osd_ui.lua`.
 - Keep reusable ReaImGui widget helpers in `ui_components.lua` so entry scripts and feature modules do not re-implement the same UI patterns.
+- Keep shared script startup, context creation, toolbar state, and shutdown boilerplate in `script_host.lua` so the entry scripts stay thin orchestration layers.
 - Avoid duplicating shared UI behavior in the entry scripts.
 - Keep action edits reversible until the user explicitly saves them.
 

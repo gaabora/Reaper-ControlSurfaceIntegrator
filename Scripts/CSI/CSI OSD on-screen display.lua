@@ -10,33 +10,20 @@
  * Notes: Requires ReaImGui. Shares OSD UI logic with CSI OSK via osd_ui module.
 --]]
 
--- Requires ReaImGui
-if not reaper.ImGui_GetBuiltinPath then
-    reaper.ShowMessageBox("Script needs ReaImGui.\nPlease install it in the next window.", "MISSING DEPENDENCY", 0)
-    reaper.ReaPack_BrowsePackages('^ReaImGui:')
-    return
-end
-
 local r = reaper
 local scriptDir = debug.getinfo(1, "S").source:match("@(.+[\\/])") or ""
-package.path = scriptDir .. "?.lua;" .. r.ImGui_GetBuiltinPath() .. '/?.lua;' .. package.path
+local host = dofile(scriptDir .. "script_host.lua")
+local imgui = host.RequireImGui(scriptDir)
+if not imgui then return end
 
-local imgui = require "imgui" "0.9.3"
 local osd_ui = require("osd_ui")
 
 local ctx = nil
-local FONT = nil
 local FONT_SMALL = nil
 
-local function SetToolbarButtonState(set)
-    local _, _, sec, cmd = r.get_action_context()
-    r.SetToggleCommandState(sec, cmd, set or 0)
-    r.RefreshToolbar2(sec, cmd)
-end
-
 local function main()
-    if r.ImGui_ValidatePtr and (not r.ImGui_ValidatePtr(ctx, "ImGui_Context*")) then
-        SetToolbarButtonState(-1)
+    if not host.IsContextValid(ctx) then
+        host.SetToolbarState(-1)
         return
     end
 
@@ -73,23 +60,23 @@ local function main()
 end
 
 local function Init()
-    SetToolbarButtonState(1)
+    host.SetToolbarState(1)
     osd_ui.LoadSettings()
 
-    ctx = imgui.CreateContext('CSI OSD')
-    FONT = imgui.CreateFont('sans-serif', 13)
-    FONT_SMALL = imgui.CreateFont('sans-serif', 11)
-    imgui.Attach(ctx, FONT)
-    imgui.Attach(ctx, FONT_SMALL)
-    
+    local fonts
+    ctx, fonts = host.CreateContext("CSI OSD", {
+        { key = "default", family = "sans-serif", size = 13 },
+        { key = "small", family = "sans-serif", size = 11 },
+    })
+    FONT_SMALL = fonts.small
     osd_ui.SetFont(FONT_SMALL)
 
-    main()
-    
-    r.atexit(function()
+    host.OnExit(function()
         osd_ui.SaveSettings()
-        SetToolbarButtonState(-1)
+        host.SetToolbarState(-1)
     end)
+
+    main()
 end
 
 Init()

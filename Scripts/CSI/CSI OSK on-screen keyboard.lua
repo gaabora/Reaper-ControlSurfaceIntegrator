@@ -9,16 +9,12 @@
  * Version: 1.0.0
 --]]
 
-if not reaper.ImGui_GetBuiltinPath then
-    reaper.ShowMessageBox("Script needs ReaImGui.\nPlease install it in the next window.", "MISSING DEPENDENCY", 0)
-    reaper.ReaPack_BrowsePackages('^ReaImGui:')
-    return
-end
-
 local r = reaper
 local scriptDir = debug.getinfo(1, "S").source:match("@(.+[\\/])") or ""
-package.path = scriptDir .. "?.lua;" .. r.ImGui_GetBuiltinPath() .. '/?.lua;' .. package.path
-local imgui = require "imgui" "0.9.3"
+local host = dofile(scriptDir .. "script_host.lua")
+local imgui = host.RequireImGui(scriptDir)
+if not imgui then return end
+
 local data = require("osk_data")
 local render = require("osk_render")
 local config = require("osk_config")
@@ -46,20 +42,6 @@ local function GetWindowFlags()
         flags = flags | imgui.WindowFlags_NoTitleBar
     end
     return flags
-end
-
-local function IsValidContext()
-    if not ctx then return false end
-    if r.ImGui_ValidatePtr then
-        return r.ImGui_ValidatePtr(ctx, "ImGui_Context*")
-    end
-    return true
-end
-
-local function SetToolbarButtonState(set)
-    local _, _, sectionId, commandId = r.get_action_context()
-    r.SetToggleCommandState(sectionId, commandId, set or 0)
-    r.RefreshToolbar2(sectionId, commandId)
 end
 
 local function SliderSetting(activeCtx, label, currentValue, storeKey, minValue, maxValue, format)
@@ -149,8 +131,8 @@ local function RenderContextMenu(activeCtx, popupId)
 end
 
 local function main()
-    if not IsValidContext() then
-        SetToolbarButtonState(-1)
+    if not host.IsContextValid(ctx) then
+        host.SetToolbarState(-1)
         return
     end
     if not data.PollData() then return end
@@ -214,33 +196,35 @@ local function main()
 
     data.FlushSurfacePositions(true)
     data.SaveSettings()
-    SetToolbarButtonState(-1)
+    host.SetToolbarState(-1)
 end
 
 local function Init()
-    SetToolbarButtonState(1)
+    host.SetToolbarState(1)
     data.LoadSettings()
     osd_ui.LoadSettings()
 
-    ctx = imgui.CreateContext("CSI OSK")
-    FONT = imgui.CreateFont("sans-serif", 13)
-    FONT_SMALL = imgui.CreateFont("sans-serif", 11)
-    imgui.Attach(ctx, FONT)
-    imgui.Attach(ctx, FONT_SMALL)
+    local fonts
+    ctx, fonts = host.CreateContext("CSI OSK", {
+        { key = "default", family = "sans-serif", size = 13 },
+        { key = "small", family = "sans-serif", size = 11 },
+    })
+    FONT = fonts.default
+    FONT_SMALL = fonts.small
     render.SetFonts(FONT, FONT_SMALL)
     if render.SetConfigModule then render.SetConfigModule(config) end
 
-    data.PollData()
-    EnsureSurfaceWindows()
-    main()
-
-    r.atexit(function()
+    host.OnExit(function()
         if config.HandleShutdown then config.HandleShutdown() end
         data.FlushSurfacePositions(true)
         data.SaveSettings()
         osd_ui.SaveSettings()
-        SetToolbarButtonState(-1)
+        host.SetToolbarState(-1)
     end)
+
+    data.PollData()
+    EnsureSurfaceWindows()
+    main()
 end
 
 Init()
