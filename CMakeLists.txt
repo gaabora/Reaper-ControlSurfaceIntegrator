@@ -191,7 +191,10 @@ add_library(${PROJECT_NAME} SHARED
   ${WDL_PATH}/win32_utf8.c
 )
 
-add_subdirectory(reaper_csurf_integrator) #TODO: move and change to src 
+add_subdirectory(reaper_csurf_integrator) #TODO: move and change to src
+if(NOT WIN32)
+  target_link_libraries(${PROJECT_NAME} PRIVATE swell)
+endif()
 # target_link_libraries(${PROJECT_NAME} PRIVATE reaper-sdk)
 
 
@@ -199,16 +202,16 @@ add_subdirectory(reaper_csurf_integrator) #TODO: move and change to src
 # Configure singing for macos 15+ 
 # ------------------------------------------------------------------------------
 if(APPLE)
-  # Force building Universal2 binary: Intel + Apple Silicon
-  set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "" FORCE)
-  message(STATUS "Building Universal2 binary for macOS (x86_64 + arm64)")
-
-  # Set minimum macOS deployment target for best compatibility
-  set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS deployment version" FORCE)
-  message(STATUS "Setting minimum deployment target to macOS 11.0 (Big Sur)")
-
   # Code Signing if identity is set
   if(DEFINED ENV{APLDEV_CODESIGN_IDENTITY})
+    # Force building Universal2 binary: Intel + Apple Silicon
+    set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "" FORCE)
+    message(STATUS "Building Universal2 binary for macOS (x86_64 + arm64)")
+
+    # Set minimum macOS deployment target for best compatibility
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS deployment version" FORCE)
+    message(STATUS "Setting minimum deployment target to macOS 11.0 (Big Sur)")
+
     message(STATUS "Code signing will be applied with identity: $ENV{APLDEV_CODESIGN_IDENTITY}")
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
       COMMAND codesign
