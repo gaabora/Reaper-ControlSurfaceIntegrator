@@ -59,11 +59,6 @@ end
 local function main()
     osd_ui.PollOSD()
     
-    if not osd_ui.vars.osd_enabled or not osd_ui.state.text or osd_ui.state.text == "" then
-        r.defer(main)
-        return
-    end
-    
     local screenW, screenH = 1920, 1080
     if r.my_getViewport then
         local left, top, right, bottom = r.my_getViewport(0, 0, 0, 0, 0, 0, 0, 0, true)
@@ -77,7 +72,7 @@ local function main()
     
     RenderContextMenu()
     
-    if not p_open then
+    if p_open == false and osd_ui.vars.osd_enabled then
         osd_ui.SaveSettings()
         SetToolbarButtonState(-1)
         return

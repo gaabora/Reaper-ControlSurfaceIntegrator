@@ -24,6 +24,7 @@ M.vars = {
     osd_transparency = 50,         -- 0-100
     osd_margin = 0,                -- pixels from edge
     osd_debug = false,
+    osd_show_idle_hint = true,
     osd_text_color = "#FFFFFF",    -- hex color for text (auto-contrast if needed)
     osd_bg_on = "#A4A4A4",         -- background when state=1
     osd_bg_off = "#333333",        -- background when state=0
@@ -31,6 +32,7 @@ M.vars = {
 
 M.EXT_SECTION = "CSI_TMP"
 M.EXT_KEY = "OSD"
+M.EXT_FALLBACK_SECTION = "CSI_OSD"
 M.EXT_SETTINGS_SECTION = "CSI_OSD_SETTINGS"
 
 local FONT_SMALL = nil
@@ -46,6 +48,14 @@ local function DebugLog(...)
         out[#out + 1] = tostring(select(i, ...))
     end
     r.ShowConsoleMsg("[CSI OSD] " .. table.concat(out, " ") .. "\n")
+end
+
+local function IsValidContext(ctx)
+    if not ctx then return false end
+    if r.ImGui_ValidatePtr then
+        return r.ImGui_ValidatePtr(ctx, "ImGui_Context*")
+    end
+    return true
 end
 
 ---Hex string to ImGui color (ABGR format)
@@ -72,6 +82,9 @@ end
 ---Poll OSD message from ExtState
 function M.PollOSD()
     local msg = r.GetExtState(M.EXT_SECTION, M.EXT_KEY)
+    if (not msg or msg == "") and M.EXT_FALLBACK_SECTION and M.EXT_FALLBACK_SECTION ~= "" then
+        msg = r.GetExtState(M.EXT_FALLBACK_SECTION, M.EXT_KEY)
+    end
     if msg ~= M.state.lastMsg then
         M.state.lastMsg = msg
         if not msg or msg == "" then
@@ -185,7 +198,13 @@ end
 ---@param windowWidth number Reference window width (for sizing)
 ---@param windowHeight number Reference window height (for sizing)
 function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, windowHeight)
-    if not M.vars.osd_enabled or not M.state.text or M.state.text == "" then
+    if not IsValidContext(ctx) then
+        DebugLog("invalid imgui context in RenderOSDWindow")
+        return false
+    end
+
+    local hasText = M.state.text and M.state.text ~= ""
+    if not M.vars.osd_enabled or (not hasText and not M.vars.osd_show_idle_hint) then
         return false
     end
     
@@ -194,6 +213,9 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
     local margin = M.vars.osd_margin or 0
     local width = screenWidth * (M.vars.osd_width_percent / 100)
     local height = math.max(30, screenHeight * (M.vars.osd_height_percent / 100))
+    if not hasText then
+        height = 28
+    end
     
     local xPos = margin
     local yPos = M.vars.osd_position == "top" 
@@ -211,7 +233,10 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
         | imgui.WindowFlags_NoMove
         | imgui.WindowFlags_NoResize
         | imgui.WindowFlags_NoCollapse
-        | imgui.WindowFlags_NoBringToFrontOnFocus
+
+    if imgui.WindowFlags_NoBringToFrontOnFocus then
+        windowFlags = windowFlags | imgui.WindowFlags_NoBringToFrontOnFocus
+    end
     
     local visible, p_open = imgui.Begin(ctx, "##OSD", true, windowFlags)
     
@@ -234,12 +259,13 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
             textCol = (textCol & 0xFFFFFF00) | math.floor((M.vars.osd_transparency / 100) * 255)
         end
         
-        local textWidth = imgui.CalcTextSize(ctx, M.state.text)
+        local shownText = hasText and M.state.text or "OSD idle - right-click for settings"
+        local textWidth = imgui.CalcTextSize(ctx, shownText)
         local _, lineHeight = imgui.CalcTextSize(ctx, "M")
         local textX = xPos + (width - textWidth) / 2
         local textY = yPos + (height - lineHeight) / 2
         
-        imgui.DrawList_AddText(drawList, textX, textY, textCol, M.state.text)
+        imgui.DrawList_AddText(drawList, textX, textY, textCol, shownText)
         
         imgui.PopFont(ctx)
     end

@@ -392,7 +392,7 @@ end
 function M.RenderOSDBar(ctx)
     osd_ui.PollOSD()
     
-    if not osd_ui.vars.osd_enabled or osd_ui.vars.osk_bar_position == "off" or not osd_ui.state.text or osd_ui.state.text == "" then
+    if osd_ui.vars.osk_bar_position == "off" then
         return
     end
     
@@ -417,10 +417,11 @@ function M.RenderOSDBar(ctx)
         textCol = (textCol & 0xFFFFFF00) | math.floor((osd_ui.vars.osd_transparency / 100) * 255)
     end
 
-    local textWidth = imgui.CalcTextSize(ctx, osd_ui.state.text)
+    local shownText = osd_ui.state.text or ""
+    local textWidth = imgui.CalcTextSize(ctx, shownText)
     local textX = cursorX + (availWidth - textWidth) / 2
     local textY = cursorY + padV
-    imgui.DrawList_AddText(drawList, textX, textY, textCol, osd_ui.state.text)
+    imgui.DrawList_AddText(drawList, textX, textY, textCol, shownText)
 
     imgui.Dummy(ctx, 0, barH)
     imgui.PopFont(ctx)
