@@ -18,6 +18,7 @@
 - Zone and surface parser changes affect user configuration formats and require documentation review.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/CSI` must change atomically.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.
+- Route OSK wheel acceleration through indexed relative actions while retaining compatibility with legacy `Inc`/`Dec` scroll payloads.
 - Surface-independent behavior belongs here; protocol-specific behavior belongs in `midi/` or `osc/`.
 
 ## Work Guidance

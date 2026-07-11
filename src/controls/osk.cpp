@@ -675,16 +675,19 @@ void ControlSurface::InjectOSKPressUp(const string& widgetName) {
     zoneManager_->DoAction(widget, 0.0);
 }
 
-void ControlSurface::InjectOSKScroll(const string& widgetName, bool isIncrease) {
-    Widget* widget = GetWidgetByName(widgetName);
+void ControlSurface::InjectOSKScroll(const string& widgetName, int accelerationIndex, double delta, int eventCount) {
+    Widget* widget = this->GetWidgetByName(widgetName);
     if (!widget) {
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKScroll: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKScroll: widget '%s' not found on '%s'\n", widgetName.c_str(), this->name_.c_str());
         return;
     }
+
     double step = widget->GetStepSize();
-    if (step <= 0.0) step = 0.01;   // sensible default: 1 % of normalized range per tick
-    widget->LogInput(isIncrease ? step : -step);
-    zoneManager_->DoRelativeAction(widget, isIncrease ? step : -step);
+    if (step <= 0.0) step = 0.01;
+    const double signedDelta = delta >= 0.0 ? step : -step;
+    const int boundedEventCount = (std::max)(1, (std::min)(eventCount, 8));
+    for (int eventIdx = 0; eventIdx < boundedEventCount; ++eventIdx)
+        this->zoneManager_->DoRelativeAction(widget, accelerationIndex, signedDelta);
 }
 
 void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {

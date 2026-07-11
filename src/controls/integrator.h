@@ -245,11 +245,11 @@ public:
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetPress: surface '%s' not found\n", surfName.c_str());
     }
 
-    void DispatchOSKWidgetScroll(const string& surfName, const string& widgetName, bool isIncrease) {
+    void DispatchOSKWidgetScroll(const string& surfName, const string& widgetName, int accelerationIndex, double delta, int eventCount) {
         if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
         for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
             if (surfName == surface->GetName()) {
-                surface->InjectOSKScroll(widgetName, isIncrease);
+                surface->InjectOSKScroll(widgetName, accelerationIndex, delta, eventCount);
                 return;
             }
         }
@@ -335,13 +335,33 @@ public:
         if (::HasExtState("CSI_OSK_CMD", "WidgetScroll")) {
             string payload = ::GetExtState("CSI_OSK_CMD", "WidgetScroll");
             ::DeleteExtState("CSI_OSK_CMD", "WidgetScroll", false);
-            // Format: surfaceName|widgetName|Inc  or  surfaceName|widgetName|Dec
             auto sep1 = payload.find('|');
             if (sep1 != string::npos) {
                 auto sep2 = payload.find('|', sep1 + 1);
                 if (sep2 != string::npos) {
-                    bool isInc = (payload.substr(sep2 + 1) == "Inc");
-                    DispatchOSKWidgetScroll(payload.substr(0, sep1), payload.substr(sep1 + 1, sep2 - sep1 - 1), isInc);
+                    const string surfaceName = payload.substr(0, sep1);
+                    const string widgetName = payload.substr(sep1 + 1, sep2 - sep1 - 1);
+                    const string scrollData = payload.substr(sep2 + 1);
+                    const auto sep3 = scrollData.find('|');
+                    if (sep3 == string::npos) {
+                        if (scrollData == "Inc" || scrollData == "Dec") {
+                            const double legacyDelta = scrollData == "Dec" ? -1.0 : 1.0;
+                            DispatchOSKWidgetScroll(surfaceName, widgetName, 0, legacyDelta, 1);
+                        } else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid legacy WidgetScroll payload: '%s'\n", payload.c_str());
+                    } else {
+                        const string accelerationText = scrollData.substr(0, sep3);
+                        const string eventCountText = scrollData.substr(sep3 + 1);
+                        char* accelerationEnd = nullptr;
+                        char* eventCountEnd = nullptr;
+                        const long parsedAccelerationIndex = strtol(accelerationText.c_str(), &accelerationEnd, 10);
+                        const long parsedSignedEventCount = strtol(eventCountText.c_str(), &eventCountEnd, 10);
+                        if (accelerationEnd && *accelerationEnd == '\0' && eventCountEnd && *eventCountEnd == '\0' && parsedSignedEventCount != 0) {
+                            const int eventCount = parsedSignedEventCount > 8 || parsedSignedEventCount < -8 ? 8 : (int) (parsedSignedEventCount > 0 ? parsedSignedEventCount : -parsedSignedEventCount);
+                            const double delta = parsedSignedEventCount > 0 ? 1.0 : -1.0;
+                            const int accelerationIndex = (int) (std::max)(0L, (std::min)(parsedAccelerationIndex, 64L));
+                            DispatchOSKWidgetScroll(surfaceName, widgetName, accelerationIndex, delta, eventCount);
+                        } else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid WidgetScroll payload: '%s'\n", payload.c_str());
+                    }
                 }
             }
         }

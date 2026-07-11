@@ -11,6 +11,10 @@ local hoverStartTime = {}
 local FONT = nil
 local FONT_SMALL = nil
 local configModule = nil
+local wheelStates = {}
+
+local WHEEL_SEND_INTERVAL_SECONDS = 0.040
+local WHEEL_MAX_EVENTS_PER_COMMAND = 8
 
 function M.SetFonts(font, fontSmall)
     FONT = font
@@ -22,11 +26,41 @@ function M.SetConfigModule(module)
     configModule = module
 end
 
-local function GetWheelDirection(ctx)
-    local value = imgui.GetMouseWheel(ctx)
-    if value > 0 then return 1 end
-    if value < 0 then return -1 end
-    return 0
+local function GetWheelAccelerationIndex(eventInterval, wheelMagnitude)
+    local accelerationIndex = 0
+    if eventInterval <= 0.035 then
+        accelerationIndex = 3
+    elseif eventInterval <= 0.070 then
+        accelerationIndex = 2
+    elseif eventInterval <= 0.140 then
+        accelerationIndex = 1
+    end
+
+    local magnitudeBoost = math.max(0, math.min(3, math.floor(wheelMagnitude + 0.5) - 1))
+    return math.min(3, accelerationIndex + magnitudeBoost)
+end
+
+local function SendPendingWheelCommand(wheelState, now)
+    if wheelState.pendingEvents == 0 then return false end
+    if wheelState.lastSentTime > 0 and now - wheelState.lastSentTime < WHEEL_SEND_INTERVAL_SECONDS then return false end
+
+    local signedEventCount = wheelState.pendingEvents * wheelState.direction
+    local msg = table.concat({ wheelState.surfaceName, wheelState.widgetName, wheelState.accelerationIndex, signedEventCount }, "|")
+    r.SetExtState(data.EXT_CMD_SECTION, "WidgetScroll", msg, false)
+    wheelState.pendingEvents = 0
+    wheelState.accelerationIndex = 0
+    wheelState.lastSentTime = now
+    return true
+end
+
+local function FlushPendingWheelCommands()
+    local now = r.time_precise()
+    for stateKey, wheelState in pairs(wheelStates) do
+        if SendPendingWheelCommand(wheelState, now) then return end
+        if wheelState.pendingEvents == 0 and now - wheelState.lastInputTime > 2.0 then
+            wheelStates[stateKey] = nil
+        end
+    end
 end
 
 local pressedWidgets = {}  -- widgetName -> surfName, tracks buttons currently held down
@@ -58,13 +92,43 @@ local function HandleRotaryMouseWheel(ctx, surfName, cell)
     if not imgui.IsItemHovered(ctx) then return end
     if not data.vars.clickable then return end
 
-    local direction = GetWheelDirection(ctx)
-    if direction == 0 then return end
     if not surfName then return end
 
-    local action = (direction > 0) and "Inc" or "Dec"
-    local msg = surfName .. "|" .. cell.name .. "|" .. action
-    r.SetExtState(data.EXT_CMD_SECTION, "WidgetScroll", msg, false)
+    local stateKey = surfName .. "|" .. cell.name
+    local wheelState = wheelStates[stateKey]
+    if not wheelState then
+        wheelState = {
+            surfaceName = surfName,
+            widgetName = cell.name,
+            direction = 0,
+            pendingEvents = 0,
+            accelerationIndex = 0,
+            lastInputTime = 0,
+            lastSentTime = 0,
+        }
+        wheelStates[stateKey] = wheelState
+    end
+
+    local now = r.time_precise()
+    local wheelValue = imgui.GetMouseWheel(ctx)
+    if wheelValue ~= 0 then
+        local direction = wheelValue > 0 and 1 or -1
+        local eventInterval = wheelState.lastInputTime > 0 and now - wheelState.lastInputTime or math.huge
+        if direction ~= wheelState.direction then
+            eventInterval = math.huge
+            wheelState.pendingEvents = 0
+            wheelState.accelerationIndex = 0
+        end
+
+        local eventCount = math.max(1, math.floor(math.abs(wheelValue) + 0.5))
+        wheelState.direction = direction
+        wheelState.pendingEvents = math.min(WHEEL_MAX_EVENTS_PER_COMMAND, wheelState.pendingEvents + eventCount)
+        wheelState.accelerationIndex = math.max(wheelState.accelerationIndex, GetWheelAccelerationIndex(eventInterval, math.abs(wheelValue)))
+        wheelState.lastInputTime = now
+    end
+
+    if wheelState.pendingEvents == 0 then return end
+    SendPendingWheelCommand(wheelState, now)
 end
 
 local function GetCellInfo(surfName, widgetName)
@@ -519,6 +583,8 @@ local function getCellMetrics(cell)
 end
 
 function M.RenderSurface(ctx, surfName)
+    FlushPendingWheelCommands()
+
     local layout = data.layouts[surfName]
     if not layout then
         imgui.Text(ctx, "Waiting for layout data from " .. surfName .. "...")

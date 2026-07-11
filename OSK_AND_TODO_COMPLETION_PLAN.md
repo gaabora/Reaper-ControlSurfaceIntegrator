@@ -86,19 +86,21 @@ Goal: replace the raw-line-oriented prototype with the intended binding editor.
 
 Goal: make mouse interaction behave consistently with physical controls.
 
+**Status:** Implemented on June 15, 2026. Debug build passes; manual REAPER acceptance testing remains.
+
 ### Work
 
-1. Add mouse-wheel acceleration based on wheel event timing or accumulated wheel delta.
-2. Route accelerated wheel events through the indexed
+1. [x] Add mouse-wheel acceleration based on wheel event timing and accumulated wheel delta.
+2. [x] Route accelerated wheel events through the indexed
    `ZoneManager::DoRelativeAction(widget, accelerationIndex, delta)` overload.
-3. Add debounce/rate limiting so high-resolution wheels cannot flood ExtState commands.
-4. Keep semantic input as the default because it supports MIDI and OSC surfaces.
-5. Only add MIDI-message injection if a real device-specific behavior cannot be
-   represented semantically:
+3. [x] Add debounce/rate limiting so high-resolution wheels cannot flood ExtState commands.
+4. [x] Keep semantic input as the default because it supports MIDI and OSC surfaces.
+5. [x] Do not add MIDI-message injection without a real device-specific behavior that
+   cannot be represented semantically. A future implementation would:
    - store parsed per-widget MIDI press/release/increase/decrease messages
    - inject through `Midi_ControlSurface::ProcessMidiMessage()`
    - fall back to semantic dispatch when no mapping exists
-6. Do not add Lua `StuffMIDIMessage` support unless a concrete host/device requirement
+6. [x] Do not add Lua `StuffMIDIMessage` support unless a concrete host/device requirement
    appears; it requires exposing device IDs and is more fragile than the C++ bridge.
 
 ### Acceptance
