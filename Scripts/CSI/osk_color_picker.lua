@@ -1,3 +1,4 @@
+local r = reaper
 local imgui = require "imgui" "0.9.3"
 
 local theme = require("theme_settings")
@@ -5,7 +6,27 @@ local ui = require("ui_components")
 
 local M = {}
 
+local USER_SWATCHES_KEY = "ConfigColorUserSwatches"
+local RECENT_SWATCHES_KEY = "ConfigColorRecentSwatches"
+local USER_SWATCH_COUNT = 20
+local RECENT_SWATCH_COUNT = 10
+local EMPTY_SWATCH_TOKEN = "-"
+local EMPTY_SWATCH_COLOR = 0x00000000
+local mouseButtonRight = imgui.MouseButton_Right or 1
+
+local swatchFlags = (imgui.ColorEditFlags_NoPicker or 0) | (imgui.ColorEditFlags_NoTooltip or 0)
+local emptySwatchFlags = swatchFlags | (imgui.ColorEditFlags_AlphaPreview or 0)
+local previewFlags = swatchFlags
+local pickerFlags = (imgui.ColorEditFlags_NoAlpha or 0)
+    | (imgui.ColorEditFlags_NoInputs or 0)
+    | (imgui.ColorEditFlags_NoSidePreview or 0)
+    | (imgui.ColorEditFlags_NoSmallPreview or 0)
+    | (imgui.ColorEditFlags_PickerHueBar or 0)
+
 local popupState = {}
+local userSwatches = {}
+local recentSwatches = {}
+local swatchesLoaded = false
 
 local function clampChannel(value)
     return math.max(0, math.min(255, math.floor((tonumber(value) or 0) + 0.5)))
@@ -20,6 +41,16 @@ local function normalizeColor(color)
     return (color & 0xFFFFFF00) | 0xFF
 end
 
+local function rgbaToArgb(color)
+    color = normalizeColor(color)
+    return ((color >> 8) & 0x00FFFFFF) | ((color << 24) & 0xFF000000)
+end
+
+local function argbToRgba(color)
+    color = tonumber(color) or 0
+    return ((color << 8) & 0xFFFFFF00) | ((color >> 24) & 0xFF)
+end
+
 local function colorToHex(color)
     color = normalizeColor(color)
     return string.format("#%02X%02X%02X", (color >> 24) & 0xFF, (color >> 16) & 0xFF, (color >> 8) & 0xFF)
@@ -31,10 +62,114 @@ local function parseHexColor(text)
     return packColor(tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16))
 end
 
+local function colorsEqual(left, right)
+    if left == nil or right == nil then return false end
+    return (normalizeColor(left) & 0xFFFFFF00) == (normalizeColor(right) & 0xFFFFFF00)
+end
+
+local function parseStoredSwatches(rawValue, fixedCount)
+    local values = {}
+    local slotIndex = 1
+    for token in tostring(rawValue or ""):gmatch("[^,]+") do
+        if fixedCount and slotIndex > fixedCount then break end
+        token = token:match("^%s*(.-)%s*$")
+        if token ~= EMPTY_SWATCH_TOKEN and token ~= "" then
+            local color = parseHexColor(token)
+            if fixedCount then
+                values[slotIndex] = color
+            elseif color then
+                values[#values + 1] = color
+            end
+        end
+        slotIndex = slotIndex + 1
+    end
+    return values
+end
+
+local function loadSwatches()
+    if swatchesLoaded then return end
+    userSwatches = parseStoredSwatches(r.GetExtState(theme.OSK_SETTINGS_SECTION, USER_SWATCHES_KEY), USER_SWATCH_COUNT)
+    recentSwatches = parseStoredSwatches(r.GetExtState(theme.OSK_SETTINGS_SECTION, RECENT_SWATCHES_KEY), nil)
+    swatchesLoaded = true
+end
+
+local function saveSwatches()
+    local userTokens = {}
+    for idx = 1, USER_SWATCH_COUNT do
+        userTokens[#userTokens + 1] = userSwatches[idx] and colorToHex(userSwatches[idx]) or EMPTY_SWATCH_TOKEN
+    end
+    r.SetExtState(theme.OSK_SETTINGS_SECTION, USER_SWATCHES_KEY, table.concat(userTokens, ","), true)
+
+    local recentTokens = {}
+    for idx = 1, math.min(#recentSwatches, RECENT_SWATCH_COUNT) do
+        if recentSwatches[idx] then recentTokens[#recentTokens + 1] = colorToHex(recentSwatches[idx]) end
+    end
+    r.SetExtState(theme.OSK_SETTINGS_SECTION, RECENT_SWATCHES_KEY, table.concat(recentTokens, ","), true)
+end
+
+local function rememberRecentColor(color)
+    loadSwatches()
+    color = normalizeColor(color)
+    for idx = #recentSwatches, 1, -1 do
+        if colorsEqual(recentSwatches[idx], color) then table.remove(recentSwatches, idx) end
+    end
+    table.insert(recentSwatches, 1, color)
+    while #recentSwatches > RECENT_SWATCH_COUNT do table.remove(recentSwatches) end
+    saveSwatches()
+end
+
+local function storeUserSwatch(slotIndex, color)
+    loadSwatches()
+    if slotIndex < 1 or slotIndex > USER_SWATCH_COUNT then return end
+    userSwatches[slotIndex] = normalizeColor(color)
+    saveSwatches()
+end
+
+local function saveCurrentToUserSwatches(color)
+    loadSwatches()
+    color = normalizeColor(color)
+    for idx = 1, USER_SWATCH_COUNT do
+        if colorsEqual(userSwatches[idx], color) then return idx end
+    end
+    for idx = 1, USER_SWATCH_COUNT do
+        if userSwatches[idx] == nil then
+            storeUserSwatch(idx, color)
+            return idx
+        end
+    end
+    storeUserSwatch(USER_SWATCH_COUNT, color)
+    return USER_SWATCH_COUNT
+end
+
+local function getRecentDisplaySwatches()
+    loadSwatches()
+    local reserved = {}
+    for _, paletteColor in ipairs(theme.CONFIG.color_palette) do
+        reserved[colorToHex(paletteColor.value)] = true
+    end
+    for idx = 1, USER_SWATCH_COUNT do
+        if userSwatches[idx] then reserved[colorToHex(userSwatches[idx])] = true end
+    end
+
+    local display = {}
+    local seen = {}
+    for _, color in ipairs(recentSwatches) do
+        if color then
+            local hex = colorToHex(color)
+            if not reserved[hex] and not seen[hex] then
+                display[#display + 1] = color
+                seen[hex] = true
+            end
+        end
+        if #display >= RECENT_SWATCH_COUNT then break end
+    end
+    return display
+end
+
 local function getPopupState(popupId, color)
     local state = popupState[popupId]
     if not state then
-        state = { pickerOpen = false, red = 0, green = 0, blue = 0, hexValue = "#000000" }
+        state = { red = 0, green = 0, blue = 0, hexValue = "#000000" }
         popupState[popupId] = state
     end
     state.lastColor = normalizeColor(color)
@@ -49,10 +184,15 @@ local function syncEditFields(state, color)
     state.hexValue = colorToHex(color)
 end
 
+local function getEditedColor(state)
+    return parseHexColor(state.hexValue) or packColor(state.red, state.green, state.blue)
+end
+
 local function applyColor(configState, binding, colorIndex, color, deps)
     color = normalizeColor(color)
     deps.model.SetActionColor(binding, colorIndex, color, deps.action_line, theme)
     deps.model.UpdateDirtyState(configState)
+    rememberRecentColor(color)
     return color
 end
 
@@ -63,45 +203,120 @@ local function resetColor(configState, binding, colorIndex, deps)
 end
 
 local function renderSectionTitle(ctx, text)
-    if imgui.SeparatorText then
-        imgui.SeparatorText(ctx, text)
-    else
-        imgui.Separator(ctx)
-        imgui.TextDisabled(ctx, text)
-    end
+    imgui.Text(ctx, text)
 end
 
-local function renderManualPicker(ctx, state, idSuffix)
+local function renderChannelField(ctx, state, idSuffix, label, key)
+    imgui.SetNextItemWidth(ctx, 52)
+    local changed
+    changed, state[key] = imgui.DragInt(ctx, "##manual_color_" .. label .. "_" .. idSuffix, state[key], 1, 0, 255)
+    imgui.SameLine(ctx, 0, 4)
+    imgui.Text(ctx, label)
+    return changed
+end
+
+local function renderManualFields(ctx, state, idSuffix)
     local edited = false
-    idSuffix = idSuffix or ""
+    edited = renderChannelField(ctx, state, idSuffix, "R", "red") or edited
+    edited = renderChannelField(ctx, state, idSuffix, "G", "green") or edited
+    edited = renderChannelField(ctx, state, idSuffix, "B", "blue") or edited
+    if edited then state.hexValue = colorToHex(packColor(state.red, state.green, state.blue)) end
+end
 
-    imgui.SetNextItemWidth(ctx, 72)
-    local changedR
-    changedR, state.red = imgui.DragInt(ctx, "R##manual_color_" .. idSuffix, state.red, 1, 0, 255)
-    edited = edited or changedR
-
-    imgui.SameLine(ctx, 0, 6)
-    imgui.SetNextItemWidth(ctx, 72)
-    local changedG
-    changedG, state.green = imgui.DragInt(ctx, "G##manual_color_" .. idSuffix, state.green, 1, 0, 255)
-    edited = edited or changedG
-
-    imgui.SameLine(ctx, 0, 6)
-    imgui.SetNextItemWidth(ctx, 72)
-    local changedB
-    changedB, state.blue = imgui.DragInt(ctx, "B##manual_color_" .. idSuffix, state.blue, 1, 0, 255)
-    edited = edited or changedB
-
-    if edited then
-        state.hexValue = colorToHex(packColor(state.red, state.green, state.blue))
-    end
-
-    imgui.SetNextItemWidth(ctx, 112)
+local function renderHexField(ctx, state, idSuffix)
+    imgui.SetNextItemWidth(ctx, theme.CONFIG.color_preview_width)
     local changedHex
-    changedHex, state.hexValue = imgui.InputText(ctx, "Hex##manual_color_" .. idSuffix, state.hexValue or "#000000")
+    changedHex, state.hexValue = imgui.InputText(ctx, "##manual_color_hex_" .. idSuffix, state.hexValue or "#000000")
     if changedHex then
         local parsed = parseHexColor(state.hexValue)
         if parsed then syncEditFields(state, parsed) end
+    end
+end
+
+local function renderColorSwatch(ctx, id, color, tooltip, flags)
+    local swatchSize = theme.CONFIG.color_swatch_size
+    local clicked = imgui.ColorButton(ctx, id, normalizeColor(color), flags or swatchFlags, swatchSize, swatchSize)
+    local rightClicked = imgui.IsItemClicked and imgui.IsItemClicked(ctx, mouseButtonRight)
+    if tooltip and tooltip ~= "" then ui.ItemTooltip(ctx, tooltip) end
+    return clicked, rightClicked
+end
+
+local function renderEmptySwatch(ctx, id, tooltip)
+    local swatchSize = theme.CONFIG.color_swatch_size
+    local clicked = imgui.ColorButton(ctx, id, EMPTY_SWATCH_COLOR, emptySwatchFlags, swatchSize, swatchSize)
+    local rightClicked = imgui.IsItemClicked and imgui.IsItemClicked(ctx, mouseButtonRight)
+    if tooltip and tooltip ~= "" then ui.ItemTooltip(ctx, tooltip) end
+    return clicked, rightClicked
+end
+
+local function renderRecentSwatches(ctx, state, configState, binding, colorIndex, idSuffix, deps)
+    local recent = getRecentDisplaySwatches()
+
+    renderSectionTitle(ctx, "Recent")
+    for idx = 1, RECENT_SWATCH_COUNT do
+        local color = recent[idx]
+        if color then
+            local clicked = renderColorSwatch(ctx, "##recent_color_" .. idSuffix .. "_" .. idx, color, colorToHex(color) .. "\nLeft click: use this color")
+            if clicked then
+                syncEditFields(state, applyColor(configState, binding, colorIndex, color, deps))
+            end
+        else
+            renderEmptySwatch(ctx, "##recent_color_empty_" .. idSuffix .. "_" .. idx, string.format("Recent swatch %d is empty", idx))
+        end
+        if idx % theme.CONFIG.color_recent_columns ~= 0 then imgui.SameLine(ctx, 0, 4) end
+    end
+end
+
+local function renderUserSwatches(ctx, state, configState, binding, colorIndex, idSuffix, deps)
+    renderSectionTitle(ctx, "Saved")
+    local editedColor = getEditedColor(state)
+    for slotIndex = 1, USER_SWATCH_COUNT do
+        local color = userSwatches[slotIndex]
+        if color then
+            local clicked, rightClicked = renderColorSwatch(ctx, "##user_color_" .. idSuffix .. "_" .. slotIndex, color, string.format("Saved swatch %d\nLeft click: use this color\nRight click: replace with current picker color", slotIndex))
+            if clicked then
+                syncEditFields(state, applyColor(configState, binding, colorIndex, color, deps))
+            end
+            if rightClicked then
+                storeUserSwatch(slotIndex, editedColor)
+            end
+        else
+            local _, rightClicked = renderEmptySwatch(ctx, "##user_color_empty_" .. idSuffix .. "_" .. slotIndex, string.format("Empty swatch %d\nRight click: save current picker color here", slotIndex))
+            if rightClicked then
+                storeUserSwatch(slotIndex, editedColor)
+            end
+        end
+        if slotIndex % theme.CONFIG.color_saved_columns ~= 0 then imgui.SameLine(ctx, 0, 4) end
+    end
+end
+
+local function renderBuiltinSwatches(ctx, state, configState, binding, colorIndex, idSuffix, deps)
+    renderSectionTitle(ctx, "Built-in")
+    for paletteIndex, paletteColor in ipairs(theme.CONFIG.color_palette) do
+        local clicked = renderColorSwatch(ctx, "##builtin_color_" .. idSuffix .. "_" .. paletteIndex, paletteColor.value, paletteColor.name .. "\nLeft click: use this color")
+        if clicked then
+            syncEditFields(state, applyColor(configState, binding, colorIndex, paletteColor.value, deps))
+        end
+        if paletteIndex % theme.CONFIG.color_builtin_columns ~= 0 then imgui.SameLine(ctx, 0, 4) end
+    end
+end
+
+local function renderColorEditor(ctx, state, idSuffix)
+    imgui.BeginGroup(ctx)
+    renderManualFields(ctx, state, "main_" .. idSuffix)
+    imgui.EndGroup(ctx)
+
+    imgui.SameLine(ctx, 0, 12)
+    imgui.BeginGroup(ctx)
+    imgui.ColorButton(ctx, "##active_preview_" .. idSuffix, getEditedColor(state), previewFlags, theme.CONFIG.color_preview_width, theme.CONFIG.color_preview_height)
+    renderHexField(ctx, state, "main_" .. idSuffix)
+    imgui.EndGroup(ctx)
+
+    imgui.SetNextItemWidth(ctx, theme.CONFIG.color_picker_width)
+    if imgui.ColorPicker4 then
+        local pickerColor = rgbaToArgb(getEditedColor(state))
+        local changed, pickedColor = imgui.ColorPicker4(ctx, "##picker_" .. idSuffix, pickerColor, pickerFlags)
+        if changed then syncEditFields(state, argbToRgba(pickedColor)) end
     end
 end
 
@@ -113,9 +328,8 @@ function M.RenderBindingColorPicker(ctx, configState, binding, bindingIndex, col
 
     if imgui.ColorButton(ctx, buttonId, currentColor) then
         configState.selectedBinding = bindingIndex
-        local state = getPopupState(popupId, currentColor)
-        state.pickerOpen = false
-        syncEditFields(state, currentColor)
+        loadSwatches()
+        syncEditFields(getPopupState(popupId, currentColor), currentColor)
         imgui.OpenPopup(ctx, popupId)
     end
     ui.ItemTooltip(ctx, label .. " color")
@@ -124,42 +338,25 @@ function M.RenderBindingColorPicker(ctx, configState, binding, bindingIndex, col
 
     local state = getPopupState(popupId, currentColor)
     renderSectionTitle(ctx, label .. " color")
-    imgui.ColorButton(ctx, "##current_color_preview_" .. idSuffix, currentColor)
-    imgui.SameLine(ctx, 0, 8)
-    imgui.Text(ctx, colorToHex(currentColor))
+    renderColorEditor(ctx, state, idSuffix)
 
-    if imgui.Button(ctx, "Pick##manual_color_toggle_" .. idSuffix) then
-        state.pickerOpen = not state.pickerOpen
-        if state.pickerOpen then syncEditFields(state, currentColor) end
+    if imgui.Button(ctx, "Apply##manual_color_" .. idSuffix) then
+        currentColor = applyColor(configState, binding, colorIndex, getEditedColor(state), deps)
+        syncEditFields(state, currentColor)
     end
     imgui.SameLine(ctx, 0, 6)
     if imgui.Button(ctx, "Reset##manual_color_" .. idSuffix) then
         currentColor = resetColor(configState, binding, colorIndex, deps)
         syncEditFields(state, currentColor)
     end
-
-    if state.pickerOpen then
-        renderManualPicker(ctx, state, idSuffix)
-        if imgui.Button(ctx, "Apply##manual_color_" .. idSuffix) then
-            currentColor = applyColor(configState, binding, colorIndex, parseHexColor(state.hexValue) or packColor(state.red, state.green, state.blue), deps)
-            syncEditFields(state, currentColor)
-        end
-        imgui.SameLine(ctx, 0, 6)
-        if imgui.Button(ctx, "Cancel##manual_color_" .. idSuffix) then
-            syncEditFields(state, currentColor)
-            state.pickerOpen = false
-        end
+    imgui.SameLine(ctx, 0, 6)
+    if imgui.Button(ctx, "Save##manual_color_" .. idSuffix) then
+        saveCurrentToUserSwatches(getEditedColor(state))
     end
 
-    renderSectionTitle(ctx, "Built-in")
-    for paletteIndex, paletteColor in ipairs(theme.CONFIG.color_palette) do
-        if imgui.ColorButton(ctx, "##builtin_color_" .. idSuffix .. "_" .. paletteIndex, paletteColor.value) then
-            currentColor = applyColor(configState, binding, colorIndex, paletteColor.value, deps)
-            syncEditFields(state, currentColor)
-        end
-        ui.ItemTooltip(ctx, paletteColor.name)
-        if paletteIndex % theme.CONFIG.palette_columns ~= 0 then imgui.SameLine(ctx, 0, 4) end
-    end
+    renderRecentSwatches(ctx, state, configState, binding, colorIndex, idSuffix, deps)
+    renderUserSwatches(ctx, state, configState, binding, colorIndex, idSuffix, deps)
+    renderBuiltinSwatches(ctx, state, configState, binding, colorIndex, idSuffix, deps)
 
     imgui.EndPopup(ctx)
     return currentColor

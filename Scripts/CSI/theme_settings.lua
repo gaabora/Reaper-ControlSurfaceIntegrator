@@ -73,6 +73,13 @@ M.CONFIG = {
     control_spacing = 5,
     modifier_columns = 5,
     palette_columns = 5,
+    color_picker_width = 236,
+    color_preview_width = 159,
+    color_preview_height = 50,
+    color_swatch_size = 20,
+    color_recent_columns = 10,
+    color_saved_columns = 10,
+    color_builtin_columns = 10,
     default_window_width = 720,
     default_window_height = 620,
 }
