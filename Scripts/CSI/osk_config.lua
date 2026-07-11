@@ -1,5 +1,6 @@
 local r = reaper
 local imgui = require "imgui" "0.9.3"
+local data = require("osk_data")
 
 local M = {}
 
@@ -29,6 +30,7 @@ local state = {
 	queryExpectedSerialized = nil,
 	forceAcceptQuery = false,
 	saveAfterApply = false,
+	showAdvancedEditor = false,
 }
 
 local SEARCH_MODE_ITEMS = "all\0csi\0reaper\0"
@@ -50,6 +52,24 @@ local MODIFIER_FLAGS = {
 	{ name = "Zoom", bit = 1024 },
 	{ name = "Scrub", bit = 2048 },
 }
+
+local COLOR_PALETTE = {
+	{ name = "Black", value = 0x000000ff },
+	{ name = "White", value = 0xffffffff },
+	{ name = "Gray", value = 0x808080ff },
+	{ name = "Red", value = 0xff3030ff },
+	{ name = "Orange", value = 0xff8a20ff },
+	{ name = "Yellow", value = 0xffd830ff },
+	{ name = "Green", value = 0x40c060ff },
+	{ name = "Cyan", value = 0x30c8d8ff },
+	{ name = "Blue", value = 0x4080ffff },
+	{ name = "Purple", value = 0xa060e0ff },
+}
+
+local TABLE_FLAGS = imgui.TableFlags_Borders
+	| imgui.TableFlags_RowBg
+	| imgui.TableFlags_Resizable
+	| imgui.TableFlags_ScrollY
 
 local function syncSearchModeFromIndex()
 	local mode = SEARCH_MODE_BY_INDEX[(state.searchModeIndex or 0) + 1] or "all"
@@ -126,16 +146,36 @@ local function parseActionLine(line)
 		actionName = tokens[1] or "",
 		params = {},
 		properties = {},
+		colorTokens = nil,
 	}
 
-	for tokenIdx = 2, #tokens do
+	local tokenIdx = 2
+	while tokenIdx <= #tokens do
 		local token = tokens[tokenIdx]
-		local key, value = token:match("^(.-)=(.+)$")
-		if key and value then
-			parts.properties[key] = unquoteValue(value)
+		if token == "{" then
+			local colorTokens = {}
+			tokenIdx = tokenIdx + 1
+			while tokenIdx <= #tokens and tokens[tokenIdx] ~= "}" do
+				colorTokens[#colorTokens + 1] = tokens[tokenIdx]
+				tokenIdx = tokenIdx + 1
+			end
+			if tokenIdx <= #tokens and tokens[tokenIdx] == "}" then
+				parts.colorTokens = colorTokens
+			else
+				parts.params[#parts.params + 1] = "{"
+				for _, colorToken in ipairs(colorTokens) do
+					parts.params[#parts.params + 1] = colorToken
+				end
+			end
 		else
-			parts.params[#parts.params + 1] = token
+			local key, value = token:match("^(.-)=(.+)$")
+			if key and value then
+				parts.properties[key] = unquoteValue(value)
+			else
+				parts.params[#parts.params + 1] = token
+			end
 		end
+		tokenIdx = tokenIdx + 1
 	end
 
 	return parts
@@ -151,8 +191,16 @@ local function buildActionLine(parts)
 		end
 	end
 
+	if parts.colorTokens and #parts.colorTokens > 0 then
+		out[#out + 1] = "{"
+		for _, colorToken in ipairs(parts.colorTokens) do
+			out[#out + 1] = tostring(colorToken)
+		end
+		out[#out + 1] = "}"
+	end
+
 	local used = {}
-	local priorityKeys = { "Feedback", "HoldDelay", "HoldRepeatInterval", "RunCount", "OSD" }
+	local priorityKeys = { "Feedback", "HoldDelay", "HoldRepeatInterval", "RunCount", "OSD", "KeyLabel" }
 	for _, key in ipairs(priorityKeys) do
 		local value = parts.properties and parts.properties[key]
 		if value ~= nil and tostring(value) ~= "" then
@@ -173,6 +221,142 @@ local function buildActionLine(parts)
 	end
 
 	return table.concat(out, " ")
+end
+
+local function clampColorChannel(value)
+	return math.max(0, math.min(255, math.floor(tonumber(value) or 0)))
+end
+
+local function packRgb(red, green, blue)
+	return (clampColorChannel(red) << 24)
+		| (clampColorChannel(green) << 16)
+		| (clampColorChannel(blue) << 8)
+		| 0xff
+end
+
+local function unpackRgb(color)
+	return (color >> 24) & 0xff, (color >> 16) & 0xff, (color >> 8) & 0xff
+end
+
+local function parseHexColor(token)
+	local hex = tostring(token or ""):match("^#?(%x%x%x%x%x%x)")
+	if not hex then return nil end
+	return packRgb(
+		tonumber(hex:sub(1, 2), 16),
+		tonumber(hex:sub(3, 4), 16),
+		tonumber(hex:sub(5, 6), 16)
+	)
+end
+
+local function parseActionColors(parts)
+	local colorTokens = parts and parts.colorTokens
+	if not colorTokens or #colorTokens == 0 then return nil end
+
+	local colors = {}
+	if tostring(colorTokens[1]):sub(1, 1) == "#" then
+		for _, colorToken in ipairs(colorTokens) do
+			local color = parseHexColor(colorToken)
+			if color then colors[#colors + 1] = color end
+		end
+	else
+		local channels = {}
+		for _, colorToken in ipairs(colorTokens) do
+			local channel = tonumber(colorToken)
+			if channel == nil then return nil end
+			channels[#channels + 1] = clampColorChannel(channel)
+		end
+		if #channels % 3 ~= 0 then return nil end
+		for channelIdx = 1, #channels, 3 do
+			colors[#colors + 1] = packRgb(channels[channelIdx], channels[channelIdx + 1], channels[channelIdx + 2])
+		end
+	end
+
+	if #colors == 0 then return nil end
+	return colors
+end
+
+local function setActionColor(binding, colorIndex, color)
+	local parts = parseActionLine(binding.line)
+	local colors = parseActionColors(parts) or { 0x3a3a3aff, 0xffb029ff }
+	if #colors == 1 then colors[2] = colors[1] end
+	colors[colorIndex] = color
+
+	parts.colorTokens = {}
+	for idx = 1, 2 do
+		local red, green, blue = unpackRgb(colors[idx])
+		parts.colorTokens[#parts.colorTokens + 1] = tostring(red)
+		parts.colorTokens[#parts.colorTokens + 1] = tostring(green)
+		parts.colorTokens[#parts.colorTokens + 1] = tostring(blue)
+	end
+	binding.line = buildActionLine(parts)
+end
+
+local function clearActionColors(binding)
+	local parts = parseActionLine(binding.line)
+	parts.colorTokens = nil
+	binding.line = buildActionLine(parts)
+end
+
+local function getReaperActionTitle(parts)
+	if tostring(parts.actionName or ""):lower() ~= "reaper" then return nil end
+	local commandToken = unquoteValue(parts.params[1] or "")
+	local commandId = tonumber(commandToken)
+	if not commandId and commandToken ~= "" and type(r.NamedCommandLookup) == "function" then
+		commandId = r.NamedCommandLookup(commandToken)
+	end
+	if not commandId or commandId == 0 or type(r.kbd_getTextFromCmd) ~= "function" then return nil end
+	local title = r.kbd_getTextFromCmd(commandId, 0)
+	if title and title ~= "" then return title end
+	return nil
+end
+
+local function getBindingTitle(binding)
+	local parts = parseActionLine(binding.line)
+	local explicitTitle = parts.properties.OSD
+	if explicitTitle == nil or explicitTitle == "" or explicitTitle == "?" or explicitTitle == "No" then
+		explicitTitle = parts.properties.KeyLabel
+	end
+	if explicitTitle and explicitTitle ~= "" then return explicitTitle end
+
+	local reaperTitle = getReaperActionTitle(parts)
+	if reaperTitle then return reaperTitle end
+
+	local csiTitle = data.getProcessedLabel(parts.actionName)
+	if csiTitle and csiTitle ~= "" then return csiTitle end
+	return binding.line ~= "" and binding.line or "NoAction"
+end
+
+local function getModifierLabel(binding)
+	local labels = {}
+	if binding.hasHold then labels[#labels + 1] = "Hold" end
+	if binding.hasDoublePress then labels[#labels + 1] = "DoublePress" end
+	for _, modifier in ipairs(MODIFIER_FLAGS) do
+		if ((binding.mod or 0) & modifier.bit) ~= 0 then
+			labels[#labels + 1] = modifier.name
+		end
+	end
+	if #labels == 0 then return "-" end
+	return table.concat(labels, "+")
+end
+
+local function getOtherSummary(binding)
+	local labels = {}
+	if binding.isIncrease then labels[#labels + 1] = "Increase" end
+	if binding.isDecrease then labels[#labels + 1] = "Decrease" end
+	if binding.isValueInverted then labels[#labels + 1] = "Invert" end
+	if binding.isFeedbackInverted then labels[#labels + 1] = "InvertFB" end
+
+	local parts = parseActionLine(binding.line)
+	for _, param in ipairs(parts.params or {}) do
+		labels[#labels + 1] = unquoteValue(param)
+	end
+	for key, value in pairs(parts.properties or {}) do
+		if key ~= "OSD" and key ~= "KeyLabel" then
+			labels[#labels + 1] = key .. "=" .. tostring(value)
+		end
+	end
+	table.sort(labels)
+	return table.concat(labels, ", ")
 end
 
 local function parseBindingString(raw)
@@ -449,25 +633,6 @@ local function moveSelectedBinding(offset)
 	updateDirtyState()
 end
 
-local function addBindingPreset(presetName)
-	local presetLine = "NoAction"
-	if presetName == "reaper" then
-		presetLine = "Reaper 40044"
-	elseif presetName == "track_volume" then
-		presetLine = "TrackVolume"
-	elseif presetName == "track_pan" then
-		presetLine = "TrackPan"
-	end
-
-	state.bindings[#state.bindings + 1] = {
-		mod = 0,
-		line = presetLine,
-		actionName = splitTokens(presetLine)[1] or "NoAction",
-	}
-	state.selectedBinding = #state.bindings
-	updateDirtyState()
-end
-
 local function applySearchSelectionToBinding(binding)
 	if not binding then return end
 	local row = state.searchResults[state.searchSelected]
@@ -487,6 +652,122 @@ local function applySearchSelectionToBinding(binding)
 		refreshBindingDerivedFields(binding)
 		updateDirtyState()
 	end
+end
+
+local function selectBinding(bindingIndex)
+	state.selectedBinding = bindingIndex
+end
+
+local function renderColorPopup(ctx, binding, bindingIndex, colorIndex, label, currentColor)
+	local popupId = "Color " .. label .. "##binding_color_" .. bindingIndex .. "_" .. colorIndex
+	if imgui.ColorButton(ctx, "##color_button_" .. bindingIndex .. "_" .. colorIndex, currentColor) then
+		selectBinding(bindingIndex)
+		imgui.OpenPopup(ctx, popupId)
+	end
+
+	if imgui.BeginPopup(ctx, popupId) then
+		imgui.Text(ctx, label .. " color")
+		local changed, editedColor = imgui.ColorEdit3(ctx, "##picker_" .. bindingIndex .. "_" .. colorIndex, currentColor, imgui.ColorEditFlags_NoInputs)
+		if changed then
+			setActionColor(binding, colorIndex, editedColor)
+			updateDirtyState()
+			currentColor = editedColor
+		end
+
+		imgui.Separator(ctx)
+		for paletteIdx, paletteColor in ipairs(COLOR_PALETTE) do
+			if imgui.ColorButton(ctx, "##palette_" .. bindingIndex .. "_" .. colorIndex .. "_" .. paletteIdx, paletteColor.value) then
+				setActionColor(binding, colorIndex, paletteColor.value)
+				updateDirtyState()
+				currentColor = paletteColor.value
+			end
+			if imgui.IsItemHovered(ctx) then
+				if imgui.BeginTooltip(ctx) then
+					imgui.Text(ctx, paletteColor.name)
+					imgui.EndTooltip(ctx)
+				end
+			end
+			if paletteIdx % 5 ~= 0 then imgui.SameLine(ctx) end
+		end
+
+		if imgui.Button(ctx, "Clear / default##colors_" .. bindingIndex .. "_" .. colorIndex) then
+			clearActionColors(binding)
+			updateDirtyState()
+			imgui.CloseCurrentPopup(ctx)
+		end
+		imgui.EndPopup(ctx)
+	end
+
+	return currentColor
+end
+
+local function renderBindingColors(ctx, binding, bindingIndex)
+	local parts = parseActionLine(binding.line)
+	local colors = parseActionColors(parts)
+	local inactiveColor = colors and colors[1] or 0x3a3a3aff
+	local activeColor = colors and (colors[2] or colors[1]) or 0xffb029ff
+
+	imgui.TextDisabled(ctx, "I")
+	imgui.SameLine(ctx)
+	inactiveColor = renderColorPopup(ctx, binding, bindingIndex, 1, "Inactive", inactiveColor)
+	imgui.SameLine(ctx)
+	imgui.TextDisabled(ctx, "A")
+	imgui.SameLine(ctx)
+	renderColorPopup(ctx, binding, bindingIndex, 2, "Active", activeColor)
+end
+
+local function renderBindingTable(ctx)
+	if not imgui.BeginTable(ctx, "##bindings_table", 4, TABLE_FLAGS, -1, 190, 0) then return end
+
+	imgui.TableSetupColumn(ctx, "Modifier", imgui.TableColumnFlags_WidthFixed, 110, 0)
+	imgui.TableSetupColumn(ctx, "Action", imgui.TableColumnFlags_WidthStretch, 0.48, 1)
+	imgui.TableSetupColumn(ctx, "Colors", imgui.TableColumnFlags_WidthFixed, 105, 2)
+	imgui.TableSetupColumn(ctx, "Other", imgui.TableColumnFlags_WidthStretch, 0.32, 3)
+	imgui.TableHeadersRow(ctx)
+
+	for bindingIndex, binding in ipairs(state.bindings) do
+		local selected = bindingIndex == state.selectedBinding
+		imgui.TableNextRow(ctx, imgui.TableRowFlags_None, 0)
+
+		imgui.TableSetColumnIndex(ctx, 0)
+		if imgui.Selectable(ctx, getModifierLabel(binding) .. "##modifier_" .. bindingIndex, selected) then
+			selectBinding(bindingIndex)
+		end
+
+		imgui.TableSetColumnIndex(ctx, 1)
+		if imgui.Selectable(ctx, getBindingTitle(binding) .. "##action_" .. bindingIndex, selected) then
+			selectBinding(bindingIndex)
+		end
+		if imgui.IsItemHovered(ctx) then
+			if imgui.BeginTooltip(ctx) then
+				imgui.Text(ctx, binding.line)
+				imgui.EndTooltip(ctx)
+			end
+		end
+
+		imgui.TableSetColumnIndex(ctx, 2)
+		renderBindingColors(ctx, binding, bindingIndex)
+
+		imgui.TableSetColumnIndex(ctx, 3)
+		local other = getOtherSummary(binding)
+		if other == "" then other = "-" end
+		if imgui.Selectable(ctx, other .. "##other_" .. bindingIndex, selected) then
+			selectBinding(bindingIndex)
+		end
+	end
+
+	imgui.EndTable(ctx)
+end
+
+local function setHoldEnabled(binding, enabled)
+	binding.hasHold = enabled
+	if not enabled then
+		local parts = parseActionLine(binding.line)
+		parts.properties.HoldDelay = nil
+		parts.properties.HoldRepeatInterval = nil
+		binding.line = buildActionLine(parts)
+	end
+	updateDirtyState()
 end
 
 local function parseConfigStatus(rawStatus)
@@ -603,6 +884,7 @@ function M.OpenConfigEditor(surfName, widgetName)
 	state.queryExpectedSerialized = nil
 	state.forceAcceptQuery = false
 	state.saveAfterApply = false
+	state.showAdvancedEditor = false
 	state.selectedBinding = 1
 	state.status = ""
 	state.searchSelected = 0
@@ -635,7 +917,7 @@ function M.RenderConfigEditor(ctx)
 
 	local dirtyMarker = state.isDirty and " *" or ""
 	local title = "Widget config: [" .. state.widgetName .. "]  @" .. state.surfaceName .. "/" .. state.zoneName .. dirtyMarker .. " ###osk_widget_config"
-	imgui.SetNextWindowSize(ctx, 520, 520, imgui.Cond_Appearing)
+	imgui.SetNextWindowSize(ctx, 780, 720, imgui.Cond_Appearing)
 	local visible, open = imgui.Begin(ctx, title, true, CONFIG_WINDOW_FLAGS)
 	if open == false then
 		closeEditor()
@@ -651,34 +933,7 @@ function M.RenderConfigEditor(ctx)
 			imgui.TextDisabled(ctx, "Pending: " .. state.pendingOperation)
 		end
 
--- need to do next changes:
-
--- bindings should be table like this:
--- |modifier|action|colors|other|
--- |--------|------|------|-----|
--- | - | actionTitle*|[i][a]**| |
--- | Shift| AnotherActionTitle|[i][a]| |
--- | Hold*** | 
--- ...
-
--- * action title by default is talen from OSD, otherwise whatever we have after widget, but missing OSD text must be generated on edit, for example from csi/reaper action name like we do with some global garbage words replacing in osk lua script using label_replacements
--- ** [i] - inactive color square that opens colorpicker with pallete, [a] - same for active ... . this colors should be somewhere in cpp since they can be defined in .zon files like this  WidgetName  ActionName { 10 0 0 120 0 0 } - 10 0 0 inactive R G B, 120 0 0 - active.
--- *** need to add support of virtual modifiers like Hold, DoublePress, that are alreasy implemented in cpp
-
--- need to plan add inactive/active color picker for RGB widgets 
-
-
-		local listHeight = 170
-		if imgui.BeginListBox(ctx, "##bindings", -1, listHeight) then
-			for i, b in ipairs(state.bindings) do
-				local label = string.format("[%d] %s", b.mod or 0, b.line or "")
-				local selected = (i == state.selectedBinding)
-				if imgui.Selectable(ctx, label, selected) then
-					state.selectedBinding = i
-				end
-			end
-			imgui.EndListBox(ctx)
-		end
+		renderBindingTable(ctx)
 
 		imgui.Spacing(ctx)
 		if imgui.Button(ctx, "+ Add") then
@@ -693,7 +948,6 @@ function M.RenderConfigEditor(ctx)
 			duplicateSelectedBinding()
 		end
 
-		-- Horizontal spacer
 		imgui.SameLine(ctx)
 		imgui.Dummy(ctx, 15, 0)
 		imgui.SameLine(ctx)
@@ -704,28 +958,25 @@ function M.RenderConfigEditor(ctx)
 		if imgui.Button(ctx, "Move Down") then
 			moveSelectedBinding(1)
 		end
-        
-        -- Horizontal spacer
-		imgui.SameLine(ctx)
-		imgui.Dummy(ctx, 15, 0)
-		imgui.SameLine(ctx)
-		if imgui.Button(ctx, "Add preset: NoAction") then
-			addBindingPreset("no_action")
-		end
 
 		local selected = getSelectedBinding()
 		if selected then
-			imgui.Text(ctx, "Selected action: " .. (selected.actionName ~= "" and selected.actionName or "(unknown)"))
-			local lineChanged
-			lineChanged, selected.line = imgui.InputText(ctx, "Raw", selected.line or "")
-			if lineChanged then
-				refreshBindingDerivedFields(selected)
+			imgui.Separator(ctx)
+			imgui.Text(ctx, "Selected: " .. getBindingTitle(selected))
+
+			local toggled, enabled = imgui.Checkbox(ctx, "Hold##pseudo_hold", selected.hasHold == true)
+			if toggled then setHoldEnabled(selected, enabled) end
+			imgui.SameLine(ctx)
+			toggled, enabled = imgui.Checkbox(ctx, "DoublePress##pseudo_double", selected.hasDoublePress == true)
+			if toggled then
+				selected.hasDoublePress = enabled
 				updateDirtyState()
 			end
-			
+
+			imgui.SameLine(ctx)
+			imgui.TextDisabled(ctx, "Modifiers:")
 			for idx, modifier in ipairs(MODIFIER_FLAGS) do
 				local hasFlag = ((selected.mod or 0) & modifier.bit) ~= 0
-				local toggled
 				toggled, hasFlag = imgui.Checkbox(ctx, modifier.name .. "##mod_" .. idx, hasFlag)
 				if toggled then
 					if hasFlag then
@@ -735,12 +986,49 @@ function M.RenderConfigEditor(ctx)
 					end
 					updateDirtyState()
 				end
-				if idx % 5 ~= 0 then imgui.SameLine(ctx) end
+				if idx % 5 ~= 0 and idx ~= #MODIFIER_FLAGS then imgui.SameLine(ctx) end
 			end
 
-			imgui.Text(ctx, "Quick editor")
+			toggled, enabled = imgui.Checkbox(ctx, "Increase##direction_increase", selected.isIncrease == true)
+			if toggled then
+				selected.isIncrease = enabled
+				if enabled then selected.isDecrease = false end
+				updateDirtyState()
+			end
+			imgui.SameLine(ctx)
+			toggled, enabled = imgui.Checkbox(ctx, "Decrease##direction_decrease", selected.isDecrease == true)
+			if toggled then
+				selected.isDecrease = enabled
+				if enabled then selected.isIncrease = false end
+				updateDirtyState()
+			end
+			imgui.SameLine(ctx)
+			toggled, enabled = imgui.Checkbox(ctx, "Invert value", selected.isValueInverted == true)
+			if toggled then
+				selected.isValueInverted = enabled
+				updateDirtyState()
+			end
+			imgui.SameLine(ctx)
+			toggled, enabled = imgui.Checkbox(ctx, "Invert feedback", selected.isFeedbackInverted == true)
+			if toggled then
+				selected.isFeedbackInverted = enabled
+				updateDirtyState()
+			end
+
 			local parts = parseActionLine(selected.line)
 			local changedQuick = false
+
+			local actionChanged
+			actionChanged, parts.actionName = imgui.InputText(ctx, "Action", parts.actionName or "")
+			if actionChanged then changedQuick = true end
+
+			local paramsText = table.concat(parts.params or {}, " ")
+			local paramsChanged
+			paramsChanged, paramsText = imgui.InputText(ctx, "Parameters", paramsText)
+			if paramsChanged then
+				parts.params = tokenizePreservingQuotes(paramsText)
+				changedQuick = true
+			end
 
 			local osdText = tostring(parts.properties.OSD or "")
 			local osdChanged
@@ -750,17 +1038,13 @@ function M.RenderConfigEditor(ctx)
 				changedQuick = true
 			end
 
-			-- local actionChanged
-			-- actionChanged, parts.actionName = imgui.InputText(ctx, "Action", parts.actionName or "")
-			-- if actionChanged then changedQuick = true end
-
-			-- local paramsText = table.concat(parts.params or {}, " ")
-			-- local paramsChanged
-			-- paramsChanged, paramsText = imgui.InputText(ctx, "Params", paramsText)
-			-- if paramsChanged then
-			-- 	parts.params = splitTokens(paramsText)
-			-- 	changedQuick = true
-			-- end
+			local keyLabelText = tostring(parts.properties.KeyLabel or "")
+			local keyLabelChanged
+			keyLabelChanged, keyLabelText = imgui.InputText(ctx, "KeyLabel", keyLabelText)
+			if keyLabelChanged then
+				parts.properties.KeyLabel = (keyLabelText ~= "") and keyLabelText or nil
+				changedQuick = true
+			end
 
 			local feedbackNo = tostring(parts.properties.Feedback or ""):lower() == "no"
 			local feedbackChanged
@@ -770,18 +1054,6 @@ function M.RenderConfigEditor(ctx)
 				changedQuick = true
 			end
 
-
-
-			local holdDelayVal = tonumber(parts.properties.HoldDelay) or 0
-			local holdDelayChanged
-			imgui.SetNextItemWidth(ctx, 120)
-			holdDelayChanged, holdDelayVal = imgui.DragInt(ctx, "##hold_delay", holdDelayVal, 100, 0, 10000, "HoldDelay = %d ms")
-			if holdDelayChanged then
-				parts.properties.HoldDelay = (holdDelayVal > 0) and tostring(holdDelayVal) or nil
-				changedQuick = true
-			end
-
-			imgui.SameLine(ctx, 0, 5)
 			local runCountVal = tonumber(parts.properties.RunCount) or 1
 			local runCountChanged
 			imgui.SetNextItemWidth(ctx, 120)
@@ -791,18 +1063,27 @@ function M.RenderConfigEditor(ctx)
 				changedQuick = true
 			end
 
-			imgui.SameLine(ctx, 0, 5)
-			local holdRepeatVal = tonumber(parts.properties.HoldRepeatInterval) or 0
-			local holdRepeatChanged
-			imgui.SetNextItemWidth(ctx, 120)
-			holdRepeatChanged, holdRepeatVal = imgui.DragInt(ctx, "##hold_repeat", holdRepeatVal, 10, 0, 1000, "Interval = %d ms")
-			if holdRepeatChanged then
-				parts.properties.HoldRepeatInterval = (holdRepeatVal > 0) and tostring(holdRepeatVal) or nil
-				changedQuick = true
+			if selected.hasHold then
+				imgui.SameLine(ctx, 0, 5)
+				local holdDelayVal = tonumber(parts.properties.HoldDelay) or 0
+				local holdDelayChanged
+				imgui.SetNextItemWidth(ctx, 145)
+				holdDelayChanged, holdDelayVal = imgui.DragInt(ctx, "##hold_delay", holdDelayVal, 100, 0, 10000, "HoldDelay = %d ms")
+				if holdDelayChanged then
+					parts.properties.HoldDelay = (holdDelayVal > 0) and tostring(holdDelayVal) or nil
+					changedQuick = true
+				end
+
+				imgui.SameLine(ctx, 0, 5)
+				local holdRepeatVal = tonumber(parts.properties.HoldRepeatInterval) or 0
+				local holdRepeatChanged
+				imgui.SetNextItemWidth(ctx, 145)
+				holdRepeatChanged, holdRepeatVal = imgui.DragInt(ctx, "##hold_repeat", holdRepeatVal, 10, 0, 1000, "Repeat = %d ms")
+				if holdRepeatChanged then
+					parts.properties.HoldRepeatInterval = (holdRepeatVal > 0) and tostring(holdRepeatVal) or nil
+					changedQuick = true
+				end
 			end
-			
-
-
 
 			if changedQuick then
 				selected.line = buildActionLine(parts)
@@ -810,12 +1091,22 @@ function M.RenderConfigEditor(ctx)
 				updateDirtyState()
 			end
 
+			local advancedChanged
+			advancedChanged, state.showAdvancedEditor = imgui.Checkbox(ctx, "Advanced raw-line editor", state.showAdvancedEditor)
+			if state.showAdvancedEditor then
+				local lineChanged
+				lineChanged, selected.line = imgui.InputText(ctx, "Raw", selected.line or "")
+				if lineChanged then
+					refreshBindingDerivedFields(selected)
+					updateDirtyState()
+				end
+			end
 		else
 			imgui.Text(ctx, "No binding for this widget in the active zone.")
 		end
 
 		imgui.Separator(ctx)
-		imgui.Text(ctx, "Action Search (read-only)")
+		imgui.Text(ctx, "Action Search")
 
 		local changed
 		changed, state.searchQuery = imgui.InputText(ctx, "Search", state.searchQuery)

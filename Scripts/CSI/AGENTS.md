@@ -15,6 +15,7 @@
 - The OSK layout, state, label, binding, and action-list formats are serialized contracts; change both ends together.
 - Module loading must continue to work from the installed REAPER Scripts path.
 - Track unapplied editor changes separately from live unsaved changes, and request C++ revert when an editor with live changes closes.
+- Keep the binding editor's structured columns, pseudo-modifiers, generated titles, and color controls backed by the same serialized raw action line used by `ConfigApplyLive`.
 
 ## Work Guidance
 

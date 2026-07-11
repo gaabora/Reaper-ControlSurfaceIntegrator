@@ -56,23 +56,25 @@ Goal: make editing safe and predictable before expanding the UI.
 
 Goal: replace the raw-line-oriented prototype with the intended binding editor.
 
+**Status:** Implemented on June 15, 2026. Static checks and Debug build pass; manual REAPER acceptance testing remains.
+
 ### Work
 
-1. Render bindings as columns: Modifier, Action, Colors, and Other.
-2. Display `Hold` and `DoublePress` as explicit pseudo-modifiers rather than hiding
+1. [x] Render bindings as columns: Modifier, Action, Colors, and Other.
+2. [x] Display `Hold` and `DoublePress` as explicit pseudo-modifiers rather than hiding
    them inside timing properties.
-3. Show a generated action title using this order:
+3. [x] Show a generated action title using this order:
    - explicit `OSD` or `KeyLabel`
    - REAPER action name
    - CSI action name processed through label replacements
    - raw action line
-4. Add inactive and active color swatches for `{ r g b r g b }` action colors.
-5. Add a color picker with a small reusable palette and a clear/default option.
-6. Keep raw-line editing as an advanced fallback.
-7. Make Add, Remove, Clone, Move, and action-search application update dirty state.
-8. Decide whether dedicated `ConfigAddBinding`, `ConfigRemoveBinding`, and
-   `ConfigUpdateBinding` commands are still useful. If batch `ConfigApplyLive` remains
-   the only write protocol, remove those unused commands from the old plans.
+4. [x] Add inactive and active color swatches for `{ r g b r g b }` action colors.
+5. [x] Add a color picker with a small reusable palette and a clear/default option.
+6. [x] Keep raw-line editing as an advanced fallback.
+7. [x] Make Add, Remove, Clone, Move, and action-search application update dirty state.
+8. [x] Keep batch `ConfigApplyLive` as the only write protocol. Dedicated
+   `ConfigAddBinding`, `ConfigRemoveBinding`, and `ConfigUpdateBinding` commands were
+   never implemented and are not needed.
 
 ### Acceptance
 
