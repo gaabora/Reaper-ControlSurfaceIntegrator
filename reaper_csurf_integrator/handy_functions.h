@@ -21,7 +21,7 @@
 #include <iostream>
 #include <vector>
 
-using namespace std;
+
 
 static double int14ToNormalized(unsigned char msb, unsigned char lsb)
 {
@@ -87,7 +87,7 @@ static const char* DebugLevelToString(int level) {
 }
 
 static void LogMessage(const char* msg) {
-    ofstream logFile(string(GetResourcePath()) + "/CSI/CSI.log", ios::app);
+    std::ofstream logFile(std::string(GetResourcePath()) + "/CSI/CSI.log", std::ios::app);
     if (logFile.is_open()) {
         char timeStr[32];
         time_t rawtime;
@@ -157,7 +157,7 @@ static void LogStackTraceToConsole() {
 #endif
 }
 
-static const char* GetRelativePath(const char* absolutePath) {
+static std::string GetRelativePath(const char* absolutePath) {
     const char* resourcePath = GetResourcePath();
     size_t resourcePathLen = strlen(resourcePath);
 
@@ -165,15 +165,15 @@ static const char* GetRelativePath(const char* absolutePath) {
         const char* rel = absolutePath + resourcePathLen;
         if (*rel == '/' || *rel == '\\')
             ++rel;
-        static std::string relativePath;
-        relativePath.clear();
+
+        std::string relativePath;
         for (const char* ptr = rel; *ptr != '\0'; ++ptr) {
             relativePath.push_back(*ptr == '\\' ? '/' : *ptr);
         }
-        return relativePath.c_str();
+        return relativePath;
     }
 
-    return absolutePath;
+    return std::string(absolutePath);
 }
 
 static bool IsSameString(const char* a, const char* b) {
