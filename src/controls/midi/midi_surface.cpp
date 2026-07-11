@@ -88,6 +88,52 @@ void Midi_ControlSurfaceIO::HandleExternalInput(Midi_ControlSurface* surface) {
     }
 }
 
+static bool IsMidiInputAvailable(int inputPort) {
+    char deviceName[MEDBUF];
+    return inputPort >= 0 && GetMIDIInputName(inputPort, deviceName, sizeof(deviceName));
+}
+
+static bool IsMidiOutputAvailable(int outputPort) {
+    char deviceName[MEDBUF];
+    return outputPort >= 0 && GetMIDIOutputName(outputPort, deviceName, sizeof(deviceName));
+}
+
+bool Midi_ControlSurfaceIO::PollForDeviceReconnect() {
+    const DWORD now = GetTickCount();
+    if ((now - this->lastDevicePoll_) < 1000) return false;
+    this->lastDevicePoll_ = now;
+
+    const bool inputAvailable = IsMidiInputAvailable(this->inputPort_);
+    const bool outputAvailable = IsMidiOutputAvailable(this->outputPort_);
+
+    if (!inputAvailable && this->midiInput_) {
+        ReleaseMidiInput(this->midiInput_);
+        this->midiInput_ = nullptr;
+    }
+
+    if (!outputAvailable && this->midiOutput_) {
+        ReleaseMidiOutput(this->midiOutput_);
+        this->midiOutput_ = nullptr;
+    }
+
+    bool reconnected = false;
+
+    if (inputAvailable && !this->midiInput_) {
+        this->midiInput_ = GetMidiInputForPort(this->inputPort_);
+        reconnected = this->midiInput_ != nullptr;
+    }
+
+    if (outputAvailable && !this->midiOutput_) {
+        this->midiOutput_ = GetMidiOutputForPort(this->outputPort_);
+        reconnected = this->midiOutput_ != nullptr || reconnected;
+    }
+
+    if (reconnected && g_debugLevel >= DEBUG_LEVEL_NOTICE)
+        LogToConsole("[NOTICE] MIDI device for surface %s is online; reinitializing the surface\n", this->name_.c_str());
+
+    return reconnected;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -58,6 +58,20 @@ private:
 
     void InitActionsDictionary();
 
+    void PollMidiDevices() {
+        for (auto& midiSurfaceIO : this->midiSurfacesIO_) {
+            if (!midiSurfaceIO->PollForDeviceReconnect()) continue;
+
+            for (auto& page : this->pages_) {
+                for (auto& surface : page->GetSurfaces()) {
+                    Midi_ControlSurface* midiSurface = dynamic_cast<Midi_ControlSurface*>(surface.get());
+                    if (midiSurface && midiSurface->UsesIO(midiSurfaceIO.get()))
+                        midiSurface->OnMidiIOReconnected();
+                }
+            }
+        }
+    }
+
     double GetPrivateProfileDouble(const char* key) {
         char tmp[512];
         memset(tmp, 0, sizeof(tmp));
@@ -578,6 +592,7 @@ public:
             DAW::SendCommandMessage(REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES);
         }
         if (shouldRun_ && pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
+            PollMidiDevices();
             if (!QueuedOSD.isEmpty() && !QueuedOSD.IsAwaitFeedback()) {
                 if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] OSD: %s\n", QueuedOSD.toString().c_str());
                 OpenOSDPanel();

@@ -9,12 +9,10 @@ extern void TrimLine(string& line);
 extern void GetTokens(vector<string>& tokens, const string& line);
 extern void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens, PropertyList& properties);
 
-// Port-allocation helpers (defined in integrator.cpp; static keyword removed there)
-extern midi_Input*  GetMidiInputForPort(int inputPort);
-extern midi_Output* GetMidiOutputForPort(int outputPort);
-
 void CSurfIntegrator::Init() {
     pages_.clear();
+    midiSurfacesIO_.clear();
+    oscSurfacesIO_.clear();
     string currentBroadcaster;
     Page* currentPage = NULL;
     string CSIFolderPath = string(GetResourcePath()) + "/CSI";
@@ -85,7 +83,7 @@ void CSurfIntegrator::Init() {
                                     int surfaceRefreshRate = atoi(pList.get_prop(PropertyType_MIDISurfaceRefreshRate));
                                     int maxMIDIMesssagesPerRun = atoi(pList.get_prop(PropertyType_MaxMIDIMesssagesPerRun));
 
-                                    midiSurfacesIO_.push_back(make_unique<Midi_ControlSurfaceIO>(this, nameProp, channelCount, GetMidiInputForPort(midiIn), GetMidiOutputForPort(midiOut), surfaceRefreshRate, maxMIDIMesssagesPerRun));
+                                    midiSurfacesIO_.push_back(make_unique<Midi_ControlSurfaceIO>(this, nameProp, channelCount, midiIn, midiOut, surfaceRefreshRate, maxMIDIMesssagesPerRun));
                                 }
                             } else if ((IsSameString(typeProp, s_OSCSurfaceToken) || IsSameString(typeProp, s_OSCX32SurfaceToken)) && tokens.size() == 7) {
                                 if (pList.get_prop(PropertyType_ReceiveOnPort) != NULL && pList.get_prop(PropertyType_TransmitToPort) != NULL && pList.get_prop(PropertyType_TransmitToIPAddress) != NULL && pList.get_prop(PropertyType_MaxPacketsPerRun) != NULL) {

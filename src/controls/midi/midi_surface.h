@@ -4,24 +4,35 @@
 #include "../preamble.h"
 #include "../control_surface.h"
 #include "../feedback.h"
+
+midi_Input* GetMidiInputForPort(int inputPort);
+midi_Output* GetMidiOutputForPort(int outputPort);
+void ReleaseMidiInput(midi_Input* input);
+void ReleaseMidiOutput(midi_Output* output);
+
 class Midi_ControlSurfaceIO
 {
 protected:
     CSurfIntegrator* const csi_;
     string const name_;
     int const channelCount_;
-    midi_Input* const midiInput_;
-    midi_Output* const midiOutput_;
+    int const inputPort_;
+    int const outputPort_;
+    midi_Input* midiInput_;
+    midi_Output* midiOutput_;
     WDL_Queue messageQueue_;
     const int maxMesssagesPerRun_;
+    DWORD lastDevicePoll_ = 0;
 
     void SendMidiSysexMessage(MIDI_event_ex_t* midiMessage) {
         if (midiOutput_) midiOutput_->SendMsg(midiMessage, -1);
     }
 
 public:
-    Midi_ControlSurfaceIO(CSurfIntegrator* csi, const char* name, int channelCount, midi_Input* midiInput, midi_Output* midiOutput, int surfaceRefreshRate, int maxMesssagesPerRun)
-        : csi_(csi), name_(name), channelCount_(channelCount), midiInput_(midiInput), midiOutput_(midiOutput), surfaceRefreshRate_(surfaceRefreshRate), maxMesssagesPerRun_(maxMesssagesPerRun) {}
+    Midi_ControlSurfaceIO(CSurfIntegrator* csi, const char* name, int channelCount, int inputPort, int outputPort, int surfaceRefreshRate, int maxMesssagesPerRun)
+        : csi_(csi), name_(name), channelCount_(channelCount), inputPort_(inputPort), outputPort_(outputPort),
+          midiInput_(GetMidiInputForPort(inputPort)), midiOutput_(GetMidiOutputForPort(outputPort)),
+          surfaceRefreshRate_(surfaceRefreshRate), maxMesssagesPerRun_(maxMesssagesPerRun) {}
 
     ~Midi_ControlSurfaceIO() {
         if (midiInput_) ReleaseMidiInput(midiInput_);
@@ -35,6 +46,7 @@ public:
     const int GetChannelCount() { return channelCount_; }
 
     void HandleExternalInput(Midi_ControlSurface* surface);
+    bool PollForDeviceReconnect();
 
     void QueueMidiSysExMessage(MIDI_event_ex_t* midiMessage) {
         if (WDL_NOT_NORMALLY(midiMessage->size > 255)) return;
@@ -137,6 +149,14 @@ public:
     virtual void HandleExternalInput() override { surfaceIO_->HandleExternalInput(this); }
 
     virtual void FlushIO() override { surfaceIO_->Flush(); }
+
+    bool UsesIO(const Midi_ControlSurfaceIO* surfaceIO) const { return surfaceIO_ == surfaceIO; }
+
+    void OnMidiIOReconnected() {
+        InitializeMeters();
+        ForceClear();
+        OnInitialization();
+    }
 
     virtual void RequestUpdate() override {
         const DWORD now = GetTickCount();

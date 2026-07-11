@@ -14,6 +14,7 @@
 
 - Surface-template widget names and message syntax are public configuration contracts.
 - MIDI byte ranges, 7-bit/14-bit values, pitch bend, SysEx framing, and device display formats must remain protocol-correct.
+- Configured MIDI ports must recover from offline-to-online transitions without resetting unrelated surfaces.
 - Register new widget types through the existing factory/registration path.
 - Device-specific feedback belongs in the matching `fb_*.h` file; generic behavior belongs in shared MIDI widget/generator code.
 
