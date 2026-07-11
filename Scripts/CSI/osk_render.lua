@@ -10,11 +10,16 @@ local BUTTON_SIZE = 64
 local hoverStartTime = {}
 local FONT = nil
 local FONT_SMALL = nil
+local configModule = nil
 
 function M.SetFonts(font, fontSmall)
     FONT = font
     FONT_SMALL = fontSmall
     osd_ui.SetFont(fontSmall)
+end
+
+function M.SetConfigModule(module)
+    configModule = module
 end
 
 local function GetWheelDirection(ctx)
@@ -73,18 +78,18 @@ local function GetCellInfo(surfName, widgetName)
     return nil
 end
 
-local function GetButtonColor(surfName, widgetName)
-    local state = data.states[surfName] and data.states[surfName][widgetName]
-    local cell = GetCellInfo(surfName, widgetName)
+local function colorIsMeaningful(col)
+    return ((col >> 24) & 0xFF) > 10
+        or ((col >> 16) & 0xFF) > 10
+        or ((col >> 8) & 0xFF) > 10
+end
 
-    local function colorIsMeaningful(col)
-        return ((col >> 24) & 0xFF) > 10
-            or ((col >> 16) & 0xFF) > 10
-            or ((col >> 8) & 0xFF) > 10
-    end
+local function GetButtonColor(surfName, widgetName, cellOverride)
+    local widgetState = data.states[surfName] and data.states[surfName][widgetName]
+    local cell = cellOverride or GetCellInfo(surfName, widgetName)
 
-    if state and state.value > 0 then
-        if colorIsMeaningful(state.color) then return state.color end
+    if widgetState and widgetState.value > 0 then
+        if colorIsMeaningful(widgetState.color) then return widgetState.color end
         if cell and cell.color then return cell.color end
         return data.COLORS.button_on
     end
@@ -222,6 +227,11 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
         HandleRotaryMouseWheel(ctx, surfName, cell)
     elseif cell.name then
         hoverStartTime[cell.name] = nil
+    end
+
+    local mouseButtonRight = imgui.MouseButton_Right or 1
+    if insideShape and cell.name and configModule and configModule.OpenConfigEditor and imgui.IsItemClicked(ctx, mouseButtonRight) then
+        configModule.OpenConfigEditor(surfName, cell.name)
     end
 
     if insideShape and imgui.IsItemActivated(ctx) then
@@ -421,42 +431,12 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction,
     DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, arrowHitTest)
 end
 
-local function DrawFaderControl(ctx, drawList, surfName, cell, bw, bh, yOffset)
+local function DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, hitH, yOffset)
+    hitH = hitH or visualH
     local label = data.getProcessedLabel(GetButtonLabel(surfName, cell))
-    local bgCol = data.applyAlpha(GetButtonColor(surfName, cell.name), data.vars.btn_transparency)
-    local value = math.max(0.0, math.min(1.0, GetButtonValue(surfName, cell.name) or 0.0))
-
-    local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
-    local drawY = cursorY + (yOffset or 0)
-    imgui.DrawList_AddRectFilled(drawList, cursorX, drawY, cursorX + bw, drawY + bh, bgCol, 4)
-
-    local pad = 8
-    local labelH = 16
-    local trackL = cursorX + bw * 0.35
-    local trackR = cursorX + bw * 0.65
-    local trackT = drawY + pad
-    local trackB = drawY + bh - pad - labelH
-
-    local trackBg = data.applyAlpha(data.dimColor(GetButtonColor(surfName, cell.name), 0.35), data.vars.btn_transparency)
-    imgui.DrawList_AddRectFilled(drawList, trackL, trackT, trackR, trackB, trackBg, 3)
-
-    local fillTop = trackB - (trackB - trackT) * value
-    local fillCol = data.applyAlpha(data.brightenColor(GetButtonColor(surfName, cell.name), 25), data.vars.btn_transparency)
-    imgui.DrawList_AddRectFilled(drawList, trackL, fillTop, trackR, trackB, fillCol, 3)
-
-    local knobY = fillTop
-    local knobH = 8
-    local knobCol = data.applyAlpha(0xDDDDDDff, data.vars.btn_transparency)
-    imgui.DrawList_AddRectFilled(drawList, trackL - 4, knobY - knobH / 2, trackR + 4, knobY + knobH / 2, knobCol, 2)
-
-    RenderCenteredWrappedText(ctx, drawList, label, cursorX + bw / 2, drawY + bh - 9, bw - 8, 16)
-    imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
-    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
-end
-
-local function DrawFaderControlSpanning(ctx, drawList, surfName, cell, bw, visualH, hitH, yOffset)
-    local label = data.getProcessedLabel(GetButtonLabel(surfName, cell))
-    local bgCol = data.applyAlpha(GetButtonColor(surfName, cell.name), data.vars.btn_transparency)
+    local baseColor = GetButtonColor(surfName, cell.name, cell)
+    local btnAlpha = data.vars.btn_transparency
+    local bgCol = data.applyAlpha(baseColor, btnAlpha)
     local value = math.max(0.0, math.min(1.0, GetButtonValue(surfName, cell.name) or 0.0))
 
     local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
@@ -470,17 +450,16 @@ local function DrawFaderControlSpanning(ctx, drawList, surfName, cell, bw, visua
     local trackT = drawY + pad
     local trackB = drawY + visualH - pad - labelH
 
-    local trackBg = data.applyAlpha(data.dimColor(GetButtonColor(surfName, cell.name), 0.35), data.vars.btn_transparency)
+    local trackBg = data.applyAlpha(data.dimColor(baseColor, 0.35), btnAlpha)
     imgui.DrawList_AddRectFilled(drawList, trackL, trackT, trackR, trackB, trackBg, 3)
 
     local fillTop = trackB - (trackB - trackT) * value
-    local fillCol = data.applyAlpha(data.brightenColor(GetButtonColor(surfName, cell.name), 25), data.vars.btn_transparency)
+    local fillCol = data.applyAlpha(data.brightenColor(baseColor, 25), btnAlpha)
     imgui.DrawList_AddRectFilled(drawList, trackL, fillTop, trackR, trackB, fillCol, 3)
 
-    local knobY = fillTop
     local knobH = 8
-    local knobCol = data.applyAlpha(0xDDDDDDff, data.vars.btn_transparency)
-    imgui.DrawList_AddRectFilled(drawList, trackL - 4, knobY - knobH / 2, trackR + 4, knobY + knobH / 2, knobCol, 2)
+    local knobCol = data.applyAlpha(0xDDDDDDff, btnAlpha)
+    imgui.DrawList_AddRectFilled(drawList, trackL - 4, fillTop - knobH / 2, trackR + 4, fillTop + knobH / 2, knobCol, 2)
 
     RenderCenteredWrappedText(ctx, drawList, label, cursorX + bw / 2, drawY + visualH - 9, bw - 8, 16)
     imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
@@ -523,6 +502,22 @@ function M.RenderOSDBar(ctx)
     imgui.PopFont(ctx)
 end
 
+local function getCellMetrics(cell)
+    local shape = (cell.shape or "Rect"):lower()
+    local heightFactor = cell.height or 1.0
+    local rowSpan = cell.rowSpan or 1
+
+    if shape == "fader" then
+        rowSpan = math.max(1, math.floor((cell.height or 1.0) + 0.5))
+        heightFactor = 1.0
+    else
+        rowSpan = math.max(1, math.floor((rowSpan or 1) + 0.5))
+        heightFactor = math.max(0.1, heightFactor)
+    end
+
+    return shape, heightFactor, rowSpan
+end
+
 function M.RenderSurface(ctx, surfName)
     local layout = data.layouts[surfName]
     if not layout then
@@ -537,22 +532,6 @@ function M.RenderSurface(ctx, surfName)
     local padV = data.vars.pad_v * data.vars.zoom
 
     imgui.PushStyleVar(ctx, imgui.StyleVar_ItemSpacing, 0, 0)
-
-    local function getCellMetrics(cell)
-        local shape = (cell.shape or "Rect"):lower()
-        local heightFactor = cell.height or 1.0
-        local rowSpan = cell.rowSpan or 1
-
-        if shape == "fader" then
-            rowSpan = math.max(1, math.floor((cell.height or 1.0) + 0.5))
-            heightFactor = 1.0
-        else
-            rowSpan = math.max(1, math.floor((rowSpan or 1) + 0.5))
-            heightFactor = math.max(0.1, heightFactor)
-        end
-
-        return shape, heightFactor, rowSpan
-    end
 
     local activeRowSpans = {}
 
@@ -639,9 +618,9 @@ function M.RenderSurface(ctx, surfName)
                     elseif shape == "fader" then
                         if rowSpan > 1 then
                             local visualH = baseH * heightFactor * rowSpan + padV * (rowSpan - 1)
-                            DrawFaderControlSpanning(ctx, drawList, surfName, cell, bw, visualH, bh, topPad)
+                            DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, bh, topPad)
                         else
-                            DrawFaderControl(ctx, drawList, surfName, cell, bw, bh, topPad)
+                            DrawFaderControl(ctx, drawList, surfName, cell, bw, bh, nil, topPad)
                         end
                     else
                         DrawRectButton(ctx, drawList, surfName, cell, bw, bh, topPad)

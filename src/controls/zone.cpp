@@ -227,6 +227,12 @@ ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, 
     return actionContextDictionary_[widget][modifier].back().get();
 }
 
+void Zone::ClearActionContexts(Widget* widget) {
+    if (!widget) return;
+    actionContextDictionary_.erase(widget);
+    currentActionContextModifiers_.erase(widget);
+}
+
 const vector<unique_ptr<ActionContext>>& Zone::GetActionContexts(Widget* widget) {
     if (currentActionContextModifiers_.count(widget) == 0) UpdateCurrentActionContextModifier(widget);
 

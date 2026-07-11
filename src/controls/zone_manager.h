@@ -266,11 +266,46 @@ public:
     void DoRelativeAction(Widget* widget, int accelerationIndex, double delta);
     void DoTouch(Widget* widget, double value);
 
+    const string& GetZoneFolder() { return zoneFolder_; }
     const char* GetFXZoneFolder() { return fxZoneFolder_.c_str(); }
     map<const string, ZoneInfo>& GetZoneInfo() { return zoneInfo_; }
 
     CSurfIntegrator* GetCSI() { return csi_; }
     ControlSurface* GetSurface() { return surface_; }
+
+    Zone* GetActiveZoneForWidget(Widget* widget) {
+        if (!widget) return NULL;
+
+        auto findInZone = [&](Zone* z) -> Zone* {
+            map<int, const vector<unique_ptr<ActionContext>>*> out;
+            if (z->GetAllModifierContexts(widget, out)) return z;
+            for (auto& inc : z->GetIncludedZones()) {
+                out.clear();
+                if (inc->GetAllModifierContexts(widget, out)) return inc.get();
+            }
+            return NULL;
+        };
+
+        for (auto& goZone : goZones_) {
+            if (!goZone->GetIsActive()) continue;
+            if (Zone* owner = findInZone(goZone.get())) return owner;
+        }
+
+        if (homeZone_) {
+            if (Zone* owner = findInZone(homeZone_.get())) return owner;
+        }
+
+        return NULL;
+    }
+
+    void GetActiveZoneInfoForWidget(Widget* widget, string& zoneName, string& zonePath) {
+        zoneName.clear();
+        zonePath.clear();
+        Zone* zone = GetActiveZoneForWidget(widget);
+        if (!zone) return;
+        zoneName = zone->GetName();
+        zonePath = zone->GetSourceFilePath();
+    }
 
     // Collect all (modifier → &contexts) for widget from the first active zone that defines it.
     // Used by PublishOSKLabelMap() to enumerate all possible bindings per widget for tooltip display.

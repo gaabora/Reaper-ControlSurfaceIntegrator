@@ -242,6 +242,60 @@ public:
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetScroll: surface '%s' not found\n", surfName.c_str());
     }
 
+    void DispatchOSKConfigQuery(const string& surfName, const string& widgetName) {
+        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
+        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->HandleOSKConfigQuery(widgetName);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKConfigQuery: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void DispatchOSKConfigApplyLive(const string& surfName, const string& widgetName, const string& bindingData) {
+        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
+        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->HandleOSKConfigApplyLive(widgetName, bindingData);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKConfigApplyLive: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void DispatchOSKConfigSave(const string& surfName, const string& widgetName) {
+        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
+        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->HandleOSKConfigSave(widgetName);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKConfigSave: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void DispatchOSKConfigRevert(const string& surfName, const string& widgetName) {
+        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
+        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->HandleOSKConfigRevert(widgetName);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKConfigRevert: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void PublishOSKActionList() {
+        const auto names = Action::GetSupportedNames();
+        string csv;
+        for (const auto& name : names) {
+            if (!csv.empty()) csv += ",";
+            csv += name;
+        }
+        ::SetExtState("CSI_OSK", "ActionList", csv.c_str(), false);
+    }
+
     void PollAndHandleOSKCommands() {
         if (::HasExtState("CSI_OSK_CMD", "WidgetPress")) {
             string payload = ::GetExtState("CSI_OSK_CMD", "WidgetPress");
@@ -276,6 +330,46 @@ public:
                     DispatchOSKWidgetScroll(payload.substr(0, sep1), payload.substr(sep1 + 1, sep2 - sep1 - 1), isInc);
                 }
             }
+        }
+        if (::HasExtState("CSI_OSK_CMD", "ConfigQuery")) {
+            string payload = ::GetExtState("CSI_OSK_CMD", "ConfigQuery");
+            ::DeleteExtState("CSI_OSK_CMD", "ConfigQuery", false);
+            auto sep = payload.find('|');
+            if (sep != string::npos)
+                DispatchOSKConfigQuery(payload.substr(0, sep), payload.substr(sep + 1));
+        }
+        if (::HasExtState("CSI_OSK_CMD", "ConfigApplyLive")) {
+            string payload = ::GetExtState("CSI_OSK_CMD", "ConfigApplyLive");
+            ::DeleteExtState("CSI_OSK_CMD", "ConfigApplyLive", false);
+            auto sep1 = payload.find('|');
+            if (sep1 != string::npos) {
+                auto sep2 = payload.find('|', sep1 + 1);
+                if (sep2 != string::npos) {
+                    DispatchOSKConfigApplyLive(
+                        payload.substr(0, sep1),
+                        payload.substr(sep1 + 1, sep2 - sep1 - 1),
+                        payload.substr(sep2 + 1)
+                    );
+                }
+            }
+        }
+        if (::HasExtState("CSI_OSK_CMD", "ConfigSave")) {
+            string payload = ::GetExtState("CSI_OSK_CMD", "ConfigSave");
+            ::DeleteExtState("CSI_OSK_CMD", "ConfigSave", false);
+            auto sep = payload.find('|');
+            if (sep != string::npos)
+                DispatchOSKConfigSave(payload.substr(0, sep), payload.substr(sep + 1));
+        }
+        if (::HasExtState("CSI_OSK_CMD", "ConfigRevert")) {
+            string payload = ::GetExtState("CSI_OSK_CMD", "ConfigRevert");
+            ::DeleteExtState("CSI_OSK_CMD", "ConfigRevert", false);
+            auto sep = payload.find('|');
+            if (sep != string::npos)
+                DispatchOSKConfigRevert(payload.substr(0, sep), payload.substr(sep + 1));
+        }
+        if (::HasExtState("CSI_OSK_CMD", "ActionListQuery")) {
+            ::DeleteExtState("CSI_OSK_CMD", "ActionListQuery", false);
+            PublishOSKActionList();
         }
     }
 

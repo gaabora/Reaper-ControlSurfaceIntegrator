@@ -46,6 +46,7 @@ public:
 
     const vector<unique_ptr<ActionContext>>& GetActionContexts(Widget* widget);
     ActionContext* AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params);
+    void ClearActionContexts(Widget* widget);
 
     void AddWidget(Widget* widget);
     void Activate();

@@ -87,6 +87,7 @@ public:
     int GetCommandId() { return commandId_; }
     const char* GetCommandText() { return commandText_; }
     bool NeedsReloadAfterRun() { return needsReloadAfterRun_; }
+    const vector<string>& GetSourceParams() const { return sourceParams_; }
 
     const char* GetFXParamDisplayName() { return fxParamDisplayName_.c_str(); }
 

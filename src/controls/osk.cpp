@@ -2,6 +2,91 @@
 
 #include "integrator.h"
 
+static string BuildTimestampForBackup() {
+    time_t rawTime = time(nullptr);
+    struct tm timeInfo;
+#ifdef _WIN32
+    localtime_s(&timeInfo, &rawTime);
+#else
+    localtime_r(&rawTime, &timeInfo);
+#endif
+    char buffer[32];
+    strftime(buffer, sizeof(buffer), "%Y%m%d_%H%M%S", &timeInfo);
+    return string(buffer);
+}
+
+static string BuildWidgetTokenPrefix(int modifierValue, ActionContext* context) {
+    string prefix;
+
+    if (context && context->IsDoublePress())
+        prefix += "DoublePress+";
+    if (context && context->GetHoldDelay() > 0)
+        prefix += "Hold+";
+
+    if (modifierValue != 0) {
+        char modifierBuffer[128];
+        ModifierManager::GetModifierString(modifierValue, modifierBuffer, sizeof(modifierBuffer));
+        prefix += modifierBuffer;
+    }
+
+    return prefix;
+}
+
+static bool IsPseudoModifierToken(const string& token) {
+    return IsSameString(token, "Hold")
+        || IsSameString(token, "DoublePress")
+        || IsSameString(token, "Increase")
+        || IsSameString(token, "Decrease");
+}
+
+static string ExtractWidgetNameFromZoneToken(const string& token) {
+    vector<string> parts;
+    GetTokens(parts, token, '+');
+    for (int idx = (int) parts.size() - 1; idx >= 0; --idx) {
+        const string& candidate = parts[idx];
+        if (ModifierManager::IsModifierName(candidate.c_str())) continue;
+        if (IsPseudoModifierToken(candidate)) continue;
+        return candidate;
+    }
+    return "";
+}
+
+static vector<string> BuildSerializedWidgetLines(Zone* zone, Widget* widget, const string& widgetName) {
+    vector<string> lines;
+    if (!zone || !widget) return lines;
+
+    map<int, const vector<unique_ptr<ActionContext>>*> modifierContexts;
+    zone->GetAllModifierContexts(widget, modifierContexts);
+
+    for (const auto& [modifierValue, contexts] : modifierContexts) {
+        for (const auto& contextPtr : *contexts) {
+            ActionContext* context = contextPtr.get();
+            if (!context) continue;
+
+            string line = "  ";
+            line += BuildWidgetTokenPrefix(modifierValue, context);
+            line += widgetName;
+            line += "  ";
+
+            const auto& sourceParams = context->GetSourceParams();
+            if (!sourceParams.empty()) {
+                bool firstToken = true;
+                for (const auto& token : sourceParams) {
+                    if (!firstToken) line += " ";
+                    firstToken = false;
+                    line += token;
+                }
+            } else {
+                line += context->GetAction()->GetName();
+            }
+
+            lines.push_back(line);
+        }
+    }
+
+    return lines;
+}
+
 void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& info) {
     if (propsPart.empty()) return;
     vector<string> tokens;
@@ -278,6 +363,250 @@ void ControlSurface::InjectOSKScroll(const string& widgetName, bool isIncrease) 
     if (step <= 0.0) step = 0.01;   // sensible default: 1 % of normalized range per tick
     widget->LogInput(isIncrease ? step : -step);
     zoneManager_->DoRelativeAction(widget, isIncrease ? step : -step);
+}
+
+void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {
+    if (!zoneManager_) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|ZoneManager unavailable", false);
+        return;
+    }
+
+    Widget* widget = GetWidgetByName(widgetName);
+    if (!widget) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Widget not found", false);
+        return;
+    }
+
+    map<int, const vector<unique_ptr<ActionContext>>*> modContexts;
+    zoneManager_->CollectAllModifierContextsForWidget(widget, modContexts);
+
+    string zoneName;
+    string zonePath;
+    zoneManager_->GetActiveZoneInfoForWidget(widget, zoneName, zonePath);
+
+    string result;
+    for (const auto& [mod, ctxs] : modContexts) {
+        for (const auto& ctx : *ctxs) {
+            if (!result.empty()) result += ";";
+            result += std::to_string(mod);
+            result += ":";
+
+            const auto& src = ctx->GetSourceParams();
+            if (!src.empty()) {
+                bool first = true;
+                for (const auto& token : src) {
+                    if (!first) result += " ";
+                    first = false;
+                    result += token;
+                }
+            } else {
+                result += ctx->GetAction()->GetName();
+            }
+        }
+    }
+
+    const string keyResult = string("ConfigResult_") + name_ + "_" + widgetName;
+    ::SetExtState("CSI_OSK", keyResult.c_str(), result.c_str(), false);
+
+    const string keyZoneName = string("ConfigZoneName_") + name_ + "_" + widgetName;
+    ::SetExtState("CSI_OSK", keyZoneName.c_str(), zoneName.c_str(), false);
+
+    const string keyZonePath = string("ConfigZonePath_") + name_ + "_" + widgetName;
+    ::SetExtState("CSI_OSK", keyZonePath.c_str(), zonePath.c_str(), false);
+
+    ::SetExtState("CSI_OSK", "ConfigStatus", "OK|Config query completed", false);
+}
+
+void ControlSurface::HandleOSKConfigApplyLive(const string& widgetName, const string& bindingData) {
+    if (!zoneManager_) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|ZoneManager unavailable", false);
+        return;
+    }
+
+    Widget* widget = GetWidgetByName(widgetName);
+    if (!widget) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Widget not found", false);
+        return;
+    }
+
+    Zone* activeZone = zoneManager_->GetActiveZoneForWidget(widget);
+    if (!activeZone) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|No active zone for widget", false);
+        return;
+    }
+
+    activeZone->ClearActionContexts(widget);
+
+    vector<string> serializedBindings;
+    GetTokens(serializedBindings, bindingData, ';');
+    for (const auto& serializedBinding : serializedBindings) {
+        if (serializedBinding.empty()) continue;
+
+        const auto separatorPosition = serializedBinding.find(':');
+        if (separatorPosition == string::npos) continue;
+
+        const string modifierText = serializedBinding.substr(0, separatorPosition);
+        const string actionText = serializedBinding.substr(separatorPosition + 1);
+        if (actionText.empty()) continue;
+
+        int modifierValue = 0;
+        try {
+            modifierValue = std::stoi(modifierText);
+        } catch (...) {
+            continue;
+        }
+
+        vector<string> actionTokens;
+        GetTokens(actionTokens, actionText);
+        if (actionTokens.empty()) continue;
+
+        const string actionName = actionTokens[0];
+        activeZone->AddWidget(widget);
+
+        ActionContext* context = activeZone->AddActionContext(widget, modifierValue, activeZone, actionName.c_str(), actionTokens);
+        if (!context) continue;
+
+        if (context->GetHoldDelay() > 0 && widget->GetIsTwoState() && !widget->IsModifier())
+            widget->SetHasHoldActions();
+    }
+
+    activeZone->UpdateCurrentActionContextModifiers();
+    PublishOSKLabels();
+    PublishOSKState();
+    PublishOSKLabelMap();
+    ::SetExtState("CSI_OSK", "ConfigStatus", "OK|Apply live completed", false);
+}
+
+void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
+    if (!zoneManager_) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|ZoneManager unavailable", false);
+        return;
+    }
+
+    Widget* widget = GetWidgetByName(widgetName);
+    if (!widget) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Widget not found", false);
+        return;
+    }
+
+    Zone* activeZone = zoneManager_->GetActiveZoneForWidget(widget);
+    if (!activeZone) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|No active zone for widget", false);
+        return;
+    }
+
+    const string zonePath = activeZone->GetSourceFilePath();
+    if (zonePath.empty()) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Zone file path unavailable", false);
+        return;
+    }
+
+    ifstream inputFile(zonePath);
+    if (!inputFile.is_open()) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Unable to open zone file for read", false);
+        return;
+    }
+
+    vector<string> originalLines;
+    for (string line; getline(inputFile, line);)
+        originalLines.push_back(line);
+    inputFile.close();
+
+    const string backupPath = zonePath + "~" + BuildTimestampForBackup();
+    std::error_code copyError;
+    filesystem::copy_file(zonePath, backupPath, filesystem::copy_options::overwrite_existing, copyError);
+    if (copyError) {
+        string status = string("ERR|Backup failed: ") + copyError.message();
+        ::SetExtState("CSI_OSK", "ConfigStatus", status.c_str(), false);
+        return;
+    }
+
+    const string targetZoneName = activeZone->GetName();
+    vector<string> replacementLines = BuildSerializedWidgetLines(activeZone, widget, widgetName);
+
+    vector<string> updatedLines;
+    bool inTargetZone = false;
+    bool foundTargetZone = false;
+    bool insertedReplacementLines = false;
+
+    for (const auto& rawLine : originalLines) {
+        string trimmed = rawLine;
+        TrimLine(trimmed);
+
+        if (!inTargetZone && trimmed.rfind("Zone ", 0) == 0) {
+            vector<string> zoneTokens;
+            GetTokens(zoneTokens, trimmed);
+            if (zoneTokens.size() >= 2 && IsSameString(zoneTokens[1], targetZoneName)) {
+                inTargetZone = true;
+                foundTargetZone = true;
+            }
+        }
+
+        if (inTargetZone && IsSameString(trimmed, "ZoneEnd")) {
+            if (!insertedReplacementLines) {
+                for (const auto& replacementLine : replacementLines)
+                    updatedLines.push_back(replacementLine);
+                insertedReplacementLines = true;
+            }
+            updatedLines.push_back(rawLine);
+            inTargetZone = false;
+            continue;
+        }
+
+        bool skipCurrentLine = false;
+        if (inTargetZone && !trimmed.empty() && !IsCommentedOrEmpty(trimmed)) {
+            vector<string> lineTokens;
+            GetTokens(lineTokens, trimmed);
+            if (!lineTokens.empty()) {
+                const string lineWidgetName = ExtractWidgetNameFromZoneToken(lineTokens[0]);
+                if (IsSameString(lineWidgetName, widgetName)) {
+                    if (!insertedReplacementLines) {
+                        for (const auto& replacementLine : replacementLines)
+                            updatedLines.push_back(replacementLine);
+                        insertedReplacementLines = true;
+                    }
+                    skipCurrentLine = true;
+                }
+            }
+        }
+
+        if (!skipCurrentLine)
+            updatedLines.push_back(rawLine);
+    }
+
+    if (!foundTargetZone) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Target zone section not found in file", false);
+        return;
+    }
+
+    ofstream outputFile(zonePath, std::ios::trunc);
+    if (!outputFile.is_open()) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Unable to open zone file for write", false);
+        return;
+    }
+
+    for (const auto& line : updatedLines)
+        outputFile << line << "\n";
+    outputFile.close();
+
+    PublishOSKLabels();
+    PublishOSKState();
+    PublishOSKLabelMap();
+    ::SetExtState("CSI_OSK", "ConfigStatus", "OK|Saved to zone file", false);
+}
+
+void ControlSurface::HandleOSKConfigRevert(const string& widgetName) {
+    (void)widgetName;
+    if (!zoneManager_) {
+        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|ZoneManager unavailable", false);
+        return;
+    }
+
+    zoneManager_->Initialize();
+    PublishOSKLabels();
+    PublishOSKState();
+    PublishOSKLabelMap();
+    ::SetExtState("CSI_OSK", "ConfigStatus", "OK|Reverted from disk", false);
 }
 
 void ControlSurface::PublishOSKLabelMap() {

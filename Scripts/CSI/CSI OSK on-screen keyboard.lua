@@ -35,15 +35,7 @@ local WINDOW_FLAGS_BASE = imgui.WindowFlags_NoScrollbar
     | imgui.WindowFlags_NoCollapse
     | imgui.WindowFlags_AlwaysAutoResize
 
-local function GetCombinedWindowFlags()
-    local flags = WINDOW_FLAGS_BASE
-    if not data.vars.titlebar_enabled then
-        flags = flags | imgui.WindowFlags_NoTitleBar
-    end
-    return flags
-end
-
-local function GetSeparateWindowFlags()
+local function GetWindowFlags()
     local flags = WINDOW_FLAGS_BASE
     if not data.vars.titlebar_enabled then
         flags = flags | imgui.WindowFlags_NoTitleBar
@@ -239,14 +231,16 @@ local function main_combined()
     imgui.SetNextWindowBgAlpha(ctx, data.vars.transparency)
 
     local visible, p_open = imgui.Begin(ctx, 'CSI On-Screen Keyboard', true,
-        GetCombinedWindowFlags()
+        GetWindowFlags()
     )
     imgui.PopStyleColor(ctx, 2)
 
     if visible then
         imgui.PushFont(ctx, FONT)
 
-        RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_Combined", allowSurfaceSelection = true, allowCloseAll = false })
+        if not config.ShouldSuppressContextMenu or not config.ShouldSuppressContextMenu() then
+            RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_Combined", allowSurfaceSelection = true, allowCloseAll = false })
+        end
 
         if osd_ui.vars.osk_bar_position == "top" then
             render.RenderOSDBar(ctx)
@@ -263,11 +257,12 @@ local function main_combined()
         if osd_ui.vars.osk_bar_position == "bottom" then
             render.RenderOSDBar(ctx)
         end
-        config.RenderConfigEditor(ctx)
-
         imgui.PopFont(ctx)
     end
     imgui.End(ctx)
+
+    -- Config editor is a separate top-level window; render outside main window's Begin/End
+    config.RenderConfigEditor(ctx)
 
     if not p_open then
         -- Cleanup
@@ -321,45 +316,42 @@ main_separate = function()
             imgui.PushStyleColor(ctx, imgui.Col_TitleBgActive, data.COLORS.win_bg)
             imgui.SetNextWindowBgAlpha(ctx, data.vars.transparency)
 
-            local visible, p_open = imgui.Begin(ctx, 'CSI OSK - ' .. surfName, true, GetSeparateWindowFlags())
-            
-            if p_open ~= nil then
-                imgui.PopStyleColor(ctx, 2)
+            local visible, p_open = imgui.Begin(ctx, 'CSI OSK - ' .. surfName, true, GetWindowFlags())
+            imgui.PopStyleColor(ctx, 2)
 
-                local x, y = imgui.GetWindowPos(ctx)
-                local oldPos = data.surfacePos[surfName]
-                if not oldPos or math.abs(oldPos.x - x) > 0.5 or math.abs(oldPos.y - y) > 0.5 then
-                    data.surfacePos[surfName] = { x = x, y = y }
-                    data.SaveSettings()
-                end
-
-                if visible then
-                    imgui.PushFont(ctx, FONT)
-                    RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_" .. surfName, allowSurfaceSelection = false, allowCloseAll = true })
-
-                    if osd_ui.vars.osk_bar_position == "top" then
-                        render.RenderOSDBar(ctx)
-                    end
-
-                    render.RenderSurface(ctx, surfName)
-
-                    if osd_ui.vars.osk_bar_position == "bottom" then
-                        render.RenderOSDBar(ctx)
-                    end
-
-                    config.RenderConfigEditor(ctx)
-                    imgui.PopFont(ctx)
-                end
-                imgui.End(ctx)
-
-                win.open = p_open
-            else
-                -- Begin failed (shouldn't happen, but defensive code)
-                imgui.PopStyleColor(ctx, 2)
-                win.open = false
+            local x, y = imgui.GetWindowPos(ctx)
+            local oldPos = data.surfacePos[surfName]
+            if not oldPos or math.abs(oldPos.x - x) > 0.5 or math.abs(oldPos.y - y) > 0.5 then
+                data.surfacePos[surfName] = { x = x, y = y }
+                data.SaveSettings()
             end
+
+            if visible then
+                imgui.PushFont(ctx, FONT)
+                if not config.ShouldSuppressContextMenu or not config.ShouldSuppressContextMenu() then
+                    RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_" .. surfName, allowSurfaceSelection = false, allowCloseAll = true })
+                end
+
+                if osd_ui.vars.osk_bar_position == "top" then
+                    render.RenderOSDBar(ctx)
+                end
+
+                render.RenderSurface(ctx, surfName)
+
+                if osd_ui.vars.osk_bar_position == "bottom" then
+                    render.RenderOSDBar(ctx)
+                end
+
+                imgui.PopFont(ctx)
+            end
+            imgui.End(ctx)
+
+            win.open = p_open
         end
     end
+
+    -- Config editor is a separate top-level window; render outside per-surface loop
+    config.RenderConfigEditor(ctx)
 
     if requestCloseAll then
         for _, surfName in ipairs(data.surfaces) do
@@ -398,6 +390,9 @@ local function Init()
     imgui.Attach(ctx, FONT_SMALL)
 
     render.SetFonts(FONT, FONT_SMALL)
+    if render.SetConfigModule then
+        render.SetConfigModule(config)
+    end
 
     -- Initial poll
     data.PollData()
