@@ -7,7 +7,7 @@
 ## Ownership
 
 - `CSI OSK on-screen keyboard.lua` and `CSI OSD on-screen display.lua` entry scripts.
-- `osk_data.lua`, `osk_render.lua`, `osk_input.lua`, `osk_config.lua`, `osd_ui.lua`, `ui_components.lua`, `script_host.lua`, `action_line.lua`, `layout_parser.lua`, and `label_replacements.lua` shared modules.
+- `osk_data.lua`, `osk_render.lua`, `osk_input.lua`, `osk_config.lua`, `osd_ui.lua`, `ui_components.lua`, `script_host.lua`, `action_line.lua`, `layout_parser.lua`, `label_replacements.lua`, and `self_checks.lua` shared modules.
 
 ## Local Contracts
 
@@ -31,6 +31,7 @@
 - Keep reusable ReaImGui widget helpers in `ui_components.lua` so entry scripts and feature modules do not re-implement the same UI patterns.
 - Keep shared script startup, context creation, toolbar state, and shutdown boilerplate in `script_host.lua` so the entry scripts stay thin orchestration layers.
 - Keep serialized action-line, layout, and label-replacement contracts in `action_line.lua`, `layout_parser.lua`, and `label_replacements.lua` so UI modules do not own those formats.
+- Keep pure Lua parser checks registered through `self_checks.lua` when adding or changing parser module self-checks.
 - Keep OSD color, alpha, contrast, and centered text drawing in `osd_ui.lua` so standalone OSD and the embedded OSK bar share one renderer.
 - Avoid duplicating shared UI behavior in the entry scripts.
 - Keep action edits reversible until the user explicitly saves them.
@@ -38,6 +39,7 @@
 ## Verification
 
 - Build the plugin with `cmake --build build --config Debug` before runtime verification.
+- Run parser self-checks with `dofile("Scripts/CSI/self_checks.lua").RunAndReport()` from REAPER, or equivalent Lua with `Scripts/CSI` on `package.path`.
 - In REAPER with ReaImGui installed, launch both `CSI OSK on-screen keyboard.lua` and `CSI OSD on-screen display.lua`.
 - Open the OSK context menu and change settings, including the embedded OSD bar position.
 - Verify label replacements with empty user input, a user override, and a longer phrase override.

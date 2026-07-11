@@ -93,14 +93,6 @@ function M.SliderWithInput(ctx, label, currentValue, minValue, maxValue, step, o
     return changed, newValue
 end
 
-function M.ComboEnum(ctx, label, currentIndex, items, options)
-    options = options or {}
-    if options.width then
-        imgui.SetNextItemWidth(ctx, options.width)
-    end
-    return imgui.Combo(ctx, label, currentIndex, items)
-end
-
 function M.LabelReplacementEditor(ctx, label, value, helpText, options)
     options = options or {}
     imgui.Text(ctx, label)

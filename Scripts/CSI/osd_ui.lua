@@ -397,7 +397,7 @@ function M.RenderSettingsPanel(ctx, imgui)
 
     -- Position
     local posIdx = M.vars.osd_position == "bottom" and 1 or 0
-    rv, posIdx = ui.ComboEnum(ctx, "Position##osd_pos", posIdx, "Top\0Bottom\0")
+    rv, posIdx = imgui.Combo(ctx, "Position##osd_pos", posIdx, "Top\0Bottom\0")
     if rv then
         M.vars.osd_position = (posIdx == 1) and "bottom" or "top"
     end
@@ -406,7 +406,7 @@ function M.RenderSettingsPanel(ctx, imgui)
     local alignIdx = 1
     if M.vars.osd_alignment == "left" then alignIdx = 0 end
     if M.vars.osd_alignment == "right" then alignIdx = 2 end
-    rv, alignIdx = ui.ComboEnum(ctx, "Alignment##osd_align", alignIdx, "Left\0Center\0Right\0")
+    rv, alignIdx = imgui.Combo(ctx, "Alignment##osd_align", alignIdx, "Left\0Center\0Right\0")
     if rv then
         if alignIdx == 0 then
             M.vars.osd_alignment = "left"
@@ -441,7 +441,7 @@ function M.RenderOSKPositionToggle(ctx, imgui)
     end
     
     local rv
-    rv, posIdx = ui.ComboEnum(ctx, "OSK OSD Position##osk_osd_pos", posIdx, "Off\0Top\0Bottom\0")
+    rv, posIdx = imgui.Combo(ctx, "OSK OSD Position##osk_osd_pos", posIdx, "Off\0Top\0Bottom\0")
     if rv then
         if posIdx == 0 then
             M.vars.osk_bar_position = "off"

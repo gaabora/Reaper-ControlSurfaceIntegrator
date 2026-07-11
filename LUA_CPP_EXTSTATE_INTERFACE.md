@@ -46,6 +46,10 @@ outcome|operation|surface|widget|zone|message
 `outcome` is `OK` or `ERR`. Operations are `Query`, `ApplyLive`, `Save`, and
 `Revert`.
 
+Layout cell metadata uses comma-separated `key=value` pairs after the widget name.
+String values may be quoted with `"` when they contain delimiters. Inside quoted
+metadata values, `\\`, `\"`, `\n`, and `\r` are backslash escapes.
+
 ## OSK Commands
 
 Keys in `ReaCtrlSurf_OSK_CMD`:

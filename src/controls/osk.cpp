@@ -417,6 +417,41 @@ static bool CommitZoneFile(const string& zonePath, const vector<string>& updated
     return false;
 }
 
+static string UnescapeOskLayoutValue(const string& value) {
+    if (value.size() < 2 || value.front() != '"' || value.back() != '"') return value;
+
+    string result;
+    result.reserve(value.size() - 2);
+    for (size_t idx = 1; idx + 1 < value.size(); ++idx) {
+        const char ch = value[idx];
+        if (ch == '\\' && idx + 2 < value.size()) {
+            const char nextCh = value[++idx];
+            if (nextCh == 'n') result += '\n';
+            else if (nextCh == 'r') result += '\r';
+            else result += nextCh;
+        } else {
+            result += ch;
+        }
+    }
+    return result;
+}
+
+static string EscapeOskLayoutValue(const string& value) {
+    const bool needsQuotes = value.find_first_of(",|\"\\\n\r") != string::npos;
+    if (!needsQuotes) return value;
+
+    string result = "\"";
+    for (const char ch : value) {
+        if (ch == '\\') result += "\\\\";
+        else if (ch == '"') result += "\\\"";
+        else if (ch == '\n') result += "\\n";
+        else if (ch == '\r') result += "\\r";
+        else result += ch;
+    }
+    result += "\"";
+    return result;
+}
+
 void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& info) {
     if (propsPart.empty()) return;
     vector<string> tokens;
@@ -437,9 +472,7 @@ void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& 
         // if (key != "label") transform(val.begin(), val.end(), val.begin(), ::tolower);
         //TODO: review the formats, maybe make all parsers everywhere case insensitive and trim tokens
 
-        // Remove quotes if present
-        if (val.size() >= 2 && val.front() == '"' && val.back() == '"')
-            val = val.substr(1, val.size() - 2);
+        val = UnescapeOskLayoutValue(val);
 
         if (key == "Shape") info.shape = val;
         else if (key == "Width") info.width = (float) atof(val.c_str());
@@ -452,40 +485,40 @@ void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& 
 }
 
 void ControlSurface::BuildCachedLayoutString() {
-    cachedOskLayoutString_.clear();
+    this->cachedOskLayoutString_.clear();
 
-    for (const auto& row : oskLayout_) {
-        if (!cachedOskLayoutString_.empty()) cachedOskLayoutString_ += "\n";
+    for (const auto& row : this->oskLayout_) {
+        if (!this->cachedOskLayoutString_.empty()) this->cachedOskLayoutString_ += "\n";
 
         bool firstCell = true;
         for (const auto& cell : row.cells) {
-            if (!firstCell) cachedOskLayoutString_ += "|";
+            if (!firstCell) this->cachedOskLayoutString_ += "|";
             firstCell = false;
 
             if (cell.isSpacer) {
                 char buf[32];
                 snprintf(buf, sizeof(buf), "SPACER:%.2f", cell.spacerWidth);
-                cachedOskLayoutString_ += buf;
+                this->cachedOskLayoutString_ += buf;
             } else {
-                cachedOskLayoutString_ += cell.widget.name;
-                cachedOskLayoutString_ += ":Shape=";
-                cachedOskLayoutString_ += cell.widget.shape;
+                this->cachedOskLayoutString_ += cell.widget.name;
+                this->cachedOskLayoutString_ += ":Shape=";
+                this->cachedOskLayoutString_ += EscapeOskLayoutValue(cell.widget.shape);
 
                 char buf[64];
                 snprintf(buf, sizeof(buf), ",Width=%.2f,Height=%.2f,Top=%.2f", cell.widget.width, cell.widget.height, cell.widget.top);
-                cachedOskLayoutString_ += buf;
+                this->cachedOskLayoutString_ += buf;
 
                 if (!cell.widget.group.empty()) {
-                    cachedOskLayoutString_ += ",Group=";
-                    cachedOskLayoutString_ += cell.widget.group;
+                    this->cachedOskLayoutString_ += ",Group=";
+                    this->cachedOskLayoutString_ += EscapeOskLayoutValue(cell.widget.group);
                 }
                 if (!cell.widget.label.empty()) {
-                    cachedOskLayoutString_ += ",Label=";
-                    cachedOskLayoutString_ += cell.widget.label;
+                    this->cachedOskLayoutString_ += ",Label=";
+                    this->cachedOskLayoutString_ += EscapeOskLayoutValue(cell.widget.label);
                 }
                 if (!cell.widget.color.empty()) {
-                    cachedOskLayoutString_ += ",Color=";
-                    cachedOskLayoutString_ += cell.widget.color;
+                    this->cachedOskLayoutString_ += ",Color=";
+                    this->cachedOskLayoutString_ += EscapeOskLayoutValue(cell.widget.color);
                 }
             }
         }

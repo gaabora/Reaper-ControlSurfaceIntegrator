@@ -13,9 +13,56 @@ end
 local function unquote(text)
     text = trim(text)
     if #text >= 2 and text:sub(1, 1) == '"' and text:sub(-1) == '"' then
-        return text:sub(2, -2)
+        local out = {}
+        local idx = 2
+        while idx < #text do
+            local ch = text:sub(idx, idx)
+            if ch == "\\" and idx + 1 < #text then
+                local nextCh = text:sub(idx + 1, idx + 1)
+                if nextCh == "n" then
+                    out[#out + 1] = "\n"
+                elseif nextCh == "r" then
+                    out[#out + 1] = "\r"
+                elseif nextCh == '"' or nextCh == "\\" then
+                    out[#out + 1] = nextCh
+                else
+                    out[#out + 1] = ch .. nextCh
+                end
+                idx = idx + 2
+            else
+                out[#out + 1] = ch
+                idx = idx + 1
+            end
+        end
+        return table.concat(out)
     end
     return text
+end
+
+local function splitDelimited(text, delimiter)
+    local entries = {}
+    local current = {}
+    local inQuote = false
+    local idx = 1
+    while idx <= #text do
+        local ch = text:sub(idx, idx)
+        if inQuote and ch == "\\" and idx < #text then
+            current[#current + 1] = ch
+            current[#current + 1] = text:sub(idx + 1, idx + 1)
+            idx = idx + 2
+        else
+            if ch == '"' then inQuote = not inQuote end
+            if ch == delimiter and not inQuote then
+                entries[#entries + 1] = table.concat(current)
+                current = {}
+            else
+                current[#current + 1] = ch
+            end
+            idx = idx + 1
+        end
+    end
+    entries[#entries + 1] = table.concat(current)
+    return entries
 end
 
 function M.HexToImCol(hex)
@@ -50,7 +97,7 @@ end
 function M.ParseLayoutCellProperties(cellStr)
     local properties = {}
     local metadata = cellStr:match("^[^:]+:(.*)$") or ""
-    for entry in metadata:gmatch("[^,]+") do
+    for _, entry in ipairs(splitDelimited(metadata, ",")) do
         local key, value = entry:match("^([^=]+)=(.*)$")
         if key then
             properties[trim(key)] = unquote(value)
@@ -63,26 +110,28 @@ function M.ParseLayout(layoutStr)
     local result = {}
     for rowStr in tostring(layoutStr or ""):gmatch("[^\n]+") do
         local row = {}
-        for cellStr in rowStr:gmatch("[^|]+") do
-            local cell = {}
-            if cellStr:match("^SPACER:") then
-                cell.isSpacer = true
-                cell.width = tonumber(cellStr:match("SPACER:([%d%.]+)")) or 0.5
-            else
-                local properties = M.ParseLayoutCellProperties(cellStr)
-                cell.isSpacer = false
-                cell.name = cellStr:match("^([^:]+)")
-                cell.shape = tostring(properties.Shape or "rect"):lower()
-                cell.width = tonumber(properties.Width) or 1.0
-                cell.height = tonumber(properties.Height) or 1.0
-                cell.top = tonumber(properties.Top) or 0.0
-                if cell.shape == "fader" then cell.rowSpan = cell.height else cell.rowSpan = 1 end
-                cell.group = properties.Group or ""
-                cell.label = properties.Label or ""
-                local colorHex = tostring(properties.Color or ""):match("^#?%x+")
-                if colorHex then cell.color = M.HexToImCol(colorHex) end
+        for _, cellStr in ipairs(splitDelimited(rowStr, "|")) do
+            if cellStr ~= "" then
+                local cell = {}
+                if cellStr:match("^SPACER:") then
+                    cell.isSpacer = true
+                    cell.width = tonumber(cellStr:match("SPACER:([%d%.]+)")) or 0.5
+                else
+                    local properties = M.ParseLayoutCellProperties(cellStr)
+                    cell.isSpacer = false
+                    cell.name = cellStr:match("^([^:]+)")
+                    cell.shape = tostring(properties.Shape or "rect"):lower()
+                    cell.width = tonumber(properties.Width) or 1.0
+                    cell.height = tonumber(properties.Height) or 1.0
+                    cell.top = tonumber(properties.Top) or 0.0
+                    if cell.shape == "fader" then cell.rowSpan = cell.height else cell.rowSpan = 1 end
+                    cell.group = properties.Group or ""
+                    cell.label = properties.Label or ""
+                    local colorHex = tostring(properties.Color or ""):match("^#?%x+")
+                    if colorHex then cell.color = M.HexToImCol(colorHex) end
+                end
+                row[#row + 1] = cell
             end
-            row[#row + 1] = cell
         end
         result[#result + 1] = M.FilterGroupedDuplicates(row)
     end
@@ -90,10 +139,10 @@ function M.ParseLayout(layoutStr)
 end
 
 function M.RunSelfChecks()
-    local rows = M.ParseLayout('Rotary1:Shape=Round,Width=1.00,Height=1.00,Group=Rotary,Label=Hello there,Color=#FF8800|Rotary2:Shape=Round,Group=Rotary\nSPACER:0.5|Fader1:Shape=Fader,Height=3,Top=0.5')
+    local rows = M.ParseLayout('Rotary1:Shape=Round,Width=1.00,Height=1.00,Group=Rotary,Label="Hello, \\"there\\" | friend",Color=#FF8800|Rotary2:Shape=Round,Group=Rotary\nSPACER:0.5|Fader1:Shape=Fader,Height=3,Top=0.5')
     assertEqual(#rows, 2, "row count")
     assertEqual(#rows[1], 1, "grouped duplicate count")
-    assertEqual(rows[1][1].label, "Hello there", "label parse")
+    assertEqual(rows[1][1].label, 'Hello, "there" | friend', "quoted label parse")
     assertEqual(rows[1][1].color, M.HexToImCol("#FF8800"), "color parse")
     assertEqual(rows[2][2].rowSpan, 3, "fader row span")
     return true
