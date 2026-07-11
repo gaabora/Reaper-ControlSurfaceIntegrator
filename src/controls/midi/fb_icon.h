@@ -36,7 +36,7 @@ public:
         char tmp[MEDBUF];
         const char* text = GetWidget()->GetSurface()->GetRestrictedLengthText(inputText, tmp, sizeof(tmp));
 
-        if (IsSameString(text, "-150.00")) text = "";
+        if (IsSameString(text, SILENCE_DB_STRING)) text = "";
 
         SysExBuilder builder;
         builder.begin()

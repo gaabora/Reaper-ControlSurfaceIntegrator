@@ -32,15 +32,30 @@ using std::string;
 using std::vector;
 using std::to_string;
 
-// -------------------------------------------------------------------------
-// Buffer size constants
-// -------------------------------------------------------------------------
 const int MEDBUF = 512;
 const int SMLBUF = 256;
 
-// -------------------------------------------------------------------------
-// REAPER command IDs and CSI script paths
-// -------------------------------------------------------------------------
+inline constexpr int TIMEMODE_DEFAULT = 0;
+inline constexpr int TIMEMODE_SECONDS = 3;
+inline constexpr int TIMEMODE_SAMPLES = 4;
+inline constexpr int TIMEMODE_FRAMES = 5;
+inline constexpr int TIMEMODE_LAST = TIMEMODE_FRAMES;
+
+inline constexpr double MCU_DISPLAY_SELECTED_TRACK = 0.0;
+inline constexpr double MCU_DISPLAY_TRACK = 1.0;
+
+inline constexpr double TRACK_VOLUME_TOLERANCE = 0.0025;
+inline constexpr const char* SILENCE_DB_STRING = "-150.00";
+
+inline constexpr int OSC_DRAIN_SLEEP_MS = 33;
+inline constexpr DWORD FEEDBACK_DEBOUNCE_MS = 50;
+
+inline constexpr int PLAYSTATE_STOPPED = 0;
+inline constexpr int PLAYSTATE_PLAYING = 1;
+inline constexpr int PLAYSTATE_PAUSED = 2;
+inline constexpr int PLAYSTATE_RECORDING = 5;
+inline constexpr int PLAYSTATE_PAUSED_WHILE_RECORDING = 6;
+
 inline constexpr const char* REASCRIPT_PATH__CSI_OSD = "/Scripts/CSI/CSI OSD on-screen display.lua";
 inline constexpr const char* REASCRIPT_HASH__CSI_OSD = "_RSba74d8dbb9258d14b5305a183a5f20e8a6e0f64f";
 inline constexpr const char* REASCRIPT_PATH__CSI_OSK = "/Scripts/CSI/CSI OSK on-screen keyboard.lua";
@@ -53,9 +68,6 @@ inline constexpr int REAPER__CLOSE_CURRENT_PROJECT_TAB = 40860;
 inline constexpr int REAPER__SWITCH_TO_NEXT_PROJECT_TAB = 40862;
 inline constexpr int REAPER__SWITCH_TO_PREVIOUS_PROJECT_TAB = 40861;
 
-// -------------------------------------------------------------------------
-// CSI identification strings
-// -------------------------------------------------------------------------
 inline constexpr const char* s_CSIName = "CSI";
 inline constexpr const char* s_CSIVersionDisplay = "v7.0";
 inline constexpr const char* s_MajorVersionToken = "7.0";
@@ -71,6 +83,7 @@ inline constexpr const char* s_EndAutoSection = "#End auto generated section";
 // -------------------------------------------------------------------------
 // struct osd_data
 // -------------------------------------------------------------------------
+
 inline vector<string> ExplodeString(const char separator, const string& value) {
     vector<string> result;
     size_t start = 0;
@@ -153,9 +166,6 @@ struct rgba_color {
     }
 };
 
-// -------------------------------------------------------------------------
-// struct MIDI_event_ex_t
-// -------------------------------------------------------------------------
 struct MIDI_event_ex_t : MIDI_event_t {
     MIDI_event_ex_t() {
         frame_offset = 0;
@@ -186,9 +196,6 @@ struct MIDI_event_ex_t : MIDI_event_t {
     }
 };
 
-// -------------------------------------------------------------------------
-// class ReloadPluginException
-// -------------------------------------------------------------------------
 class ReloadPluginException : public std::runtime_error
 {
 public:

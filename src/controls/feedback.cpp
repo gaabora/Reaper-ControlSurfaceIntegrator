@@ -43,7 +43,7 @@ void OSC_FeedbackProcessor::SetColorValue(const rgba_color& color) {
 }
 
 void OSC_FeedbackProcessor::ForceValue(const PropertyList& properties, double value) {
-    if ((GetTickCount() - GetWidget()->GetLastIncomingMessageTime()) < 50) return; //FIXME: hardcoded to const or setting.  adjust the 50 millisecond value to give you smooth behaviour without making updates sluggish  
+    if ((GetTickCount() - GetWidget()->GetLastIncomingMessageTime()) < FEEDBACK_DEBOUNCE_MS) return;
     lastDoubleValue_ = value;
     surface_->SendOSCMessage(this, oscAddress_.c_str(), value);
 }

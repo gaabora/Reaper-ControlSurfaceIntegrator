@@ -360,7 +360,7 @@ public:
             return;
         }
         int playState = GetPlayState();
-        if (playState == 1 || playState == 2 || playState == 5 || playState == 6) // playing or paused or recording or paused whilst recording
+        if (playState == PLAYSTATE_PLAYING || playState == PLAYSTATE_PAUSED || playState == PLAYSTATE_RECORDING || playState == PLAYSTATE_PAUSED_WHILE_RECORDING)
             SetEditCurPos(GetPlayPosition(), true, false);
 
         CSurf_OnStop();
@@ -378,7 +378,7 @@ public:
         }
 
         int playState = GetPlayState();
-        if (playState == 1 || playState == 2 || playState == 5 || playState == 6) // playing or paused or recording or paused whilst recording //FIXME: hardcoded to consts everywhere in this class
+        if (playState == PLAYSTATE_PLAYING || playState == PLAYSTATE_PAUSED || playState == PLAYSTATE_RECORDING || playState == PLAYSTATE_PAUSED_WHILE_RECORDING)
             SetEditCurPos(GetPlayPosition(), true, false);
 
         CSurf_OnStop();

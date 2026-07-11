@@ -52,7 +52,7 @@ public:
     virtual void RequestUpdate(ActionContext* context) override {
         int stopState = GetPlayState();
 
-        if (stopState == 0 || stopState == 2 || stopState == 6) // stopped or paused or paused whilst recording
+        if (stopState == PLAYSTATE_STOPPED || stopState == PLAYSTATE_PAUSED || stopState == PLAYSTATE_PAUSED_WHILE_RECORDING)
         {
             if (context->GetTrack())
                 context->UpdateWidgetValue(GetCurrentNormalizedValue(context));
@@ -121,7 +121,7 @@ public:
     virtual void RequestUpdate(ActionContext* context) override {
         int stopState = GetPlayState();
 
-        if (stopState == 0 || stopState == 2 || stopState == 6) // stopped or paused or paused whilst recording
+        if (stopState == PLAYSTATE_STOPPED || stopState == PLAYSTATE_PAUSED || stopState == PLAYSTATE_PAUSED_WHILE_RECORDING)
         {
             if (context->GetTrack())
                 context->UpdateWidgetValue(GetCurrentNormalizedValue(context));

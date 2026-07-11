@@ -124,7 +124,7 @@ public:
         char tmp[MEDBUF];
         const char* text = GetWidget()->GetSurface()->GetRestrictedLengthText(inputText, tmp, sizeof(tmp));
 
-        if (IsSameString(text, "-150.00")) text = "";
+        if (IsSameString(text, SILENCE_DB_STRING)) text = "";
 
         SysExBuilder builder;
         builder.begin()
@@ -157,14 +157,14 @@ public:
     }
 
     virtual void SetValue(const PropertyList& properties, double value) override {
-        if (value == 0.0) //FIXME: extract magic number to const:  Selected Track
+        if (value == MCU_DISPLAY_SELECTED_TRACK)
         {
             if (lastFirstLetter_ != 0x13) {
                 lastFirstLetter_ = 0x13;
                 SendMidiMessage(0xB0, 0x4B, 0x13); // S
                 SendMidiMessage(0xB0, 0x4A, 0x05); // E
             }
-        } else if (value == 1.0) { //FIXME: extract magic number to const:  Track
+        } else if (value == MCU_DISPLAY_TRACK) {
             if (lastFirstLetter_ != 0x07) {
                 lastFirstLetter_ = 0x07;
                 SendMidiMessage(0xB0, 0x4B, 0x07); // G
@@ -200,17 +200,9 @@ public:
         unsigned char bla[10];
         memset(bla, 0, sizeof(bla));
 
-        int* tmodeptr = csi_->GetTimeMode2Ptr();
-        int tmode = 0;
+        int tmode = csi_->GetResolvedTimeMode();
 
-        if (tmodeptr && (*tmodeptr) >= 0)
-            tmode = *tmodeptr;
-        else {
-            tmodeptr = csi_->GetTimeModePtr();
-            if (tmodeptr) tmode = *tmodeptr;
-        }
-
-        if (tmode == 3) { //FIXME: extract magic number to const: seconds
+        if (tmode == TIMEMODE_SECONDS) {
             double* toptr = csi_->GetTimeOffsPtr();
             if (toptr) pp += *toptr;
             char buf[64];
@@ -219,16 +211,16 @@ public:
                 memcpy(bla, buf + strlen(buf) - sizeof(bla), sizeof(bla));
             else
                 memcpy(bla + sizeof(bla) - strlen(buf), buf, strlen(buf));
-        } else if (tmode == 4) { //FIXME: extract magic number to const: samples
+        } else if (tmode == TIMEMODE_SAMPLES) {
             char buf[128];
-            format_timestr_pos(pp, buf, sizeof(buf), 4);
+            format_timestr_pos(pp, buf, sizeof(buf), TIMEMODE_SAMPLES);
             if (strlen(buf) > sizeof(bla))
                 memcpy(bla, buf + strlen(buf) - sizeof(bla), sizeof(bla));
             else
                 memcpy(bla + sizeof(bla) - strlen(buf), buf, strlen(buf));
-        } else if (tmode == 5) { //FIXME: extract magic number to const:  frames
+        } else if (tmode == TIMEMODE_FRAMES) {
             char buf[128];
-            format_timestr_pos(pp, buf, sizeof(buf), 5);
+            format_timestr_pos(pp, buf, sizeof(buf), TIMEMODE_FRAMES);
             char *p = buf, *op = buf;
             int ccnt = 0;
             while (*p) {
@@ -247,7 +239,7 @@ public:
                 memcpy(bla, buf + strlen(buf) - sizeof(bla), sizeof(bla));
             else
                 memcpy(bla + sizeof(bla) - strlen(buf), buf, strlen(buf));
-        } else if (tmode > 0) {
+        } else if (tmode > TIMEMODE_DEFAULT) {
             int num_measures = 0, currentTimeSignatureNumerator = 0;
             double beats = TimeMap2_timeToBeats(NULL, pp, &num_measures, &currentTimeSignatureNumerator, NULL, NULL) + 0.000000000001;
             double nbeats = floor(beats);
@@ -303,8 +295,8 @@ public:
 
         if (m_mackie_lasttime_mode != tmode) {
             m_mackie_lasttime_mode = tmode;
-            SendMidiMessage(0x90, 0x71, tmode == 5 ? 0x7F : 0);
-            SendMidiMessage(0x90, 0x72, m_mackie_lasttime_mode > 0 && tmode < 3 ? 0x7F : 0);
+            SendMidiMessage(0x90, 0x71, tmode == TIMEMODE_FRAMES ? 0x7F : 0);
+            SendMidiMessage(0x90, 0x72, m_mackie_lasttime_mode > TIMEMODE_DEFAULT && tmode < TIMEMODE_SECONDS ? 0x7F : 0);
             for (int x = 0; x < (int) sizeof(bla); ++x)
                 SendMidiMessage(0xB0, 0x40 + x, 0x20);
         }

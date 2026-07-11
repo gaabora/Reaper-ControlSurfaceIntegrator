@@ -150,7 +150,7 @@ public:
         char tmp[MEDBUF];
         const char* text = GetWidget()->GetSurface()->GetRestrictedLengthText(inputText, tmp, sizeof(tmp));
 
-        if (IsSameString(text, "-150.00")) text = ""; //FIXME: here and everywhere "-150.00" to const
+        if (IsSameString(text, SILENCE_DB_STRING)) text = "";
 
         SysExBuilder builder;
         builder.begin().add(0x00).add(0x00).add(0x66).add(displayType_).add(displayTextType_);

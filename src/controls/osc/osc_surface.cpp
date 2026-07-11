@@ -104,11 +104,11 @@ OSC_ControlSurfaceIO::OSC_ControlSurfaceIO(CSurfIntegrator* const csi, const cha
 }
 
 OSC_ControlSurfaceIO::~OSC_ControlSurfaceIO() {
-    Sleep(33); //FIXME: hordcoded to const
+    Sleep(OSC_DRAIN_SLEEP_MS);
     int count = 0;
     while (packetQueue_.GetSize() >= sizeof(int) && ++count < 100) {
         BeginRun();
-        if (count) Sleep(33); //FIXME: hordcoded to const
+        if (count) Sleep(OSC_DRAIN_SLEEP_MS);
     }
     if (inSocket_) {
         for (int x = 0; x < s_inputSockets.GetSize(); ++x) {

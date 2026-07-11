@@ -107,6 +107,16 @@ public:
 
     int* GetTimeModePtr() { return (int*) projectconfig_var_addr(NULL, timeModeOffs_); }
     int* GetTimeMode2Ptr() { return (int*) projectconfig_var_addr(NULL, timeMode2Offs_); }
+    int* GetActiveTimeModePtr() {
+        int* tmodeptr = GetTimeMode2Ptr();
+        if (tmodeptr && *tmodeptr >= TIMEMODE_DEFAULT)
+            return tmodeptr;
+        return GetTimeModePtr();
+    }
+    int GetResolvedTimeMode() {
+        int* tmodeptr = GetActiveTimeModePtr();
+        return tmodeptr ? *tmodeptr : TIMEMODE_DEFAULT;
+    }
     int* GetMeasOffsPtr() { return (int*) projectconfig_var_addr(NULL, measOffsOffs_); }
     double* GetTimeOffsPtr() { return (double*) projectconfig_var_addr(NULL, timeOffsOffs_); }
     int GetProjectPanMode() {
@@ -243,19 +253,11 @@ public:
     }
 
     void NextTimeDisplayMode() {
-        int* tmodeptr = GetTimeMode2Ptr();
-        if (tmodeptr && *tmodeptr >= 0) {
+        int* tmodeptr = GetActiveTimeModePtr();
+        if (tmodeptr) {
             (*tmodeptr)++;
-            if ((*tmodeptr) > 5)
-                (*tmodeptr) = 0;
-        } else {
-            tmodeptr = GetTimeModePtr();
-
-            if (tmodeptr) {
-                (*tmodeptr)++;
-                if ((*tmodeptr) > 5)
-                    (*tmodeptr) = 0;
-            }
+            if ((*tmodeptr) > TIMEMODE_LAST)
+                (*tmodeptr) = TIMEMODE_DEFAULT;
         }
     }
 

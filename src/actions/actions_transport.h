@@ -76,13 +76,13 @@ public:
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         int playState = GetPlayState();
-        if (playState == 1 || playState == 2 || playState == 5 || playState == 6) // playing or paused or recording or paused whilst recording
-            playState = 1;
+        if (playState == PLAYSTATE_PLAYING || playState == PLAYSTATE_PAUSED || playState == PLAYSTATE_RECORDING || playState == PLAYSTATE_PAUSED_WHILE_RECORDING)
+            playState = PLAYSTATE_PLAYING;
         else
-            playState = 0;
+            playState = PLAYSTATE_STOPPED;
 
         if (context->GetSurface()->GetIsRewinding() || context->GetSurface()->GetIsFastForwarding())
-            playState = 0;
+            playState = PLAYSTATE_STOPPED;
 
         return playState;
     }
@@ -104,13 +104,13 @@ public:
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         int stopState = GetPlayState();
-        if (stopState == 0 || stopState == 2 || stopState == 6) // stopped or paused or paused whilst recording
-            stopState = 1;
+        if (stopState == PLAYSTATE_STOPPED || stopState == PLAYSTATE_PAUSED || stopState == PLAYSTATE_PAUSED_WHILE_RECORDING)
+            stopState = PLAYSTATE_PLAYING;
         else
-            stopState = 0;
+            stopState = PLAYSTATE_STOPPED;
 
         if (context->GetSurface()->GetIsRewinding() || context->GetSurface()->GetIsFastForwarding())
-            stopState = 0;
+            stopState = PLAYSTATE_STOPPED;
 
         return stopState;
     }
@@ -132,13 +132,13 @@ public:
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         int recordState = GetPlayState();
-        if (recordState == 5 || recordState == 6) // recording or paused whilst recording
-            recordState = 1;
+        if (recordState == PLAYSTATE_RECORDING || recordState == PLAYSTATE_PAUSED_WHILE_RECORDING)
+            recordState = PLAYSTATE_PLAYING;
         else
-            recordState = 0;
+            recordState = PLAYSTATE_STOPPED;
 
         if (context->GetSurface()->GetIsRewinding() || context->GetSurface()->GetIsFastForwarding())
-            recordState = 0;
+            recordState = PLAYSTATE_STOPPED;
         return recordState;
     }
 
@@ -456,27 +456,18 @@ public:
 
         double pp = (GetPlayState() & 1) ? GetPlayPosition() : GetCursorPosition();
 
-        int* tmodeptr = context->GetCSI()->GetTimeMode2Ptr();
+        int tmode = context->GetCSI()->GetResolvedTimeMode();
 
-        int tmode = 0;
-
-        if (tmodeptr && (*tmodeptr) >= 0)
-            tmode = *tmodeptr;
-        else {
-            tmodeptr = context->GetCSI()->GetTimeModePtr();
-            if (tmodeptr) tmode = *tmodeptr;
-        }
-
-        if (tmode == 3) { //FIXME: hardcode to const. seconds
+        if (tmode == TIMEMODE_SECONDS) {
             double* toptr = context->GetCSI()->GetTimeOffsPtr();
             if (toptr) pp += *toptr;
 
             snprintf(timeStr, sizeof(timeStr), "%d %d", (int) pp, ((int) (pp * 100.0)) % 100);
-        } else if (tmode == 4) { //FIXME: hardcode to const. samples
-            format_timestr_pos(pp, timeStr, sizeof(timeStr), 4);
-        } else if (tmode == 5) { //FIXME: hardcode to const. frames
-            format_timestr_pos(pp, timeStr, sizeof(timeStr), 5);
-        } else if (tmode > 0) {
+        } else if (tmode == TIMEMODE_SAMPLES) {
+            format_timestr_pos(pp, timeStr, sizeof(timeStr), TIMEMODE_SAMPLES);
+        } else if (tmode == TIMEMODE_FRAMES) {
+            format_timestr_pos(pp, timeStr, sizeof(timeStr), TIMEMODE_FRAMES);
+        } else if (tmode > TIMEMODE_DEFAULT) {
             int num_measures = 0;
             int currentTimeSignatureNumerator = 0;
             double beats = TimeMap2_timeToBeats(NULL, pp, &num_measures, &currentTimeSignatureNumerator, NULL, NULL) + 0.000000000001;

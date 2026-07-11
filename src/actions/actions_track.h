@@ -39,7 +39,7 @@ public:
             GetTrackUIVolPan(track, &trackVolume, &trackPan);
             trackVolume = volToNormalized(trackVolume);
 
-            if (fabs(value - trackVolume) < 0.0025) // FIXME: magic number to const.  -- ne touche pas
+            if (fabs(value - trackVolume) < TRACK_VOLUME_TOLERANCE)
                 CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(value), false), NULL);
         }
     }
