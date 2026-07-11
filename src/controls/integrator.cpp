@@ -132,29 +132,6 @@ void GetParamStepsValues(vector<double>& outputVector, int numSteps) {
         outputVector.push_back(EnumSteppedValues(numSteps, i));
 }
 
-void TrimLine(string& line) { //FIXME move this kinda helpers from this file to utils.h
-    const string tmp = line;
-    const char* p = tmp.c_str();
-
-    // remove leading and trailing spaces
-    // condense whitespace to single whitespace
-    // stop copying at "//" (comment)
-    line.clear();
-    for (;;) {
-        // advance over whitespace
-        while (*p > 0 && isspace(*p)) p++;
-        // a single / at the beginning of a line indicates a comment
-        if (!*p || p[0] == '/') break;
-        if (line.length()) line.append(" ", 1);
-        // copy non-whitespace to output
-        while (*p && (*p < 0 || !isspace(*p))) {
-            if (p[0] == '/' && p[1] == '/') break;
-            line.append(p++, 1);
-        }
-    }
-    if (!line.empty() && g_debugLevel > DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] %s\n", line.c_str());
-}
-
 void ReplaceAllWith(string& output, const char* charsToReplace, const char* replacement) {
     // replace all occurences of
     // any char in charsToReplace

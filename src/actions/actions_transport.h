@@ -15,7 +15,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->StartRewinding();
     }
 };
@@ -33,19 +32,19 @@ public:
         // Below is the Reaper API call, might be worth investigating using this.
         // MoveEditCursor(double adjamt, bool dosel);
 
-        const char* amount = context->GetStringParam();
+        auto amount = context->GetTransportStepAmount();
 
         if (value > 0.5) {
-            if (IsSameString(amount, "Bar")) //FIXME: replace all string- with enum- comparison and do early choice in context construction
+            if (amount == ActionContext::TransportStepAmount::Bar)
                 DAW::SendCommandMessage(41042); // move to next bar
 
-            else if (IsSameString(amount, "Marker")) //FIXME: replace all string- with enum- comparison and do early choice in context construction
+            else if (amount == ActionContext::TransportStepAmount::Marker)
                 DAW::SendCommandMessage(40173); // move to next marker/region
         } else if (value < 0.5) {
-            if (IsSameString(amount, "Bar")) //FIXME: replace all string- with enum- comparison and do early choice in context construction
+            if (amount == ActionContext::TransportStepAmount::Bar)
                 DAW::SendCommandMessage(41043); // move to previous bar
 
-            else if (IsSameString(amount, "Marker")) //FIXME: replace all string- with enum- comparison and do early choice in context construction
+            else if (amount == ActionContext::TransportStepAmount::Marker)
                 DAW::SendCommandMessage(40172); // move to previous marker/region
         }
     }
@@ -64,7 +63,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->StartFastForwarding();
     }
 };
@@ -92,7 +90,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->Play();
     }
 };
@@ -120,7 +117,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->Stop();
     }
 };
@@ -147,12 +143,11 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->Record();
     }
 };
 
-class TrackToggleVCASpill : public Action
+class TrackToggleVCASpill : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::TrackToggleVCASpill; }
@@ -165,13 +160,12 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack())
             context->GetTrackNavigationManager()->ToggleVCASpill(track);
     }
 };
 
-class TrackToggleFolderSpill : public Action //TrackAction?
+class TrackToggleFolderSpill : public PressOnlyAction //TrackAction?
 {
 public:
     ActionType GetType() const override { return ActionType::TrackToggleFolderSpill; }
@@ -184,13 +178,12 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack())
             context->GetTrackNavigationManager()->ToggleFolderSpill(track);
     }
 };
 
-class ClearAllSolo : public Action
+class ClearAllSolo : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ClearAllSolo; }
@@ -204,12 +197,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         SoloAllTracks(0);
     }
 };
 
-class GlobalAutoMode : public Action
+class GlobalAutoMode : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::GlobalAutoMode; }
@@ -226,12 +218,11 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         SetGlobalAutomationOverride(context->GetIntParam());
     }
 };
 
-class TrackAutoMode : public TrackAction
+class TrackAutoMode : public PressOnlyTrackAction
 {
 public:
     ActionType GetType() const override { return ActionType::TrackAutoMode; }
@@ -245,7 +236,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         int mode = context->GetIntParam();
         if (context->GetZone()->GetNavigator()->GetType() == NavigatorType::MasterTrackNavigator) {
             SetMediaTrackInfo_Value(GetMasterTrack(NULL), "I_AUTOMODE", mode);
@@ -257,7 +247,7 @@ public:
     }
 };
 
-class CycleTrackAutoMode : public Action
+class CycleTrackAutoMode : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::CycleTrackAutoMode; }
@@ -268,14 +258,13 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack()) {
             DAW::CycleTrackAutoMode(track);
         }
     }
 };
 
-class CycleTimeline : public Action
+class CycleTimeline : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::CycleTimeline; }
@@ -289,12 +278,11 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         GetSetRepeatEx(NULL, !GetSetRepeatEx(NULL, -1));
     }
 };
 
-class CycleTrackInputMonitor : public Action
+class CycleTrackInputMonitor : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::CycleTrackInputMonitor; }
@@ -304,7 +292,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack())
             context->GetTrackNavigationManager()->NextInputMonitorMode(track);
     }
@@ -353,7 +340,7 @@ public:
     }
 };
 
-class ToggleFolderView : public Action
+class ToggleFolderView : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleFolderView; }
@@ -366,12 +353,11 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetTrackNavigationManager()->ToggleFolderView();
     }
 };
 
-class TrackEnterFolder : public Action
+class TrackEnterFolder : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::TrackEnterFolder; }
@@ -381,7 +367,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack()) {
             MediaTrack* trackToSelect = context->GetTrackNavigationManager()->SetCurrentFolder(track);
             if (trackToSelect != nullptr) {
@@ -392,7 +377,7 @@ public:
     }
 };
 
-class ExitCurrentFolder : public Action
+class ExitCurrentFolder : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ExitCurrentFolder; }
@@ -405,7 +390,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         MediaTrack* trackToSelect = context->GetTrackNavigationManager()->ExitCurrentFolder();
         if (trackToSelect != nullptr) {
             SetOnlyTrackSelected(trackToSelect);

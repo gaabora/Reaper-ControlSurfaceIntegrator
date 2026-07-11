@@ -449,7 +449,7 @@ public:
     }
 };
 
-class TrackRecordArm : public TrackAction
+class TrackRecordArm : public PressOnlyTrackAction
 {
 protected:
     bool IncludeMasterTrack() const override { return false; }
@@ -462,7 +462,7 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;        ToggleTrackState(context, DAW::GetTrackRecordArm, DAW::SetTrackRecordArm);
+        ToggleTrackState(context, DAW::GetTrackRecordArm, DAW::SetTrackRecordArm);
     }
 };
 
@@ -484,7 +484,7 @@ public:
     }
 };
 
-class TrackMute : public TrackAction
+class TrackMute : public PressOnlyTrackAction
 {
 public:
     ActionType GetType() const override { return ActionType::TrackMute; }
@@ -494,11 +494,11 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;        ToggleTrackState(context, DAW::GetTrackMute, DAW::SetTrackMute);
+        ToggleTrackState(context, DAW::GetTrackMute, DAW::SetTrackMute);
     }
 };
 
-class TrackEffectsBypass : public TrackAction
+class TrackEffectsBypass : public PressOnlyTrackAction
 {
 public:
     ActionType GetType() const override { return ActionType::TrackEffectsBypass; }
@@ -508,11 +508,11 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;        ToggleTrackState(context, DAW::GetTrackEffectsBypass, DAW::SetTrackEffectsBypass);
+        ToggleTrackState(context, DAW::GetTrackEffectsBypass, DAW::SetTrackEffectsBypass);
     }
 };
 
-class TrackSolo : public TrackAction
+class TrackSolo : public PressOnlyTrackAction
 {
 public:
     ActionType GetType() const override { return ActionType::TrackSolo; }
@@ -522,11 +522,11 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;        ToggleTrackState(context, DAW::GetTrackSolo, DAW::SetTrackSolo);
+        ToggleTrackState(context, DAW::GetTrackSolo, DAW::SetTrackSolo);
     }
 };
 
-class TrackInvertPolarity : public TrackAction //TODO: rename TrackInvertPhase
+class TrackInvertPolarity : public PressOnlyTrackAction //TODO: rename TrackInvertPhase
 {
 public:
     ActionType GetType() const override { return ActionType::TrackInvertPolarity; }
@@ -536,11 +536,11 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;        ToggleTrackState(context, DAW::GetTrackInvertPhase, DAW::SetTrackInvertPhase);
+        ToggleTrackState(context, DAW::GetTrackInvertPhase, DAW::SetTrackInvertPhase);
     }
 };
 
-class TrackSelect : public Action
+class TrackSelect : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::TrackSelect; }
@@ -560,7 +560,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack()) {
             CSurf_SetSurfaceSelected(track, CSurf_OnSelectedChange(track, !GetMediaTrackInfo_Value(track, "I_SELECTED")), NULL);
             context->GetPage()->OnTrackSelectionBySurface(track);
@@ -568,7 +567,7 @@ public:
     }
 };
 
-class TrackUniqueSelect : public Action // TrackAction?
+class TrackUniqueSelect : public PressOnlyAction // TrackAction?
 {
 public:
     ActionType GetType() const override { return ActionType::TrackUniqueSelect; }
@@ -588,7 +587,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack()) {
             SetOnlyTrackSelected(track);
             context->GetPage()->OnTrackSelectionBySurface(track);
@@ -596,7 +594,7 @@ public:
     }
 };
 
-class TrackRangeSelect : public Action // TrackAction?
+class TrackRangeSelect : public PressOnlyAction // TrackAction?
 {
 public:
     ActionType GetType() const override { return ActionType::TrackRangeSelect; }
@@ -616,7 +614,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         int currentlySelectedCount = 0;
         int selectedTrackIndex = 0;
         int trackIndex = 0;

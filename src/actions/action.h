@@ -48,6 +48,7 @@ public:
     virtual bool IsTrackRelated() { return false; }
     virtual bool IsTrackSendRelated() { return false; }
     virtual bool IsTrackReceiveRelated() { return false; }
+    virtual bool IgnoresRelease() const { return false; }
 
     virtual void Touch(ActionContext* context, double value) {}
     virtual void RequestUpdate(ActionContext* context) {}

@@ -11,6 +11,13 @@
 
 class ActionContext
 {
+public:
+    enum class TransportStepAmount {
+        Unknown = 0,
+        Bar,
+        Marker
+    };
+
 private:
     CSurfIntegrator* const csi_;
     Action* action_;
@@ -41,6 +48,7 @@ private:
     char meterMode_[64] = "";
 
     string m_freeFormText;
+    TransportStepAmount transportStepAmount_ = TransportStepAmount::Unknown;
 
     osd_data osdData_;
 
@@ -134,6 +142,7 @@ public:
     void UpdateColorValue(double value);
 
     const char* GetStringParam() { return stringParam_.c_str(); }
+    TransportStepAmount GetTransportStepAmount() const { return transportStepAmount_; }
     const   vector<double>& GetAcceleratedDeltaValues() { return value_.acceleratedDeltaValues; }
     void    SetAccelerationValues(const vector<double>& acceleratedDeltaValues) { value_.acceleratedDeltaValues = acceleratedDeltaValues; }
     const   vector<int>& GetAcceleratedTickCounts() { return value_.acceleratedTickValues; }

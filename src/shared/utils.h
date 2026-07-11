@@ -171,6 +171,10 @@ inline std::string GetRelativePath(const char* absolutePath) {
     return std::string(absolutePath);
 }
 
+inline bool IsSameRelativePath(const char* a, const char* b) {
+    return IsSameString(GetRelativePath(a), GetRelativePath(b));
+}
+
 inline int ExtractSuffixNumber(const std::string& name) {
     if (name.empty()) return -1;
     int result = -1;
@@ -209,6 +213,22 @@ inline char* format_number(double v, char* buf, int bufsz) {
 
 inline bool IsCommentedOrEmpty(const string& line) {
     return line.empty() || line[0] == '\r' || line[0] == '/' || line[0] == '#';
+}
+
+inline void TrimLine(string& line) {
+    const string tmp = line;
+    const char* p = tmp.c_str();
+
+    line.clear();
+    for (;;) {
+        while (*p > 0 && isspace(static_cast<unsigned char>(*p))) p++;
+        if (!*p || p[0] == '/') break;
+        if (line.length()) line.append(" ", 1);
+        while (*p && !isspace(static_cast<unsigned char>(*p))) {
+            if (p[0] == '/' && p[1] == '/') break;
+            line.append(p++, 1);
+        }
+    }
 }
 
 #include "types.h"

@@ -34,13 +34,12 @@ public:
     }
 };
 
-class SpeakFXMenuName : public Action
+class SpeakFXMenuName : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SpeakFXMenuName; }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack()) {
             char alias[MEDBUF];
             alias[0] = 0;
@@ -179,13 +178,12 @@ public:
     }
 };
 
-class SpeakTrackSendDestination : public Action
+class SpeakTrackSendDestination : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SpeakTrackSendDestination; }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack()) {
             MediaTrack* destTrack = (MediaTrack*) GetSetTrackSendInfo(track, 0, context->GetSlotIndex(), "P_DESTTRACK", 0);
             if (destTrack) {
@@ -199,13 +197,12 @@ public:
     }
 };
 
-class SpeakTrackReceiveSource : public Action
+class SpeakTrackReceiveSource : public PressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SpeakTrackReceiveSource; }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack()) {
             MediaTrack* srcTrack = (MediaTrack*) GetSetTrackSendInfo(track, -1, context->GetSlotIndex(), "P_SRCTRACK", 0);
             if (srcTrack) {

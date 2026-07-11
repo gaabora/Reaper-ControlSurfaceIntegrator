@@ -93,12 +93,20 @@ class SettingsAction : public Action
 {
 public:
     virtual bool IsSettingsRelated() { return true; }
+    bool IgnoresRelease() const override { return true; }
+};
+
+class PressOnlyAction : public Action
+{
+public:
+    bool IgnoresRelease() const override { return true; }
 };
 
 class SwitchAction : public Action
 {
 public:
     virtual bool IsSwitch() { return true; }
+    bool IgnoresRelease() const override { return false; }
 };
 class ModifierAction : public Action
 {
@@ -113,6 +121,7 @@ class TransportAction : public Action
 {
 public:
     virtual bool IsTransportRelated() { return true; }
+    bool IgnoresRelease() const override { return true; }
 };
 
 class DisplayAction : public Action
@@ -153,10 +162,22 @@ public:
     }
 };
 
+class PressOnlyTrackAction : public TrackAction
+{
+public:
+    bool IgnoresRelease() const override { return true; }
+};
+
 class TrackSendAction : public TrackAction
 {
 public:
     virtual bool IsTrackSendRelated() { return true; }
+};
+
+class PressOnlyFXAction : public FXAction
+{
+public:
+    bool IgnoresRelease() const override { return true; }
 };
 
 class TrackReceiveAction : public TrackAction

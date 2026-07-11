@@ -71,6 +71,15 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
     if (params.size() > 1)
         stringParam_ = params[1];
 
+    if (actionName == "MoveEditCursor") {
+        if (IsSameString(stringParam_, "Bar"))
+            transportStepAmount_ = TransportStepAmount::Bar;
+        else if (IsSameString(stringParam_, "Marker"))
+            transportStepAmount_ = TransportStepAmount::Marker;
+        else
+            transportStepAmount_ = TransportStepAmount::Unknown;
+    }
+
     if (actionName == "TrackVolumeDB" || actionName == "TrackSendVolumeDB") {
         value_.rangeMinimum = -144.0;
         value_.rangeMaximum = 24.0;
@@ -293,6 +302,8 @@ int ActionContext::GetHoldDelay() { return timing_.holdDelayMs == INHERIT_VALUE 
 
 // runs once button pressed/released
 void ActionContext::DoAction(double value) {
+    if (action_->IgnoresRelease() && value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) 
+        return;
     DWORD nowTs = GetTickCount();
     int holdDelayMs = this->GetHoldDelay();
     timing_.deferredValue = value;

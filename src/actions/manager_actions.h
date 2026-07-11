@@ -3,14 +3,14 @@
 #ifndef control_surface_manager_actions_h
 #define control_surface_manager_actions_h
 
-class SendMIDIMessage : public Action
+class ManagerPressOnlyAction : public PressOnlyAction {};
+
+class SendMIDIMessage : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SendMIDIMessage; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return; //FIXME: there are many actions with this, only in this file there are 40 checks like this almost on all Do methods, can we dry somehow?
-
         vector<string> tokens;
         GetTokens(tokens, context->GetStringParam());
 
@@ -34,13 +34,12 @@ public:
     }
 };
 
-class SendOSCMessage : public Action
+class SendOSCMessage : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SendOSCMessage; }
 
     void Do(ActionContext* context, double value) override { //FIXME: improve implementation
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         vector<string> tokens;
         GetTokens(tokens, context->GetStringParam());
 
@@ -71,7 +70,7 @@ public:
     }
 };
 
-class SpeakOSARAMessage : public Action
+class SpeakOSARAMessage : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SpeakOSARAMessage; }
@@ -81,34 +80,31 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetCSI()->Speak(context->GetStringParam());
     }
 };
 
-class SetXTouchDisplayColors : public Action
+class SetXTouchDisplayColors : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SetXTouchDisplayColors; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetZone()->SetXTouchDisplayColors(context->GetStringParam());
     }
 };
 
-class RestoreXTouchDisplayColors : public Action
+class RestoreXTouchDisplayColors : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::RestoreXTouchDisplayColors; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetZone()->RestoreXTouchDisplayColors();
     }
 };
 
-class SaveProject : public Action
+class SaveProject : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SaveProject; }
@@ -121,13 +117,12 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (IsProjectDirty(NULL))
             Main_SaveProject(NULL, false);
     }
 };
 
-class Undo : public Action
+class Undo : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::Undo; }
@@ -140,13 +135,12 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (DAW::CanUndo())
             DAW::Undo();
     }
 };
 
-class Redo : public Action
+class Redo : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::Redo; }
@@ -159,13 +153,12 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (DAW::CanRedo())
             DAW::Redo();
     }
 };
 
-class ToggleSynchPageBanking : public Action
+class ToggleSynchPageBanking : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleSynchPageBanking; }
@@ -175,12 +168,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetTrackNavigationManager()->ToggleSynchPages();
     }
 };
 
-class ToggleFollowMCP : public Action
+class ToggleFollowMCP : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleFollowMCP; }
@@ -190,12 +182,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetTrackNavigationManager()->ToggleFollowMCP();
     }
 };
 
-class ToggleScrollLink : public Action
+class ToggleScrollLink : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleScrollLink; }
@@ -205,18 +196,16 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetTrackNavigationManager()->ToggleScrollLink(context->GetIntParam());
     }
 };
 
-class ToggleRestrictTextLength : public Action
+class ToggleRestrictTextLength : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleRestrictTextLength; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->ToggleRestrictTextLength(context->GetIntParam());
     }
 };
@@ -251,7 +240,7 @@ public:
     }
 };
 
-class CycleTimeDisplayModes : public Action
+class CycleTimeDisplayModes : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::CycleTimeDisplayModes; }
@@ -261,12 +250,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetCSI()->NextTimeDisplayMode();
     }
 };
 
-class GoNextPage : public Action
+class GoNextPage : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::GoNextPage; }
@@ -276,12 +264,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetCSI()->NextPage();
     }
 };
 
-class GoPage : public Action
+class GoPage : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::GoPage; }
@@ -291,7 +278,6 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetCSI()->GoToPage(context->GetStringParam());
     }
 };
@@ -306,7 +292,7 @@ public:
     }
 };
 
-class GoHome : public Action
+class GoHome : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::GoHome; }
@@ -319,23 +305,21 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DeclareGoHome();
     }
 };
 
-class AllSurfacesGoHome : public Action
+class AllSurfacesGoHome : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::AllSurfacesGoHome; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetPage()->GoHome();
     }
 };
 
-class GoSubZone : public Action
+class GoSubZone : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::GoSubZone; }
@@ -345,12 +329,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetZone()->GoSubZone(context->GetStringParam());
     }
 };
 
-class LeaveSubZone : public Action
+class LeaveSubZone : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::LeaveSubZone; }
@@ -360,12 +343,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetZone()->Deactivate();
     }
 };
 
-class GoFXSlot : public Action
+class GoFXSlot : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::GoFXSlot; }
@@ -375,48 +357,44 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack())
             context->GetSurface()->GetZoneManager()->DeclareGoFXSlot(track, context->GetZone()->GetNavigator(), context->GetSlotIndex());
     }
 };
 
-class ShowFXSlot : public Action
+class ShowFXSlot : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ShowFXSlot; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack())
             TrackFX_SetOpen(track, context->GetSlotIndex(), true);
     }
 };
 
-class HideFXSlot : public Action
+class HideFXSlot : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::HideFXSlot; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack())
             TrackFX_SetOpen(track, context->GetSlotIndex(), false);
     }
 };
 
-class ToggleUseLocalModifiers : public Action
+class ToggleUseLocalModifiers : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleUseLocalModifiers; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->ToggleUseLocalModifiers();
     }
 };
 
-class ToggleUseLocalFXSlot : public Action
+class ToggleUseLocalFXSlot : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleUseLocalFXSlot; }
@@ -426,7 +404,6 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->ToggleUseLocalFXSlot();
     }
 };
@@ -440,7 +417,6 @@ protected:
 
 public:
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         int rawValue = context->GetIntParam();
         int clampedValue = context->ClampValueWithWarning(rawValue, min_, max_);
         ApplyValue(context, clampedValue);
@@ -501,7 +477,6 @@ public:
     ActionType GetType() const override { return ActionType::CycleDebugLevel; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         constexpr int maxLevel = DEBUG_LEVEL_DEBUG;
         g_debugLevel = (g_debugLevel + 1) % (maxLevel + 1);
     }
@@ -513,12 +488,11 @@ public:
     ActionType GetType() const override { return ActionType::EnableOSD; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->SetOsdEnabled(!IsSameString(context->GetStringParam(), "No"));
     }
 };
 
-class ToggleEnableFocusedFXMapping : public Action
+class ToggleEnableFocusedFXMapping : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleEnableFocusedFXMapping; }
@@ -528,12 +502,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DeclareToggleEnableFocusedFXMapping();
     }
 };
 
-class DisableFocusedFXMapping : public Action
+class DisableFocusedFXMapping : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::DisableFocusedFXMapping; }
@@ -543,12 +516,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DisableFocusedFXMapping();
     }
 };
 
-class ToggleEnableLastTouchedFXParamMapping : public Action
+class ToggleEnableLastTouchedFXParamMapping : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleEnableLastTouchedFXParamMapping; }
@@ -558,12 +530,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DeclareToggleEnableLastTouchedFXParamMapping();
     }
 };
 
-class DisableLastTouchedFXParamMapping : public Action
+class DisableLastTouchedFXParamMapping : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::DisableLastTouchedFXParamMapping; }
@@ -573,23 +544,21 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DisableLastTouchedFXParamMapping();
     }
 };
 
-class LearnFocusedFX : public Action
+class LearnFocusedFX : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::LearnFocusedFX; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         RequestFocusedFXDialog(context->GetSurface()->GetZoneManager());
     }
 };
 
-class GoZone : public Action
+class GoZone : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::GoZone; }
@@ -602,7 +571,6 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         const char* name = context->GetStringParam();
         if (IsSameString(name, "Folder") || IsSameString(name, "VCA") || IsSameString(name, "TrackSend") || IsSameString(name, "TrackReceive") || IsSameString(name, "MasterTrackFXMenu") || IsSameString(name, "TrackFXMenu"))
             context->GetPage()->GoZone(name);
@@ -611,46 +579,42 @@ public:
     }
 };
 
-class ClearLastTouchedFXParam : public Action
+class ClearLastTouchedFXParam : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ClearLastTouchedFXParam; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DeclareClearFXZone("LastTouchedFXParam");
     }
 };
 
-class ClearFocusedFX : public Action
+class ClearFocusedFX : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ClearFocusedFX; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DeclareClearFXZone("FocusedFX");
     }
 };
 
-class ClearSelectedTrackFX : public Action
+class ClearSelectedTrackFX : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ClearSelectedTrackFX; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DeclareClearFXZone("SelectedTrackFX");
     }
 };
 
-class ClearFXSlot : public Action
+class ClearFXSlot : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ClearFXSlot; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->GetZoneManager()->DeclareClearFXZone("FXSlot");
     }
 };
@@ -816,9 +780,9 @@ class ClearModifier : public ModifierAction
 {
 public:
     ActionType GetType() const override { return ActionType::ClearModifier; }
+    bool IgnoresRelease() const override { return true; }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->ClearModifier(context->GetStringParam());
     }
 };
@@ -833,7 +797,7 @@ public:
     }
 };
 
-class SetToggleChannel : public Action
+class SetToggleChannel : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::SetToggleChannel; }
@@ -843,12 +807,11 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         context->GetSurface()->ToggleChannel(context->GetWidget()->GetChannelNumber());
     }
 };
 
-class ToggleOSK : public Action
+class ToggleOSK : public ManagerPressOnlyAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleOSK; }
@@ -858,7 +821,6 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         ControlSurface* surface = context->GetSurface();
         bool newState = !surface->GetOskEnabled();
         surface->SetOskEnabled(newState);

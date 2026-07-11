@@ -33,7 +33,7 @@ public:
     }
 };
 
-class ToggleFXBypass : public FXAction
+class ToggleFXBypass : public PressOnlyFXAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleFXBypass; }
@@ -54,7 +54,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack())
             TrackFX_SetEnabled(track, context->GetSlotIndex(), !TrackFX_GetEnabled(track, context->GetSlotIndex()));
     }
@@ -81,7 +80,7 @@ public:
     }
 };
 
-class ToggleFXOffline : public FXAction
+class ToggleFXOffline : public PressOnlyFXAction
 {
 public:
     ActionType GetType() const override { return ActionType::ToggleFXOffline; }
@@ -100,7 +99,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         if (MediaTrack* track = context->GetTrack())
             TrackFX_SetOffline(track, context->GetSlotIndex(), !TrackFX_GetOffline(track, context->GetSlotIndex()));
     }

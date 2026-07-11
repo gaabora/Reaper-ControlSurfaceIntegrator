@@ -264,6 +264,7 @@ class TrackSendReceiveMute : public SendReceiveBase<Dir>
 {
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendMute : ActionType::TrackReceiveMute; }
+    bool IgnoresRelease() const override { return true; }
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
@@ -287,9 +288,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE)
-            return;
-
         if (MediaTrack* track = context->GetTrack()) {
             if constexpr (Dir == SendDirection::Send) {
                 ToggleTrackSendUIMute(track, context->GetSlotIndex() + GetTrackNumSends(track, 1));
@@ -314,6 +312,7 @@ class TrackSendReceiveInvertPolarity : public SendReceiveBase<Dir>
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendInvertPolarity : ActionType::TrackReceiveInvertPolarity; }
+    bool IgnoresRelease() const override { return true; }
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack())
@@ -329,9 +328,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE)
-            return;
-
         if (MediaTrack* track = context->GetTrack()) {
             bool reversed = !GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "B_PHASE");
             GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), "B_PHASE", &reversed);
@@ -352,6 +348,7 @@ class TrackSendReceiveStereoMonoToggle : public SendReceiveBase<Dir>
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendStereoMonoToggle : ActionType::TrackReceiveStereoMonoToggle; }
+    bool IgnoresRelease() const override { return true; }
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack())
@@ -367,9 +364,6 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE)
-            return;
-
         if (MediaTrack* track = context->GetTrack()) {
             bool mono = !GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "B_MONO");
             GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), "B_MONO", &mono);
@@ -390,14 +384,13 @@ class TrackSendReceivePrePost : public SendReceiveBase<Dir>
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendPrePost : ActionType::TrackReceivePrePost; }
+    bool IgnoresRelease() const override { return true; }
 
     virtual void RequestUpdate(ActionContext* context) override {
         context->UpdateColorValue(0.0);
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
-
         if (MediaTrack* track = context->GetTrack()) {
             int mode = (int) GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "I_SENDMODE");
 

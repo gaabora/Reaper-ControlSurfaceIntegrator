@@ -62,6 +62,10 @@ private:
 
     void ParseOskProperties(const string& propsPart, OskWidgetInfo& info);
     void BuildCachedLayoutString();
+    bool GetModifierState(bool (ModifierManager::*getter)());
+    void ApplyToBroadcastModifierListeners(void (ModifierManager::*method)());
+    void ApplyToBroadcastModifierListeners(void (ModifierManager::*method)(const char*), const char* argument);
+    void SetModifier(void (ModifierManager::*setter)(bool, int), bool value);
 
     vector<FeedbackProcessor*> trackColorFeedbackProcessors_; // does not own pointers
 
