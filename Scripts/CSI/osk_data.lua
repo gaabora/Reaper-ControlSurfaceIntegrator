@@ -38,7 +38,7 @@ M.surfacePos = {}
 local dirtySurfacePositions = {}
 local surfacePositionSaveDue = 0
 
-M.LABEL_REPLACEMENTS = {
+M.BUILTIN_LABEL_REPLACEMENTS = {
     ["toggle"] = "",
     ["reaper"] = "",
     ["toolbar"] = "",
@@ -57,6 +57,9 @@ M.LABEL_REPLACEMENTS = {
     ["go to"] = "",
     ["record"] = "rec",
 }
+M.USER_LABEL_REPLACEMENTS = {}
+M.LABEL_REPLACEMENTS = {}
+M.labelReplacementRules = {}
 
 M.vars = {
     zoom = 0.9, interactive = true, aspect = 1.4,
@@ -72,6 +75,52 @@ M.vars = {
 local function clearTable(tbl)
     for key in pairs(tbl) do
         tbl[key] = nil
+    end
+end
+
+local function trim(text)
+    return tostring(text or ""):match("^%s*(.-)%s*$")
+end
+
+local function unquote(text)
+    text = trim(text)
+    if #text >= 2 and text:sub(1, 1) == '"' and text:sub(-1) == '"' then
+        return text:sub(2, -2)
+    end
+    return text
+end
+
+local function sortReplacementRules(rules)
+    table.sort(rules, function(left, right)
+        if #left.word ~= #right.word then return #left.word > #right.word end
+        return left.word < right.word
+    end)
+end
+
+local function rebuildLabelReplacementRules()
+    clearTable(M.LABEL_REPLACEMENTS)
+    clearTable(M.labelReplacementRules)
+
+    local userRules = {}
+    local builtinRules = {}
+    for word, replacement in pairs(M.BUILTIN_LABEL_REPLACEMENTS) do
+        M.LABEL_REPLACEMENTS[word] = replacement
+        if M.USER_LABEL_REPLACEMENTS[word] == nil then
+            builtinRules[#builtinRules + 1] = { word = word, replacement = replacement }
+        end
+    end
+    for word, replacement in pairs(M.USER_LABEL_REPLACEMENTS) do
+        M.LABEL_REPLACEMENTS[word] = replacement
+        userRules[#userRules + 1] = { word = word, replacement = replacement }
+    end
+
+    sortReplacementRules(userRules)
+    sortReplacementRules(builtinRules)
+    for _, rule in ipairs(userRules) do
+        M.labelReplacementRules[#M.labelReplacementRules + 1] = rule
+    end
+    for _, rule in ipairs(builtinRules) do
+        M.labelReplacementRules[#M.labelReplacementRules + 1] = rule
     end
 end
 
@@ -137,15 +186,55 @@ function M.splitPascalCase(text)
 end
 
 local function caseInsensitivePattern(word)
-    return word:gsub("%a", function(char)
-        return "[" .. char:upper() .. char:lower() .. "]"
-    end)
+    local parts = {}
+    for index = 1, #word do
+        local char = word:sub(index, index)
+        if char:match("%a") then
+            parts[#parts + 1] = "[" .. char:upper() .. char:lower() .. "]"
+        elseif char:match("[%]%^%$%(%)%%%.%[%*%+%-%?]") then
+            parts[#parts + 1] = "%" .. char
+        else
+            parts[#parts + 1] = char
+        end
+    end
+    return table.concat(parts)
+end
+
+local function parseReplacementPair(entry)
+    local key, value = tostring(entry or ""):match("^(.-)=(.*)$")
+    if not key then return nil, nil end
+    key = unquote(key)
+    value = unquote(value)
+    if key == "" then return nil, nil end
+    return key, value
+end
+
+function M.GetLabelReplacementHelp()
+    return 'Custom replacements use semicolon-separated key=value pairs. Example: "toggle"="switch";"toggle the"="whatever";effects=fx;reaper=. Quotes are optional, spaces are allowed in keys, and key= removes matched text. Built-in replacements always apply unless overridden here.'
+end
+
+function M.GetBuiltInLabelReplacementText()
+    local entries = {}
+    for word, replacement in pairs(M.BUILTIN_LABEL_REPLACEMENTS) do
+        entries[#entries + 1] = word .. "=" .. replacement
+    end
+    table.sort(entries)
+    return table.concat(entries, ";")
+end
+
+function M.GetActiveLabelReplacementText()
+    local entries = {}
+    for word, replacement in pairs(M.LABEL_REPLACEMENTS) do
+        entries[#entries + 1] = word .. "=" .. replacement
+    end
+    table.sort(entries)
+    return table.concat(entries, ";")
 end
 
 function M.applyLabelReplacements(text)
-    for word, replacement in pairs(M.LABEL_REPLACEMENTS) do
-        local pattern = caseInsensitivePattern(word)
-        text = text:gsub("%f[%w]" .. pattern .. "%f[%W]", replacement)
+    for _, rule in ipairs(M.labelReplacementRules) do
+        local pattern = caseInsensitivePattern(rule.word)
+        text = text:gsub("%f[%w]" .. pattern .. "%f[%W]", rule.replacement)
     end
     text = text:gsub("%s+", " "):match("^%s*(.-)%s*$")
     return text
@@ -168,16 +257,18 @@ function M.getProcessedLabel(text)
 end
 
 function M.parseLabelReplacements(str)
-    clearTable(M.LABEL_REPLACEMENTS)
+    clearTable(M.USER_LABEL_REPLACEMENTS)
     clearTable(M.processedLabelCache)
-    if not str or str == "" then return end
-    for entry in str:gmatch("[^;]+") do
-        local key, value = entry:match("^(.-)=(.*)$")
-        if key and key ~= "" then
-            M.LABEL_REPLACEMENTS[key] = value
+    for entry in tostring(str or ""):gmatch("[^;]+") do
+        local key, value = parseReplacementPair(entry)
+        if key then
+            M.USER_LABEL_REPLACEMENTS[key] = value
         end
     end
+    rebuildLabelReplacementRules()
 end
+
+rebuildLabelReplacementRules()
 
 function M.wrapText(ctx, text, maxW, imgui)
     local lines = {}
@@ -258,6 +349,31 @@ function M.ParseLayout(layoutStr)
         result[#result + 1] = M.FilterGroupedDuplicates(row)
     end
     return result
+end
+
+function M.GetCellInfo(surfName, widgetName)
+    for _, row in ipairs(M.layouts[surfName] or {}) do
+        for _, cell in ipairs(row) do
+            if not cell.isSpacer and cell.name == widgetName then return cell end
+        end
+    end
+    return nil
+end
+
+function M.IsRelativeWidget(surfName, widgetName)
+    local cell = M.GetCellInfo(surfName, widgetName)
+    if not cell then return false end
+    local name = tostring(cell.name or ""):lower()
+    local group = tostring(cell.group or ""):lower()
+    local isButtonLike = name:find("push", 1, true) ~= nil
+        or name:find("press", 1, true) ~= nil
+        or name:find("touch", 1, true) ~= nil
+        or name:find("button", 1, true) ~= nil
+    if isButtonLike then return false end
+    return name:find("rotary", 1, true) ~= nil
+        or name:find("encoder", 1, true) ~= nil
+        or group:find("rotary", 1, true) ~= nil
+        or group:find("encoder", 1, true) ~= nil
 end
 
 function M.ParseKeyValueList(str, entryParser)

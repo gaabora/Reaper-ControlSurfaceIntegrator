@@ -84,11 +84,7 @@ end
 
 local function HandleRotaryMouseWheel(ctx, surfName, cell)
     if not cell or not cell.name then return end
-
-    local name = tostring(cell.name):lower()
-    local group = tostring(cell.group or ""):lower()
-    local isRotary = name:find("rotary") or group:find("rotary")
-    if not isRotary then return end
+    if not data.IsRelativeWidget(surfName, cell.name) then return end
     if not imgui.IsItemHovered(ctx) then return end
     if not data.vars.interactive then return end
 

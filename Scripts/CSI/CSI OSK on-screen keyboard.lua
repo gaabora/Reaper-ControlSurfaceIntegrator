@@ -133,8 +133,16 @@ local function RenderContextMenu(activeCtx, popupId)
     if changed then data.SaveSettings() end
 
     imgui.Separator(activeCtx)
-    imgui.Text(activeCtx, "Label Replacements (word=replacement):")
+    imgui.Text(activeCtx, "Label replacements")
+    if imgui.IsItemHovered(activeCtx) and imgui.BeginTooltip(activeCtx) then
+        imgui.TextWrapped(activeCtx, data.GetLabelReplacementHelp())
+        imgui.EndTooltip(activeCtx)
+    end
     changed, data.vars.label_replacements = imgui.InputText(activeCtx, "##replacements", data.vars.label_replacements)
+    if imgui.IsItemHovered(activeCtx) and imgui.BeginTooltip(activeCtx) then
+        imgui.TextWrapped(activeCtx, data.GetLabelReplacementHelp())
+        imgui.EndTooltip(activeCtx)
+    end
     if changed then
         data.parseLabelReplacements(data.vars.label_replacements)
         data.SaveSettings()

@@ -34,6 +34,15 @@ static void PublishConfigStatus(const string& outcome, const string& operation, 
     ::SetExtState("ReaCtrlSurf_OSK", scopedKey.c_str(), status.c_str(), false);
 }
 
+static string GetConfiguredOskLabel(ActionContext* context) {
+    if (!context) return "";
+    if (const char* keyLabel = context->GetWidgetProperties().get_prop(PropertyType_KeyLabel))
+        if (keyLabel[0] != '\0') return keyLabel;
+    if (const char* osdLabel = context->GetWidgetProperties().get_prop(PropertyType_OSD))
+        if (osdLabel[0] != '\0' && !IsSameString(osdLabel, "No") && !IsSameString(osdLabel, "?")) return osdLabel;
+    return "";
+}
+
 static string QuoteZoneToken(const string& token) {
     if (token.find_first_of(" \t") == string::npos) return token;
 
@@ -584,8 +593,7 @@ void ControlSurface::PublishOSKLabels() {
 
     string labels;
 
-    // Collect labels from active zones
-    // Walk all widgets and find their current ActionContexts, look for KeyLabel property
+    // Collect labels from active zones.
     for (const auto& row : oskLayout_) {
         for (const auto& cell : row.cells) {
             if (cell.isSpacer) continue;
@@ -598,11 +606,8 @@ void ControlSurface::PublishOSKLabels() {
 
             string keyLabel;
             for (const auto& ctx : contexts) {
-                const char* kl = ctx->GetWidgetProperties().get_prop(PropertyType_KeyLabel);
-                if (kl && kl[0] != '\0') {
-                    keyLabel = kl;
-                    break;
-                }
+                keyLabel = GetConfiguredOskLabel(ctx.get());
+                if (!keyLabel.empty()) break;
             }
 
             // Fallback: use action title
@@ -926,10 +931,10 @@ void ControlSurface::PublishOSKLabelMap() {
     if (!isOskEnabled_) return;
     if (!zoneManager_) return;
 
-    // Helper: extract the best display label from an ActionContext, falling back to cell defaults.
+    // Extract the best display label from an ActionContext, falling back to cell defaults.
     auto getLabel = [](ActionContext* ctx, const OskWidgetInfo& wi) -> string {
-        if (const char* kl = ctx->GetWidgetProperties().get_prop(PropertyType_KeyLabel))
-            if (kl[0] != '\0') return kl;
+        const string configuredLabel = GetConfiguredOskLabel(ctx);
+        if (!configuredLabel.empty()) return configuredLabel;
         if (const char* title = ctx->GetActionTitle())
             if (title[0] != '\0') return title;
         return wi.label.empty() ? wi.name : wi.label;

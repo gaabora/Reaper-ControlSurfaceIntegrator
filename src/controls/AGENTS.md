@@ -19,6 +19,7 @@
 - ExtState sections, keys, and serialized payloads shared with `Scripts/CSI` must change atomically.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.
 - Route OSK wheel acceleration through indexed relative actions using the current structured scroll payload only.
+- Resolve OSK display labels in this order: explicit KeyLabel, meaningful OSD text, action title, then the surface label or widget name.
 - The pre-release Lua bridge uses only documented `ReaCtrlSurf_*` sections and scoped configuration statuses; do not add legacy aliases without a publication requirement.
 - Surface-independent behavior belongs here; protocol-specific behavior belongs in `midi/` or `osc/`.
 
