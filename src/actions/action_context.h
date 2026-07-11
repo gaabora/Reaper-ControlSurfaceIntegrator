@@ -4,6 +4,10 @@
 //
 #include "../controls/preamble.h"
 #include "../actions/action.h"
+#include "action_timing.h"
+#include "action_value.h"
+#include "action_color.h"
+#include "../controls/blink_state.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ActionContext
@@ -27,44 +31,12 @@ private:
     const char* commandText_;
     bool needsReloadAfterRun_ = false;
     
-    double rangeMinimum_ = 0.0;
-    double rangeMaximum_ = 1.0;
-    
-    vector<double> steppedValues_;
-    int steppedValuesIndex_= 0;
-    
-    double deltaValue_ = 0.0;
-    vector<double> acceleratedDeltaValues_;
-    vector<int> acceleratedTickValues_;
-    int accumulatedIncTicks_ = 0;
-    int accumulatedDecTicks_ = 0;
-    
-    bool isValueInverted_ = false;
-    bool isFeedbackInverted_ = false;
-    
-    bool isDoublePress_ = false;
-    DWORD doublePressStartTs_ = 0;
+    ActionTiming     timing_;   ///< Hold, repeat, and double-press timing state
+    BlinkState       blink_;    ///< LED/display blink state
+    ActionColorState color_;    ///< Color and track-color state
+    ActionValueState value_;    ///< Range, stepped-values, and acceleration state
 
-    int holdDelayMs_ = 0;
-    int holdRepeatIntervalMs_ = 0;
-    DWORD lastHoldRepeatTs_ = 0;
-    DWORD lastHoldStartTs_ = 0;
-    bool holdActive_= false;
-    bool holdRepeatActive_ = false;
-    double deferredValue_ = 0.0;
-    
     int runCount_ = 1;
-    
-    bool supportsColor_ = false;
-    vector<rgba_color> colorValues_;
-    int currentColorIndex_ = 0;
-
-    bool blinkSet_ = false;
-    bool blinkActive_ = true;
-    int blinkIntervalMs_ = 0;
-    DWORD lastBlinkTs_ = 0;
-
-    bool supportsTrackColor_ = false;
 
     bool provideFeedback_= true;
 
@@ -78,23 +50,11 @@ private:
         
     void UpdateTrackColor();
     void GetSteppedValues(Widget *widget, Action *action,  Zone *zone, int paramNumber, const vector<string> &params, const PropertyList &widgetProperties, double &deltaValue, vector<double> &acceleratedDeltaValues, double &rangeMinimum, double &rangeMaximum, vector<double> &steppedValues, vector<int> &acceleratedTickValues);
-    void SetColor(const vector<string> &params, bool &supportsColor, bool &supportsTrackColor, vector<rgba_color> &colorValues);
-    void GetColorValues(vector<rgba_color> &colorValues, const vector<string> &colors);
     void ProcessActionTitle(string fallbackName);
     void LogAction(double value);
     void LogMessage(const std::string& msg, DebugLevel debugLevel = DEBUG_LEVEL_WARNING);
     void ProcessOSD(double value, bool fromFeedback);
     bool OsdIgnoresButtonRelease();
-    
-    bool UpdateBlinkState() {
-        DWORD now = GetTickCount();
-        int blinkIntervalMs = GetBlinkInterval();
-        if (now > lastBlinkTs_ + blinkIntervalMs) {
-            blinkActive_ = !blinkActive_;
-            lastBlinkTs_ = now;
-        }
-        return blinkActive_;
-    }
 
     MediaTrack* track_;
     string trackName_;
@@ -139,16 +99,16 @@ public:
       
     PropertyList &GetWidgetProperties() { return widgetProperties_; }
     
-    void SetIsValueInverted() { isValueInverted_ = true; }
-    void SetIsFeedbackInverted() { isFeedbackInverted_ = true; }
+    void SetIsValueInverted() { value_.isValueInverted = true; }
+    void SetIsFeedbackInverted() { value_.isFeedbackInverted = true; }
 
-    void SetBlinkInterval(int value) { blinkSet_ = true; blinkIntervalMs_ = value; }
+    void SetBlinkInterval(int value) { blink_.blinkSet = true; blink_.blinkIntervalMs = value; }
     int GetBlinkInterval();
 
-    void SetDoublePress() { isDoublePress_ = true; }
-    bool IsDoublePress() { return isDoublePress_; }
+    void SetDoublePress() { timing_.isDoublePress = true; }
+    bool IsDoublePress() { return timing_.isDoublePress; }
 
-    void SetHoldDelay(int value) { holdDelayMs_ = value; }
+    void SetHoldDelay(int value) { timing_.holdDelayMs = value; }
     int GetHoldDelay();
 
     void SetAction(Action *action) { action_ = action; RequestUpdate(); }
@@ -167,18 +127,18 @@ public:
     void UpdateColorValue(double value);
 
     const char *GetStringParam() { return stringParam_.c_str(); }
-    const   vector<double> &GetAcceleratedDeltaValues() { return acceleratedDeltaValues_; }
-    void    SetAccelerationValues(const vector<double> &acceleratedDeltaValues) { acceleratedDeltaValues_ = acceleratedDeltaValues; }
-    const   vector<int> &GetAcceleratedTickCounts() { return acceleratedTickValues_; }
-    void    SetTickCounts(const vector<int> &acceleratedTickValues) { acceleratedTickValues_ = acceleratedTickValues; }
-    int     GetNumberOfSteppedValues() { return (int)steppedValues_.size(); }
-    const   vector<double> &GetSteppedValues() { return steppedValues_; }
-    double  GetDeltaValue() { return deltaValue_; }
-    void    SetDeltaValue(double deltaValue) { deltaValue_ = deltaValue; }
-    double  GetRangeMinimum() const { return rangeMinimum_; }
-    void    SetRangeMinimum(double rangeMinimum) { rangeMinimum_ = rangeMinimum; }
-    double  GetRangeMaximum() const { return rangeMaximum_; }
-    void    SetRangeMaximum(double rangeMaximum) { rangeMaximum_ = rangeMaximum; }
+    const   vector<double> &GetAcceleratedDeltaValues() { return value_.acceleratedDeltaValues; }
+    void    SetAccelerationValues(const vector<double> &acceleratedDeltaValues) { value_.acceleratedDeltaValues = acceleratedDeltaValues; }
+    const   vector<int> &GetAcceleratedTickCounts() { return value_.acceleratedTickValues; }
+    void    SetTickCounts(const vector<int> &acceleratedTickValues) { value_.acceleratedTickValues = acceleratedTickValues; }
+    int     GetNumberOfSteppedValues() { return (int)value_.steppedValues.size(); }
+    const   vector<double> &GetSteppedValues() { return value_.steppedValues; }
+    double  GetDeltaValue() { return value_.deltaValue; }
+    void    SetDeltaValue(double deltaValue) { value_.deltaValue = deltaValue; }
+    double  GetRangeMinimum() const { return value_.rangeMinimum; }
+    void    SetRangeMinimum(double rangeMinimum) { value_.rangeMinimum = rangeMinimum; }
+    double  GetRangeMaximum() const { return value_.rangeMaximum; }
+    void    SetRangeMaximum(double rangeMaximum) { value_.rangeMaximum = rangeMaximum; }
     bool    GetProvideFeedback() { return provideFeedback_; }
        
     void SetStringParam(const char *stringParam) 
@@ -189,9 +149,9 @@ public:
 
     void SetStepValues(const vector<double> &steppedValues) 
     {
-        steppedValues_ = steppedValues;
-        if (steppedValuesIndex_ >= steppedValues.size())
-            steppedValuesIndex_ = 0;
+        value_.steppedValues = steppedValues;
+        if (value_.steppedValuesIndex >= (int)steppedValues.size())
+            value_.steppedValuesIndex = 0;
         RequestUpdate();
     }
 
@@ -205,8 +165,8 @@ public:
         if (range.size() != 2)
             return;
         
-        rangeMinimum_ = range[0];
-        rangeMaximum_ = range[1];
+        value_.rangeMinimum = range[0];
+        value_.rangeMaximum = range[1];
     }
         
     void SetSteppedValueIndex(double value)
@@ -214,14 +174,14 @@ public:
         int index = 0;
         double delta = 100000000.0;
         
-        for (int i = 0; i < steppedValues_.size(); ++i)
-            if (fabs(steppedValues_[i] - value) < delta)
+        for (int i = 0; i < (int)value_.steppedValues.size(); ++i)
+            if (fabs(value_.steppedValues[i] - value) < delta)
             {
-                delta = fabs(steppedValues_[i] - value);
+                delta = fabs(value_.steppedValues[i] - value);
                 index = i;
             }
         
-        steppedValuesIndex_ = index;
+        value_.steppedValuesIndex = index;
     }
 
     char *GetPanValueString(double panVal, const char *dualPan, char *buf, int bufsz) const

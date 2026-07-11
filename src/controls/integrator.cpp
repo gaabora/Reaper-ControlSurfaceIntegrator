@@ -1110,11 +1110,11 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
 
     const char* holdDelay = widgetProperties_.get_prop(PropertyType_HoldDelay);
     if (holdDelay)
-        holdDelayMs_ = atoi(holdDelay);
+        timing_.holdDelayMs = atoi(holdDelay);
 
     const char* holdRepeatInterval = widgetProperties_.get_prop(PropertyType_HoldRepeatInterval);
     if (holdRepeatInterval)
-        holdRepeatIntervalMs_ = atoi(holdRepeatInterval);
+        timing_.holdRepeatIntervalMs = atoi(holdRepeatInterval);
 
     const char* runCount = widgetProperties_.get_prop(PropertyType_RunCount);
     if (runCount)
@@ -1169,8 +1169,8 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
     
     if (actionName == "TrackVolumeDB" || actionName == "TrackSendVolumeDB")
     {
-        rangeMinimum_ = -144.0;
-        rangeMaximum_ = 24.0;
+        value_.rangeMinimum = -144.0;
+        value_.rangeMaximum = 24.0;
     }
     
     if (actionName == "TrackPanPercent" ||
@@ -1178,8 +1178,8 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
         actionName == "TrackPanLPercent" ||
         actionName == "TrackPanRPercent")
     {
-        rangeMinimum_ = -100.0;
-        rangeMaximum_ = 100.0;
+        value_.rangeMinimum = -100.0;
+        value_.rangeMaximum = 100.0;
     }
    
     if ((actionName == "Reaper" ||
@@ -1238,12 +1238,12 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
     }
     
     if (params.size() > 0)
-        SetColor(params, supportsColor_, supportsTrackColor_, colorValues_);
+        color_.ParseColors(params);
     
-    GetSteppedValues(widget, action_, zone_, paramIndex_, params, widgetProperties_, deltaValue_, acceleratedDeltaValues_, rangeMinimum_, rangeMaximum_, steppedValues_, acceleratedTickValues_);
+    GetSteppedValues(widget, action_, zone_, paramIndex_, params, widgetProperties_, value_.deltaValue, value_.acceleratedDeltaValues, value_.rangeMinimum, value_.rangeMaximum, value_.steppedValues, value_.acceleratedTickValues);
 
-    if (acceleratedTickValues_.size() < 1)
-        acceleratedTickValues_.push_back(0);
+    if (value_.acceleratedTickValues.size() < 1)
+        value_.acceleratedTickValues.push_back(0);
 
     ProcessActionTitle(actionName);
     
@@ -1332,23 +1332,23 @@ void ActionContext::ClearWidget()
 
 void ActionContext::UpdateColorValue(double value)
 {
-    if (supportsColor_) {
-        currentColorIndex_ = value == 0 ? 0 : 1;
-        if (colorValues_.size() > currentColorIndex_)
-            widget_->UpdateColorValue(colorValues_[currentColorIndex_]);
+    if (color_.supportsColor) {
+        color_.currentColorIndex = value == 0 ? 0 : 1;
+        if (color_.colorValues.size() > (size_t)color_.currentColorIndex)
+            widget_->UpdateColorValue(color_.colorValues[color_.currentColorIndex]);
     }
 }
 
 void ActionContext::UpdateWidgetValue(double value)
 {
-    if (steppedValues_.size() > 0)
+    if (value_.steppedValues.size() > 0)
         SetSteppedValueIndex(value);
 
-    if (isFeedbackInverted_) {
+    if (value_.isFeedbackInverted) {
         value = 1.0 - value;
-    } else if (blinkSet_) {
+    } else if (blink_.blinkSet) {
         bool shouldBlink = (value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE);
-        if (shouldBlink && UpdateBlinkState()) {
+        if (shouldBlink && blink_.Update(GetBlinkInterval())) {
             value = 1.0 - value;
         }
     }
@@ -1359,13 +1359,13 @@ void ActionContext::UpdateWidgetValue(double value)
     if (osdData_.IsAwaitFeedback())
         ProcessOSD(value, true);
 
-    if (supportsTrackColor_)
+    if (color_.supportsTrackColor)
         UpdateTrackColor();
 }
 
 void ActionContext::UpdateJSFXWidgetSteppedValue(double value)
 {
-    if (steppedValues_.size() > 0)
+    if (value_.steppedValues.size() > 0)
         SetSteppedValueIndex(value);
 }
 
@@ -1396,24 +1396,24 @@ void ActionContext::LogAction(double value)
     if (value > 0 && GetRangeMinimum() < 0) return;
 
     std::ostringstream oss;
-    if (supportsColor_) {
+    if (color_.supportsColor) {
         oss << " { ";
-        for (size_t i = 0; i < colorValues_.size(); ++i) {
-            oss << " " << colorValues_[i].r << " " << colorValues_[i].g << " " << colorValues_[i].b;
-            if (i != colorValues_.size() - 1) oss << ", ";
+        for (size_t i = 0; i < color_.colorValues.size(); ++i) {
+            oss << " " << color_.colorValues[i].r << " " << color_.colorValues[i].g << " " << color_.colorValues[i].b;
+            if (i != color_.colorValues.size() - 1) oss << ", ";
         }
-        oss << " }[" << currentColorIndex_ << "]";
+        oss << " }[" << color_.currentColorIndex << "]";
     }
     if (!provideFeedback_) oss << " FeedBack=No";
-    if (isValueInverted_) oss << " Invert";
-    if (isFeedbackInverted_) oss << " InvertFB";
-    if (holdDelayMs_ > 0) oss << " HoldDelay=" << holdDelayMs_;
-    if (holdRepeatIntervalMs_ > 0) oss << " HoldRepeatInterval=" << holdRepeatIntervalMs_;
+    if (value_.isValueInverted) oss << " Invert";
+    if (value_.isFeedbackInverted) oss << " InvertFB";
+    if (timing_.holdDelayMs > 0) oss << " HoldDelay=" << timing_.holdDelayMs;
+    if (timing_.holdRepeatIntervalMs > 0) oss << " HoldRepeatInterval=" << timing_.holdRepeatIntervalMs;
     if (runCount_ > 1) oss << " RunCount=" << runCount_;
-    if (blinkSet_) {
+    if (blink_.blinkSet) {
         oss << " Blink";
-        if (blinkIntervalMs_ > 0)
-            oss << "=" << blinkIntervalMs_;
+        if (blink_.blinkIntervalMs > 0)
+            oss << "=" << blink_.blinkIntervalMs;
     }
 
     LogToConsole("[INFO] @%s/{%s}: [%s] '%s' > %s (%s) val:%0.2f ctx:%s\n"
@@ -1451,10 +1451,10 @@ int ActionContext::ClampValueWithWarning(int value, int min, int max) {
 }
 
 int ActionContext::GetBlinkInterval() {
-    return blinkIntervalMs_ == INHERIT_VALUE ? this->GetSurface()->GetBlinkTime() : blinkIntervalMs_;
+    return blink_.blinkIntervalMs == INHERIT_VALUE ? this->GetSurface()->GetBlinkTime() : blink_.blinkIntervalMs;
 }
 int ActionContext::GetHoldDelay() {
-    return holdDelayMs_ == INHERIT_VALUE ? this->GetSurface()->GetHoldTime() : holdDelayMs_;
+    return timing_.holdDelayMs == INHERIT_VALUE ? this->GetSurface()->GetHoldTime() : timing_.holdDelayMs;
 }
 
 // runs once button pressed/released
@@ -1462,34 +1462,34 @@ void ActionContext::DoAction(double value)
 {
     DWORD nowTs = GetTickCount();
     int holdDelayMs = this->GetHoldDelay();
-    deferredValue_ = value;
+    timing_.deferredValue = value;
 
-    if ((isDoublePress_ || GetWidget()->HasDoublePressActions()) && value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
-        if (doublePressStartTs_ == 0 || nowTs > doublePressStartTs_ + GetSurface()->GetDoublePressTime()) {
-            doublePressStartTs_ = nowTs;
-            if (isDoublePress_) return; // throttle normal press
+    if ((timing_.isDoublePress || GetWidget()->HasDoublePressActions()) && value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
+        if (timing_.doublePressStartTs == 0 || nowTs > timing_.doublePressStartTs + GetSurface()->GetDoublePressTime()) {
+            timing_.doublePressStartTs = nowTs;
+            if (timing_.isDoublePress) return; // throttle normal press
         } else {
-            doublePressStartTs_ = 0;
-            if (!isDoublePress_ && holdDelayMs == 0) return; // block normal press inside double-press window
+            timing_.doublePressStartTs = 0;
+            if (!timing_.isDoublePress && holdDelayMs == 0) return; // block normal press inside double-press window
         }
     } 
 
-    if (holdRepeatIntervalMs_ > 0) {
+    if (timing_.holdRepeatIntervalMs > 0) {
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
-            holdRepeatActive_ = false;
+            timing_.holdRepeatActive = false;
         } else {
             if (holdDelayMs == 0) {
-                holdRepeatActive_ = true;
-                lastHoldRepeatTs_ = nowTs;
+                timing_.holdRepeatActive = true;
+                timing_.lastHoldRepeatTs = nowTs;
             }
         }
     }
     if (holdDelayMs > 0) {
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
-            holdActive_ = false;
+            timing_.holdActive = false;
         } else {
-            holdActive_ = true;
-            lastHoldStartTs_ = nowTs;
+            timing_.holdActive = true;
+            timing_.lastHoldStartTs = nowTs;
         }
     } else {
         PerformAction(value);
@@ -1502,43 +1502,43 @@ void ActionContext::RunDeferredActions()
     int holdDelayMs = GetHoldDelay();
 
     if (holdDelayMs > 0
-        && holdActive_
-        && lastHoldStartTs_ > 0
-        && GetTickCount() > (lastHoldStartTs_ + holdDelayMs)
+        && timing_.holdActive
+        && timing_.lastHoldStartTs > 0
+        && GetTickCount() > (timing_.lastHoldStartTs + holdDelayMs)
     ) {
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] HOLD [%s] %d ms\n", GetWidget()->GetName(), GetTickCount() - lastHoldStartTs_);
-        PerformAction(deferredValue_);
-        holdActive_ = false; // to mark that this action with it's defined hold delay was performed and separate it from repeated action trigger
-        if (holdRepeatIntervalMs_ > 0) {
-            holdRepeatActive_ = true;
-            lastHoldRepeatTs_ = GetTickCount();
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] HOLD [%s] %d ms\n", GetWidget()->GetName(), GetTickCount() - timing_.lastHoldStartTs);
+        PerformAction(timing_.deferredValue);
+        timing_.holdActive = false; // to mark that this action with it's defined hold delay was performed and separate it from repeated action trigger
+        if (timing_.holdRepeatIntervalMs > 0) {
+            timing_.holdRepeatActive = true;
+            timing_.lastHoldRepeatTs = GetTickCount();
         }
     }
-    if (holdRepeatIntervalMs_ > 0
-        && holdRepeatActive_
-        && lastHoldRepeatTs_ > 0
-        && GetTickCount() > (lastHoldRepeatTs_ + holdRepeatIntervalMs_)
+    if (timing_.holdRepeatIntervalMs > 0
+        && timing_.holdRepeatActive
+        && timing_.lastHoldRepeatTs > 0
+        && GetTickCount() > (timing_.lastHoldRepeatTs + timing_.holdRepeatIntervalMs)
     ) {
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] REPEAT [%s] %d ms\n", GetWidget()->GetName(), GetTickCount() - lastHoldRepeatTs_);
-        lastHoldRepeatTs_ = GetTickCount();
-        PerformAction(deferredValue_);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] REPEAT [%s] %d ms\n", GetWidget()->GetName(), GetTickCount() - timing_.lastHoldRepeatTs);
+        timing_.lastHoldRepeatTs = GetTickCount();
+        PerformAction(timing_.deferredValue);
     }
 }
 
 void ActionContext::PerformAction(double value)
 {
-    if (!steppedValues_.empty())
+    if (!value_.steppedValues.empty())
     {
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
-        if (steppedValuesIndex_ == steppedValues_.size() - 1)
+        if (value_.steppedValuesIndex == (int)value_.steppedValues.size() - 1)
         {
-            if (steppedValues_[0] < steppedValues_[steppedValuesIndex_]) // GAW -- only wrap if 1st value is lower
-                steppedValuesIndex_ = 0;
+            if (value_.steppedValues[0] < value_.steppedValues[value_.steppedValuesIndex]) // GAW -- only wrap if 1st value is lower
+                value_.steppedValuesIndex = 0;
         }
-        else steppedValuesIndex_++;
+        else value_.steppedValuesIndex++;
 
         for (int i = 0; i < runCount_; ++i)
-            DoRangeBoundAction(steppedValues_[steppedValuesIndex_]);
+            DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
     }
     else for (int i = 0; i < runCount_; ++i)
         DoRangeBoundAction(value);
@@ -1546,20 +1546,20 @@ void ActionContext::PerformAction(double value)
 
 void ActionContext::DoRelativeAction(double delta)
 {
-    if (steppedValues_.size() > 0)
+    if (value_.steppedValues.size() > 0)
         DoSteppedValueAction(delta);
     else
-        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) + (deltaValue_ != 0.0 ? (delta > 0 ? deltaValue_ : -deltaValue_) : delta));
+        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) + (value_.deltaValue != 0.0 ? (delta > 0 ? value_.deltaValue : -value_.deltaValue) : delta));
 }
 
 void ActionContext::DoRelativeAction(int accelerationIndex, double delta)
 {
-    if (steppedValues_.size() > 0)
+    if (value_.steppedValues.size() > 0)
         DoAcceleratedSteppedValueAction(accelerationIndex, delta);
-    else if (acceleratedDeltaValues_.size() > 0)
+    else if (value_.acceleratedDeltaValues.size() > 0)
         DoAcceleratedDeltaValueAction(accelerationIndex, delta);
     else
-        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) +  (deltaValue_ != 0.0 ? (delta > 0 ? deltaValue_ : -deltaValue_) : delta));
+        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) +  (value_.deltaValue != 0.0 ? (delta > 0 ? value_.deltaValue : -value_.deltaValue) : delta));
 }
 
 void ActionContext::ProcessOSD(double value, bool fromFeedback)
@@ -1573,13 +1573,13 @@ void ActionContext::ProcessOSD(double value, bool fromFeedback)
 
     int colorIdx = (int) value;
     if (osdData_.bgColors.empty()) {
-        if (supportsColor_ && !colorValues_.empty()) {
+        if (color_.supportsColor && !color_.colorValues.empty()) {
 
-            if (colorValues_.size() == 1) colorIdx = 0;
-            if ((int) colorValues_.size() - 1 < colorIdx) colorIdx = (int) colorValues_.size() - 1;
+            if (color_.colorValues.size() == 1) colorIdx = 0;
+            if ((int) color_.colorValues.size() - 1 < colorIdx) colorIdx = (int) color_.colorValues.size() - 1;
 
             char hexColor[8];
-            snprintf(hexColor, sizeof(hexColor), "#%02X%02X%02X", colorValues_[colorIdx].r, colorValues_[colorIdx].g, colorValues_[colorIdx].b);
+            snprintf(hexColor, sizeof(hexColor), "#%02X%02X%02X", color_.colorValues[colorIdx].r, color_.colorValues[colorIdx].g, color_.colorValues[colorIdx].b);
 
             osdData_.bgColor = hexColor;
         } else if (GetWidget()->GetIsTwoState()) {
@@ -1696,13 +1696,13 @@ void ActionContext::DoRangeBoundAction(double value)
 {
     this->LogAction(value);
 
-    if (value > rangeMaximum_)
-        value = rangeMaximum_;
+    if (value > value_.rangeMaximum)
+        value = value_.rangeMaximum;
     
-    if (value < rangeMinimum_)
-        value = rangeMinimum_;
+    if (value < value_.rangeMinimum)
+        value = value_.rangeMinimum;
     
-    if (isValueInverted_)
+    if (value_.isValueInverted)
         value = 1.0 - value;
     
     for (int i = 0; i < runCount_; ++i)
@@ -1715,21 +1715,21 @@ void ActionContext::DoSteppedValueAction(double delta)
 {
     if (delta > 0)
     {
-        steppedValuesIndex_++;
+        value_.steppedValuesIndex++;
         
-        if (steppedValuesIndex_ > (int)steppedValues_.size() - 1)
-            steppedValuesIndex_ = (int)steppedValues_.size() - 1;
+        if (value_.steppedValuesIndex > (int)value_.steppedValues.size() - 1)
+            value_.steppedValuesIndex = (int)value_.steppedValues.size() - 1;
         
-        DoRangeBoundAction(steppedValues_[steppedValuesIndex_]);
+        DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
     }
     else
     {
-        steppedValuesIndex_--;
+        value_.steppedValuesIndex--;
         
-        if (steppedValuesIndex_ < 0 )
-            steppedValuesIndex_ = 0;
+        if (value_.steppedValuesIndex < 0 )
+            value_.steppedValuesIndex = 0;
         
-        DoRangeBoundAction(steppedValues_[steppedValuesIndex_]);
+        DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
     }
 }
 
@@ -1737,137 +1737,56 @@ void ActionContext::DoAcceleratedSteppedValueAction(int accelerationIndex, doubl
 {
     if (delta > 0)
     {
-        accumulatedIncTicks_++;
-        accumulatedDecTicks_ = accumulatedDecTicks_ - 1 < 0 ? 0 : accumulatedDecTicks_ - 1;
+        value_.accumulatedIncTicks++;
+        value_.accumulatedDecTicks = value_.accumulatedDecTicks - 1 < 0 ? 0 : value_.accumulatedDecTicks - 1;
     }
     else if (delta < 0)
     {
-        accumulatedDecTicks_++;
-        accumulatedIncTicks_ = accumulatedIncTicks_ - 1 < 0 ? 0 : accumulatedIncTicks_ - 1;
+        value_.accumulatedDecTicks++;
+        value_.accumulatedIncTicks = value_.accumulatedIncTicks - 1 < 0 ? 0 : value_.accumulatedIncTicks - 1;
     }
     
-    accelerationIndex = accelerationIndex > (int)acceleratedTickValues_.size() - 1 ? (int)acceleratedTickValues_.size() - 1 : accelerationIndex;
+    accelerationIndex = accelerationIndex > (int)value_.acceleratedTickValues.size() - 1 ? (int)value_.acceleratedTickValues.size() - 1 : accelerationIndex;
     accelerationIndex = accelerationIndex < 0 ? 0 : accelerationIndex;
     
-    if (delta > 0 && accumulatedIncTicks_ >= acceleratedTickValues_[accelerationIndex])
+    if (delta > 0 && value_.accumulatedIncTicks >= value_.acceleratedTickValues[accelerationIndex])
     {
-        accumulatedIncTicks_ = 0;
-        accumulatedDecTicks_ = 0;
+        value_.accumulatedIncTicks = 0;
+        value_.accumulatedDecTicks = 0;
         
-        steppedValuesIndex_++;
+        value_.steppedValuesIndex++;
         
-        if (steppedValuesIndex_ > (int)steppedValues_.size() - 1)
-            steppedValuesIndex_ = (int)steppedValues_.size() - 1;
+        if (value_.steppedValuesIndex > (int)value_.steppedValues.size() - 1)
+            value_.steppedValuesIndex = (int)value_.steppedValues.size() - 1;
         
-        DoRangeBoundAction(steppedValues_[steppedValuesIndex_]);
+        DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
     }
-    else if (delta < 0 && accumulatedDecTicks_ >= acceleratedTickValues_[accelerationIndex])
+    else if (delta < 0 && value_.accumulatedDecTicks >= value_.acceleratedTickValues[accelerationIndex])
     {
-        accumulatedIncTicks_ = 0;
-        accumulatedDecTicks_ = 0;
+        value_.accumulatedIncTicks = 0;
+        value_.accumulatedDecTicks = 0;
         
-        steppedValuesIndex_--;
+        value_.steppedValuesIndex--;
         
-        if (steppedValuesIndex_ < 0 )
-            steppedValuesIndex_ = 0;
+        if (value_.steppedValuesIndex < 0 )
+            value_.steppedValuesIndex = 0;
         
-        DoRangeBoundAction(steppedValues_[steppedValuesIndex_]);
+        DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
     }
 }
 
 void ActionContext::DoAcceleratedDeltaValueAction(int accelerationIndex, double delta)
 {
-    accelerationIndex = accelerationIndex > (int)acceleratedDeltaValues_.size() - 1 ? (int)acceleratedDeltaValues_.size() - 1 : accelerationIndex;
+    accelerationIndex = accelerationIndex > (int)value_.acceleratedDeltaValues.size() - 1 ? (int)value_.acceleratedDeltaValues.size() - 1 : accelerationIndex;
     accelerationIndex = accelerationIndex < 0 ? 0 : accelerationIndex;
     
     if (delta > 0.0)
-        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) + acceleratedDeltaValues_[accelerationIndex]);
+        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) + value_.acceleratedDeltaValues[accelerationIndex]);
     else
-        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) - acceleratedDeltaValues_[accelerationIndex]);
+        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) - value_.acceleratedDeltaValues[accelerationIndex]);
 }
 
-void ActionContext::GetColorValues(vector<rgba_color> &colorValues, const vector<string> &colors)
-{
-    for (int i = 0; i < (int)colors.size(); ++i)
-    {
-        rgba_color colorValue;
-        
-        if (GetColorValue(colors[i].c_str(), colorValue))
-            colorValues.push_back(colorValue);
-    }
-}
-
-void ActionContext::SetColor(const vector<string> &params, bool &supportsColor, bool &supportsTrackColor, vector<rgba_color> &colorValues)
-{
-    vector<int> rawValues;
-    vector<string> hexColors;
-
-    int openCurlyIndex = 0;
-    int closeCurlyIndex = 0;
-    
-    for (int i = 0; i < params.size(); ++i)
-        if (params[i] == "{")
-        {
-            openCurlyIndex = i;
-            break;
-        }
-    
-    for (int i = 0; i < params.size(); ++i)
-        if (params[i] == "}")
-        {
-            closeCurlyIndex = i;
-            break;
-        }
-   
-    if (openCurlyIndex != 0 && closeCurlyIndex != 0)
-    {
-        for (int i = openCurlyIndex + 1; i < closeCurlyIndex; ++i)
-        {
-            const string &strVal = params[i];
-            
-            if (strVal[0] == '#')
-            {
-                hexColors.push_back(strVal);
-                continue;
-            }
-            
-            if (strVal == "Track")
-            {
-                supportsTrackColor = true;
-                break;
-            }
-            else if (strVal[0])
-            {
-                char *ep = NULL;
-                const int value = strtol(strVal.c_str(), &ep, 10);
-                if (ep && !*ep)
-                    rawValues.push_back(wdl_clamp(value, 0, 255));
-            }
-        }
-        
-        if (hexColors.size() > 0)
-        {
-            supportsColor = true;
-
-            GetColorValues(colorValues, hexColors);
-        }
-        else if (rawValues.size() % 3 == 0 && rawValues.size() > 2)
-        {
-            supportsColor = true;
-            
-            for (int i = 0; i < rawValues.size(); i += 3)
-            {
-                rgba_color color;
-                
-                color.r = rawValues[i];
-                color.g = rawValues[i + 1];
-                color.b = rawValues[i + 2];
-                
-                colorValues.push_back(color);
-            }
-        }
-    }
-}
+// GetColorValues and SetColor have been moved to ActionColorState::ParseColors() in action_color.h (Phase 6).
 
 void ActionContext::GetSteppedValues(Widget *widget, Action *action,  Zone *zone, int paramNumber, const vector<string> &params, const PropertyList &widgetProperties, double &deltaValue, vector<double> &acceleratedDeltaValues, double &rangeMinimum, double &rangeMaximum, vector<double> &steppedValues, vector<int> &acceleratedTickValues)
 {
