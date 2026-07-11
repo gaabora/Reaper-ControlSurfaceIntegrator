@@ -54,6 +54,12 @@ local function toAlpha(col, alphaPercent)
     return (col & 0xFFFFFF00) | math.floor((alphaPercent / 100) * 255)
 end
 
+local function GetCenteredTextPosition(ctx, imgui, x, y, width, height, text)
+    local textWidth = imgui.CalcTextSize(ctx, text)
+    local _, lineHeight = imgui.CalcTextSize(ctx, "M")
+    return x + (width - textWidth) / 2, y + (height - lineHeight) / 2
+end
+
 local function resetHiddenState()
     M.state.text = ""
     M.state.showUntil = 0
@@ -135,6 +141,24 @@ end
 ---Get contrast text color for given background
 function M.getContrastTextColor(bgHex)
     return M.getContrastTextColorFromCol(M.hexToImCol(bgHex))
+end
+
+function M.DrawOSDRect(ctx, imgui, x, y, width, height, text, bgColor, alphaPercent, font)
+    local drawList = imgui.GetWindowDrawList(ctx)
+    local baseBgColor = bgColor or M.state.bgColor
+    local fillColor = alphaPercent and toAlpha(baseBgColor, alphaPercent) or baseBgColor
+    imgui.DrawList_AddRectFilled(drawList, x, y, x + width, y + height, fillColor, 0)
+
+    local shownText = text or ""
+    local textColor = M.getContrastTextColorFromCol(baseBgColor)
+    textColor = (textColor & 0xFFFFFF00) | 0xFF
+
+    if font then imgui.PushFont(ctx, font) end
+    if shownText ~= "" then
+        local textX, textY = GetCenteredTextPosition(ctx, imgui, x, y, width, height, shownText)
+        imgui.DrawList_AddText(drawList, textX, textY, textColor, shownText)
+    end
+    if font then imgui.PopFont(ctx) end
 end
 
 ---Poll OSD message from ExtState
@@ -309,34 +333,10 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
     local visible, p_open = imgui.Begin(ctx, "##OSD", true, windowFlags)
     
     if visible then
-        local drawList = imgui.GetWindowDrawList(ctx)
         local winX, winY = imgui.GetWindowPos(ctx)
         local winW, winH = imgui.GetWindowSize(ctx)
-        
-        -- Background
-        local bgCol = M.state.bgColor
-        if M.vars.osd_transparency then
-            bgCol = toAlpha(bgCol, M.vars.osd_transparency)
-        end
-        
-        imgui.DrawList_AddRectFilled(drawList, winX, winY, winX + winW, winY + winH, bgCol, 0)
-        
-        -- Text (centered)
-        local textCol = M.getContrastTextColorFromCol(M.state.bgColor)
-        textCol = (textCol & 0xFFFFFF00) | 0xFF
-        
-        local shownText = hasText and M.state.text or ""
         local renderFont = GetSizedFont(ctx, imgui, M.vars.osd_font_px)
-        if renderFont then imgui.PushFont(ctx, renderFont) end
-        local textWidth = imgui.CalcTextSize(ctx, shownText)
-        local _, lineHeight = imgui.CalcTextSize(ctx, "M")
-        local textX = winX + (winW - textWidth) / 2
-        local textY = winY + (winH - lineHeight) / 2
-
-        if shownText ~= "" then
-            imgui.DrawList_AddText(drawList, textX, textY, textCol, shownText)
-        end
-        if renderFont then imgui.PopFont(ctx) end
+        M.DrawOSDRect(ctx, imgui, winX, winY, winW, winH, hasText and M.state.text or "", M.state.bgColor, M.vars.osd_transparency, renderFont)
 
         -- Right-click settings must be opened while this window is active.
         local popupOpen = false

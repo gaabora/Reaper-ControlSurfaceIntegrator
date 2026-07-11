@@ -429,38 +429,20 @@ end
 
 function M.RenderOSDBar(ctx)
     osd_ui.PollOSD()
-    
+
     if osd_ui.vars.osk_bar_position == "off" then
         return
     end
 
-    local drawList = imgui.GetWindowDrawList(ctx)
     local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
     local availWidth = imgui.GetContentRegionAvail(ctx)
 
     imgui.PushFont(ctx, FONT_SMALL)
     local _, lineH = imgui.CalcTextSize(ctx, "M")
-    local padV = 4
-    local barH = lineH + padV * 2
-
-    local bgCol = osd_ui.state.bgColor
-    if osd_ui.vars.osd_transparency then
-        bgCol = (bgCol & 0xFFFFFF00) | math.floor((osd_ui.vars.osd_transparency / 100) * 255)
-    end
-    imgui.DrawList_AddRectFilled(drawList, cursorX, cursorY, cursorX + availWidth, cursorY + barH, bgCol, 0)
-
-    local textCol = osd_ui.getContrastTextColor(string.format("#%06X", (osd_ui.state.bgColor >> 8) & 0xFFFFFF))
-    -- Keep text fully opaque for readability even when bar background is transparent.
-    textCol = (textCol & 0xFFFFFF00) | 0xFF
-
-    local shownText = osd_ui.state.text or ""
-    local textWidth = imgui.CalcTextSize(ctx, shownText)
-    local textX = cursorX + (availWidth - textWidth) / 2
-    local textY = cursorY + padV
-    imgui.DrawList_AddText(drawList, textX, textY, textCol, shownText)
-
-    imgui.Dummy(ctx, 0, barH)
     imgui.PopFont(ctx)
+    local barH = lineH + 8
+    osd_ui.DrawOSDRect(ctx, imgui, cursorX, cursorY, availWidth, barH, osd_ui.state.text or "", osd_ui.state.bgColor, osd_ui.vars.osd_transparency, FONT_SMALL)
+    imgui.Dummy(ctx, 0, barH)
 end
 
 local function getCellMetrics(cell)
