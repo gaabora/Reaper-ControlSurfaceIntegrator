@@ -10,7 +10,14 @@ local function selectBinding(state, bindingIndex)
     state.selectedBinding = bindingIndex
 end
 
-local function shouldBoostInactiveTableSwatch(state, colors, inactiveColor, deps)
+local function getLayoutColor(state, deps)
+    if not deps.data or not deps.data.GetCellInfo then return nil end
+    local cell = deps.data.GetCellInfo(state.surfaceName, state.widgetName)
+    return cell and cell.color or nil
+end
+
+local function shouldBoostInactiveTableSwatch(state, colors, inactiveColor, layoutColor, deps)
+    if layoutColor then return false end
     if not colors or not colors[1] then return false end
     if not theme.IsMeaningfulColor(inactiveColor) then return false end
     return deps.data and deps.data.IsButtonWidget and deps.data.IsButtonWidget(state.surfaceName, state.widgetName)
@@ -19,16 +26,21 @@ end
 local function renderBindingColors(ctx, state, binding, bindingIndex, deps)
     local parts = deps.action_line.Parse(binding.line)
     local colors = deps.action_line.ParseColors(parts)
-    local inactiveColor = colors and colors[1] or theme.CONFIG.default_inactive_color
-    local activeColor = colors and (colors[2] or colors[1]) or theme.CONFIG.default_active_color
-    local inactiveDisplayColor = inactiveColor
-    if shouldBoostInactiveTableSwatch(state, colors, inactiveColor, deps) then
+    local layoutColor = getLayoutColor(state, deps)
+    local inactiveColor = colors and colors[1] or layoutColor or theme.CONFIG.default_inactive_color
+    local activeColor = colors and (colors[2] or colors[1]) or layoutColor or theme.CONFIG.default_active_color
+    local inactiveDisplayColor = layoutColor and theme.AdjustColorValue(layoutColor, -50) or inactiveColor
+    local activeDisplayColor = layoutColor or activeColor
+    local pickerOptions = nil
+    if layoutColor then
+        pickerOptions = { readOnly = true, tooltip = "Fixed surface color from OSK layout" }
+    elseif shouldBoostInactiveTableSwatch(state, colors, inactiveColor, layoutColor, deps) then
         inactiveDisplayColor = theme.ApplyInactiveLedBoost(inactiveColor, theme.osk.inactive_led_boost)
     end
 
-    inactiveColor = osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 1, "Inactive", inactiveColor, deps, inactiveDisplayColor)
+    inactiveColor = osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 1, "Inactive", inactiveColor, deps, inactiveDisplayColor, pickerOptions)
     imgui.SameLine(ctx, 0, 3)
-    osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 2, "Active", activeColor, deps)
+    osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 2, "Active", activeColor, deps, activeDisplayColor, pickerOptions)
 end
 
 local function renderBindingTable(ctx, state, deps)

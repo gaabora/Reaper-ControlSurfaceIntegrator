@@ -216,6 +216,23 @@ function M.GetInactiveLedBoost()
     return settings_store.Clamp(math.floor((tonumber(M.osk.inactive_led_boost) or 50) + 0.5), 0, 100)
 end
 
+function M.AdjustColorValue(col, valueDelta)
+    col = tonumber(col) or M.OSK_COLORS.button_off
+    valueDelta = tonumber(valueDelta) or 0
+    if valueDelta == 0 then return col end
+
+    local alpha = col & 0xFF
+    local red = (col >> 24) & 0xFF
+    local green = (col >> 16) & 0xFF
+    local blue = (col >> 8) & 0xFF
+    local maxChannel = math.max(red, green, blue)
+    if maxChannel <= 0 then return col end
+
+    local adjustedMax = settings_store.Clamp(maxChannel + valueDelta * 2.55, 0, 255)
+    local scale = adjustedMax / maxChannel
+    return packColor(red * scale, green * scale, blue * scale, alpha)
+end
+
 function M.ApplyInactiveLedBoost(col, boostPercent)
     local boost = settings_store.Clamp(math.floor((tonumber(boostPercent) or M.GetInactiveLedBoost()) + 0.5), 0, 100)
     if boost <= 0 then return col end

@@ -42,17 +42,15 @@ local function getButtonColor(surfName, widgetName, cellOverride)
     local widgetState, stateColor, cellColor = getStateAndCellColors(surfName, widgetName, cellOverride)
 
     if widgetState and widgetState.value > 0 then
-        if stateColor then return stateColor end
         if cellColor then return cellColor end
+        if stateColor then return stateColor end
         return theme.OSK_COLORS.button_on
     end
 
+    if cellColor then return theme.AdjustColorValue(cellColor, -50) end
     if stateColor then return applyInactiveButtonBoost(stateColor) end
 
-    local color = cellColor and theme.DimColor(cellColor, 0.40) or theme.OSK_COLORS.button_off
-    color = theme.EnsureMinLuminance(color, theme.WIDGET.min_button_luminance)
-    if cellColor and theme.IsMeaningfulColor(cellColor) then return applyInactiveButtonBoost(color) end
-    return color
+    return theme.EnsureMinLuminance(theme.OSK_COLORS.button_off, theme.WIDGET.min_button_luminance)
 end
 
 local function getFaderColor(surfName, widgetName, cell)
