@@ -392,7 +392,7 @@ end
 function M.RenderOSDBar(ctx)
     osd_ui.PollOSD()
     
-    if not osd_ui.vars.osd_enabled or not osd_ui.state.text or osd_ui.state.text == "" then
+    if not osd_ui.vars.osd_enabled or osd_ui.vars.osk_bar_position == "off" or not osd_ui.state.text or osd_ui.state.text == "" then
         return
     end
     
@@ -408,13 +408,13 @@ function M.RenderOSDBar(ctx)
 
     local bgCol = osd_ui.state.bgColor
     if osd_ui.vars.osd_transparency then
-        bgCol = (bgCol & 0xFFFFFF00) | math.floor(osd_ui.vars.osd_transparency * 255)
+        bgCol = (bgCol & 0xFFFFFF00) | math.floor((osd_ui.vars.osd_transparency / 100) * 255)
     end
     imgui.DrawList_AddRectFilled(drawList, cursorX, cursorY, cursorX + availWidth, cursorY + barH, bgCol, 0)
 
     local textCol = osd_ui.getContrastTextColor(string.format("#%06X", (osd_ui.state.bgColor >> 8) & 0xFFFFFF))
     if osd_ui.vars.osd_transparency then
-        textCol = (textCol & 0xFFFFFF00) | math.floor(osd_ui.vars.osd_transparency * 255)
+        textCol = (textCol & 0xFFFFFF00) | math.floor((osd_ui.vars.osd_transparency / 100) * 255)
     end
 
     local textWidth = imgui.CalcTextSize(ctx, osd_ui.state.text)

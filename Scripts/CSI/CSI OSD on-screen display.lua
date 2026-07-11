@@ -64,22 +64,15 @@ local function main()
         return
     end
     
-    -- Get screen dimensions
-    local screenW, screenH = r.GetMainHwnd()
-    local mon_x, mon_y, mon_r, mon_b = r.GetOS():find("Win") and 1920 or 1920, 
-                                        r.GetOS():find("Win") and 1080 or 1080, 1, 1
-    
-    -- Try to get actual monitor dimensions via OS API if available
-    if r.API_GetDisplayScale then
-        mon_x, mon_y = r.API_GetDisplayScale() or 1920, r.API_GetDisplayScale() or 1080
+    local screenW, screenH = 1920, 1080
+    if r.my_getViewport then
+        local left, top, right, bottom = r.my_getViewport(0, 0, 0, 0, 0, 0, 0, 0, true)
+        if left and top and right and bottom and right > left and bottom > top then
+            screenW = right - left
+            screenH = bottom - top
+        end
     end
-    
-    -- Use conservative defaults
-    screenW = 1920
-    screenH = 1080
-    
-    imgui.SetNextWindowBgAlpha(ctx, osd_ui.vars.osd_transparency or 0.5)
-    
+
     local p_open = osd_ui.RenderOSDWindow(ctx, imgui, screenW, screenH, screenW, screenH)
     
     RenderContextMenu()

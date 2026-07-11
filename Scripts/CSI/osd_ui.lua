@@ -15,19 +15,21 @@ M.state = {
 }
 
 M.vars = {
-    -- OSD Display Settings
+    -- OSD Display Settings (only for dedicated OSD script)
     osd_enabled = true,
-    osd_position = "top",          -- "top" or "bottom"
-    osd_width_percent = 1.0,       -- 0.0-1.0 (100% = full width)
-    osd_height_percent = 0.1,      -- 0.0-1.0 (10% = 10% of window)
-    osd_transparency = 0.5,        -- 0.0-1.0
+    osd_position = "top",          -- "top" or "bottom" (dedicated OSD overlay)
+    osk_bar_position = "bottom",   -- "off", "top" or "bottom" (OSK embedded line only)
+    osd_width_percent = 100,       -- 0-100 (100% = full width)
+    osd_height_percent = 10,       -- 0-100 (10% = 10% of screen)
+    osd_transparency = 50,         -- 0-100
     osd_margin = 0,                -- pixels from edge
+    osd_debug = false,
     osd_text_color = "#FFFFFF",    -- hex color for text (auto-contrast if needed)
     osd_bg_on = "#A4A4A4",         -- background when state=1
     osd_bg_off = "#333333",        -- background when state=0
 }
 
-M.EXT_SECTION = "CSI_OSD"
+M.EXT_SECTION = "CSI_TMP"
 M.EXT_KEY = "OSD"
 M.EXT_SETTINGS_SECTION = "CSI_OSD_SETTINGS"
 
@@ -35,6 +37,15 @@ local FONT_SMALL = nil
 
 function M.SetFont(font)
     FONT_SMALL = font
+end
+
+local function DebugLog(...)
+    if not M.vars.osd_debug then return end
+    local out = {}
+    for i = 1, select("#", ...) do
+        out[#out + 1] = tostring(select(i, ...))
+    end
+    r.ShowConsoleMsg("[CSI OSD] " .. table.concat(out, " ") .. "\n")
 end
 
 ---Hex string to ImGui color (ABGR format)
@@ -84,6 +95,7 @@ function M.PollOSD()
         M.state.text = text
         local now = r.time_precise()
         M.state.showUntil = now + (timeout / 1000)
+        DebugLog("msg=", msg, "timeoutMs=", timeout, "showUntil=", string.format("%.3f", M.state.showUntil))
     end
     
     -- Check if OSD should still be visible
@@ -133,8 +145,8 @@ function M.RenderOSDBar(ctx, imgui, containerWidth, containerHeight)
     
     containerWidth = containerWidth or imgui.GetWindowSize(ctx)
     local margin = M.vars.osd_margin or 0
-    local width = containerWidth * M.vars.osd_width_percent - (margin * 2)
-    local height = math.max(20, containerHeight * M.vars.osd_height_percent)
+    local width = containerWidth * (M.vars.osd_width_percent / 100) - (margin * 2)
+    local height = math.max(20, containerHeight * (M.vars.osd_height_percent / 100))
     
     imgui.PushFont(ctx, FONT_SMALL)
     
@@ -145,7 +157,7 @@ function M.RenderOSDBar(ctx, imgui, containerWidth, containerHeight)
     
     local bgCol = M.state.bgColor
     if M.vars.osd_transparency then
-        bgCol = (bgCol & 0xFFFFFF00) | math.floor(M.vars.osd_transparency * 255)
+        bgCol = (bgCol & 0xFFFFFF00) | math.floor((M.vars.osd_transparency / 100) * 255)
     end
     
     imgui.DrawList_AddRectFilled(drawList, startX, startY, startX + width, startY + height, bgCol, 4)
@@ -153,7 +165,7 @@ function M.RenderOSDBar(ctx, imgui, containerWidth, containerHeight)
     -- Text (centered)
     local textCol = M.getContrastTextColor(string.format("#%06X", (M.state.bgColor >> 8) & 0xFFFFFF))
     if M.vars.osd_transparency then
-        textCol = (textCol & 0xFFFFFF00) | math.floor(M.vars.osd_transparency * 255)
+        textCol = (textCol & 0xFFFFFF00) | math.floor((M.vars.osd_transparency / 100) * 255)
     end
     
     local textWidth = imgui.CalcTextSize(ctx, M.state.text)
@@ -180,17 +192,19 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
     if not FONT_SMALL then return false end
     
     local margin = M.vars.osd_margin or 0
-    local width = screenWidth * M.vars.osd_width_percent
-    local height = math.max(30, screenHeight * M.vars.osd_height_percent)
+    local width = screenWidth * (M.vars.osd_width_percent / 100)
+    local height = math.max(30, screenHeight * (M.vars.osd_height_percent / 100))
     
     local xPos = margin
     local yPos = M.vars.osd_position == "top" 
         and margin 
         or (screenHeight - height - margin)
+
+    DebugLog("render overlay x=", math.floor(xPos), "y=", math.floor(yPos), "w=", math.floor(width), "h=", math.floor(height), "screen=", math.floor(screenWidth) .. "x" .. math.floor(screenHeight))
     
     imgui.SetNextWindowPos(ctx, xPos, yPos, imgui.Cond_Always)
     imgui.SetNextWindowSize(ctx, width, height, imgui.Cond_Always)
-    imgui.SetNextWindowBgAlpha(ctx, M.vars.osd_transparency or 0.5)
+    imgui.SetNextWindowBgAlpha(ctx, (M.vars.osd_transparency or 50) / 100)
     
     local windowFlags = imgui.WindowFlags_NoTitleBar
         | imgui.WindowFlags_NoScrollbar
@@ -209,7 +223,7 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
         -- Background with border
         local bgCol = M.state.bgColor
         if M.vars.osd_transparency then
-            bgCol = (bgCol & 0xFFFFFF00) | math.floor(M.vars.osd_transparency * 255)
+            bgCol = (bgCol & 0xFFFFFF00) | math.floor((M.vars.osd_transparency / 100) * 255)
         end
         
         imgui.DrawList_AddRectFilled(drawList, xPos, yPos, xPos + width, yPos + height, bgCol, 0)
@@ -217,7 +231,7 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
         -- Text (centered)
         local textCol = M.getContrastTextColor(string.format("#%06X", (M.state.bgColor >> 8) & 0xFFFFFF))
         if M.vars.osd_transparency then
-            textCol = (textCol & 0xFFFFFF00) | math.floor(M.vars.osd_transparency * 255)
+            textCol = (textCol & 0xFFFFFF00) | math.floor((M.vars.osd_transparency / 100) * 255)
         end
         
         local textWidth = imgui.CalcTextSize(ctx, M.state.text)
@@ -237,6 +251,9 @@ end
 ---Render OSD settings panel (for right-click menu)
 ---@param ctx ImGui context
 ---@param imgui ImGui module
+---Render full OSD settings panel (for dedicated OSD script only)
+---@param ctx ImGui context
+---@param imgui ImGui module
 function M.RenderSettingsPanel(ctx, imgui)
     imgui.Separator(ctx)
     imgui.Text(ctx, "OSD Settings:")
@@ -244,8 +261,9 @@ function M.RenderSettingsPanel(ctx, imgui)
     local rv
     rv, M.vars.osd_enabled = imgui.Checkbox(ctx, "OSD Enabled##osd", M.vars.osd_enabled)
     if rv then M.SaveSettings() end
-    
-    if not M.vars.osd_enabled then return end
+
+    rv, M.vars.osd_debug = imgui.Checkbox(ctx, "Debug console logs##osd", M.vars.osd_debug)
+    if rv then M.SaveSettings() end
     
     -- Position
     local posIdx = M.vars.osd_position == "bottom" and 1 or 0
@@ -255,21 +273,48 @@ function M.RenderSettingsPanel(ctx, imgui)
         M.SaveSettings()
     end
     
-    -- Width percentage
-    rv, M.vars.osd_width_percent = imgui.SliderDouble(ctx, "Width %##osd_w", M.vars.osd_width_percent, 0.1, 1.0, "%.0f%%")
+    -- Width percentage (0-100)
+    rv, M.vars.osd_width_percent = imgui.SliderInt(ctx, "Width %##osd_w", M.vars.osd_width_percent, 10, 100)
     if rv then M.SaveSettings() end
     
-    -- Height percentage
-    rv, M.vars.osd_height_percent = imgui.SliderDouble(ctx, "Height %##osd_h", M.vars.osd_height_percent, 0.05, 0.5, "%.0f%%")
+    -- Height percentage (0-100)
+    rv, M.vars.osd_height_percent = imgui.SliderInt(ctx, "Height %##osd_h", M.vars.osd_height_percent, 5, 50)
     if rv then M.SaveSettings() end
     
-    -- Transparency
-    rv, M.vars.osd_transparency = imgui.SliderDouble(ctx, "Transparency##osd_alpha", M.vars.osd_transparency, 0.1, 1.0, "%.0f%%")
+    -- Transparency (0-100)
+    rv, M.vars.osd_transparency = imgui.SliderInt(ctx, "Transparency %##osd_alpha", M.vars.osd_transparency, 10, 100)
     if rv then M.SaveSettings() end
     
     -- Margin
     rv, M.vars.osd_margin = imgui.SliderInt(ctx, "Margin##osd_margin", M.vars.osd_margin, 0, 50)
     if rv then M.SaveSettings() end
+end
+
+---Render OSD position toggle for OSK (simple on/off/top/bottom)
+---@param ctx ImGui context
+---@param imgui ImGui module
+function M.RenderOSKPositionToggle(ctx, imgui)
+    local posIdx
+    if M.vars.osk_bar_position == "off" then
+        posIdx = 0
+    elseif M.vars.osk_bar_position == "top" then
+        posIdx = 1
+    else
+        posIdx = 2
+    end
+    
+    local rv
+    rv, posIdx = imgui.Combo(ctx, "OSK OSD Position##osk_osd_pos", posIdx, "Off\0Top\0Bottom\0")
+    if rv then
+        if posIdx == 0 then
+            M.vars.osk_bar_position = "off"
+        elseif posIdx == 1 then
+            M.vars.osk_bar_position = "top"
+        else
+            M.vars.osk_bar_position = "bottom"
+        end
+        M.SaveSettings()
+    end
 end
 
 return M

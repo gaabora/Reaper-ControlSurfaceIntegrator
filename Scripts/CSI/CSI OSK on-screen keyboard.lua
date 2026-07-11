@@ -204,7 +204,7 @@ local function RenderContextMenu(activeCtx, options)
         end
 
         imgui.Separator(activeCtx)
-        osd_ui.RenderSettingsPanel(activeCtx, imgui)
+        osd_ui.RenderOSKPositionToggle(activeCtx, imgui)
 
         imgui.EndPopup(activeCtx)
     end
@@ -235,6 +235,10 @@ local function main_combined()
 
         RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_Combined", allowSurfaceSelection = true, allowCloseAll = false })
 
+        if osd_ui.vars.osk_bar_position == "top" then
+            render.RenderOSDBar(ctx)
+        end
+
         -- Render surface(s) directly (no BeginChild — allows AlwaysAutoResize to work)
         if data.vars.show_all_surfaces and #data.surfaces > 1 then
             render.RenderAllSurfaces(ctx)
@@ -243,7 +247,9 @@ local function main_combined()
             if surfName then render.RenderSurface(ctx, surfName) end
         end
 
-        render.RenderOSDBar(ctx)
+        if osd_ui.vars.osk_bar_position == "bottom" then
+            render.RenderOSDBar(ctx)
+        end
         config.RenderConfigEditor(ctx)
 
         imgui.PopFont(ctx)
@@ -307,8 +313,17 @@ main_separate = function()
                 if visible then
                     imgui.PushFont(ctx, FONT)
                     RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_" .. surfName, allowSurfaceSelection = false, allowCloseAll = true })
+
+                    if osd_ui.vars.osk_bar_position == "top" then
+                        render.RenderOSDBar(ctx)
+                    end
+
                     render.RenderSurface(ctx, surfName)
-                    render.RenderOSDBar(ctx)
+
+                    if osd_ui.vars.osk_bar_position == "bottom" then
+                        render.RenderOSDBar(ctx)
+                    end
+
                     config.RenderConfigEditor(ctx)
                     imgui.PopFont(ctx)
                 end
