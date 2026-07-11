@@ -479,7 +479,7 @@ void Midi_ControlSurface::ProcessMidiWidget(int &lineNumber, ifstream &surfaceTe
     Widget *widget = GetWidgetByName(in_tokens[1]);
     
     if (widget == NULL) {
-        LogToConsole("[ERROR] FAILED to ProcessMidiWidget: no widgets found by name '%s'. Line %s\n", in_tokens[1].c_str(), lineNumber);
+        LogToConsole("[ERROR] FAILED to ProcessMidiWidget: no widgets found by name '%s'. Line %d\n", in_tokens[1].c_str(), lineNumber);
         return;
     }
 
@@ -775,9 +775,8 @@ void OSC_ControlSurface::ProcessOSCWidget(int &lineNumber, ifstream &surfaceTemp
 
     Widget *widget = GetWidgetByName(in_tokens[1]);
     
-    if (widget == NULL)
-    {
-        LogToConsole("[ERROR] FAILED to ProcessOSCWidget: widget not found by name %s. Line %s\n", in_tokens[1].c_str(), lineNumber);
+    if (widget == NULL) {
+        LogToConsole("[ERROR] FAILED to ProcessOSCWidget: widget not found by name %s. Line %d\n", in_tokens[1].c_str(), lineNumber);
         return;
     }
     
