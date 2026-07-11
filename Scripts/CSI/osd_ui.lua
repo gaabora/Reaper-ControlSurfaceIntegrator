@@ -135,6 +135,25 @@ function M.LoadSettings()
             end
         end
     end
+
+    -- Backward compatibility and sanity clamps
+    if M.vars.osd_position ~= "top" and M.vars.osd_position ~= "bottom" then
+        M.vars.osd_position = "top"
+    end
+
+    if M.vars.osk_bar_position ~= "off" and M.vars.osk_bar_position ~= "top" and M.vars.osk_bar_position ~= "bottom" then
+        -- Migrate from older single-position setting if needed.
+        if M.vars.osd_position == "top" or M.vars.osd_position == "bottom" then
+            M.vars.osk_bar_position = M.vars.osd_position
+        else
+            M.vars.osk_bar_position = "bottom"
+        end
+    end
+
+    M.vars.osd_width_percent = math.max(10, math.min(100, tonumber(M.vars.osd_width_percent) or 100))
+    M.vars.osd_height_percent = math.max(5, math.min(50, tonumber(M.vars.osd_height_percent) or 10))
+    M.vars.osd_transparency = math.max(10, math.min(100, tonumber(M.vars.osd_transparency) or 50))
+    M.vars.osd_margin = math.max(0, math.min(200, tonumber(M.vars.osd_margin) or 0))
 end
 
 ---Save settings to ExtState
@@ -197,14 +216,16 @@ end
 ---@param screenHeight number Full screen height
 ---@param windowWidth number Reference window width (for sizing)
 ---@param windowHeight number Reference window height (for sizing)
-function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, windowHeight)
+---@param originX number|nil Viewport left offset
+---@param originY number|nil Viewport top offset
+function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, windowHeight, originX, originY)
     if not IsValidContext(ctx) then
         DebugLog("invalid imgui context in RenderOSDWindow")
         return false
     end
 
     local hasText = M.state.text and M.state.text ~= ""
-    if not M.vars.osd_enabled or (not hasText and not M.vars.osd_show_idle_hint) then
+    if (not hasText and not M.vars.osd_show_idle_hint) then
         return false
     end
     
@@ -217,10 +238,12 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
         height = 28
     end
     
-    local xPos = margin
-    local yPos = M.vars.osd_position == "top" 
-        and margin 
-        or (screenHeight - height - margin)
+    local baseX = originX or 0
+    local baseY = originY or 0
+    local xPos = baseX + margin
+    local yPos = M.vars.osd_position == "top"
+        and (baseY + margin)
+        or (baseY + screenHeight - height - margin)
 
     DebugLog("render overlay x=", math.floor(xPos), "y=", math.floor(yPos), "w=", math.floor(width), "h=", math.floor(height), "screen=", math.floor(screenWidth) .. "x" .. math.floor(screenHeight))
     
@@ -233,10 +256,6 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
         | imgui.WindowFlags_NoMove
         | imgui.WindowFlags_NoResize
         | imgui.WindowFlags_NoCollapse
-
-    if imgui.WindowFlags_NoBringToFrontOnFocus then
-        windowFlags = windowFlags | imgui.WindowFlags_NoBringToFrontOnFocus
-    end
     
     local visible, p_open = imgui.Begin(ctx, "##OSD", true, windowFlags)
     

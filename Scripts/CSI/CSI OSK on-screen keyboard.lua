@@ -61,6 +61,14 @@ local TOOLBAR_ACTIONS = {
 
 local main_separate
 
+local function IsValidContext()
+    if not ctx then return false end
+    if r.ImGui_ValidatePtr then
+        return r.ImGui_ValidatePtr(ctx, "ImGui_Context*")
+    end
+    return true
+end
+
 local function SetToolbarButtonState(set)
     local _, _, sec, cmd = r.get_action_context()
     r.SetToggleCommandState(sec, cmd, set or 0)
@@ -211,6 +219,11 @@ local function RenderContextMenu(activeCtx, options)
 end
 
 local function main_combined()
+    if not IsValidContext() then
+        SetToolbarButtonState(-1)
+        return
+    end
+
     if not data.PollData() then
         return -- Close requested
     end
@@ -272,6 +285,11 @@ local function main_combined()
 end
 
 main_separate = function()
+    if not IsValidContext() then
+        SetToolbarButtonState(-1)
+        return
+    end
+
     if not data.PollData() then
         return
     end
@@ -290,7 +308,12 @@ main_separate = function()
         if win and win.open then
             local pos = data.surfacePos[surfName]
             if pos and not win.posApplied then
-                imgui.SetNextWindowPos(ctx, pos.x, pos.y, imgui.Cond_Always)
+                if IsValidContext() then
+                    imgui.SetNextWindowPos(ctx, pos.x, pos.y, imgui.Cond_Always)
+                else
+                    SetToolbarButtonState(-1)
+                    return
+                end
                 win.posApplied = true
             end
 

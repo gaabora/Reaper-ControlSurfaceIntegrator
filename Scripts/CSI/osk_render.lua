@@ -395,8 +395,7 @@ function M.RenderOSDBar(ctx)
     if osd_ui.vars.osk_bar_position == "off" then
         return
     end
-    
-    imgui.Separator(ctx)
+
     local drawList = imgui.GetWindowDrawList(ctx)
     local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
     local availWidth = imgui.GetContentRegionAvail(ctx)
@@ -413,9 +412,8 @@ function M.RenderOSDBar(ctx)
     imgui.DrawList_AddRectFilled(drawList, cursorX, cursorY, cursorX + availWidth, cursorY + barH, bgCol, 0)
 
     local textCol = osd_ui.getContrastTextColor(string.format("#%06X", (osd_ui.state.bgColor >> 8) & 0xFFFFFF))
-    if osd_ui.vars.osd_transparency then
-        textCol = (textCol & 0xFFFFFF00) | math.floor((osd_ui.vars.osd_transparency / 100) * 255)
-    end
+    -- Keep text fully opaque for readability even when bar background is transparent.
+    textCol = (textCol & 0xFFFFFF00) | 0xFF
 
     local shownText = osd_ui.state.text or ""
     local textWidth = imgui.CalcTextSize(ctx, shownText)

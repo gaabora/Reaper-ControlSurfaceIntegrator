@@ -57,22 +57,31 @@ local function RenderContextMenu()
 end
 
 local function main()
+    if r.ImGui_ValidatePtr and (not r.ImGui_ValidatePtr(ctx, "ImGui_Context*")) then
+        SetToolbarButtonState(-1)
+        return
+    end
+
     osd_ui.PollOSD()
-    
+    osd_ui.vars.osd_show_idle_hint = true
+
     local screenW, screenH = 1920, 1080
+    local originX, originY = 0, 0
     if r.my_getViewport then
         local left, top, right, bottom = r.my_getViewport(0, 0, 0, 0, 0, 0, 0, 0, true)
         if left and top and right and bottom and right > left and bottom > top then
+            originX = left
+            originY = top
             screenW = right - left
             screenH = bottom - top
         end
     end
 
-    local p_open = osd_ui.RenderOSDWindow(ctx, imgui, screenW, screenH, screenW, screenH)
+    local p_open = osd_ui.RenderOSDWindow(ctx, imgui, screenW, screenH, screenW, screenH, originX, originY)
     
     RenderContextMenu()
     
-    if p_open == false and osd_ui.vars.osd_enabled then
+    if p_open == false and osd_ui.state.text and osd_ui.state.text ~= "" then
         osd_ui.SaveSettings()
         SetToolbarButtonState(-1)
         return
