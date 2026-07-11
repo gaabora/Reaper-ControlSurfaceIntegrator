@@ -3047,6 +3047,7 @@ const char* CSurfIntegrator::GetConfigString() {
 }
 
 int CSurfIntegrator::Extended(int call, void* parm1, void* parm2, void* parm3) {
+    WDL_MutexLock lock(&csiMutex_);
     if (call == CSURF_EXT_SUPPORTS_EXTENDED_TOUCH) return 1;
     if (call == CSURF_EXT_RESET) Init();
     if (call == CSURF_EXT_SETFXCHANGE) TrackFXListChanged((MediaTrack*) parm1); // parm1=(MediaTrack*)track, whenever FX are added, deleted, or change order

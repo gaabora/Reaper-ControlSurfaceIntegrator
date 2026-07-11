@@ -28,6 +28,11 @@ static const int s_tickCounts_[] = { 250, 235, 220, 205, 190, 175, 160, 145, 130
 class CSurfIntegrator : public IReaperControlSurface
 {
 private:
+    // Single mutex serializing all REAPER-initiated entry points (Run, callbacks).
+    // WDL_Mutex is backed by CRITICAL_SECTION on Windows — reentrant for the
+    // owning thread, so nested REAPER API calls that re-enter CSI are safe.
+    WDL_Mutex csiMutex_;
+
     vector<unique_ptr<Midi_ControlSurfaceIO>> midiSurfacesIO_;
     vector<unique_ptr<OSC_ControlSurfaceIO>> oscSurfacesIO_;
 
@@ -226,11 +231,13 @@ public:
     }
 
     void OnTrackSelection(MediaTrack* track) override {
+        WDL_MutexLock lock(&csiMutex_);
         if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
             pages_[currentPageIndex_]->OnTrackSelection(track);
     }
 
     void SetTrackListChange() override {
+        WDL_MutexLock lock(&csiMutex_);
         if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
             pages_[currentPageIndex_]->OnTrackListChange();
     }
@@ -291,6 +298,7 @@ public:
     }
 
     bool GetTouchState(MediaTrack* track, int touchedControl) override {
+        WDL_MutexLock lock(&csiMutex_);
         if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
             return pages_[currentPageIndex_]->GetTouchState(track, touchedControl);
         else
@@ -358,6 +366,7 @@ public:
     void EnqueueOSD(osd_data osdData_) { QueuedOSD = osdData_; }
 
     void Run() override {
+        WDL_MutexLock lock(&csiMutex_);
 
         ReaProject* currentProject = (*EnumProjects)(-1, NULL, 0);
 

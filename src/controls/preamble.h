@@ -56,6 +56,7 @@ namespace filesystem = std::filesystem;
   #include "../../lib/WDL/WDL/win32_utf8.h"
   #include "../../lib/WDL/WDL/ptrlist.h"
   #include "../../lib/WDL/WDL/queue.h"
+  #include "../../lib/WDL/WDL/mutex.h"
 #else
   #ifdef _WIN32
   #ifndef strnicmp
@@ -65,6 +66,7 @@ namespace filesystem = std::filesystem;
   #include "../../WDL/win32_utf8.h"
   #include "../../WDL/ptrlist.h"
   #include "../../WDL/queue.h"
+  #include "../../WDL/mutex.h"
 #endif
 
 // KbdSectionInfo (used by localize-import.h) comes from the REAPER SDK.
