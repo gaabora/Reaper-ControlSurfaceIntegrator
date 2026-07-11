@@ -126,10 +126,5 @@ extern bool g_surfaceOutDisplay;
 extern bool g_fxParamsWrite;
 extern REAPER_PLUGIN_HINSTANCE g_hInst;
 
-static vector<HWND> g_openDialogs;
-static void CloseAllDialogs() {
-    for (HWND hwnd : g_openDialogs)
-        if (IsWindow(hwnd))
-            DestroyWindow(hwnd);
-    g_openDialogs.clear();
-}
+extern vector<HWND> g_openDialogs;
+void CloseAllDialogs();

@@ -25,6 +25,13 @@ bool g_surfaceOutDisplay;
 
 bool g_fxParamsWrite;
 
+vector<HWND> g_openDialogs;
+void CloseAllDialogs() {
+    for (HWND hwnd : g_openDialogs)
+        if (IsWindow(hwnd))
+            DestroyWindow(hwnd);
+    g_openDialogs.clear();
+}
 void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens, PropertyList& properties) {
     for (int i = start; i < finish; ++i) {
         std::string_view token = tokens[i];
