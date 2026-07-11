@@ -19,6 +19,16 @@ local state = {
 	searchSelected = 0,
 	csiActions = {},
 	suppressWindowContextMenuUntil = 0,
+	confirmedBindings = {},
+	confirmedSerialized = "",
+	hasUnappliedEdits = false,
+	hasLiveChanges = false,
+	isDirty = false,
+	pendingOperation = nil,
+	pendingSerialized = nil,
+	queryExpectedSerialized = nil,
+	forceAcceptQuery = false,
+	saveAfterApply = false,
 }
 
 local SEARCH_MODE_ITEMS = "all\0csi\0reaper\0"
@@ -170,11 +180,37 @@ local function parseBindingString(raw)
 	for entry in tostring(raw or ""):gmatch("[^;]+") do
 		local modStr, line = entry:match("^(%-?%d+):(.+)$")
 		if modStr and line then
+			local metadata = {
+				hasHold = false,
+				hasDoublePress = false,
+				isValueInverted = false,
+				isFeedbackInverted = false,
+				isIncrease = false,
+				isDecrease = false,
+			}
+			while true do
+				local token = line:match("%s+(__OSK_[A-Z_]+)$")
+				if not token then break end
+				line = line:sub(1, #line - #token - 1)
+				if token == "__OSK_HOLD" then metadata.hasHold = true
+				elseif token == "__OSK_DOUBLE_PRESS" then metadata.hasDoublePress = true
+				elseif token == "__OSK_INVERT" then metadata.isValueInverted = true
+				elseif token == "__OSK_INVERT_FB" then metadata.isFeedbackInverted = true
+				elseif token == "__OSK_INCREASE" then metadata.isIncrease = true
+				elseif token == "__OSK_DECREASE" then metadata.isDecrease = true
+				end
+			end
 			local tokens = splitTokens(line)
 			bindings[#bindings + 1] = {
 				mod = tonumber(modStr) or 0,
 				line = line,
 				actionName = tokens[1] or "",
+				hasHold = metadata.hasHold,
+				hasDoublePress = metadata.hasDoublePress,
+				isValueInverted = metadata.isValueInverted,
+				isFeedbackInverted = metadata.isFeedbackInverted,
+				isIncrease = metadata.isIncrease,
+				isDecrease = metadata.isDecrease,
 			}
 		end
 	end
@@ -247,10 +283,101 @@ local function serializeBindings(bindings)
 	local chunks = {}
 	for _, binding in ipairs(bindings or {}) do
 		if binding and binding.line and binding.line ~= "" then
-			chunks[#chunks + 1] = tostring(binding.mod or 0) .. ":" .. binding.line
+			local line = binding.line
+			if binding.hasHold then line = line .. " __OSK_HOLD" end
+			if binding.hasDoublePress then line = line .. " __OSK_DOUBLE_PRESS" end
+			if binding.isValueInverted then line = line .. " __OSK_INVERT" end
+			if binding.isFeedbackInverted then line = line .. " __OSK_INVERT_FB" end
+			if binding.isIncrease then line = line .. " __OSK_INCREASE" end
+			if binding.isDecrease then line = line .. " __OSK_DECREASE" end
+			chunks[#chunks + 1] = tostring(binding.mod or 0) .. ":" .. line
 		end
 	end
 	return table.concat(chunks, ";")
+end
+
+local function cloneBindings(bindings)
+	local copy = {}
+	for _, binding in ipairs(bindings or {}) do
+		copy[#copy + 1] = {
+			mod = binding.mod or 0,
+			line = binding.line or "",
+			actionName = binding.actionName or "",
+			hasHold = binding.hasHold == true,
+			hasDoublePress = binding.hasDoublePress == true,
+			isValueInverted = binding.isValueInverted == true,
+			isFeedbackInverted = binding.isFeedbackInverted == true,
+			isIncrease = binding.isIncrease == true,
+			isDecrease = binding.isDecrease == true,
+		}
+	end
+	return copy
+end
+
+local function updateDirtyState()
+	state.hasUnappliedEdits = serializeBindings(state.bindings) ~= state.confirmedSerialized
+	state.isDirty = state.hasUnappliedEdits or state.hasLiveChanges
+end
+
+local function acceptBindings(bindings, replaceVisibleBindings)
+	if replaceVisibleBindings then state.bindings = bindings end
+	state.confirmedBindings = cloneBindings(bindings)
+	state.confirmedSerialized = serializeBindings(bindings)
+	updateDirtyState()
+end
+
+local function setLocalStatus(outcome, operation, message)
+	state.status = table.concat({ outcome or "", operation or "", message or "" }, " | ")
+end
+
+local function sendConfigQuery(expectedSerialized, forceAccept)
+	local payload = state.surfaceName .. "|" .. state.widgetName
+	state.pendingOperation = "Query"
+	state.queryExpectedSerialized = expectedSerialized
+	state.forceAcceptQuery = forceAccept == true
+	r.SetExtState("CSI_OSK_CMD", "ConfigQuery", payload, false)
+end
+
+local function sendApplyLive()
+	local serialized = serializeBindings(state.bindings)
+	for _, binding in ipairs(state.bindings) do
+		if tostring(binding.line or ""):find(";", 1, true) then
+			setLocalStatus("ERR", "ApplyLive", "Semicolons are not supported in binding lines")
+			return false
+		end
+	end
+	if serialized:find("[\r\n]") then
+		setLocalStatus("ERR", "ApplyLive", "Line breaks are not supported in bindings")
+		return false
+	end
+
+	local payload = state.surfaceName .. "|" .. state.widgetName .. "|" .. serialized
+	state.pendingOperation = "ApplyLive"
+	state.pendingSerialized = serialized
+	r.SetExtState("CSI_OSK_CMD", "ConfigApplyLive", payload, false)
+	return true
+end
+
+local function sendSave()
+	local payload = state.surfaceName .. "|" .. state.widgetName
+	state.pendingOperation = "Save"
+	state.pendingSerialized = serializeBindings(state.bindings)
+	r.SetExtState("CSI_OSK_CMD", "ConfigSave", payload, false)
+end
+
+local function requestRevert()
+	if state.surfaceName == "" or state.widgetName == "" then return end
+	state.pendingOperation = "Revert"
+	state.pendingSerialized = nil
+	local payload = state.surfaceName .. "|" .. state.widgetName
+	r.SetExtState("CSI_OSK_CMD", "ConfigRevert", payload, false)
+end
+
+local function closeEditor()
+	if state.hasLiveChanges or state.pendingOperation == "ApplyLive" then
+		requestRevert()
+	end
+	state.isOpen = false
 end
 
 local function refreshBindingDerivedFields(binding)
@@ -282,12 +409,14 @@ local function addBinding()
 		actionName = "NoAction",
 	}
 	state.selectedBinding = #state.bindings
+	updateDirtyState()
 end
 
 local function removeSelectedBinding()
 	if #state.bindings == 0 then return end
 	table.remove(state.bindings, state.selectedBinding)
 	clampSelectedBindingIndex()
+	updateDirtyState()
 end
 
 local function duplicateSelectedBinding()
@@ -297,9 +426,16 @@ local function duplicateSelectedBinding()
 		mod = selected.mod or 0,
 		line = selected.line or "NoAction",
 		actionName = selected.actionName or "NoAction",
+		hasHold = selected.hasHold == true,
+		hasDoublePress = selected.hasDoublePress == true,
+		isValueInverted = selected.isValueInverted == true,
+		isFeedbackInverted = selected.isFeedbackInverted == true,
+		isIncrease = selected.isIncrease == true,
+		isDecrease = selected.isDecrease == true,
 	}
 	table.insert(state.bindings, state.selectedBinding + 1, copy)
 	state.selectedBinding = state.selectedBinding + 1
+	updateDirtyState()
 end
 
 local function moveSelectedBinding(offset)
@@ -310,6 +446,7 @@ local function moveSelectedBinding(offset)
 	local row = table.remove(state.bindings, fromIndex)
 	table.insert(state.bindings, toIndex, row)
 	state.selectedBinding = toIndex
+	updateDirtyState()
 end
 
 local function addBindingPreset(presetName)
@@ -328,6 +465,7 @@ local function addBindingPreset(presetName)
 		actionName = splitTokens(presetLine)[1] or "NoAction",
 	}
 	state.selectedBinding = #state.bindings
+	updateDirtyState()
 end
 
 local function applySearchSelectionToBinding(binding)
@@ -339,6 +477,7 @@ local function applySearchSelectionToBinding(binding)
 	if csiAction then
 		binding.line = csiAction
 		refreshBindingDerivedFields(binding)
+		updateDirtyState()
 		return
 	end
 
@@ -346,7 +485,24 @@ local function applySearchSelectionToBinding(binding)
 	if commandId then
 		binding.line = "Reaper " .. commandId
 		refreshBindingDerivedFields(binding)
+		updateDirtyState()
 	end
+end
+
+local function parseConfigStatus(rawStatus)
+	local outcome, operation, surfaceName, widgetName, zoneName, message =
+		tostring(rawStatus or ""):match("^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|(.*)$")
+	if not outcome then
+		return nil
+	end
+	return {
+		outcome = outcome,
+		operation = operation,
+		surfaceName = surfaceName,
+		widgetName = widgetName,
+		zoneName = zoneName,
+		message = message,
+	}
 end
 
 local function pollConfigResponses()
@@ -359,7 +515,14 @@ local function pollConfigResponses()
 	local resultKey = "ConfigResult_" .. surf .. "_" .. widget
 	local result = pollResponse(resultKey)
 	if result ~= nil then
-		state.bindings = parseBindingString(result)
+		local parsedBindings = parseBindingString(result)
+		local currentSerialized = serializeBindings(state.bindings)
+		local shouldReplaceVisible = state.forceAcceptQuery
+			or state.queryExpectedSerialized == nil
+			or currentSerialized == state.queryExpectedSerialized
+		acceptBindings(parsedBindings, shouldReplaceVisible)
+		state.queryExpectedSerialized = nil
+		state.forceAcceptQuery = false
 		state.searchSelected = 0
 		if state.selectedBinding < 1 then state.selectedBinding = 1 end
 		if state.selectedBinding > #state.bindings then
@@ -375,8 +538,44 @@ local function pollConfigResponses()
 	local path = pollResponse(pathKey)
 	if path ~= nil then state.zoneFilePath = path end
 
-	local status = pollResponse("ConfigStatus")
-	if status ~= nil then state.status = status end
+	local scopedStatusKey = "ConfigStatus_" .. surf .. "_" .. widget
+	local rawStatus = pollResponse(scopedStatusKey)
+	local legacyStatus = pollResponse("ConfigStatus")
+	if rawStatus == nil then rawStatus = legacyStatus end
+	if rawStatus ~= nil then
+		local status = parseConfigStatus(rawStatus)
+		if status
+			and status.surfaceName == state.surfaceName
+			and status.widgetName == state.widgetName then
+			setLocalStatus(status.outcome, status.operation, status.message)
+			local completedSerialized = state.pendingSerialized
+			state.pendingOperation = nil
+			state.pendingSerialized = nil
+
+			if status.outcome == "OK" then
+				if status.operation == "ApplyLive" then
+					state.hasLiveChanges = true
+					updateDirtyState()
+					if state.saveAfterApply then
+						state.saveAfterApply = false
+						sendSave()
+					else
+						sendConfigQuery(completedSerialized, false)
+					end
+				elseif status.operation == "Save" then
+					state.hasLiveChanges = false
+					updateDirtyState()
+					sendConfigQuery(completedSerialized, false)
+				elseif status.operation == "Revert" then
+					state.hasLiveChanges = false
+					updateDirtyState()
+					if state.isOpen then sendConfigQuery(nil, true) end
+				end
+			elseif status.operation == "ApplyLive" then
+				state.saveAfterApply = false
+			end
+		end
+	end
 
 	local actions = pollResponse("ActionList")
 	if actions ~= nil then
@@ -394,6 +593,16 @@ function M.OpenConfigEditor(surfName, widgetName)
 	state.zoneName = ""
 	state.zoneFilePath = ""
 	state.bindings = {}
+	state.confirmedBindings = {}
+	state.confirmedSerialized = ""
+	state.hasUnappliedEdits = false
+	state.hasLiveChanges = false
+	state.isDirty = false
+	state.pendingOperation = nil
+	state.pendingSerialized = nil
+	state.queryExpectedSerialized = nil
+	state.forceAcceptQuery = false
+	state.saveAfterApply = false
 	state.selectedBinding = 1
 	state.status = ""
 	state.searchSelected = 0
@@ -401,11 +610,17 @@ function M.OpenConfigEditor(surfName, widgetName)
 
 	state.suppressWindowContextMenuUntil = os.clock() + 0.20
 
-	r.SetExtState("CSI_OSK_CMD", "ConfigQuery", surfName .. "|" .. widgetName, false)
+	sendConfigQuery("", true)
 	if #state.csiActions == 0 then
 		r.SetExtState("CSI_OSK_CMD", "ActionListQuery", "", false)
 	else
 		refreshSearchResults()
+	end
+end
+
+function M.HandleShutdown()
+	if state.isOpen or state.hasLiveChanges or state.pendingOperation == "ApplyLive" then
+		closeEditor()
 	end
 end
 
@@ -418,11 +633,12 @@ function M.RenderConfigEditor(ctx)
 
 	pollConfigResponses()
 
-	local title = "Widget config: [" .. state.widgetName .. "]  @" .. state.surfaceName .. "/" .. state.zoneName .. " ###osk_widget_config"
+	local dirtyMarker = state.isDirty and " *" or ""
+	local title = "Widget config: [" .. state.widgetName .. "]  @" .. state.surfaceName .. "/" .. state.zoneName .. dirtyMarker .. " ###osk_widget_config"
 	imgui.SetNextWindowSize(ctx, 520, 520, imgui.Cond_Appearing)
 	local visible, open = imgui.Begin(ctx, title, true, CONFIG_WINDOW_FLAGS)
 	if open == false then
-		state.isOpen = false
+		closeEditor()
 		imgui.End(ctx)
 		return
 	end
@@ -430,6 +646,9 @@ function M.RenderConfigEditor(ctx)
 	if visible then
 		if state.status ~= "" then
 			imgui.Text(ctx, "Status: " .. state.status)
+		end
+		if state.pendingOperation then
+			imgui.TextDisabled(ctx, "Pending: " .. state.pendingOperation)
 		end
 
 -- need to do next changes:
@@ -501,6 +720,7 @@ function M.RenderConfigEditor(ctx)
 			lineChanged, selected.line = imgui.InputText(ctx, "Raw", selected.line or "")
 			if lineChanged then
 				refreshBindingDerivedFields(selected)
+				updateDirtyState()
 			end
 			
 			for idx, modifier in ipairs(MODIFIER_FLAGS) do
@@ -513,6 +733,7 @@ function M.RenderConfigEditor(ctx)
 					else
 						selected.mod = (selected.mod or 0) & (~modifier.bit)
 					end
+					updateDirtyState()
 				end
 				if idx % 5 ~= 0 then imgui.SameLine(ctx) end
 			end
@@ -586,6 +807,7 @@ function M.RenderConfigEditor(ctx)
 			if changedQuick then
 				selected.line = buildActionLine(parts)
 				refreshBindingDerivedFields(selected)
+				updateDirtyState()
 			end
 
 		else
@@ -621,24 +843,26 @@ function M.RenderConfigEditor(ctx)
 		end
 
 		imgui.Separator(ctx)
-		if imgui.Button(ctx, "Apply Live") then
-			local payload = state.surfaceName .. "|" .. state.widgetName .. "|" .. serializeBindings(state.bindings)
-			r.SetExtState("CSI_OSK_CMD", "ConfigApplyLive", payload, false)
-			r.SetExtState("CSI_OSK_CMD", "ConfigQuery", state.surfaceName .. "|" .. state.widgetName, false)
+		if imgui.Button(ctx, "Apply Live") and state.pendingOperation == nil then
+			state.saveAfterApply = false
+			sendApplyLive()
 		end
 
 		imgui.SameLine(ctx)
-		if imgui.Button(ctx, "Save") then
-			local payload = state.surfaceName .. "|" .. state.widgetName
-			r.SetExtState("CSI_OSK_CMD", "ConfigSave", payload, false)
-			r.SetExtState("CSI_OSK_CMD", "ConfigQuery", payload, false)
+		if imgui.Button(ctx, "Save") and state.pendingOperation == nil then
+			if not state.isDirty then
+				setLocalStatus("OK", "Save", "No changes to save")
+			elseif state.hasUnappliedEdits then
+				state.saveAfterApply = true
+				if not sendApplyLive() then state.saveAfterApply = false end
+			else
+				sendSave()
+			end
 		end
 
 		imgui.SameLine(ctx)
-		if imgui.Button(ctx, "Revert") then
-			local payload = state.surfaceName .. "|" .. state.widgetName
-			r.SetExtState("CSI_OSK_CMD", "ConfigRevert", payload, false)
-			r.SetExtState("CSI_OSK_CMD", "ConfigQuery", payload, false)
+		if imgui.Button(ctx, "Revert") and state.pendingOperation == nil then
+			requestRevert()
 		end
 
 		imgui.TextDisabled(ctx, "Use Apply Live to test changes immediately, then Save to persist in .zon.")

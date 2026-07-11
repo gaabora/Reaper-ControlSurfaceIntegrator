@@ -17,6 +17,7 @@
 - The integrator run loop and REAPER callbacks share `csiMutex_`; preserve reentrant callback safety.
 - Zone and surface parser changes affect user configuration formats and require documentation review.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/CSI` must change atomically.
+- OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.
 - Surface-independent behavior belongs here; protocol-specific behavior belongs in `midi/` or `osc/`.
 
 ## Work Guidance

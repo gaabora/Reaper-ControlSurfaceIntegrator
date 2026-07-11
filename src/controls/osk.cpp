@@ -15,13 +15,231 @@ static string BuildTimestampForBackup() {
     return string(buffer);
 }
 
+static string SanitizeConfigStatusField(const string& value) {
+    string sanitized = value;
+    ReplaceAllWith(sanitized, "|", "/");
+    ReplaceAllWith(sanitized, "\r", " ");
+    ReplaceAllWith(sanitized, "\n", " ");
+    return sanitized;
+}
+
+static void PublishConfigStatus(const string& outcome, const string& operation, const string& surfaceName, const string& widgetName, const string& zoneName, const string& message) {
+    const string status = SanitizeConfigStatusField(outcome)
+        + "|" + SanitizeConfigStatusField(operation)
+        + "|" + SanitizeConfigStatusField(surfaceName)
+        + "|" + SanitizeConfigStatusField(widgetName)
+        + "|" + SanitizeConfigStatusField(zoneName)
+        + "|" + SanitizeConfigStatusField(message);
+    const string scopedKey = "ConfigStatus_" + surfaceName + "_" + widgetName;
+    ::SetExtState("CSI_OSK", scopedKey.c_str(), status.c_str(), false);
+    ::SetExtState("CSI_OSK", "ConfigStatus", status.c_str(), false);
+}
+
+static string QuoteZoneToken(const string& token) {
+    if (token.find_first_of(" \t") == string::npos) return token;
+
+    const size_t equalsPosition = token.find('=');
+    if (equalsPosition != string::npos) {
+        return token.substr(0, equalsPosition + 1) + "\"" + token.substr(equalsPosition + 1) + "\"";
+    }
+    return "\"" + token + "\"";
+}
+
+static string SerializeContextAction(ActionContext* context) {
+    if (!context) return "";
+
+    string serialized;
+    const auto& sourceParams = context->GetSourceParams();
+    if (sourceParams.empty())
+        return context->GetAction()->GetName();
+
+    for (const auto& token : sourceParams) {
+        if (!serialized.empty()) serialized += " ";
+        serialized += QuoteZoneToken(token);
+    }
+    return serialized;
+}
+
+static bool HasBalancedBindingSyntax(const string& actionText, string& errorMessage) {
+    bool insideQuote = false;
+    int braceDepth = 0;
+    int bracketDepth = 0;
+
+    for (const char character : actionText) {
+        if (character == '"') {
+            insideQuote = !insideQuote;
+            continue;
+        }
+        if (insideQuote) continue;
+
+        if (character == '{') ++braceDepth;
+        else if (character == '}') --braceDepth;
+        else if (character == '[') ++bracketDepth;
+        else if (character == ']') --bracketDepth;
+
+        if (braceDepth < 0 || bracketDepth < 0) {
+            errorMessage = "Unbalanced color or value block";
+            return false;
+        }
+    }
+
+    if (insideQuote) errorMessage = "Unterminated quoted value";
+    else if (braceDepth != 0) errorMessage = "Unbalanced color block";
+    else if (bracketDepth != 0) errorMessage = "Unbalanced value block";
+    else return true;
+    return false;
+}
+
+struct OskConfigBinding {
+    int modifierValue = 0;
+    vector<string> actionTokens;
+    bool hasHold = false;
+    bool hasDoublePress = false;
+    bool isValueInverted = false;
+    bool isFeedbackInverted = false;
+    bool isIncrease = false;
+    bool isDecrease = false;
+};
+
+static bool IsOskMetadataToken(const string& token, OskConfigBinding& binding) {
+    if (token == "__OSK_HOLD") binding.hasHold = true;
+    else if (token == "__OSK_DOUBLE_PRESS") binding.hasDoublePress = true;
+    else if (token == "__OSK_INVERT") binding.isValueInverted = true;
+    else if (token == "__OSK_INVERT_FB") binding.isFeedbackInverted = true;
+    else if (token == "__OSK_INCREASE") binding.isIncrease = true;
+    else if (token == "__OSK_DECREASE") binding.isDecrease = true;
+    else return false;
+    return true;
+}
+
+static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData, vector<OskConfigBinding>& bindings, string& errorMessage) {
+    bindings.clear();
+    if (bindingData.empty()) return true;
+    if (bindingData.find_first_of("\r\n") != string::npos) {
+        errorMessage = "Bindings cannot contain line breaks";
+        return false;
+    }
+
+    vector<string> serializedBindings;
+    GetTokens(serializedBindings, bindingData, ';');
+    for (int bindingIdx = 0; bindingIdx < (int) serializedBindings.size(); ++bindingIdx) {
+        const string& serializedBinding = serializedBindings[bindingIdx];
+        if (serializedBinding.empty()) {
+            errorMessage = "Empty binding at position " + to_string(bindingIdx + 1);
+            return false;
+        }
+
+        const size_t separatorPosition = serializedBinding.find(':');
+        if (separatorPosition == string::npos) {
+            errorMessage = "Missing modifier separator at binding " + to_string(bindingIdx + 1);
+            return false;
+        }
+
+        const string modifierText = serializedBinding.substr(0, separatorPosition);
+        const string actionText = serializedBinding.substr(separatorPosition + 1);
+        if (actionText.empty()) {
+            errorMessage = "Missing action at binding " + to_string(bindingIdx + 1);
+            return false;
+        }
+        if (!HasBalancedBindingSyntax(actionText, errorMessage)) {
+            errorMessage += " at binding " + to_string(bindingIdx + 1);
+            return false;
+        }
+
+        OskConfigBinding binding;
+        size_t parsedCharacters = 0;
+        try {
+            binding.modifierValue = std::stoi(modifierText, &parsedCharacters);
+        } catch (...) {
+            errorMessage = "Invalid modifier at binding " + to_string(bindingIdx + 1);
+            return false;
+        }
+        if (parsedCharacters != modifierText.size() || binding.modifierValue < 0) {
+            errorMessage = "Invalid modifier at binding " + to_string(bindingIdx + 1);
+            return false;
+        }
+
+        vector<string> parsedTokens;
+        GetTokens(parsedTokens, actionText);
+        for (const auto& token : parsedTokens)
+            if (!IsOskMetadataToken(token, binding))
+                binding.actionTokens.push_back(token);
+
+        if (binding.actionTokens.empty() || binding.actionTokens[0].empty()) {
+            errorMessage = "Missing action at binding " + to_string(bindingIdx + 1);
+            return false;
+        }
+        if (csi->GetAction(binding.actionTokens[0].c_str())->GetType() == ActionType::InvalidAction) {
+            errorMessage = "Unknown action '" + binding.actionTokens[0] + "' at binding " + to_string(bindingIdx + 1);
+            return false;
+        }
+        if (binding.isIncrease && binding.isDecrease) {
+            errorMessage = "Binding cannot be both Increase and Decrease at position " + to_string(bindingIdx + 1);
+            return false;
+        }
+        bindings.push_back(binding);
+    }
+    return true;
+}
+
+static vector<OskConfigBinding> CaptureConfigBindings(Zone* zone, Widget* widget) {
+    vector<OskConfigBinding> bindings;
+    if (!zone || !widget) return bindings;
+
+    map<int, const vector<unique_ptr<ActionContext>>*> modifierContexts;
+    zone->GetAllModifierContexts(widget, modifierContexts);
+    for (const auto& [modifierValue, contexts] : modifierContexts) {
+        for (const auto& contextPtr : *contexts) {
+            ActionContext* context = contextPtr.get();
+            if (!context) continue;
+
+            OskConfigBinding binding;
+            binding.modifierValue = modifierValue;
+            binding.actionTokens = context->GetSourceParams();
+            if (binding.actionTokens.empty()) binding.actionTokens.push_back(context->GetAction()->GetName());
+            binding.hasHold = context->GetHoldDelay() > 0;
+            binding.hasDoublePress = context->IsDoublePress();
+            binding.isValueInverted = context->GetIsValueInverted();
+            binding.isFeedbackInverted = context->GetIsFeedbackInverted();
+            binding.isDecrease = context->GetRangeMinimum() == -2.0 && context->GetRangeMaximum() == 1.0;
+            binding.isIncrease = context->GetRangeMinimum() == 0.0 && context->GetRangeMaximum() == 2.0;
+            bindings.push_back(binding);
+        }
+    }
+    return bindings;
+}
+
+static void ApplyConfigBindings(Zone* zone, Widget* widget, const vector<OskConfigBinding>& bindings) {
+    zone->ClearActionContexts(widget);
+    for (const auto& binding : bindings) {
+        vector<string> actionTokens = binding.actionTokens;
+        ActionContext* context = zone->AddActionContext(widget, binding.modifierValue, zone, actionTokens[0].c_str(), actionTokens);
+        if (!context) throw std::runtime_error("Action context creation failed");
+
+        if (binding.isValueInverted) context->SetIsValueInverted();
+        if (binding.isFeedbackInverted) context->SetIsFeedbackInverted();
+        if (binding.hasHold) {
+            if (context->GetHoldDelay() == 0) context->SetHoldDelay(ActionContext::INHERIT_VALUE);
+            widget->SetHasHoldActions();
+        }
+        if (binding.hasDoublePress) {
+            context->SetDoublePress();
+            widget->SetHasDoublePressActions();
+        }
+        if (binding.isDecrease) context->SetRange({ -2.0, 1.0 });
+        else if (binding.isIncrease) context->SetRange({ 0.0, 2.0 });
+    }
+}
+
 static string BuildWidgetTokenPrefix(int modifierValue, ActionContext* context) {
     string prefix;
 
-    if (context && context->IsDoublePress())
-        prefix += "DoublePress+";
-    if (context && context->GetHoldDelay() > 0)
-        prefix += "Hold+";
+    if (context && context->IsDoublePress()) prefix += "DoublePress+";
+    if (context && context->GetHoldDelay() > 0) prefix += "Hold+";
+    if (context && context->GetIsValueInverted()) prefix += "Invert+";
+    if (context && context->GetIsFeedbackInverted()) prefix += "InvertFB+";
+    if (context && context->GetRangeMinimum() == -2.0 && context->GetRangeMaximum() == 1.0) prefix += "Decrease+";
+    else if (context && context->GetRangeMinimum() == 0.0 && context->GetRangeMaximum() == 2.0) prefix += "Increase+";
 
     if (modifierValue != 0) {
         char modifierBuffer[128];
@@ -33,10 +251,7 @@ static string BuildWidgetTokenPrefix(int modifierValue, ActionContext* context) 
 }
 
 static bool IsPseudoModifierToken(const string& token) {
-    return IsSameString(token, "Hold")
-        || IsSameString(token, "DoublePress")
-        || IsSameString(token, "Increase")
-        || IsSameString(token, "Decrease");
+    return IsSameString(token, "Hold") || IsSameString(token, "DoublePress") || IsSameString(token, "Increase") || IsSameString(token, "Decrease");
 }
 
 static string ExtractWidgetNameFromZoneToken(const string& token) {
@@ -68,23 +283,130 @@ static vector<string> BuildSerializedWidgetLines(Zone* zone, Widget* widget, con
             line += widgetName;
             line += "  ";
 
-            const auto& sourceParams = context->GetSourceParams();
-            if (!sourceParams.empty()) {
-                bool firstToken = true;
-                for (const auto& token : sourceParams) {
-                    if (!firstToken) line += " ";
-                    firstToken = false;
-                    line += token;
-                }
-            } else {
-                line += context->GetAction()->GetName();
-            }
+            line += SerializeContextAction(context);
 
             lines.push_back(line);
         }
     }
 
     return lines;
+}
+
+static string FindInlineZoneComment(const string& line) {
+    bool insideQuote = false;
+    for (size_t characterIdx = 0; characterIdx + 1 < line.size(); ++characterIdx) {
+        const char character = line[characterIdx];
+        if (character == '"') insideQuote = !insideQuote;
+        if (!insideQuote && character == '/' && line[characterIdx + 1] == '/')
+            return line.substr(characterIdx);
+    }
+    return "";
+}
+
+static vector<string> CollectWidgetInlineComments(const vector<string>& originalLines, const string& targetZoneName, const string& widgetName) {
+    vector<string> comments;
+    bool inTargetZone = false;
+
+    for (const auto& rawLine : originalLines) {
+        string trimmed = rawLine;
+        TrimLine(trimmed);
+
+        if (!inTargetZone && trimmed.rfind("Zone ", 0) == 0) {
+            vector<string> zoneTokens;
+            GetTokens(zoneTokens, trimmed);
+            inTargetZone = zoneTokens.size() >= 2 && IsSameString(zoneTokens[1], targetZoneName);
+            continue;
+        }
+        if (inTargetZone && IsSameString(trimmed, "ZoneEnd"))
+            break;
+        if (!inTargetZone || trimmed.empty() || IsCommentedOrEmpty(trimmed))
+            continue;
+
+        vector<string> lineTokens;
+        GetTokens(lineTokens, trimmed);
+        if (lineTokens.empty()) continue;
+        if (!IsSameString(ExtractWidgetNameFromZoneToken(lineTokens[0]), widgetName))
+            continue;
+
+        comments.push_back(FindInlineZoneComment(rawLine));
+    }
+    return comments;
+}
+
+static void ApplyInlineComments(vector<string>& replacementLines, const vector<string>& comments) {
+    const size_t sharedCount = (std::min)(replacementLines.size(), comments.size());
+    for (size_t commentIdx = 0; commentIdx < sharedCount; ++commentIdx)
+        if (!comments[commentIdx].empty())
+            replacementLines[commentIdx] += " " + comments[commentIdx];
+
+    for (size_t commentIdx = sharedCount; commentIdx < comments.size(); ++commentIdx)
+        if (!comments[commentIdx].empty())
+            replacementLines.push_back("  " + comments[commentIdx]);
+}
+
+static bool WriteLinesToFile(const string& filePath, const vector<string>& lines, string& errorMessage) {
+    ofstream outputFile(filePath, std::ios::trunc);
+    if (!outputFile.is_open()) {
+        errorMessage = "Unable to open temporary zone file for write";
+        return false;
+    }
+
+    for (const auto& line : lines) {
+        outputFile << line << "\n";
+        if (!outputFile.good()) {
+            errorMessage = "Failed while writing temporary zone file";
+            outputFile.close();
+            return false;
+        }
+    }
+    outputFile.close();
+    if (!outputFile.good()) {
+        errorMessage = "Failed while closing temporary zone file";
+        return false;
+    }
+    return true;
+}
+
+static bool CommitZoneFile(const string& zonePath, const vector<string>& updatedLines, string& backupPath, string& errorMessage) {
+    const string timestamp = BuildTimestampForBackup();
+    const string temporaryPath = zonePath + ".tmp." + timestamp;
+    backupPath = zonePath + "~" + timestamp;
+
+    std::error_code fileError;
+    filesystem::remove(temporaryPath, fileError);
+    fileError.clear();
+
+    if (!WriteLinesToFile(temporaryPath, updatedLines, errorMessage)) {
+        filesystem::remove(temporaryPath, fileError);
+        return false;
+    }
+
+    filesystem::copy_file(zonePath, backupPath, filesystem::copy_options::overwrite_existing, fileError);
+    if (fileError) {
+        errorMessage = "Backup failed: " + fileError.message();
+        filesystem::remove(temporaryPath, fileError);
+        filesystem::remove(backupPath, fileError);
+        return false;
+    }
+
+    filesystem::remove(zonePath, fileError);
+    if (fileError) {
+        errorMessage = "Unable to replace zone file: " + fileError.message();
+        filesystem::remove(temporaryPath, fileError);
+        filesystem::remove(backupPath, fileError);
+        return false;
+    }
+
+    filesystem::rename(temporaryPath, zonePath, fileError);
+    if (!fileError) return true;
+
+    const string replaceError = fileError.message();
+    fileError.clear();
+    filesystem::copy_file(backupPath, zonePath, filesystem::copy_options::overwrite_existing, fileError);
+    filesystem::remove(temporaryPath, fileError);
+    filesystem::remove(backupPath, fileError);
+    errorMessage = "Zone replacement failed: " + replaceError;
+    return false;
 }
 
 void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& info) {
@@ -366,23 +688,34 @@ void ControlSurface::InjectOSKScroll(const string& widgetName, bool isIncrease) 
 }
 
 void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {
-    if (!zoneManager_) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|ZoneManager unavailable", false);
+    if (!this->zoneManager_) {
+        PublishConfigStatus("ERR", "Query", this->name_, widgetName, "", "ZoneManager unavailable");
         return;
     }
 
-    Widget* widget = GetWidgetByName(widgetName);
+    Widget* widget = this->GetWidgetByName(widgetName);
     if (!widget) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Widget not found", false);
+        PublishConfigStatus("ERR", "Query", this->name_, widgetName, "", "Widget not found");
         return;
     }
 
     map<int, const vector<unique_ptr<ActionContext>>*> modContexts;
-    zoneManager_->CollectAllModifierContextsForWidget(widget, modContexts);
+    this->zoneManager_->CollectAllModifierContextsForWidget(widget, modContexts);
 
     string zoneName;
     string zonePath;
-    zoneManager_->GetActiveZoneInfoForWidget(widget, zoneName, zonePath);
+    this->zoneManager_->GetActiveZoneInfoForWidget(widget, zoneName, zonePath);
+    if (!zoneName.empty()) {
+        this->oskConfigZoneNamesByWidget_[widgetName] = zoneName;
+        this->oskConfigZonePathsByWidget_[widgetName] = zonePath;
+    } else {
+        const auto zoneNameEntry = this->oskConfigZoneNamesByWidget_.find(widgetName);
+        const auto zonePathEntry = this->oskConfigZonePathsByWidget_.find(widgetName);
+        if (zoneNameEntry != this->oskConfigZoneNamesByWidget_.end())
+            zoneName = zoneNameEntry->second;
+        if (zonePathEntry != this->oskConfigZonePathsByWidget_.end())
+            zonePath = zonePathEntry->second;
+    }
 
     string result;
     for (const auto& [mod, ctxs] : modContexts) {
@@ -390,120 +723,114 @@ void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {
             if (!result.empty()) result += ";";
             result += std::to_string(mod);
             result += ":";
-
-            const auto& src = ctx->GetSourceParams();
-            if (!src.empty()) {
-                bool first = true;
-                for (const auto& token : src) {
-                    if (!first) result += " ";
-                    first = false;
-                    result += token;
-                }
-            } else {
-                result += ctx->GetAction()->GetName();
-            }
+            result += SerializeContextAction(ctx.get());
+            if (ctx->GetHoldDelay() > 0) result += " __OSK_HOLD";
+            if (ctx->IsDoublePress()) result += " __OSK_DOUBLE_PRESS";
+            if (ctx->GetIsValueInverted()) result += " __OSK_INVERT";
+            if (ctx->GetIsFeedbackInverted()) result += " __OSK_INVERT_FB";
+            if (ctx->GetRangeMinimum() == -2.0 && ctx->GetRangeMaximum() == 1.0) result += " __OSK_DECREASE";
+            else if (ctx->GetRangeMinimum() == 0.0 && ctx->GetRangeMaximum() == 2.0) result += " __OSK_INCREASE";
         }
     }
 
-    const string keyResult = string("ConfigResult_") + name_ + "_" + widgetName;
+    const string keyResult = string("ConfigResult_") + this->name_ + "_" + widgetName;
     ::SetExtState("CSI_OSK", keyResult.c_str(), result.c_str(), false);
 
-    const string keyZoneName = string("ConfigZoneName_") + name_ + "_" + widgetName;
+    const string keyZoneName = string("ConfigZoneName_") + this->name_ + "_" + widgetName;
     ::SetExtState("CSI_OSK", keyZoneName.c_str(), zoneName.c_str(), false);
 
-    const string keyZonePath = string("ConfigZonePath_") + name_ + "_" + widgetName;
+    const string keyZonePath = string("ConfigZonePath_") + this->name_ + "_" + widgetName;
     ::SetExtState("CSI_OSK", keyZonePath.c_str(), zonePath.c_str(), false);
 
-    ::SetExtState("CSI_OSK", "ConfigStatus", "OK|Config query completed", false);
+    PublishConfigStatus("OK", "Query", this->name_, widgetName, zoneName, "Config query completed");
 }
 
 void ControlSurface::HandleOSKConfigApplyLive(const string& widgetName, const string& bindingData) {
-    if (!zoneManager_) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|ZoneManager unavailable", false);
+    if (!this->zoneManager_) {
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, "", "ZoneManager unavailable");
         return;
     }
 
-    Widget* widget = GetWidgetByName(widgetName);
+    Widget* widget = this->GetWidgetByName(widgetName);
     if (!widget) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Widget not found", false);
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, "", "Widget not found");
         return;
     }
 
-    Zone* activeZone = zoneManager_->GetActiveZoneForWidget(widget);
+    Zone* activeZone = this->zoneManager_->GetActiveZoneForWidget(widget);
     if (!activeZone) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|No active zone for widget", false);
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, "", "No active zone for widget");
         return;
     }
 
-    activeZone->ClearActionContexts(widget);
+    vector<OskConfigBinding> parsedBindings;
+    string errorMessage;
+    if (!ParseConfigBindings(this->csi_, bindingData, parsedBindings, errorMessage)) {
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), errorMessage);
+        return;
+    }
 
-    vector<string> serializedBindings;
-    GetTokens(serializedBindings, bindingData, ';');
-    for (const auto& serializedBinding : serializedBindings) {
-        if (serializedBinding.empty()) continue;
-
-        const auto separatorPosition = serializedBinding.find(':');
-        if (separatorPosition == string::npos) continue;
-
-        const string modifierText = serializedBinding.substr(0, separatorPosition);
-        const string actionText = serializedBinding.substr(separatorPosition + 1);
-        if (actionText.empty()) continue;
-
-        int modifierValue = 0;
-        try {
-            modifierValue = std::stoi(modifierText);
-        } catch (...) {
-            continue;
-        }
-
-        vector<string> actionTokens;
-        GetTokens(actionTokens, actionText);
-        if (actionTokens.empty()) continue;
-
-        const string actionName = actionTokens[0];
+    const vector<OskConfigBinding> previousBindings = CaptureConfigBindings(activeZone, widget);
+    try {
         activeZone->AddWidget(widget);
-
-        ActionContext* context = activeZone->AddActionContext(widget, modifierValue, activeZone, actionName.c_str(), actionTokens);
-        if (!context) continue;
-
-        if (context->GetHoldDelay() > 0 && widget->GetIsTwoState() && !widget->IsModifier())
-            widget->SetHasHoldActions();
+        ApplyConfigBindings(activeZone, widget, parsedBindings);
+    } catch (const std::exception& exception) {
+        try {
+            ApplyConfigBindings(activeZone, widget, previousBindings);
+        } catch (...) {
+            this->zoneManager_->Initialize();
+        }
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), string("Apply failed: ") + exception.what());
+        return;
     }
 
     activeZone->UpdateCurrentActionContextModifiers();
-    PublishOSKLabels();
-    PublishOSKState();
-    PublishOSKLabelMap();
-    ::SetExtState("CSI_OSK", "ConfigStatus", "OK|Apply live completed", false);
+    this->PublishOSKLabels();
+    this->PublishOSKState();
+    this->PublishOSKLabelMap();
+    PublishConfigStatus("OK", "ApplyLive", this->name_, widgetName, activeZone->GetName(), "Apply live completed");
 }
 
 void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
-    if (!zoneManager_) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|ZoneManager unavailable", false);
+    if (!this->zoneManager_) {
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, "", "ZoneManager unavailable");
         return;
     }
 
-    Widget* widget = GetWidgetByName(widgetName);
+    Widget* widget = this->GetWidgetByName(widgetName);
     if (!widget) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Widget not found", false);
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, "", "Widget not found");
         return;
     }
 
-    Zone* activeZone = zoneManager_->GetActiveZoneForWidget(widget);
-    if (!activeZone) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|No active zone for widget", false);
+    Zone* activeZone = this->zoneManager_->GetActiveZoneForWidget(widget);
+    string targetZoneName;
+    string zonePath;
+    if (activeZone) {
+        targetZoneName = activeZone->GetName();
+        zonePath = activeZone->GetSourceFilePath();
+        this->oskConfigZoneNamesByWidget_[widgetName] = targetZoneName;
+        this->oskConfigZonePathsByWidget_[widgetName] = zonePath;
+    } else {
+        const auto zoneNameEntry = this->oskConfigZoneNamesByWidget_.find(widgetName);
+        const auto zonePathEntry = this->oskConfigZonePathsByWidget_.find(widgetName);
+        if (zoneNameEntry != this->oskConfigZoneNamesByWidget_.end())
+            targetZoneName = zoneNameEntry->second;
+        if (zonePathEntry != this->oskConfigZonePathsByWidget_.end())
+            zonePath = zonePathEntry->second;
+    }
+    if (targetZoneName.empty()) {
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, "", "No edit target zone for widget");
         return;
     }
-
-    const string zonePath = activeZone->GetSourceFilePath();
     if (zonePath.empty()) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Zone file path unavailable", false);
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, "Zone file path unavailable");
         return;
     }
 
     ifstream inputFile(zonePath);
     if (!inputFile.is_open()) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Unable to open zone file for read", false);
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, "Unable to open zone file for read");
         return;
     }
 
@@ -512,17 +839,13 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
         originalLines.push_back(line);
     inputFile.close();
 
-    const string backupPath = zonePath + "~" + BuildTimestampForBackup();
-    std::error_code copyError;
-    filesystem::copy_file(zonePath, backupPath, filesystem::copy_options::overwrite_existing, copyError);
-    if (copyError) {
-        string status = string("ERR|Backup failed: ") + copyError.message();
-        ::SetExtState("CSI_OSK", "ConfigStatus", status.c_str(), false);
-        return;
-    }
-
-    const string targetZoneName = activeZone->GetName();
-    vector<string> replacementLines = BuildSerializedWidgetLines(activeZone, widget, widgetName);
+    vector<string> replacementLines;
+    if (activeZone)
+        replacementLines = BuildSerializedWidgetLines(activeZone, widget, widgetName);
+    ApplyInlineComments(
+        replacementLines,
+        CollectWidgetInlineComments(originalLines, targetZoneName, widgetName)
+    );
 
     vector<string> updatedLines;
     bool inTargetZone = false;
@@ -575,38 +898,39 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
     }
 
     if (!foundTargetZone) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Target zone section not found in file", false);
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, "Target zone section not found in file");
         return;
     }
 
-    ofstream outputFile(zonePath, std::ios::trunc);
-    if (!outputFile.is_open()) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|Unable to open zone file for write", false);
+    if (updatedLines == originalLines) {
+        PublishConfigStatus("OK", "Save", this->name_, widgetName, targetZoneName, "No file changes required");
         return;
     }
 
-    for (const auto& line : updatedLines)
-        outputFile << line << "\n";
-    outputFile.close();
+    string backupPath;
+    string errorMessage;
+    if (!CommitZoneFile(zonePath, updatedLines, backupPath, errorMessage)) {
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, errorMessage);
+        return;
+    }
 
-    PublishOSKLabels();
-    PublishOSKState();
-    PublishOSKLabelMap();
-    ::SetExtState("CSI_OSK", "ConfigStatus", "OK|Saved to zone file", false);
+    this->PublishOSKLabels();
+    this->PublishOSKState();
+    this->PublishOSKLabelMap();
+    PublishConfigStatus("OK", "Save", this->name_, widgetName, targetZoneName, "Saved to zone file; backup: " + backupPath);
 }
 
 void ControlSurface::HandleOSKConfigRevert(const string& widgetName) {
-    (void)widgetName;
-    if (!zoneManager_) {
-        ::SetExtState("CSI_OSK", "ConfigStatus", "ERR|ZoneManager unavailable", false);
+    if (!this->zoneManager_) {
+        PublishConfigStatus("ERR", "Revert", this->name_, widgetName, "", "ZoneManager unavailable");
         return;
     }
 
-    zoneManager_->Initialize();
-    PublishOSKLabels();
-    PublishOSKState();
-    PublishOSKLabelMap();
-    ::SetExtState("CSI_OSK", "ConfigStatus", "OK|Reverted from disk", false);
+    this->zoneManager_->Initialize();
+    this->PublishOSKLabels();
+    this->PublishOSKState();
+    this->PublishOSKLabelMap();
+    PublishConfigStatus("OK", "Revert", this->name_, widgetName, "", "Reverted from disk");
 }
 
 void ControlSurface::PublishOSKLabelMap() {

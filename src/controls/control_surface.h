@@ -60,6 +60,8 @@ private:
     string cachedOskLabelsString_;
     string cachedOskLabelMapString_;
     string surfaceFilePath_;
+    map<string, string> oskConfigZoneNamesByWidget_;
+    map<string, string> oskConfigZonePathsByWidget_;
     int oskRunCounter_ = 0;
 
     void ParseOskProperties(const string& propsPart, OskWidgetInfo& info);

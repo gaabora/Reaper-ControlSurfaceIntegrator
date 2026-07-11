@@ -111,6 +111,8 @@ public:
 
     void SetIsValueInverted() { value_.isValueInverted = true; }
     void SetIsFeedbackInverted() { value_.isFeedbackInverted = true; }
+    bool GetIsValueInverted() const { return this->value_.isValueInverted; }
+    bool GetIsFeedbackInverted() const { return this->value_.isFeedbackInverted; }
 
     void SetBlinkInterval(int value) {
         blink_.blinkSet = true;

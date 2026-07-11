@@ -404,6 +404,7 @@ local function Init()
         main_combined()
     end
     r.atexit(function()
+        if config.HandleShutdown then config.HandleShutdown() end
         data.SaveSettings()
         osd_ui.SaveSettings()
         SetToolbarButtonState(-1)
