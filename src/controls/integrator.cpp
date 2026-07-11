@@ -318,6 +318,7 @@ static oscpkt::UdpSocket* GetInputSocketForPort(string surfaceName, int inputPor
         newInputSocket->bindTo(inputPort);
         if (!newInputSocket->isOk()) {
             //cerr << "Error opening port " << PORT_NUM << ": " << inSocket_.errorMessage() << "\n";
+            delete newInputSocket;
             return NULL;
         }
         s_inputSockets.Add(new OSCSurfaceSocket(surfaceName, newInputSocket));
@@ -338,10 +339,12 @@ static oscpkt::UdpSocket* GetOutputSocketForAddressAndPort(const string& surface
     if (newOutputSocket) {
         if (!newOutputSocket->connectTo(address, outputPort)) {
             //cerr << "Error connecting " << remoteDeviceIP_ << ": " << outSocket_.errorMessage() << "\n";
+            delete newOutputSocket;
             return NULL;
         }
         if (!newOutputSocket->isOk()) {
             //cerr << "Error opening port " << outPort_ << ": " << outSocket_.errorMessage() << "\n";
+            delete newOutputSocket;
             return NULL;
         }
         s_outputSockets.Add(new OSCSurfaceSocket(surfaceName, newOutputSocket));
