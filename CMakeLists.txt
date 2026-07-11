@@ -140,9 +140,9 @@ if(NOT WIN32)
 endif()
 
 # target_link_libraries(${PROJECT_NAME} INTERFACE WDL::WDL)
-if(SWELL_FOUND)
-  target_link_libraries(${PROJECT_NAME} INTERFACE SWELL::swell)
-endif()
+# if(SWELL_FOUND)
+#   target_link_libraries(${PROJECT_NAME} INTERFACE SWELL::swell)
+# endif()
 
 # ------------------------------------------------------------------------------
 # Interprocedural Optimization (LTO)
