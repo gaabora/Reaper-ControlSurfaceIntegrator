@@ -59,6 +59,8 @@ Keys in `ReaCtrlSurf_OSK_CMD`:
 | `WidgetPressDown` | `surface|widget` |
 | `WidgetPressUp` | `surface|widget` |
 | `WidgetScroll` | `surface|widget|accelerationIndex|signedEventCount` |
+| `WidgetValue` | `surface|widget|normalizedValue` |
+| `WidgetTouch` | `surface|widget|0-or-1` |
 | `ConfigQuery` | `surface|widget` |
 | `ConfigApplyLive` | `surface|widget|serializedBindings` |
 | `ConfigSave` | `surface|widget` |
@@ -68,6 +70,12 @@ Keys in `ReaCtrlSurf_OSK_CMD`:
 `WidgetScroll` uses a non-negative acceleration index and an event count from `-8` to
 `8`, excluding zero. The sign is the direction. Lua rate-limits and coalesces wheel
 events before publishing this command.
+
+`WidgetValue` sends fader-style input, including drag and fader-wheel changes. The
+preferred payload is an absolute normalized value in the range `0.0` to `1.0`;
+dB-valued fader feedback may be echoed as a dB command value for DB volume actions.
+`WidgetTouch` brackets fader drags so actions that support touch automation can
+observe touch start and release.
 
 Serialized bindings use:
 

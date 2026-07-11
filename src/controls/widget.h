@@ -15,6 +15,8 @@ protected:
     int channelNumber_ = 0;
     int lastIncomingMessageTime_ = GetTickCount() - 30000;
     double lastIncomingDelta_ = 0.0;
+    double lastFeedbackValue_ = 0.0;
+    rgba_color lastFeedbackColor_{};
 
     double stepSize_ = 0.0;
     vector<double> accelerationValues_;
@@ -103,15 +105,11 @@ public:
     void ClearHoldFired() { holdFired_ = false; };
 
     double GetLastFeedbackValue() const {
-        if (!feedbackProcessors_.empty()) return feedbackProcessors_[0]->GetLastDoubleValue();
-        return 0.0;
+        return lastFeedbackValue_;
     }
 
     rgba_color GetLastFeedbackColor() const {
-        if (!feedbackProcessors_.empty()) return feedbackProcessors_[0]->GetLastColor();
-        rgba_color empty;
-        empty.a = 0;
-        return empty;
+        return lastFeedbackColor_;
     }
 
     void LogInput(double value);

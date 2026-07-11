@@ -80,7 +80,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
             transportStepAmount_ = TransportStepAmount::Unknown;
     }
 
-    if (actionName == "TrackVolumeDB" || actionName == "TrackSendVolumeDB") {
+    if (actionName == "TrackVolumeDB" || actionName == "TrackSendVolumeDB" || actionName == "TrackReceiveVolumeDB") {
         value_.rangeMinimum = -144.0;
         value_.rangeMaximum = 24.0;
     }

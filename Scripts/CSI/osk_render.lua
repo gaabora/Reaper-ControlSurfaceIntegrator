@@ -70,6 +70,42 @@ local function GetButtonValue(surfName, widgetName)
     return 0
 end
 
+local function clampNormalized(value)
+    return math.max(0.0, math.min(1.0, tonumber(value) or 0.0))
+end
+
+local function dbToNormalized(dbValue)
+    dbValue = tonumber(dbValue) or 0.0
+    if reaper.DB2SLIDER then return clampNormalized(reaper.DB2SLIDER(dbValue) / 1000.0) end
+    if dbValue <= -144.0 then return 0.0 end
+    return clampNormalized((dbValue + 144.0) / 168.0)
+end
+
+local function normalizedToDb(value)
+    value = clampNormalized(value)
+    if reaper.SLIDER2DB then return reaper.SLIDER2DB(value * 1000.0) end
+    if value <= 0.0 then return -144.0 end
+    return value * 168.0 - 144.0
+end
+
+local function GetFaderValueInfo(surfName, widgetName)
+    local rawValue = GetButtonValue(surfName, widgetName)
+    local localValue = data.GetFaderLocalValue(surfName, widgetName, rawValue)
+    if localValue then
+        data.DebugFader(surfName, widgetName, string.format("render value raw=%.6f mode=local-shadow normalized=%.6f", rawValue, localValue), 1.50, "render")
+        if rawValue < 0.0 or rawValue > 1.0 then return clampNormalized(localValue), function(value) return normalizedToDb(value) end end
+        return clampNormalized(localValue), nil
+    end
+    if rawValue < 0.0 or rawValue > 1.0 then
+        local normalizedValue = dbToNormalized(rawValue)
+        data.DebugFader(surfName, widgetName, string.format("render value raw=%.6f mode=db normalized=%.6f", rawValue, normalizedValue), 1.50, "render")
+        return normalizedValue, function(value) return normalizedToDb(value) end
+    end
+    local normalizedValue = clampNormalized(rawValue)
+    data.DebugFader(surfName, widgetName, string.format("render value raw=%.6f mode=normalized normalized=%.6f", rawValue, normalizedValue), 1.50, "render")
+    return normalizedValue, nil
+end
+
 local function GetButtonLabel(surfName, cell)
     local label = data.labels[surfName] and data.labels[surfName][cell.name]
     if label and label ~= "" then return label end
@@ -202,6 +238,31 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
     if imgui.IsItemDeactivated(ctx) then
         osk_input.HandlePressUp(surfName, cell)
     end
+end
+
+local function DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, label, currentValue, commandValueMapper, trackTop, trackBottom)
+    local id = "##fader_" .. (cell.name or "")
+    local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
+    imgui.InvisibleButton(ctx, id, bw, visualH)
+
+    local hovered = imgui.IsItemHovered(ctx)
+    if hovered then
+        data.DebugFader(surfName, cell.name or "", string.format("hover visualH=%.2f layoutH=%.2f currentNormalized=%.6f mapper=%s", visualH, layoutH, clampNormalized(currentValue), tostring(commandValueMapper ~= nil)), 0.50, "hover")
+        ShowDelayedTooltip(ctx, surfName, cell.name or "", label)
+    elseif cell.name then
+        local stateKey = GetInteractionStateKey(surfName, cell.name)
+        if stateKey then hoverStartTime[stateKey] = nil end
+    end
+
+    local mouseButtonRight = imgui.MouseButton_Right or 1
+    if hovered and cell.name and configModule and configModule.OpenConfigEditor and imgui.IsItemClicked(ctx, mouseButtonRight) then
+        configModule.OpenConfigEditor(surfName, cell.name)
+    end
+
+    osk_input.HandleFader(ctx, surfName, cell, trackTop, trackBottom, currentValue, commandValueMapper)
+
+    imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
+    imgui.Dummy(ctx, bw, layoutH)
 end
 
 local function RenderCenteredWrappedText(ctx, drawList, text, centerX, centerY, maxW, maxH)
@@ -393,12 +454,12 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction,
 end
 
 local function DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, hitH, yOffset)
-    hitH = hitH or visualH
+    local layoutH = hitH or visualH
     local label = data.getProcessedLabel(GetButtonLabel(surfName, cell))
     local baseColor = GetButtonColor(surfName, cell.name, cell)
     local btnAlpha = data.vars.btn_transparency
     local bgCol = data.applyAlpha(baseColor, btnAlpha)
-    local value = math.max(0.0, math.min(1.0, GetButtonValue(surfName, cell.name) or 0.0))
+    local value, commandValueMapper = GetFaderValueInfo(surfName, cell.name)
 
     local cursorX, cursorY = imgui.GetCursorScreenPos(ctx)
     local drawY = cursorY + (yOffset or 0)
@@ -424,7 +485,7 @@ local function DrawFaderControl(ctx, drawList, surfName, cell, bw, visualH, hitH
 
     RenderCenteredWrappedText(ctx, drawList, label, cursorX + bw / 2, drawY + visualH - 9, bw - 8, 16)
     imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
-    DrawButtonInteraction(ctx, surfName, cell, bw, hitH, label)
+    DrawFaderInteraction(ctx, surfName, cell, bw, visualH, layoutH, label, value, commandValueMapper, trackT, trackB)
 end
 
 function M.RenderOSDBar(ctx)

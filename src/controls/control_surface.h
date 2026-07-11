@@ -442,6 +442,8 @@ public:
     void InjectOSKPressDown(const string& widgetName);
     void InjectOSKPressUp(const string& widgetName);
     void InjectOSKScroll(const string& widgetName, int accelerationIndex, double delta, int eventCount);
+    void InjectOSKValue(const string& widgetName, double value);
+    void InjectOSKTouch(const string& widgetName, double value);
     void HandleOSKConfigQuery(const string& widgetName);
     void HandleOSKConfigApplyLive(const string& widgetName, const string& bindingData);
     void HandleOSKConfigSave(const string& widgetName);

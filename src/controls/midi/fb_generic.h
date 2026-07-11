@@ -45,8 +45,9 @@ public:
     }
 
     virtual void SetValue(const PropertyList& properties, double value) override {
-        if (value == lastValue_) return;
-        lastValue_ = value;
+        if (value == this->lastValue_) return;
+        this->lastValue_ = value;
+        this->lastDoubleValue_ = value;
         int volInt = int(value * 16383.0);
         SendMidiMessage(midiFeedbackMessage1_.midi_message[0], volInt & 0x7f, (volInt >> 7) & 0x7f);
     }
@@ -70,8 +71,9 @@ public:
     }
 
     virtual void SetValue(const PropertyList& properties, double value) override {
-        if (value == lastValue_) return;
-        lastValue_ = value;
+        if (value == this->lastValue_) return;
+        this->lastValue_ = value;
+        this->lastDoubleValue_ = value;
         int volInt = int(value * 1024.0);
         if (midiFeedbackMessage1_.midi_message[2] != ((volInt >> 7) & 0x7f) || midiFeedbackMessage2_.midi_message[2] != (volInt & 0x7f)) {
             midiFeedbackMessage1_.midi_message[2] = (volInt >> 7) & 0x7f;
@@ -98,6 +100,7 @@ public:
     }
 
     virtual void SetValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
         SendMidiMessage(midiFeedbackMessage1_.midi_message[0], midiFeedbackMessage1_.midi_message[1], int(value * 127.0));
     }
 };

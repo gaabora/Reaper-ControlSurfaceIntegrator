@@ -22,6 +22,7 @@
 - Show the resolved binding title as the editable OSD default, and when KeyLabel is empty present OSD as its effective default without serializing duplicate properties until the user edits them.
 - Always apply built-in OSK label replacements; merge user replacements on top with user rules taking priority and longer phrases evaluated before shorter phrases.
 - Send OSK wheel input as rate-limited semantic acceleration packets; do not generate MIDI messages or expose device IDs from Lua.
+- Send OSK fader drag and wheel input as absolute normalized `WidgetValue` packets; when fader feedback is dB-valued, convert it for display and send matching dB command values for DB actions.
 - Treat the OSK/OSD Lua interface as pre-release: use only current `ReaCtrlSurf_*` sections and settings, with no legacy aliases unless publication changes that requirement.
 - Keep one OSK window per surface and persist each surface position independently without writing persistent ExtState on every movement frame.
 
@@ -46,6 +47,7 @@
 - Open widget config, edit an action, search actions, apply live, save, and revert.
 - Test two surfaces with the same widget names to confirm surface-scoped OSK state.
 - Test OSK press, release, hold, double-press, and rotary wheel input.
+- Test OSK fader drag, wheel scroll, value feedback, and touch/release behavior on touch-aware actions.
 - Send repeated identical OSD messages and confirm the visible timeout refreshes.
 - Open OSD settings while no OSD message is visible.
 - Check standalone OSD top/bottom placement, left/center/right alignment, margins, size, font size, styling, Save, and Cancel.

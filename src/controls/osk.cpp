@@ -43,6 +43,36 @@ static string GetConfiguredOskLabel(ActionContext* context) {
     return "";
 }
 
+static double ClampOskNormalizedValue(double value) {
+    return (std::max)(0.0, (std::min)(value, 1.0));
+}
+
+static bool IsOskFaderValueAction(Action* action) {
+    if (!action || action->IsDisplayRelated()) return false;
+    return action->IsVolumeRelated() || action->IsPanRelated() || action->IsFxRelated() || action->IsTrackSendRelated() || action->IsTrackReceiveRelated() || action->IsMeterRelated();
+}
+
+static double MapOskFaderValueToAction(Action* action, double value) {
+    if (!action) return value;
+    const bool isNormalizedValue = value >= 0.0 && value <= 1.0;
+
+    switch (action->GetType()) {
+        case ActionType::TrackVolumeDB:
+        case ActionType::TrackSendVolumeDB:
+        case ActionType::TrackReceiveVolumeDB:
+            return isNormalizedValue ? VAL2DB(normalizedToVol(value)) : value;
+        case ActionType::TrackPanPercent:
+        case ActionType::TrackPanWidthPercent:
+        case ActionType::TrackPanLPercent:
+        case ActionType::TrackPanRPercent:
+        case ActionType::TrackSendPanPercent:
+        case ActionType::TrackReceivePanPercent:
+            return isNormalizedValue ? normalizedToPan(value) * 100.0 : value;
+        default:
+            return value;
+    }
+}
+
 static string QuoteZoneToken(const string& token) {
     if (token.find_first_of(" \t") == string::npos) return token;
 
@@ -606,6 +636,15 @@ void ControlSurface::PublishOSKState() {
             Widget* widget = GetWidgetByName(cell.widget.name);
             if (!widget) continue;
             double value = widget->GetLastFeedbackValue();
+            if (this->zoneManager_ && IsSameString(cell.widget.shape.c_str(), "fader")) {
+                const auto& contexts = this->zoneManager_->GetCurrentActionContextsForWidget(widget);
+                for (const auto& context : contexts) {
+                    Action* action = context->GetAction();
+                    if (!IsOskFaderValueAction(action)) continue;
+                    value = ClampOskNormalizedValue(action->GetCurrentNormalizedValue(context.get()));
+                    break;
+                }
+            }
             rgba_color color = widget->GetLastFeedbackColor();
             if (!state.empty()) state += ";";
             char buf[128];
@@ -712,6 +751,38 @@ void ControlSurface::InjectOSKScroll(const string& widgetName, int accelerationI
     const int boundedEventCount = (std::max)(1, (std::min)(eventCount, 8));
     for (int eventIdx = 0; eventIdx < boundedEventCount; ++eventIdx)
         this->zoneManager_->DoRelativeAction(widget, accelerationIndex, signedDelta);
+}
+
+void ControlSurface::InjectOSKValue(const string& widgetName, double value) {
+    Widget* widget = this->GetWidgetByName(widgetName);
+    if (!widget) {
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKValue: widget '%s' not found on '%s'\n", widgetName.c_str(), this->name_.c_str());
+        return;
+    }
+    if (!this->zoneManager_) return;
+    const double faderValue = value < 0.0 || value > 1.0 ? value : ClampOskNormalizedValue(value);
+    bool dispatchedToFaderContext = false;
+    const auto& contexts = this->zoneManager_->GetCurrentActionContextsForWidget(widget);
+    for (const auto& context : contexts) {
+        Action* action = context->GetAction();
+        if (!IsOskFaderValueAction(action)) continue;
+        context->DoRangeBoundAction(MapOskFaderValueToAction(action, faderValue));
+        dispatchedToFaderContext = true;
+    }
+    if (dispatchedToFaderContext) {
+        widget->LogInput(faderValue);
+        return;
+    }
+    this->zoneManager_->DoAction(widget, ClampOskNormalizedValue(value));
+}
+
+void ControlSurface::InjectOSKTouch(const string& widgetName, double value) {
+    Widget* widget = this->GetWidgetByName(widgetName);
+    if (!widget) {
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKTouch: widget '%s' not found on '%s'\n", widgetName.c_str(), this->name_.c_str());
+        return;
+    }
+    this->zoneManager_->DoTouch(widget, value != 0.0 ? 1.0 : 0.0);
 }
 
 void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {

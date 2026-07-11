@@ -11,6 +11,7 @@ void Widget::Configure(const vector<unique_ptr<ActionContext>>& contexts) {
 }
 
 void Widget::UpdateValue(const PropertyList& properties, double value) {
+    this->lastFeedbackValue_ = value;
     for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->SetValue(properties, value);
 }
@@ -26,6 +27,7 @@ void Widget::ForceValue(const PropertyList& properties, const char* const& value
 }
 
 void Widget::UpdateColorValue(const rgba_color& color) {
+    this->lastFeedbackColor_ = color;
     for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->SetColorValue(color);
 }

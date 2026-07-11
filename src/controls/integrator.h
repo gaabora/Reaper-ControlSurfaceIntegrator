@@ -245,6 +245,28 @@ public:
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetScroll: surface '%s' not found\n", surfName.c_str());
     }
 
+    void DispatchOSKWidgetValue(const string& surfName, const string& widgetName, double value) {
+        if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return;
+        for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->InjectOSKValue(widgetName, value);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetValue: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void DispatchOSKWidgetTouch(const string& surfName, const string& widgetName, double value) {
+        if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return;
+        for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->InjectOSKTouch(widgetName, value);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetTouch: surface '%s' not found\n", surfName.c_str());
+    }
+
     void DispatchOSKConfigQuery(const string& surfName, const string& widgetName) {
         if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
         for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
@@ -339,6 +361,42 @@ public:
                             DispatchOSKWidgetScroll(surfaceName, widgetName, accelerationIndex, delta, eventCount);
                         } else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid WidgetScroll payload: '%s'\n", payload.c_str());
                     } else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid WidgetScroll payload: '%s'\n", payload.c_str());
+                }
+            }
+        }
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetValue")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetValue");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetValue", false);
+            auto sep1 = payload.find('|');
+            if (sep1 != string::npos) {
+                auto sep2 = payload.find('|', sep1 + 1);
+                if (sep2 != string::npos) {
+                    const string surfaceName = payload.substr(0, sep1);
+                    const string widgetName = payload.substr(sep1 + 1, sep2 - sep1 - 1);
+                    const string valueText = payload.substr(sep2 + 1);
+                    char* valueEnd = nullptr;
+                    const double parsedValue = strtod(valueText.c_str(), &valueEnd);
+                    if (valueEnd && valueEnd != valueText.c_str() && *valueEnd == '\0')
+                        this->DispatchOSKWidgetValue(surfaceName, widgetName, parsedValue);
+                    else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid WidgetValue payload: '%s'\n", payload.c_str());
+                }
+            }
+        }
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetTouch")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetTouch");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetTouch", false);
+            auto sep1 = payload.find('|');
+            if (sep1 != string::npos) {
+                auto sep2 = payload.find('|', sep1 + 1);
+                if (sep2 != string::npos) {
+                    const string surfaceName = payload.substr(0, sep1);
+                    const string widgetName = payload.substr(sep1 + 1, sep2 - sep1 - 1);
+                    const string valueText = payload.substr(sep2 + 1);
+                    char* valueEnd = nullptr;
+                    const double parsedValue = strtod(valueText.c_str(), &valueEnd);
+                    if (valueEnd && valueEnd != valueText.c_str() && *valueEnd == '\0')
+                        this->DispatchOSKWidgetTouch(surfaceName, widgetName, parsedValue);
+                    else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid WidgetTouch payload: '%s'\n", payload.c_str());
                 }
             }
         }

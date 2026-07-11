@@ -101,7 +101,7 @@ class TrackSendReceiveVolumeDB : public VolumeAction
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendVolumeDB : ActionType::TrackReceiveVolumeDB; }
 
-    virtual void RequestUpdate(ActionContext* context) override {
+    virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
             double vol, pan = 0.0;
             if constexpr (Dir == SendDirection::Send) {
@@ -110,10 +110,30 @@ public:
             } else {
                 GetTrackReceiveUIVolPan(track, context->GetSlotIndex(), &vol, &pan);
             }
-            context->UpdateWidgetValue(VAL2DB(vol));
-        } else {
-            context->ClearWidget();
+            return volToNormalized(vol);
         }
+        return 0.0;
+    }
+
+    virtual double GetCurrentDBValue(ActionContext* context) override {
+        if (MediaTrack* track = context->GetTrack()) {
+            double vol, pan = 0.0;
+            if constexpr (Dir == SendDirection::Send) {
+                int numHW = GetTrackNumSends(track, 1);
+                GetTrackSendUIVolPan(track, context->GetParamIndex() + numHW, &vol, &pan);
+            } else {
+                GetTrackReceiveUIVolPan(track, context->GetSlotIndex(), &vol, &pan);
+            }
+            return VAL2DB(vol);
+        }
+        return 0.0;
+    }
+
+    virtual void RequestUpdate(ActionContext* context) override {
+        if (context->GetTrack())
+            context->UpdateWidgetValue(GetCurrentDBValue(context));
+        else
+            context->ClearWidget();
     }
 
     virtual void Do(ActionContext* context, double value) override {

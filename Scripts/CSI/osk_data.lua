@@ -37,8 +37,12 @@ M.rawLabels = {}
 M.rawLabelMaps = {}
 M.processedLabelCache = {}
 M.surfacePos = {}
+M.FADER_DEBUG = false
 local dirtySurfacePositions = {}
 local surfacePositionSaveDue = 0
+local faderDebugLast = {}
+local faderDebugLastMessage = {}
+local faderLocalValues = {}
 
 M.BUILTIN_LABEL_REPLACEMENTS = label_replacements.BUILTIN_REPLACEMENTS
 M.USER_LABEL_REPLACEMENTS = {}
@@ -79,6 +83,52 @@ local function replaceArray(dst, src)
     for index, value in ipairs(src) do
         dst[index] = value
     end
+end
+
+function M.DebugFader(surfName, widgetName, message, throttleSeconds, keySuffix)
+    if not M.FADER_DEBUG then return end
+    if not r or not r.ShowConsoleMsg then return end
+    local now = r.time_precise and r.time_precise() or os.clock()
+    local key = table.concat({ tostring(surfName or "?"), tostring(widgetName or "?"), tostring(keySuffix or message or "") }, "|")
+    if faderDebugLastMessage[key] == message and throttleSeconds and throttleSeconds > 0 then return end
+    if throttleSeconds and throttleSeconds > 0 then
+        local last = faderDebugLast[key]
+        if last and now - last < throttleSeconds then return end
+    end
+    faderDebugLast[key] = now
+    faderDebugLastMessage[key] = message
+    r.ShowConsoleMsg(string.format("[CSI OSK FADER DEBUG] %s|%s %s\n", tostring(surfName or "?"), tostring(widgetName or "?"), tostring(message or "")))
+end
+
+function M.GetStateValue(surfName, widgetName)
+    local state = M.states[surfName] and M.states[surfName][widgetName]
+    return state and state.value or 0.0
+end
+
+function M.SetFaderLocalValue(surfName, widgetName, displayValue, commandValue)
+    local stateKey = tostring(surfName or "") .. "|" .. tostring(widgetName or "")
+    faderLocalValues[stateKey] = {
+        displayValue = tonumber(displayValue) or 0.0,
+        commandValue = tonumber(commandValue) or 0.0,
+        sourceRawValue = M.GetStateValue(surfName, widgetName),
+        setTime = r.time_precise and r.time_precise() or os.clock(),
+    }
+    M.DebugFader(surfName, widgetName, string.format("local shadow set displayNormalized=%.6f commandValue=%.6f sourceRaw=%.6f", faderLocalValues[stateKey].displayValue, faderLocalValues[stateKey].commandValue, faderLocalValues[stateKey].sourceRawValue), 0.0, "shadow-set")
+end
+
+function M.GetFaderLocalValue(surfName, widgetName, rawValue)
+    local stateKey = tostring(surfName or "") .. "|" .. tostring(widgetName or "")
+    local localValue = faderLocalValues[stateKey]
+    if not localValue then return nil end
+
+    rawValue = tonumber(rawValue) or 0.0
+    if math.abs(rawValue - localValue.sourceRawValue) > 0.0005 then
+        M.DebugFader(surfName, widgetName, string.format("local shadow cleared raw changed sourceRaw=%.6f raw=%.6f", localValue.sourceRawValue, rawValue), 0.0, "shadow-clear")
+        faderLocalValues[stateKey] = nil
+        return nil
+    end
+
+    return localValue.displayValue
 end
 
 function M.hexToImCol(hex)
@@ -203,7 +253,9 @@ function M.PollExtStateEntry(surfName, suffix, rawStore, parsedStore, parser)
     if raw and raw ~= rawStore[surfName] then
         rawStore[surfName] = raw
         parsedStore[surfName] = parser(raw)
+        return true
     end
+    return false
 end
 
 function M.FilterGroupedDuplicates(row)
@@ -364,7 +416,21 @@ function M.PollData()
             if raw and raw ~= "" then return M.ParseLayout(raw) end
             return M.layouts[surfName]
         end)
-        M.PollExtStateEntry(surfName, "State", M.rawStates, M.states, M.ParseState)
+        local stateChanged = M.PollExtStateEntry(surfName, "State", M.rawStates, M.states, M.ParseState)
+        if stateChanged then
+            for _, row in ipairs(M.layouts[surfName] or {}) do
+                for _, cell in ipairs(row) do
+                    if not cell.isSpacer and tostring(cell.shape or ""):lower() == "fader" then
+                        local state = M.states[surfName] and M.states[surfName][cell.name]
+                        if state then
+                            M.DebugFader(surfName, cell.name, string.format("state rawValue=%.6f shape=%s rowSpan=%s rawStateLen=%d", tonumber(state.value) or 0.0, tostring(cell.shape), tostring(cell.rowSpan), #(M.rawStates[surfName] or "")), 0.0, "state")
+                        else
+                            M.DebugFader(surfName, cell.name, "state missing for fader in parsed state", 0.0, "state-missing")
+                        end
+                    end
+                end
+            end
+        end
         M.PollExtStateEntry(surfName, "Labels", M.rawLabels, M.labels, M.ParseLabels)
         M.PollExtStateEntry(surfName, "LabelMap", M.rawLabelMaps, M.labelMaps, M.ParseLabelMap)
     end
