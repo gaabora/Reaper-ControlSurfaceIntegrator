@@ -1,7 +1,7 @@
-local r = reaper
 local imgui = require "imgui" "0.9.3"
 
 local data = require("osk_data")
+local osk_input = require("osk_input")
 local osd_ui = require("osd_ui")
 local ui = require("ui_components")
 
@@ -12,10 +12,6 @@ local hoverStartTime = {}
 local FONT = nil
 local FONT_SMALL = nil
 local configModule = nil
-local wheelStates = {}
-
-local WHEEL_SEND_INTERVAL_SECONDS = 0.040
-local WHEEL_MAX_EVENTS_PER_COMMAND = 8
 
 local function GetInteractionStateKey(surfName, widgetName)
     if not surfName or surfName == "" or not widgetName or widgetName == "" then return nil end
@@ -30,106 +26,6 @@ end
 
 function M.SetConfigModule(module)
     configModule = module
-end
-
-local function GetWheelAccelerationIndex(eventInterval, wheelMagnitude)
-    local accelerationIndex = 0
-    if eventInterval <= 0.035 then
-        accelerationIndex = 3
-    elseif eventInterval <= 0.070 then
-        accelerationIndex = 2
-    elseif eventInterval <= 0.140 then
-        accelerationIndex = 1
-    end
-
-    local magnitudeBoost = math.max(0, math.min(3, math.floor(wheelMagnitude + 0.5) - 1))
-    return math.min(3, accelerationIndex + magnitudeBoost)
-end
-
-local function SendPendingWheelCommand(wheelState, now)
-    if wheelState.pendingEvents == 0 then return false end
-    if wheelState.lastSentTime > 0 and now - wheelState.lastSentTime < WHEEL_SEND_INTERVAL_SECONDS then return false end
-
-    local signedEventCount = wheelState.pendingEvents * wheelState.direction
-    local msg = table.concat({ wheelState.surfaceName, wheelState.widgetName, wheelState.accelerationIndex, signedEventCount }, "|")
-    r.SetExtState(data.EXT_CMD_SECTION, "WidgetScroll", msg, false)
-    wheelState.pendingEvents = 0
-    wheelState.accelerationIndex = 0
-    wheelState.lastSentTime = now
-    return true
-end
-
-local function FlushPendingWheelCommands()
-    local now = r.time_precise()
-    for stateKey, wheelState in pairs(wheelStates) do
-        if SendPendingWheelCommand(wheelState, now) then return end
-        if wheelState.pendingEvents == 0 and now - wheelState.lastInputTime > 2.0 then
-            wheelStates[stateKey] = nil
-        end
-    end
-end
-
-local pressedWidgets = {}  -- surface|widget -> true, tracks buttons currently held down
-
-local function HandleButtonPressDown(surfName, cell)
-    if not data.vars.interactive or not cell.name then return end
-    local stateKey = GetInteractionStateKey(surfName, cell.name)
-    if not stateKey then return end
-    local msg = surfName .. "|" .. cell.name
-    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressDown", msg, false)
-    pressedWidgets[stateKey] = true
-end
-
-local function HandleButtonPressUp(surfName, cell)
-    local stateKey = GetInteractionStateKey(surfName, cell and cell.name)
-    if not stateKey or not pressedWidgets[stateKey] then return end
-    pressedWidgets[stateKey] = nil
-    local msg = surfName .. "|" .. cell.name
-    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressUp", msg, false)
-end
-
-local function HandleRotaryMouseWheel(ctx, surfName, cell)
-    if not cell or not cell.name then return end
-    if not data.IsRelativeWidget(surfName, cell.name) then return end
-    if not imgui.IsItemHovered(ctx) then return end
-    if not data.vars.interactive then return end
-
-    local stateKey = GetInteractionStateKey(surfName, cell.name)
-    if not stateKey then return end
-    local wheelState = wheelStates[stateKey]
-    if not wheelState then
-        wheelState = {
-            surfaceName = surfName,
-            widgetName = cell.name,
-            direction = 0,
-            pendingEvents = 0,
-            accelerationIndex = 0,
-            lastInputTime = 0,
-            lastSentTime = 0,
-        }
-        wheelStates[stateKey] = wheelState
-    end
-
-    local now = r.time_precise()
-    local wheelValue = imgui.GetMouseWheel(ctx)
-    if wheelValue ~= 0 then
-        local direction = wheelValue > 0 and 1 or -1
-        local eventInterval = wheelState.lastInputTime > 0 and now - wheelState.lastInputTime or math.huge
-        if direction ~= wheelState.direction then
-            eventInterval = math.huge
-            wheelState.pendingEvents = 0
-            wheelState.accelerationIndex = 0
-        end
-
-        local eventCount = math.max(1, math.floor(math.abs(wheelValue) + 0.5))
-        wheelState.direction = direction
-        wheelState.pendingEvents = math.min(WHEEL_MAX_EVENTS_PER_COMMAND, wheelState.pendingEvents + eventCount)
-        wheelState.accelerationIndex = math.max(wheelState.accelerationIndex, GetWheelAccelerationIndex(eventInterval, math.abs(wheelValue)))
-        wheelState.lastInputTime = now
-    end
-
-    if wheelState.pendingEvents == 0 then return end
-    SendPendingWheelCommand(wheelState, now)
 end
 
 local function GetCellInfo(surfName, widgetName)
@@ -288,7 +184,7 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
 
     if insideShape then
         ShowDelayedTooltip(ctx, surfName, cell.name or "", label)
-        HandleRotaryMouseWheel(ctx, surfName, cell)
+        osk_input.HandleWheel(ctx, surfName, cell)
     elseif cell.name then
         local stateKey = GetInteractionStateKey(surfName, cell.name)
         if stateKey then hoverStartTime[stateKey] = nil end
@@ -300,11 +196,11 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
     end
 
     if insideShape and imgui.IsItemActivated(ctx) then
-        HandleButtonPressDown(surfName, cell)
+        osk_input.HandlePressDown(surfName, cell)
     end
     -- Always check deactivated so a press-up is never missed even if cursor drifted outside shape
     if imgui.IsItemDeactivated(ctx) then
-        HandleButtonPressUp(surfName, cell)
+        osk_input.HandlePressUp(surfName, cell)
     end
 end
 
@@ -584,7 +480,7 @@ local function getCellMetrics(cell)
 end
 
 function M.RenderSurface(ctx, surfName)
-    FlushPendingWheelCommands()
+    osk_input.FlushWheelCommands()
 
     local layout = data.layouts[surfName]
     if not layout then
