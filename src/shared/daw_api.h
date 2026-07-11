@@ -1,7 +1,10 @@
 //
-//  control_surface_integrator_Reaper.h
+//  daw_api.h (formerly control_surface_integrator_Reaper.h)
 //  reaper_csurf_integrator
 //
+//  DAW abstraction layer — the static DAW class wrapping REAPER API calls.
+//  Value types (osd_data, rgba_color, MIDI_event_ex_t, MEDBUF/SMLBUF) have
+//  moved to shared/types.h.  Utility functions moved to shared/utils.h.
 //
 
 #ifndef control_surface_integrator_Reaper_h
@@ -12,6 +15,7 @@
 #endif
 
 #include "reaper_plugin_functions.h"
+#include "types.h"
 #include "handy_functions.h"
 
 #include <string>
@@ -20,143 +24,6 @@
 using namespace std;
 
 extern HWND g_hwnd;
-
-const int MEDBUF = 512;
-const int SMLBUF = 256;
-
-static vector<string> ExplodeString(const char separator, const string& value)
-{
-    vector<string> result;
-    size_t start = 0;
-    size_t end = value.find(';');
-    while (end != string::npos) {
-        result.push_back(value.substr(start, end - start));
-        start = end + 1;
-        end = value.find(';', start);
-    }
-    result.push_back(value.substr(start));
-    return result;
-}
-
-struct osd_data {
-    inline static const string COLOR_ERROR = "#FF0000";
-    string origValue;
-    string message;
-    int timeoutMs = 3000;
-    vector<string> bgColors;
-    string bgColor;
-    string lastValue;
-
-    DWORD startWaitFeedback = 0;
-
-    osd_data() = default; 
-
-    osd_data(string osdValue) {
-        origValue = osdValue;
-
-        if (osdValue.front() == '\"') osdValue.erase(0, 1);
-        if (osdValue.back()  == '\"') osdValue.pop_back();
-
-        vector<string> osdParams = ExplodeString(';', osdValue);
-
-        message = osdParams[0];
-        if (osdParams.size() >= 2 && !osdParams[1].empty()) bgColors = ExplodeString(' ', osdParams[1]);
-        if (osdParams.size() >= 3 && !osdParams[2].empty()) timeoutMs = atoi(osdParams[2].c_str());
-    }
-
-    const string toString() const {
-        return message + ";" + bgColor + ";" + to_string(timeoutMs);
-    }
-    const bool isEmpty() const {
-        return message.empty();
-    }
-    bool IsAwaitFeedback() const {
-        DWORD now = GetTickCount();
-        return startWaitFeedback != 0 && (now - startWaitFeedback <= 100);
-    }
-    void SetAwaitFeedback(bool value) {
-        startWaitFeedback = value ? GetTickCount() : 0;
-    }
-};
-
-struct rgba_color
-{
-    int r;
-    int g;
-    int b;
-    int a;
-        
-    bool operator == (const rgba_color &other) const
-    {
-        return r == other.r && g == other.g && b == other.b && a == other.a ;
-    }
-    
-    bool operator != (const rgba_color &other) const
-    {
-        return r != other.r || g != other.g || b != other.b || a != other.a;
-    }
-    
-    const char *rgba_to_string(char *buf) const // buf must be at least 10 bytes
-    {
-      snprintf(buf,10,"#%02x%02x%02x%02x",r,g,b,a);
-      return buf;
-    }
-    
-    rgba_color()
-    {
-        r = 0;
-        g = 0;
-        b = 0;
-        a = 255;
-    }
-};
-
-static bool GetColorValue(const char *hexColor, rgba_color &colorValue)
-{
-    if (strlen(hexColor) == 7)
-    {
-      return sscanf(hexColor, "#%2x%2x%2x", &colorValue.r, &colorValue.g, &colorValue.b) == 3;
-    }
-    if (strlen(hexColor) == 9)
-    {
-      return sscanf(hexColor, "#%2x%2x%2x%2x", &colorValue.r, &colorValue.g, &colorValue.b, &colorValue.a) == 4;
-    }
-    return false;
-}
-
-struct MIDI_event_ex_t : MIDI_event_t
-{
-    MIDI_event_ex_t()
-    {
-        frame_offset = 0;
-        size = 3;
-        midi_message[0] = 0x00;
-        midi_message[1] = 0x00;
-        midi_message[2] = 0x00;
-        midi_message[3] = 0x00;
-    };
-    
-    MIDI_event_ex_t(const unsigned char first, const unsigned char second, const unsigned char third)
-    {
-        size = 3;
-        midi_message[0] = first;
-        midi_message[1] = second;
-        midi_message[2] = third;
-        midi_message[3] = 0x00;
-    };
-    
-    bool IsEqualTo(const MIDI_event_ex_t *other) const
-    {
-        if (this->size != other->size)
-            return false;
-        
-        for (int i = 0; i < size; ++i)
-            if (this->midi_message[i] != other->midi_message[i])
-                return false;
-        
-        return true;
-    }
-};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class DAW

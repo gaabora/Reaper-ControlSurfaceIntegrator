@@ -27,59 +27,7 @@ private:
         COLOR_WHITE
     };
 
-    /*
-     * NOTE: Any changes made to rgbToColor here must also be mirrored in class
-     * XTouchDisplay_Midi_FeedbackProcessor in control_surface_midi_widgets.h
-     */
-    static int rgbToColor(int r, int g, int b)
-    {
-        // Doing a RGB to HSV conversion since HSV is better for light
-        // Converting RGB to floats between 0 and 1.0 (percentage)
-        float rf = r / 255.0f;
-        float gf = g / 255.0f;
-        float bf = b / 255.0f;
-
-        // Hue will be between 0 and 360 to represent the color wheel.
-        // Saturation and Value are a percentage (between 0 and 1.0)
-        float h, s, v, colorMin, delta;
-        v = (float) max(max(rf, gf), bf);
-
-        // If value is less than this percentage, LCD should be off.
-        if (v <= 0.10)
-            return COLOR_WHITE; // This could be OFF, but that would show nothing.
-
-        colorMin = min(min(rf, gf), bf);
-        delta = v - colorMin;
-        // Don't need divide by zero check since if value is 0 it will return COLOR_OFF above.
-        s = delta / v;
-
-        // If saturation is less than this percentage, LCD should be white.
-        if (s <= 0.10)
-            return COLOR_WHITE;
-
-        // Now we have a valid color. Figure out the hue and return the closest X-Touch value.
-        if (rf >= v)        h =  (gf - bf) / delta;
-        else if (gf >= v)   h = ((bf - rf) / delta) + 2.0f;
-        else                h = ((rf - gf) / delta) + 4.0f;
-
-        h *= 60.0;
-        if (h < 0)  h += 360.0;
-
-        // The numbers represent the hue from 0-360.
-        if (h >= 330 || h < 20)
-            return COLOR_RED;
-        if (h >= 250)
-            return COLOR_MAGENTA;
-        if (h >= 210)
-            return COLOR_BLUE;
-        if (h >= 160)
-            return COLOR_CYAN;
-        if (h >= 80)
-            return COLOR_GREEN;
-        if (h >= 20)
-            return COLOR_YELLOW;
-        return COLOR_WHITE; // failsafe
-    }
+    // rgbToColor() is provided by shared/utils.h (canonical implementation)
 
 public:
     OSC_X32FeedbackProcessor(CSurfIntegrator *const csi, OSC_ControlSurface *surface, Widget *widget, const string &oscAddress) : OSC_FeedbackProcessor(csi, surface, widget, oscAddress)  {}
