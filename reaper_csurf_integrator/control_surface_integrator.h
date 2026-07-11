@@ -117,6 +117,7 @@ static void CloseAllDialogs() {
 
 static const char * const REASCRIPT_PATH__CSI_OSD = "/Scripts/CSI/CSI OSD on-screen display.lua";
 static const char * const REASCRIPT_HASH__CSI_OSD = "_RSba74d8dbb9258d14b5305a183a5f20e8a6e0f64f";
+static const char * const REASCRIPT_PATH__CSI_OSK = "/Scripts/CSI/CSI OSK on-screen keyboard.lua";
 static const int REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES = 41743;
 static const int REAPER__RESET_ALL_MIDI_CONTROL_SURFACE_DEVICES = 42348;
 static const int REAPER__FILE_NEW_PROJECT = 40023;
@@ -147,7 +148,7 @@ static char *format_number(double v, char *buf, int bufsz)
 
 extern void GetTokens(vector<string> &tokens, const string &line);
 extern void GetTokens(vector<string> &tokens, const string &line, char delimiter);
-static bool IsCommentedOrEmpty(string& line) { return line == "" || line[0] == '\r' || line[0] == '/'; }
+static bool IsCommentedOrEmpty(string& line) { return line == "" || line[0] == '\r' || line[0] == '/' || line[0] == '#'; }
 
 class ReloadPluginException : public std::runtime_error {
 public:
@@ -220,6 +221,7 @@ enum PropertyType {
   D(FXZoneFolder) \
   D(NavType) \
   D(MeterMode) \
+  D(KeyLabel) \
 
   PropertyType_Unknown = 0, // in this case, string is type=value pair
 #define DEFPT(x) PropertyType_##x ,
@@ -556,7 +558,8 @@ X(SetHoldTime, "SetHoldTime") \
 X(SetLatchTime, "SetLatchTime") \
 X(SetDebugLevel, "SetDebugLevel") \
 X(CycleDebugLevel, "CycleDebugLevel") \
-X(SetOSDTime, "SetOSDTime")
+X(SetOSDTime, "SetOSDTime") \
+X(ToggleOSK, "ToggleOSK")
 /* Invert, Hold, DoublePress - are pseudo modifiers */
 
 
@@ -1085,7 +1088,7 @@ public:
     const char* GetFreeFormText() const { return m_freeFormText.c_str(); }
     void SetFreeFormText(const char* text) { m_freeFormText = (text ? text : ""); }
 
-    const char* GetActionTitle();
+    const char* GetActionTitle() { return actionTitle_.c_str(); }
 
     int ClampValueWithWarning(int value, int min, int max);
 
@@ -1370,6 +1373,9 @@ public:
 
     virtual void SetColorValue(const rgba_color &color) {}
 
+    double GetLastDoubleValue() const { return lastDoubleValue_; }
+    const rgba_color &GetLastColor() const { return lastColor_; }
+
     virtual void SetValue(const PropertyList &properties, double value)
     {
         if (lastDoubleValue_ != value)
@@ -1509,6 +1515,20 @@ public:
 
     void SetHasDoublePressActions() { hasDoublePressActions_ = true; };
     bool HasDoublePressActions() { return hasDoublePressActions_; };
+
+    double GetLastFeedbackValue() const {
+        if (!feedbackProcessors_.empty())
+            return feedbackProcessors_[0]->GetLastDoubleValue();
+        return 0.0;
+    }
+
+    rgba_color GetLastFeedbackColor() const {
+        if (!feedbackProcessors_.empty())
+            return feedbackProcessors_[0]->GetLastColor();
+        rgba_color empty;
+        empty.a = 0;
+        return empty;
+    }
 
     void LogInput(double value);
 };
@@ -1855,6 +1875,39 @@ public:
 
     CSurfIntegrator *GetCSI() { return csi_; }
     ControlSurface *GetSurface() { return surface_; }
+
+    const vector<unique_ptr<ActionContext>> &GetCurrentActionContextsForWidget(Widget *widget) {
+        // Check active goZones first
+        for (auto &goZone : goZones_) {
+            if (goZone->GetIsActive()) {
+                const auto &contexts = goZone->GetActionContexts(widget);
+                if (!contexts.empty())
+                    return contexts;
+
+                // Also check included zones
+                for (auto &inclZone : goZone->GetIncludedZones()) {
+                    const auto &inclContexts = inclZone->GetActionContexts(widget);
+                    if (!inclContexts.empty())
+                        return inclContexts;
+                }
+            }
+        }
+        
+        // Fall back to home zone
+        if (homeZone_) {
+            const auto &contexts = homeZone_->GetActionContexts(widget);
+            if (!contexts.empty())
+                return contexts;
+
+            for (auto &inclZone : homeZone_->GetIncludedZones()) {
+                const auto &inclContexts = inclZone->GetActionContexts(widget);
+                if (!inclContexts.empty())
+                    return inclContexts;
+            }
+        }
+        
+        return emptyContexts_;
+    }
     
     int GetTrackSendOffset() { return trackSendOffset_; }
     int GetTrackReceiveOffset() { return trackReceiveOffset_; }
@@ -1982,37 +2035,7 @@ public:
                 listener->ListenToGoZone(zoneName);
     }
     
-    void GoZone(const char *zoneName)
-    {
-        ClearFXMapping();
-        ResetOffsets();
-        
-        for (int i = 0; i < goZones_.size(); ++i)
-        {
-            if (IsSameString(zoneName, goZones_[i]->GetName()))
-            {
-                if (goZones_[i]->GetIsActive())
-                {
-                    for (int j = i; j < goZones_.size(); ++j)
-                        if (IsSameString(zoneName, goZones_[j]->GetName()))
-                            goZones_[j]->Deactivate();
-                    
-                    return;
-                }
-            }
-        }
-        
-        for (auto &goZone : goZones_)
-            if (!IsSameString(zoneName, goZone->GetName()))
-                goZone->Deactivate();
-        
-        for (auto &goZone : goZones_)
-            if (IsSameString(zoneName, goZone->GetName()))
-               goZone->Activate();
-        
-        if (IsSameString(zoneName, "SelectedTrackFX"))
-            GoSelectedTrackFX();
-    }
+    void GoZone(const char *zoneName); // out-of-line definition after ControlSurface class
     
     void DeclareClearFXZone(const char *zoneName)
     {
@@ -2078,17 +2101,7 @@ public:
         }
     }
 
-    void GoHome()
-    {
-        HideAllFXWindows();
-        ClearFXMapping();
-        ResetOffsets();
-
-        for (auto &goZone : goZones_)
-            goZone->Deactivate();
-        
-        homeZone_->Activate();
-    }
+    void GoHome(); // out-of-line definition after ControlSurface class
     
     void DeclareGoHome()
     {
@@ -2616,6 +2629,39 @@ private:
     int doublePressTime_ = 400;
     
     bool isOsdEnabled_= false;
+    bool isOskEnabled_ = false;
+
+    // OSK layout data parsed from Surface.txt
+    struct OskWidgetInfo {
+        string name;
+        string shape = "Rect";
+        float width = 1.0f;
+        float height = 1.0f;
+        string group;
+        string label;
+        bool hidden = false;
+        string color; // optional default active color (RRGGBB)
+    };
+
+    struct OskCell {
+        bool isSpacer = false;
+        float spacerWidth = 0.0f;
+        OskWidgetInfo widget;
+    };
+
+    struct OskRow {
+        vector<OskCell> cells;
+    };
+
+    vector<OskRow> oskLayout_;
+    string cachedOskLayoutString_;
+    string cachedOskStateString_;
+    string cachedOskLabelsString_;
+    string surfaceFilePath_;
+    int oskRunCounter_ = 0;
+
+    void ParseOskProperties(const string &propsPart, OskWidgetInfo &info);
+    void BuildCachedLayoutString();
 
     vector<FeedbackProcessor *> trackColorFeedbackProcessors_; // does not own pointers
     
@@ -3032,6 +3078,14 @@ public:
     void SetOsdEnabled(bool value) {
         isOsdEnabled_ = value;
     }
+
+    bool GetOskEnabled() const { return isOskEnabled_; }
+    void SetOskEnabled(bool v) { isOskEnabled_ = v; }
+    void ParseOSKLayout(const string &surfaceFilePath);
+    void PublishOSKLayout();
+    void PublishOSKState();
+    void PublishOSKLabels();
+    const string &GetSurfaceFilePath() const { return surfaceFilePath_; }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -4287,6 +4341,59 @@ public:
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Out-of-line implementations of ZoneManager methods that depend on ControlSurface
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+inline void ZoneManager::GoZone(const char *zoneName)
+{
+    ClearFXMapping();
+    ResetOffsets();
+    
+    for (int i = 0; i < goZones_.size(); ++i)
+    {
+        if (IsSameString(zoneName, goZones_[i]->GetName()))
+        {
+            if (goZones_[i]->GetIsActive())
+            {
+                for (int j = i; j < goZones_.size(); ++j)
+                    if (IsSameString(zoneName, goZones_[j]->GetName()))
+                        goZones_[j]->Deactivate();
+                
+                surface_->PublishOSKLabels();
+                return;
+            }
+        }
+    }
+    
+    for (auto &goZone : goZones_)
+        if (!IsSameString(zoneName, goZone->GetName()))
+            goZone->Deactivate();
+    
+    for (auto &goZone : goZones_)
+        if (IsSameString(zoneName, goZone->GetName()))
+           goZone->Activate();
+    
+    if (IsSameString(zoneName, "SelectedTrackFX"))
+        GoSelectedTrackFX();
+    
+    surface_->PublishOSKLabels();
+}
+
+inline void ZoneManager::GoHome()
+{
+    HideAllFXWindows();
+    ClearFXMapping();
+    ResetOffsets();
+
+    for (auto &goZone : goZones_)
+        goZone->Deactivate();
+    
+    homeZone_->Activate();
+    
+    surface_->PublishOSKLabels();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Page
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
@@ -4548,6 +4655,10 @@ public:
         
         for (auto &surface : surfaces_)
             surface->RequestUpdate();
+
+        // Publish OSK state at ~10Hz (every 3rd cycle of 30Hz)
+        for (auto &surface : surfaces_)
+            surface->PublishOSKState();
     }
 //*/
 };
@@ -4716,6 +4827,39 @@ public:
         runningState = GetToggleCommandState(commandId);
         LogToConsole("[ERROR] FAILED to OpenOSDPanel. ReaScript: '%s' command ID: %s (%d) state: %d\n", 
             REASCRIPT_PATH__CSI_OSD, REASCRIPT_HASH__CSI_OSD, commandId, runningState);
+    }
+
+    int oskCommandId_ = 0;
+    void OpenOSKPanel() {
+        string scriptsPath = string(GetResourcePath()) + REASCRIPT_PATH__CSI_OSK;
+        if (oskCommandId_ == 0) {
+            oskCommandId_ = AddRemoveReaScript(true, 0, scriptsPath.c_str(), true);
+            if (oskCommandId_ == 0) {
+                LogToConsole("[ERROR] FAILED to OpenOSKPanel. AddRemoveReaScript failed for '%s'\n", REASCRIPT_PATH__CSI_OSK);
+                return;
+            }
+            LogToConsole("[NOTICE] ReaScript %s was loaded: commandId=%d\n", REASCRIPT_PATH__CSI_OSK, oskCommandId_);
+        }
+        int runningState = GetToggleCommandState(oskCommandId_);
+        if (runningState == 1) return; // already running
+        DAW::SendCommandMessage(oskCommandId_);
+    }
+
+    void CloseOSKPanel() {
+        ::SetExtState("CSI_OSK", "Command", "Close", false);
+    }
+
+    void PublishOSKSurfacesList() {
+        string surfaces;
+        if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
+            for (auto &surface : pages_[currentPageIndex_]->GetSurfaces()) {
+                if (surface->GetOskEnabled()) {
+                    if (!surfaces.empty()) surfaces += "|";
+                    surfaces += surface->GetName();
+                }
+            }
+        }
+        ::SetExtState("CSI_OSK", "Surfaces", surfaces.c_str(), false);
     }
 
     Action *GetFXParamAction(char *FXName)
