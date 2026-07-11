@@ -1,7 +1,7 @@
 # CSI Action Migration Guide: Old Wiki → Current Version
 
 **Last Updated**: March 14, 2026  
-**Purpose**: Help users migrate from old CSI wiki-based configuration to the current ACTIONS.md specification
+**Purpose**: Help users migrate from old CSI wiki-based configuration to the current Actions-Reference.md specification
 
 ---
 
@@ -655,16 +655,16 @@ ZoneEnd
 |---------|--------|-------------------|
 | ≤ v5.x | ❌ Unsupported | Yes - full rewrite |
 | v6.0+ | ✅ Current | Check this guide |
-| Dev | ⚠️ Check changelog | Refer to ACTIONS.md |
+| Dev | ⚠️ Check changelog | Refer to Actions-Reference.md |
 
 ---
 
 ## Additional Resources
 
-- [ACTIONS.md](ACTIONS.md) - Complete current action reference
-- [CONFIG_FORMAT.md](CONFIG_FORMAT.md) - Zone file syntax
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System design overview
-- [Readme.md](Readme.md) - Project overview
+- [Actions-Reference.md](Actions-Reference.md) - Complete current action reference
+- [Configuration-Format.md](Configuration-Format.md) - Zone file syntax
+- [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) - System design overview
+- [../Readme.md](../Readme.md) - Project overview
 
 ---
 
@@ -672,7 +672,7 @@ ZoneEnd
 
 If you encounter migration issues:
 
-1. **Search ACTIONS.md** for the current action syntax
+1. **Search Actions-Reference.md** for the current action syntax
 2. **Review examples** in the "Complete Example Zone" section
 3. **Check error logs** in REAPER console (Ctrl+Alt+?)
 4. **Test incrementally** - update one zone at a time
@@ -681,3 +681,10 @@ If you encounter migration issues:
 
 **Last Updated**: June 2025  
 **Changelog**: [10 - Change Log](https://github.com/FunkybotsEvilTwin/CSIUserGuide/wiki/10-%E2%80%90-Change-Log)
+
+
+
+
+
+
+

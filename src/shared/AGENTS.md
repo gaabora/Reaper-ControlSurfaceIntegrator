@@ -15,7 +15,7 @@
 - `reaper_plugin_functions.h` mirrors the REAPER API and should be treated as generated/vendor-style code.
 - `reaper_plugin.h`, `oscpkt.hh`, and `udp.hh` carry upstream or compatibility behavior; keep local edits minimal and well justified.
 - DAW wrappers must preserve REAPER pointer validity, index conventions, and threading expectations.
-- Publish OSD messages through the shared `ReaCtrlSurf_OSD` payload and event id keys documented in `LUA_CPP_EXTSTATE_INTERFACE.md`.
+- Publish OSD messages through the shared `ReaCtrlSurf_OSD` payload and event id keys documented in `docs/LUA_CPP_EXTSTATE_INTERFACE.md`.
 - Shared headers have broad compile impact; avoid adding heavyweight dependencies without need.
 
 ## Work Guidance

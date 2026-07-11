@@ -10,7 +10,7 @@ Read `DOX.md` before editing. This file is the repository-wide contract.
 ## Ownership
 
 - Root build and packaging files: `CMakeLists.txt`, `config.h.in`, `CMakeSettings.json`, and `Makefile`.
-- Repository-wide architecture, configuration, action reference, migration, planning, and project documentation in root Markdown files.
+- Root landing documentation plus repository-wide architecture/reference material in `docs/` and active engineering backlog material in `todo/`.
 - Project-wide engineering rules and the top-level DOX hierarchy.
 
 ## Local Contracts
@@ -34,7 +34,7 @@ Read `DOX.md` before editing. This file is the repository-wide contract.
 ### Documentation
 
 - Verify behavioral claims against current source before updating reference documentation.
-- Keep root reference documents and `Wiki/` navigation consistent when public behavior changes.
+- Keep `Wiki/`, `docs/`, and `todo/` navigation consistent when public behavior or backlog structure changes.
 
 ## Verification
 
@@ -48,3 +48,5 @@ Read `DOX.md` before editing. This file is the repository-wide contract.
 - `Scripts/AGENTS.md` - REAPER Lua scripts and their shared runtime contracts.
 - `src/AGENTS.md` - C++ plugin source, resources, and component boundaries.
 - `Wiki/AGENTS.md` - User-facing wiki pages, navigation, and documentation roadmap.
+- `docs/AGENTS.md` - Developer-facing reference documentation.
+- `todo/AGENTS.md` - Active implementation backlog and unfinished plans.

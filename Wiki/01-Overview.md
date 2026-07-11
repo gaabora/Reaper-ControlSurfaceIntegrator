@@ -150,7 +150,7 @@ A **Widget** is a single control or display element defined in surface.txt.
 **Example surface.txt definition**:
 ```
 Fader "Fader1" 1 0xE0 0
-    Feedback "FaderDisplay" 1 0xB0 0 //FIXME: describe what number mean what
+    Feedback "FaderDisplay" 1 0xB0 0 //FIXME: describe which number means what
     
 Button "Button1" 1 0x90 0
     Feedback "ButtonLED" 1 0x90 0

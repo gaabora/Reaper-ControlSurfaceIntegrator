@@ -7,7 +7,7 @@
 ## Ownership
 
 - Wiki navigation in `Home.md`, `INDEX.md`, and `README.md`.
-- Numbered user guides and `WIKI_ROADMAP.md`.
+- User-facing guides, migrated reference pages, and `WIKI_ROADMAP.md`.
 
 ## Local Contracts
 

@@ -245,10 +245,10 @@ NavType=FolderNavigator             ; Folder tracks
 
 ## Learning Resources
 
-1. **ARCHITECTURE.md** - How CSI works internally
-2. **CONFIG_FORMAT.md** - All configuration options
-3. **ACTIONS.md** - Complete action reference
-4. **DOCUMENTATION.md** - Documentation index
+1. [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) - How CSI works internally
+2. [Configuration-Format.md](Configuration-Format.md) - All configuration options
+3. [Actions-Reference.md](Actions-Reference.md) - Complete action reference
+4. [Home.md](Home.md) - Documentation index
 
 ## Online Resources
 
@@ -291,11 +291,19 @@ Then check REAPER console for messages:
 ## Getting Help
 
 1. Check error messages in REAPER console
-2. Verify syntax against CONFIG_FORMAT.md
-3. Verify action names against ACTIONS.md
+2. Verify syntax against [Configuration-Format.md](Configuration-Format.md)
+3. Verify action names against [Actions-Reference.md](Actions-Reference.md)
 4. Review example zones in CSI folder
-5. Consult ARCHITECTURE.md for detailed explanations
+5. Consult [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) for detailed explanations
 
 ---
 
 **Last Updated**: March 2026 | CSI v7.0
+
+
+
+
+
+
+
+

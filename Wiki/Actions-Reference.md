@@ -1163,6 +1163,8 @@ ZoneEnd
 
 ## See Also
 
-- [CONFIG_FORMAT.md](CONFIG_FORMAT.md) - Detailed configuration syntax
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and design
+- [Configuration-Format.md](Configuration-Format.md) - Detailed configuration syntax
+- [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) - System architecture and design
 - REAPER Plugin API - https://www.reaper.fm/sdk/plugin/plugin.php
+
+

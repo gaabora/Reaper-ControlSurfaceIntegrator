@@ -27,7 +27,7 @@
 
 - Build the plugin.
 - In REAPER, exercise the changed action from a zone mapping and verify input, feedback, modifiers, and release/touch behavior as applicable.
-- Check user-facing action names against `ACTIONS.md` and related wiki/reference pages.
+- Check user-facing action names against `Wiki/Actions-Reference.md` and related wiki/reference pages.
 
 ## Child DOX Index
 

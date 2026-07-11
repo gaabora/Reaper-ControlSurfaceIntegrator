@@ -1,27 +1,47 @@
-# Reaper Control Surface Integrator
+# ReaControlSurface
 
-A fork of the Control Surface Integrator ((CSI)[https://github.com/GeoffAWaddington/CSICode]) plugin for Reaper, featuring dozens of new features, performance optimizations, and automated builds for Windows, macOS, and Linux. You can view the latest updates in the [releases](/releases).
+ReaControlSurface is rewritten fork of the Control Surface Integrator ((CSI)[https://github.com/GeoffAWaddington/CSICode]) plugin for Reaper, designed to help you integrate hardware control surfaces with the DAW. In the original CSI, very little worked out of the box, which is why this fork was created. Since then, many issues have been fixed and new capabilities like OSK (interactive configurable on-screen [keyboard]/surface), and OSD (on-screen display) was added, together with dozens of new features, performance optimizations, and automated builds for Windows, macOS, and Linux. You can view the latest updates in the [releases](/releases).
 
+## Documentation
 
-CSI is a Reaper extension designed to help you integrate hardware control surfaces with the DAW. In the original CSI, very little worked out of the box, which is why this fork was created. Since then, many issues have been fixed and new capabilities added. 
+### End-user docs
 
-    ⚠️ Note for macOS 15+ users:
-    The macOS builds are not code-signed, so you may need to manually remove the quarantine flag before the plugin will load. You can do this with the following command:
+Start in [Wiki/Home.md](Wiki/Home.md).
+
+- [Wiki/01-Overview.md](Wiki/01-Overview.md)
+- [Wiki/02-Installation.md](Wiki/02-Installation.md)
+- [Wiki/03-QuickStart.md](Wiki/03-QuickStart.md)
+- [Wiki/04-Zones-Fundamentals.md](Wiki/04-Zones-Fundamentals.md)
+- [Wiki/Quick-Reference.md](Wiki/Quick-Reference.md)
+- [Wiki/Actions-Reference.md](Wiki/Actions-Reference.md)
+- [Wiki/Configuration-Format.md](Wiki/Configuration-Format.md)
+- [Wiki/Migration-Guide.md](Wiki/Migration-Guide.md)
+
+### Developer docs
+
+- [docs/README.md](docs/README.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/LUA_CPP_EXTSTATE_INTERFACE.md](docs/LUA_CPP_EXTSTATE_INTERFACE.md)
+
+### Open work
+
+- [todo/README.md](todo/README.md)
+
+## Build
+
+Windows debug build:
+
+```powershell
+cmake --build build --config Debug
+```
+
+## macOS note
+
+macOS builds are not code-signed. If REAPER blocks or can not see the plugin, remove the quarantine flag by next command running in terminal:
 
 ```bash
 xattr -d com.apple.quarantine ~/Library/Application\ Support/REAPER/UserPlugins/reaper_csurf_integrator.dylib
 ```
-
-
-
-
-need to plan way to implement, maybe not thru extState buttons in lua on click should send events to csi, also need to send mouse scroll events for rotary buttons (increase/decrease).
-there was tries to implement, but currently it gives errors like
-"attempt to access a nil value (field 'GetIO')"
-
-The OSK opens one independently positioned window per enabled surface. Its current
-Lua/C++ protocol is documented in `LUA_CPP_EXTSTATE_INTERFACE.md`.
-
 
 
 
@@ -72,7 +92,4 @@ setx REAPER_RESOURCE_PATH "c:\apps\MultiMedia\ReaperPortable\Data\ReaperPortable
 
 ## Other docs
 * [VSCode docs](https://code.visualstudio.com/docs/languages/cpp#_tutorials) and [Microsoft C++ docs](https://docs.microsoft.com/en-us/cpp/cpp/) are a helpful resource. And, of course, [ReaScript, JSFX, REAPER Plug-in Extensions, Developer Forum](https://forum.cockos.com/forumdisplay.php?f=3).
-
-
-
 
