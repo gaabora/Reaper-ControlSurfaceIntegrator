@@ -299,9 +299,9 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (context->GetSurface()->GetZoneManager()->GetIsHomeZoneOnlyActive())
-            context->UpdateWidgetValue(1.0);
-        else
             context->UpdateWidgetValue(0.0);
+        else
+            context->UpdateWidgetValue(1.0);
     }
 
     void Do(ActionContext* context, double value) override {
