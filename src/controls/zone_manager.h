@@ -10,6 +10,8 @@
 class ZoneManager
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
+    friend class ZoneFileParser; // zone_parser.h — parses .zon files
+
 private:
     CSurfIntegrator *const csi_;
     ControlSurface *const surface_;

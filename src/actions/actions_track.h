@@ -796,9 +796,9 @@ public:
         int trackIndex = 0;
         
        
-        for (int i = 1; i <= context->GetPage()->GetTrackNavigationManager()->GetNumTracks(); ++i)
+        for (int i = 1; i <= context->GetTrackNavigationManager()->GetNumTracks(); ++i)
         {
-            MediaTrack *currentTrack = context->GetPage()->GetTrackNavigationManager()->GetTrackFromId(i);
+            MediaTrack *currentTrack = context->GetTrackNavigationManager()->GetTrackFromId(i);
            
             if (currentTrack == NULL)
                 continue;
@@ -821,16 +821,16 @@ public:
 
         for (int i = lowerBound; i <= upperBound; ++i)
         {
-            MediaTrack *currentTrack = context->GetPage()->GetTrackNavigationManager()->GetTrackFromId(i);
+            MediaTrack *currentTrack = context->GetTrackNavigationManager()->GetTrackFromId(i);
             
             if (currentTrack == NULL)
                 continue;
             
-            if (context->GetPage()->GetTrackNavigationManager()->GetIsTrackVisible(currentTrack))
+            if (context->GetTrackNavigationManager()->GetIsTrackVisible(currentTrack))
                 CSurf_SetSurfaceSelected(currentTrack, CSurf_OnSelectedChange(currentTrack, 1), NULL);
         }
         
-        MediaTrack *lowestTrack = context->GetPage()->GetTrackNavigationManager()->GetTrackFromId(lowerBound);
+        MediaTrack *lowestTrack = context->GetTrackNavigationManager()->GetTrackFromId(lowerBound);
         
         if (lowestTrack != NULL)
             context->GetPage()->OnTrackSelectionBySurface(lowestTrack);

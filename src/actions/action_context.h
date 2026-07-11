@@ -94,6 +94,9 @@ public:
     
     IPageContext *GetPage();
     ControlSurface *GetSurface();
+    // Convenience shorthand: equivalent to GetPage()->GetTrackNavigationManager().
+    // Reduces the repetitive 2-hop chain in action implementations.
+    TrackNavigationManager *GetTrackNavigationManager();
     int GetParamIndex() { return paramIndex_; }
     void SetParamIndex(int paramIndex) { paramIndex_ = paramIndex; }
       

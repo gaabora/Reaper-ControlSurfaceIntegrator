@@ -259,7 +259,7 @@ public:
                 const char *sendTrackName = (const char *)GetSetMediaTrackInfo(destTrack, "P_NAME", NULL);
                 char tmp[MEDBUF];
                 snprintf(tmp, sizeof(tmp), "Track %d%s%s",
-                    context->GetPage()->GetTrackNavigationManager()->GetIdFromTrack(destTrack),
+                    context->GetTrackNavigationManager()->GetIdFromTrack(destTrack),
                     sendTrackName && *sendTrackName ? " " : "",
                     sendTrackName ? sendTrackName : "");
                 context->GetCSI()->Speak(tmp);
@@ -288,7 +288,7 @@ public:
             {
                 const char *receiveTrackName = (const char *)GetSetMediaTrackInfo(srcTrack, "P_NAME", NULL);
                 char tmp[MEDBUF];
-                snprintf(tmp, sizeof(tmp), "Track %d%s%s", context->GetPage()->GetTrackNavigationManager()->GetIdFromTrack(srcTrack),
+                snprintf(tmp, sizeof(tmp), "Track %d%s%s", context->GetTrackNavigationManager()->GetIdFromTrack(srcTrack),
                     receiveTrackName && *receiveTrackName ? " " : "",
                     receiveTrackName ? receiveTrackName : "");
                 context->GetCSI()->Speak(tmp);

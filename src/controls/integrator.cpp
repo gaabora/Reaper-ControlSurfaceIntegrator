@@ -6,6 +6,8 @@
 
 #define INCLUDE_LOCALIZE_IMPORT_H
 #include "integrator.h"
+#include "zone_parser.h"
+#include "surface_parser.h"
 #include "midi/midi_widgets.h"
 #include "midi/widget_factory.h"
 #include "osc/osc_widgets.h"
@@ -252,26 +254,7 @@ void GetTokens(vector<string> &tokens, const string &line, char delimiter)
         tokens.push_back(token);
 }
 
-vector<vector<string>> GetTokenLines(ifstream &file, string endToken, int &lastProcessedLine) {
-    vector<vector<string>> tokenLines;
-    for (string line; getline(file, line);) {
-        TrimLine(line);
-
-        lastProcessedLine++;
-        
-        if (IsCommentedOrEmpty(line))
-            continue;
-        
-        vector<string> tokens;
-        GetTokens(tokens, line);
-
-        if (tokens[0] == endToken)
-            break;
-        
-        tokenLines.push_back(tokens);
-    }
-    return tokenLines;
-}
+// GetTokenLines moved to surface_parser.cpp (only used there)
 
 int strToHex(string &valueStr)
 {
@@ -467,59 +450,7 @@ static void collectFilesOfType(const string &type, const string &searchPath, vec
 //////////////////////////////////////////////////////////////////////////////
 void Midi_ControlSurface::ProcessMidiWidget(int &lineNumber, ifstream &surfaceTemplateFile, const vector<string> &in_tokens)
 {
-    if (in_tokens.size() < 2)
-        return;
-
-    string widgetClass;
-    if (in_tokens.size() > 2)
-        widgetClass = in_tokens[2];
-
-    AddWidget(this, in_tokens[1].c_str());
-
-    Widget *widget = GetWidgetByName(in_tokens[1]);
-    if (widget == NULL)
-    {
-        LogToConsole("[ERROR] FAILED to ProcessMidiWidget: no widgets found by name '%s'. Line %d\n", in_tokens[1].c_str(), lineNumber);
-        return;
-    }
-
-    vector<vector<string>> tokenLines = GetTokenLines(surfaceTemplateFile, "WidgetEnd", lineNumber);
-    if (tokenLines.size() < 1)
-        return;
-
-    for (int i = 0; i < (int)tokenLines.size(); ++i)
-    {
-        MidiWidgetContext ctx;
-        ctx.csi        = csi_;
-        ctx.surface    = this;
-        ctx.widget     = widget;
-        ctx.widgetClass = widgetClass;
-        ctx.tokens     = tokenLines[i];
-        ctx.size       = (int)tokenLines[i].size();
-
-        if (ctx.size > 3)
-        {
-            ctx.message1.midi_message[0] = strToHex(tokenLines[i][1]);
-            ctx.message1.midi_message[1] = strToHex(tokenLines[i][2]);
-            ctx.message1.midi_message[2] = strToHex(tokenLines[i][3]);
-
-            ctx.oneByteKey   = to_string(ctx.message1.midi_message[0] * 0x10000);
-            ctx.twoByteKey   = to_string(ctx.message1.midi_message[0] * 0x10000 + ctx.message1.midi_message[1] * 0x100);
-            ctx.threeByteKey = to_string(ctx.message1.midi_message[0] * 0x10000 + ctx.message1.midi_message[1] * 0x100 + ctx.message1.midi_message[2]);
-        }
-        if (ctx.size > 6)
-        {
-            ctx.message2.midi_message[0] = strToHex(tokenLines[i][4]);
-            ctx.message2.midi_message[1] = strToHex(tokenLines[i][5]);
-            ctx.message2.midi_message[2] = strToHex(tokenLines[i][6]);
-
-            ctx.threeByteKeyMsg2 = to_string(ctx.message2.midi_message[0] * 0x10000 + ctx.message2.midi_message[1] * 0x100 + ctx.message2.midi_message[2]);
-        }
-
-        const string &widgetType = tokenLines[i][0];
-        if (!MidiWidgetRegistry::Dispatch(widgetType, ctx))
-            LogToConsole("[WARN] Unknown MIDI widget type '%s' in widget '%s'. Line %d\n", widgetType.c_str(), in_tokens[1].c_str(), lineNumber);
-    }
+    SurfaceTemplateParser::ParseMidiWidget(lineNumber, surfaceTemplateFile, in_tokens, this);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -527,45 +458,7 @@ void Midi_ControlSurface::ProcessMidiWidget(int &lineNumber, ifstream &surfaceTe
 //////////////////////////////////////////////////////////////////////////////
 void OSC_ControlSurface::ProcessOSCWidget(int &lineNumber, ifstream &surfaceTemplateFile, const vector<string> &in_tokens)
 {
-    if (in_tokens.size() < 2)
-        return;
-    
-    AddWidget(this, in_tokens[1].c_str());
-
-    Widget *widget = GetWidgetByName(in_tokens[1]);
-    
-    if (widget == NULL) {
-        LogToConsole("[ERROR] FAILED to ProcessOSCWidget: widget not found by name %s. Line %d\n", in_tokens[1].c_str(), lineNumber);
-        return;
-    }
-    
-    vector<vector<string>> tokenLines = GetTokenLines(surfaceTemplateFile, "WidgetEnd", lineNumber);
-
-    for (int i = 0; i < (int)tokenLines.size(); ++i)
-    {
-        if (tokenLines[i].size() > 1 && tokenLines[i][0] == "Control")
-            CSIMessageGeneratorsByMessage_.insert(make_pair(tokenLines[i][1], make_unique<CSIMessageGenerator>(csi_, widget)));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "AnyPress")
-            CSIMessageGeneratorsByMessage_.insert(make_pair(tokenLines[i][1], make_unique<AnyPress_CSIMessageGenerator>(csi_, widget)));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "Touch")
-            CSIMessageGeneratorsByMessage_.insert(make_pair(tokenLines[i][1], make_unique<Touch_CSIMessageGenerator>(csi_, widget)));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "X32Fader")
-            CSIMessageGeneratorsByMessage_.insert(make_pair(tokenLines[i][1], make_unique<X32_Fader_OSC_MessageGenerator>(csi_, widget)));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "X32RotaryToEncoder")
-            CSIMessageGeneratorsByMessage_.insert(make_pair(tokenLines[i][1], make_unique<X32_RotaryToEncoder_OSC_MessageGenerator>(csi_, widget)));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "FB_Processor")
-            widget->GetFeedbackProcessors().push_back(make_unique<OSC_FeedbackProcessor>(csi_, this, widget, tokenLines[i][1]));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "FB_IntProcessor")
-            widget->GetFeedbackProcessors().push_back(make_unique<OSC_IntFeedbackProcessor>(csi_, this, widget, tokenLines[i][1]));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "FB_X32Processor")
-            widget->GetFeedbackProcessors().push_back(make_unique<OSC_X32FeedbackProcessor>(csi_, this, widget, tokenLines[i][1]));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "FB_X32IntProcessor")
-            widget->GetFeedbackProcessors().push_back(make_unique<OSC_X32IntFeedbackProcessor>(csi_, this, widget, tokenLines[i][1]));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "FB_X32FaderProcessor")
-            widget->GetFeedbackProcessors().push_back(make_unique<OSC_X32FaderFeedbackProcessor>(csi_, this, widget, tokenLines[i][1]));
-        else if (tokenLines[i].size() > 1 && tokenLines[i][0] == "FB_X32RotaryToEncoder")
-            widget->GetFeedbackProcessors().push_back(make_unique<OSC_X32_RotaryToEncoderFeedbackProcessor>(csi_, this, widget, tokenLines[i][1]));
-    }
+    SurfaceTemplateParser::ParseOSCWidget(lineNumber, surfaceTemplateFile, in_tokens, this);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -630,54 +523,7 @@ void ControlSurface::ProcessValues(const vector<vector<string>> &lines)
 //////////////////////////////////////////////////////////////////////////////
 void Midi_ControlSurface::ProcessMIDIWidgetFile(const string &filePath, Midi_ControlSurface *surface)
 {
-    int lineNumber = 0;
-    vector<vector<string>> valueLines;
-    
-    stepSize_.clear();
-    accelerationValuesForDecrement_.clear();
-    accelerationValuesForIncrement_.clear();
-    accelerationValues_.clear();
-
-    try
-    {
-        ifstream file(filePath);
-        
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] ProcessMIDIWidgetFile: %s\n", GetRelativePath(filePath.c_str()));
-        for (string line; getline(file, line) ; )
-        {
-            TrimLine(line);
-            
-            lineNumber++;
-            
-            if (IsCommentedOrEmpty(line))
-                continue;
-            
-            // Strip inline # comments from Widget lines (used for OSK properties)
-            string parseLine = line;
-            if (parseLine.find("Widget ") == 0) {
-                auto hashPos = parseLine.find('#');
-                if (hashPos != string::npos)
-                    parseLine = parseLine.substr(0, hashPos);
-            }
-
-            vector<string> tokens;
-            GetTokens(tokens, parseLine.c_str());
-
-            if (tokens.size() > 0 && tokens[0] != "Widget")
-                valueLines.push_back(tokens);
-            
-            if (tokens.size() > 0 && tokens[0] == "AccelerationValuesEnd")
-                ProcessValues(valueLines);
-
-            if (tokens.size() > 0 && (tokens[0] == "Widget"))
-                ProcessMidiWidget(lineNumber, file, tokens);
-        }
-    }
-    catch (const std::exception& e)
-    {
-        LogToConsole("[ERROR] FAILED to ProcessMIDIWidgetFile in %s, around line %d\n", filePath.c_str(), lineNumber);
-        LogToConsole("Exception: %s\n", e.what());
-    }
+    SurfaceTemplateParser::ParseMidiTemplate(filePath, this);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -685,54 +531,7 @@ void Midi_ControlSurface::ProcessMIDIWidgetFile(const string &filePath, Midi_Con
 //////////////////////////////////////////////////////////////////////////////
 void OSC_ControlSurface::ProcessOSCWidgetFile(const string &filePath)
 {
-    int lineNumber = 0;
-    vector<vector<string>> valueLines;
-    
-    stepSize_.clear();
-    accelerationValuesForDecrement_.clear();
-    accelerationValuesForIncrement_.clear();
-    accelerationValues_.clear();
-
-    try
-    {
-        ifstream file(filePath);
-        
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] ProcessOSCWidgetFile: %s\n", GetRelativePath(filePath.c_str()));
-        for (string line; getline(file, line) ; )
-        {
-            TrimLine(line);
-            
-            lineNumber++;
-            
-            if (IsCommentedOrEmpty(line))
-                continue;
-            
-            // Strip inline # comments from Widget lines (used for OSK properties)
-            string parseLine = line;
-            if (parseLine.find("Widget ") == 0) {
-                auto hashPos = parseLine.find('#');
-                if (hashPos != string::npos)
-                    parseLine = parseLine.substr(0, hashPos);
-            }
-
-            vector<string> tokens;
-            GetTokens(tokens, parseLine);
-
-            if (tokens.size() > 0 && tokens[0] != "Widget")
-                valueLines.push_back(tokens);
-            
-            if (tokens.size() > 0 && tokens[0] == "AccelerationValuesEnd")
-                ProcessValues(valueLines);
-
-            if (tokens.size() > 0 && (tokens[0] == "Widget"))
-                ProcessOSCWidget(lineNumber, file, tokens);
-        }
-    }
-    catch (const std::exception& e)
-    {
-        LogToConsole("[ERROR] FAILED to ProcessOSCWidgetFile in %s, around line %d\n", filePath.c_str(), lineNumber);
-        LogToConsole("Exception: %s\n", e.what());
-    }
+    SurfaceTemplateParser::ParseOSCTemplate(filePath, this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1235,6 +1034,11 @@ void ActionContext::ProcessActionTitle(string origName)
 IPageContext *ActionContext::GetPage()
 {
     return widget_->GetSurface()->GetPage();
+}
+
+TrackNavigationManager *ActionContext::GetTrackNavigationManager()
+{
+    return GetPage()->GetTrackNavigationManager();
 }
 
 ControlSurface *ActionContext::GetSurface()
@@ -2482,160 +2286,7 @@ void ZoneManager::LoadZoneFile(Zone *zone, const char *widgetSuffix)
 
 void ZoneManager::LoadZoneFile(Zone *zone, const char *filePath, const char *widgetSuffix)
 {
-    int lineNumber = 0;
-    bool isInIncludedZonesSection = false;
-    vector<string> includedZonesList;
-    bool isInSubZonesSection = false;
-    vector<string> subZonesList;
-
-    try
-    {
-        ifstream file(filePath);
-        
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] @%s/{%s} # LoadZoneFile: %s\n", surface_->GetName(), zone->GetName(), GetRelativePath(filePath));
-        
-        for (string line; getline(file, line);) {
-            TrimLine(line);
-            
-            lineNumber++;
-            
-            if (IsCommentedOrEmpty(line))
-                continue;
-            
-            if (line == s_BeginAutoSection || line == s_EndAutoSection)
-                continue;
-            
-            ReplaceAllWith(line, ZoneManager::PIPE_CHARACTER, widgetSuffix); //TODO: VALIDATION for PIPE_CHARACTER missuze
-// only be used in contexts where CSI dynamically generates multiple Zones:
-//   Track (expands to Track1, Track2, etc.), SelectedTracks, TrackFXMenu/SelectedTrackFXMenu, TrackSend/SelectedTrackSend, TrackReceive/SelectedTrackReceive, Folder/VCA
-// NOT to use in SelectedTrack, FX zones. In these cases, each widget should be explicitly defined.
-
-            vector<string> tokens;
-            GetTokens(tokens, line);
-            
-            if (tokens[0] == "Zone" || tokens[0] == "ZoneEnd")
-                continue;
-            
-            else if (tokens[0] == "SubZones")
-                isInSubZonesSection = true;
-            else if (tokens[0] == "SubZonesEnd")
-            {
-                isInSubZonesSection = false;
-                zone->InitSubZones(subZonesList, widgetSuffix); //FIXME prevent recursion
-            }
-            else if (isInSubZonesSection)
-                subZonesList.push_back(tokens[0]);
-            
-            else if (tokens[0] == "IncludedZones")
-                isInIncludedZonesSection = true;
-            else if (tokens[0] == "IncludedZonesEnd")
-            {
-                isInIncludedZonesSection = false;
-                try {
-                    LoadZones(zone->GetIncludedZones(), includedZonesList);  //FIXME prevent recursion
-                } catch (const std::exception& e) {
-                    LogToConsole("[ERROR] %s in IncludedZones section in file %s\n", e.what(), GetRelativePath(zone->GetSourceFilePath()));
-                }
-            }
-            else if (isInIncludedZonesSection)
-                includedZonesList.push_back(tokens[0]);
-            
-            else if (tokens.size() > 1)
-            {
-                if (tokens.size() < 2) {
-                    LogToConsole("[ERROR] Not enough params at line %d in %s\n", lineNumber, GetRelativePath(filePath));
-                    continue;
-                }
-                string widgetName;
-                int modifier = 0;
-                bool isValueInverted = false;
-                bool isFeedbackInverted = false;
-                bool hasHoldModifier = false;
-                bool HasDoublePressPseudoModifier = false;
-                bool isDecrease = false;
-                bool isIncrease = false;
-                
-                GetWidgetNameAndModifiers(tokens[0].c_str(), widgetName, modifier, isValueInverted, isFeedbackInverted, hasHoldModifier, HasDoublePressPseudoModifier, isDecrease, isIncrease);
-                
-                Widget *widget = GetSurface()->GetWidgetByName(widgetName);
-                                            
-                if (widget == NULL)
-                    continue;
-
-                zone->AddWidget(widget);
-
-                vector<string> memberParams;
-
-                for (int i = 1; i < tokens.size(); ++i)
-                    memberParams.push_back(tokens[i]);
-                
-                // For legacy .zon definitions
-                if (tokens[1] == "NullDisplay")
-                    continue;
-
-                ActionContext *context;
-                try {
-                    context = zone->AddActionContext(widget, modifier, zone, tokens[1].c_str(), memberParams);
-                } catch (const std::exception& e) {
-                    LogToConsole("[ERROR] FAILED to AddActionContext for line '%s': %s\n", line.c_str(), e.what());
-                    continue;
-                }
-
-                if (context == NULL)
-                    continue;
-
-                if (IsSameString(tokens[1], "GoZone") || IsSameString(tokens[1], "GoSubZone")) {
-                    string zoneName = context->GetStringParam();
-                    if (zoneInfo_.find(zoneName) != zoneInfo_.end()) {
-                        zoneInfo_[zoneName].isReferenced = true;
-                    }
-                }
-                if (IsSameString(tokens[1], "LastTouchedFXParam")) {
-                    if (zoneInfo_.find("LastTouchedFXParam") != zoneInfo_.end()) {
-                        zoneInfo_["LastTouchedFXParam"].isReferenced = true;
-                    }
-                }
-
-                if (isValueInverted)
-                    context->SetIsValueInverted();
-                    
-                if (isFeedbackInverted)
-                    context->SetIsFeedbackInverted();
-                
-                if (hasHoldModifier && context->GetHoldDelay() == 0)
-                    context->SetHoldDelay(ActionContext::INHERIT_VALUE);
-                
-                if (HasDoublePressPseudoModifier) {
-                    context->SetDoublePress();
-                    widget->SetHasDoublePressActions();
-                }
-                
-                vector<double> range;
-                
-                if (isDecrease)
-                {
-                    range.push_back(-2.0);
-                    range.push_back(1.0);
-                    context->SetRange(range);
-                }
-                else if (isIncrease)
-                {
-                    range.push_back(0.0);
-                    range.push_back(2.0);
-                    context->SetRange(range);
-                }
-            }
-        }
-
-        if (zoneInfo_.find(zone->GetName()) != zoneInfo_.end()) {
-            zoneInfo_[zone->GetName()].isLoaded = true;
-        }
-    }
-    catch (const std::exception& e)
-    {
-        LogToConsole("[ERROR] FAILED to LoadZoneFile in %s, around line %d\n", zone->GetSourceFilePath(), lineNumber);
-        LogToConsole("Exception: %s\n", e.what());
-    }
+    ZoneFileParser::ParseFile(this, zone, filePath, widgetSuffix);
 }
 
 void ZoneManager::AddListener(ControlSurface *surface)

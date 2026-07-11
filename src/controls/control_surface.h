@@ -11,6 +11,8 @@
 class ControlSurface
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {    
+    friend class SurfaceTemplateParser; // surface_parser.h — parses surface template files
+
 private:
     int *scrubModePtr_ = NULL;
     int configScrubMode_ = 0;
