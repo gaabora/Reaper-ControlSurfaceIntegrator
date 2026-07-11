@@ -248,6 +248,26 @@ void ControlSurface::InjectOSKPress(const string& widgetName) {
         zoneManager_->DoAction(widget, 0.0);
 }
 
+void ControlSurface::InjectOSKPressDown(const string& widgetName) {
+    Widget* widget = GetWidgetByName(widgetName);
+    if (!widget) {
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKPressDown: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
+        return;
+    }
+    widget->LogInput(1.0);
+    zoneManager_->DoAction(widget, 1.0);
+}
+
+void ControlSurface::InjectOSKPressUp(const string& widgetName) {
+    Widget* widget = GetWidgetByName(widgetName);
+    if (!widget) {
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKPressUp: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
+        return;
+    }
+    widget->LogInput(0.0);
+    zoneManager_->DoAction(widget, 0.0);
+}
+
 void ControlSurface::InjectOSKScroll(const string& widgetName, bool isIncrease) {
     Widget* widget = GetWidgetByName(widgetName);
     if (!widget) {

@@ -438,5 +438,7 @@ public:
     const string& GetSurfaceFilePath() const { return surfaceFilePath_; }
 
     void InjectOSKPress(const string& widgetName);
+    void InjectOSKPressDown(const string& widgetName);
+    void InjectOSKPressUp(const string& widgetName);
     void InjectOSKScroll(const string& widgetName, bool isIncrease);
 };

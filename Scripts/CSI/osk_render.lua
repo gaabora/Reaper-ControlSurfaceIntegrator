@@ -24,11 +24,23 @@ local function GetWheelDirection(ctx)
     return 0
 end
 
-local function HandleButtonClick(surfName, cell)
+local pressedWidgets = {}  -- widgetName -> surfName, tracks buttons currently held down
+
+local function HandleButtonPressDown(surfName, cell)
     if not data.vars.clickable or not cell.name then return end
     if not surfName then return end
     local msg = surfName .. "|" .. cell.name
-    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPress", msg, false)
+    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressDown", msg, false)
+    pressedWidgets[cell.name] = surfName
+end
+
+local function HandleButtonPressUp(cell)
+    if not cell.name then return end
+    if not pressedWidgets[cell.name] then return end
+    local surfName = pressedWidgets[cell.name]
+    pressedWidgets[cell.name] = nil
+    local msg = surfName .. "|" .. cell.name
+    r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressUp", msg, false)
 end
 
 local function HandleRotaryMouseWheel(ctx, surfName, cell)
@@ -212,8 +224,12 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
         hoverStartTime[cell.name] = nil
     end
 
-    if insideShape and imgui.IsItemClicked(ctx) then
-        HandleButtonClick(surfName, cell)
+    if insideShape and imgui.IsItemActivated(ctx) then
+        HandleButtonPressDown(surfName, cell)
+    end
+    -- Always check deactivated so a press-up is never missed even if cursor drifted outside shape
+    if imgui.IsItemDeactivated(ctx) then
+        HandleButtonPressUp(cell)
     end
 end
 

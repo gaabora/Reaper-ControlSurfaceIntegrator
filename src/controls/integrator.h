@@ -198,6 +198,28 @@ public:
     // OSK command bridge — poll Lua-written ExtState commands and dispatch to
     // the surface that owns the named widget.  Called from Run().
     // -----------------------------------------------------------------------
+    void DispatchOSKWidgetPressDown(const string& surfName, const string& widgetName) {
+        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
+        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->InjectOSKPressDown(widgetName);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetPressDown: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void DispatchOSKWidgetPressUp(const string& surfName, const string& widgetName) {
+        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
+        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->InjectOSKPressUp(widgetName);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetPressUp: surface '%s' not found\n", surfName.c_str());
+    }
+
     void DispatchOSKWidgetPress(const string& surfName, const string& widgetName) {
         if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
         for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
@@ -227,6 +249,20 @@ public:
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKWidgetPress(payload.substr(0, sep), payload.substr(sep + 1));
+        }
+        if (::HasExtState("CSI_OSK_CMD", "WidgetPressDown")) {
+            string payload = ::GetExtState("CSI_OSK_CMD", "WidgetPressDown");
+            ::DeleteExtState("CSI_OSK_CMD", "WidgetPressDown", false);
+            auto sep = payload.find('|');
+            if (sep != string::npos)
+                DispatchOSKWidgetPressDown(payload.substr(0, sep), payload.substr(sep + 1));
+        }
+        if (::HasExtState("CSI_OSK_CMD", "WidgetPressUp")) {
+            string payload = ::GetExtState("CSI_OSK_CMD", "WidgetPressUp");
+            ::DeleteExtState("CSI_OSK_CMD", "WidgetPressUp", false);
+            auto sep = payload.find('|');
+            if (sep != string::npos)
+                DispatchOSKWidgetPressUp(payload.substr(0, sep), payload.substr(sep + 1));
         }
         if (::HasExtState("CSI_OSK_CMD", "WidgetScroll")) {
             string payload = ::GetExtState("CSI_OSK_CMD", "WidgetScroll");
