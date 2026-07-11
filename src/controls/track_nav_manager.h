@@ -112,9 +112,12 @@ public:
     synchPages_(synchPages),
     isScrollLinkEnabled_(isScrollLinkEnabled),
     isScrollSynchEnabled_(isScrollSynchEnabled),
-    masterTrackNavigator_(make_unique<MasterTrackNavigator>(csi_, page_)),
-    selectedTrackNavigator_(make_unique< SelectedTrackNavigator>(csi_, page_)),
-    focusedFXNavigator_(make_unique<FocusedFXNavigator>(csi_, page_)) {}
+    masterTrackNavigator_(CreateMasterTrackNavigator(csi_, page_)),
+    selectedTrackNavigator_(std::make_unique<Navigator>(csi, page, NavigatorType::SelectedTrackNavigator,
+        [page](Navigator &) -> MediaTrack * {
+            return page->GetTrackNavigationManager()->GetSelectedTrack(true);
+        })),
+    focusedFXNavigator_(CreateFocusedFXNavigator(csi_, page_)) {}
     
     ~TrackNavigationManager()
     {
@@ -392,10 +395,14 @@ public:
         for (auto &trackNavigator : trackNavigators_)
             if (trackNavigator->GetChannelNum() == channelNum)
                 return trackNavigator.get();
-          
-        trackNavigators_.push_back(make_unique<TrackNavigator>(csi_, page_, this, channelNum));
-            
-        return  trackNavigators_.back().get();
+
+        trackNavigators_.push_back(make_unique<Navigator>(csi_, page_, NavigatorType::TrackNavigator,
+            [this, channelNum](Navigator &) -> MediaTrack * {
+                return this->GetTrackFromChannel(channelNum);
+            },
+            channelNum));
+
+        return trackNavigators_.back().get();
     }
     
     Navigator *GetNavigatorForTrack(MediaTrack *track)
@@ -403,9 +410,10 @@ public:
         for (auto &fixedTrackNavigator : fixedTrackNavigators_)
             if (fixedTrackNavigator->GetTrack() == track)
                 return fixedTrackNavigator.get();
-        
-        fixedTrackNavigators_.push_back(make_unique<FixedTrackNavigator>(csi_, page_, track));
-            
+
+        fixedTrackNavigators_.push_back(make_unique<Navigator>(csi_, page_, NavigatorType::FixedTrackNavigator,
+            [track](Navigator &) -> MediaTrack * { return track; }));
+
         return fixedTrackNavigators_.back().get();
     }
     
@@ -806,3 +814,28 @@ public:
          */
     }
 };
+
+// =============================================================================
+// Factory helper for TrackNavigator — defined here because it requires
+// TrackNavigationManager to be complete (needs GetTrackFromChannel).
+// =============================================================================
+inline std::unique_ptr<Navigator>
+CreateTrackNavigator(CSurfIntegrator *csi, IPageContext *page,
+                     TrackNavigationManager *tnm, int channelNum)
+{
+    return std::make_unique<Navigator>(csi, page, NavigatorType::TrackNavigator,
+        [tnm, channelNum](Navigator &) -> MediaTrack * {
+            return tnm->GetTrackFromChannel(channelNum);
+        },
+        channelNum);
+}
+
+// Needs TrackNavigationManager complete (GetSelectedTrack is a member of it).
+inline std::unique_ptr<Navigator>
+CreateSelectedTrackNavigator(CSurfIntegrator *csi, IPageContext *page)
+{
+    return std::make_unique<Navigator>(csi, page, NavigatorType::SelectedTrackNavigator,
+        [page](Navigator &) -> MediaTrack * {
+            return page->GetTrackNavigationManager()->GetSelectedTrack(true);
+        });
+}

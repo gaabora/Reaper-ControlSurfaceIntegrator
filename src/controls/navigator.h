@@ -1,6 +1,14 @@
 #pragma once
 //
-//  navigator.h — Navigator base class and all concrete Navigator subclasses
+//  navigator.h — Navigator (strategy pattern) and factory helpers.
+//
+//  All five former subclasses (TrackNavigator, FixedTrackNavigator,
+//  MasterTrackNavigator, SelectedTrackNavigator, FocusedFXNavigator) have been
+//  collapsed into the single Navigator class.  The "how to resolve the track"
+//  logic is supplied at construction time via a TrackResolver callable.
+//  Factory helpers (CreateMasterTrackNavigator, etc.) recreate each flavour.
+//  CreateTrackNavigator requires TrackNavigationManager to be complete, so it
+//  lives at the bottom of track_nav_manager.h instead.
 //
 #include "preamble.h"
 #include "page_interface.h"
@@ -9,25 +17,46 @@
 class Navigator
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
+public:
+    // Strategy type: given the navigator itself, return the current MediaTrack.
+    using TrackResolver = std::function<MediaTrack*(Navigator &)>;
+
 protected:
-    const CSurfIntegrator *const csi_;
-    IPageContext *const page_;
-    bool isVolumeTouched_ = false;
-    bool isPanTouched_ = false;
-    bool isPanWidthTouched_ = false;
-    bool isPanLeftTouched_ = false;
-    bool isPanRightTouched_ = false;
+    CSurfIntegrator *const csi_;
+    IPageContext    *const page_;
+
+    // Touch state — unchanged from before.
+    bool isVolumeTouched_    = false;
+    bool isPanTouched_       = false;
+    bool isPanWidthTouched_  = false;
+    bool isPanLeftTouched_   = false;
+    bool isPanRightTouched_  = false;
     bool isMCUTrackPanWidth_ = false;
 
-    Navigator(const CSurfIntegrator *const csi, IPageContext * page) : csi_(csi), page_(page) {}
+private:
+    NavigatorType type_;
+    int           channelNum_; // meaningful only for TrackNavigator flavour; 0 otherwise
+    TrackResolver resolver_;
 
 public:
+    Navigator(CSurfIntegrator *const csi, IPageContext *page,
+              NavigatorType type, TrackResolver resolver, int channelNum = 0)
+        : csi_(csi), page_(page),
+          type_(type), channelNum_(channelNum), resolver_(std::move(resolver)) {}
+
     virtual ~Navigator() {}
 
-    virtual const char* GetName() const { return TypeToName(GetType()); }
-    virtual NavigatorType GetType() const { return NavigatorType::Abstract; }
+    // ----- identity -----
+    NavigatorType GetType()       const { return type_; }
+    const char*   GetName()       const { return TypeToName(type_); }
+    int           GetChannelNum() const { return channelNum_; }
 
-    static const char* TypeToName(NavigatorType type) {
+    // ----- track resolution (delegates to the injected strategy) -----
+    MediaTrack *GetTrack() { return resolver_ ? resolver_(*this) : nullptr; }
+
+    // ----- type ↔ name conversions (static helpers, unchanged) -----
+    static const char* TypeToName(NavigatorType type)
+    {
         switch (type) {
           #define X(enumName, strName) case NavigatorType::enumName: return strName;
             NAVIGATOR_TYPE_LIST(X)
@@ -35,15 +64,17 @@ public:
             default: return "Unknown";
         }
     }
-    
-    static NavigatorType NameToType(const std::string& name) {
+
+    static NavigatorType NameToType(const std::string &name)
+    {
       #define X(enumName, strName) if (name == strName) return NavigatorType::enumName;
         NAVIGATOR_TYPE_LIST(X)
       #undef X
         return NavigatorType::Invalid;
     }
 
-    static std::vector<std::string> GetSupportedNames() {
+    static std::vector<std::string> GetSupportedNames()
+    {
         std::vector<std::string> names;
       #define X(enumName, strName) names.push_back(strName);
         NAVIGATOR_TYPE_LIST(X)
@@ -51,100 +82,70 @@ public:
         return names;
     }
 
-    virtual MediaTrack *GetTrack() { return NULL; }
-    virtual int GetChannelNum() { return 0; }
+    // ----- touch state (unchanged interface) -----
+    bool GetIsNavigatorTouched() const
+    {
+        return isVolumeTouched_ || isPanTouched_ ||
+               isPanWidthTouched_ || isPanLeftTouched_ || isPanRightTouched_;
+    }
 
-    bool GetIsNavigatorTouched() { return isVolumeTouched_ || isPanTouched_ || isPanWidthTouched_ || isPanLeftTouched_ || isPanRightTouched_; }
-    
-    void SetIsVolumeTouched(bool isVolumeTouched) { isVolumeTouched_ = isVolumeTouched;  }
-    bool GetIsVolumeTouched() { return isVolumeTouched_;  }
-    
-    void SetIsPanTouched(bool isPanTouched) { isPanTouched_ = isPanTouched; }
-    bool GetIsPanTouched() { return isPanTouched_;  }
-    
-    void SetIsPanWidthTouched(bool isPanWidthTouched) { isPanWidthTouched_ = isPanWidthTouched; }
-    bool GetIsPanWidthTouched() { return isPanWidthTouched_;  }
-    
-    void SetIsPanLeftTouched(bool isPanLeftTouched) { isPanLeftTouched_ = isPanLeftTouched; }
-    bool GetIsPanLeftTouched() { return isPanLeftTouched_;  }
-    
-    void SetIsPanRightTouched(bool isPanRightTouched) { isPanRightTouched_ = isPanRightTouched; }
-    bool GetIsPanRightTouched() { return isPanRightTouched_;  }
+    void SetIsVolumeTouched(bool v)   { isVolumeTouched_   = v; }
+    bool GetIsVolumeTouched()   const { return isVolumeTouched_;   }
+
+    void SetIsPanTouched(bool v)      { isPanTouched_      = v; }
+    bool GetIsPanTouched()      const { return isPanTouched_;      }
+
+    void SetIsPanWidthTouched(bool v) { isPanWidthTouched_ = v; }
+    bool GetIsPanWidthTouched() const { return isPanWidthTouched_; }
+
+    void SetIsPanLeftTouched(bool v)  { isPanLeftTouched_  = v; }
+    bool GetIsPanLeftTouched()  const { return isPanLeftTouched_;  }
+
+    void SetIsPanRightTouched(bool v) { isPanRightTouched_ = v; }
+    bool GetIsPanRightTouched() const { return isPanRightTouched_; }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class TrackNavigator : public Navigator
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// =============================================================================
+// Factory helpers
+// (CreateTrackNavigator is in track_nav_manager.h — it needs that class complete)
+// =============================================================================
+
+inline std::unique_ptr<Navigator>
+CreateMasterTrackNavigator(CSurfIntegrator *csi, IPageContext *page)
 {
-private:
-    int const channelNum_;
-    
-protected:
-    TrackNavigationManager *const trackNavigationManager_;
+    return std::make_unique<Navigator>(csi, page, NavigatorType::MasterTrackNavigator,
+        [](Navigator &) -> MediaTrack * {
+            return GetMasterTrack(nullptr);
+        });
+}
 
-public:
-    TrackNavigator(CSurfIntegrator *const csi, IPageContext *page, TrackNavigationManager *trackNavigationManager, int channelNum) : Navigator(csi, page), trackNavigationManager_(trackNavigationManager), channelNum_(channelNum) {}
-    virtual ~TrackNavigator() {}
-    
-    NavigatorType GetType() const override { return NavigatorType::TrackNavigator; }
-   
-    virtual MediaTrack *GetTrack() override;
-    
-    virtual int GetChannelNum() override { return channelNum_; }
-
-};
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class FixedTrackNavigator : public Navigator
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+inline std::unique_ptr<Navigator>
+CreateFocusedFXNavigator(CSurfIntegrator *csi, IPageContext *page)
 {
-private:
-    MediaTrack *const track_;
-    
-public:
-    FixedTrackNavigator(CSurfIntegrator *const csi, IPageContext *page, MediaTrack *const track) : Navigator(csi, page), track_(track) {}
-    virtual ~FixedTrackNavigator() {}
-    
-    NavigatorType GetType() const override { return NavigatorType::FixedTrackNavigator; }
-   
-    virtual MediaTrack *GetTrack() override { return track_; }
-};
+    return std::make_unique<Navigator>(csi, page, NavigatorType::FocusedFXNavigator,
+        [](Navigator &) -> MediaTrack * {
+            int trackNumber = 0, itemNumber = 0, takeNumber = 0,
+                fxIndex     = 0, paramIndex  = 0;
+            int retVal = GetTouchedOrFocusedFX(1, &trackNumber, &itemNumber,
+                                               &takeNumber, &fxIndex, &paramIndex);
+            trackNumber++; // REAPER returns 0-based; convert to 1-based
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class MasterTrackNavigator : public Navigator
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-{
-public:
-    MasterTrackNavigator(CSurfIntegrator *const csi, IPageContext * page) : Navigator(csi, page) {}
-    virtual ~MasterTrackNavigator() {}
-    
-    NavigatorType GetType() const override { return NavigatorType::MasterTrackNavigator; }
-    
-    virtual MediaTrack *GetTrack() override;
-};
+            if (retVal && !(paramIndex & 0x01)) // Track FX (not item FX)
+            {
+                if (trackNumber > 0)
+                    return DAW::GetTrack(trackNumber);
+                else if (trackNumber == 0)
+                    return GetMasterTrack(nullptr);
+                else
+                    return nullptr;
+            }
+            return nullptr;
+        });
+}
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class SelectedTrackNavigator : public Navigator
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+inline std::unique_ptr<Navigator>
+CreateFixedTrackNavigator(CSurfIntegrator *csi, IPageContext *page, MediaTrack *track)
 {
-public:
-    SelectedTrackNavigator(CSurfIntegrator *const csi, IPageContext * page) : Navigator(csi, page) {}
-    virtual ~SelectedTrackNavigator() {}
-    
-    NavigatorType GetType() const override { return NavigatorType::SelectedTrackNavigator; }
-    
-    virtual MediaTrack *GetTrack() override;
-};
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class FocusedFXNavigator : public Navigator
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-{
-public:
-    FocusedFXNavigator(CSurfIntegrator *const csi, IPageContext * page) : Navigator(csi, page) {}
-    virtual ~FocusedFXNavigator() {}
-    
-    NavigatorType GetType() const override { return NavigatorType::FocusedFXNavigator; }
-    
-    virtual MediaTrack *GetTrack() override;
-};
+    return std::make_unique<Navigator>(csi, page, NavigatorType::FixedTrackNavigator,
+        [track](Navigator &) -> MediaTrack * { return track; });
+}
