@@ -78,7 +78,11 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
 
                 Widget* widget = zm->surface_->GetWidgetByName(widgetName);
 
-                if (widget == NULL) continue;
+                if (widget == NULL) {
+                    LogToConsole("[WARNING] Widget '%s' not found in surface '%s' (file: %s, line %d)\n",
+                        widgetName.c_str(), zm->surface_->GetName(), GetRelativePath(filePath), lineNumber);
+                    continue;
+                }
 
                 zone->AddWidget(widget);
 
@@ -97,7 +101,11 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
                     continue;
                 }
 
-                if (context == NULL) continue;
+                if (context == NULL) {
+                    LogToConsole("[WARNING] Action '%s' for widget '%s' returned NULL context (file: %s, line %d)\n",
+                        tokens[1].c_str(), widgetName.c_str(), GetRelativePath(filePath), lineNumber);
+                    continue;
+                }
 
                 if (IsSameString(tokens[1], "GoZone") || IsSameString(tokens[1], "GoSubZone")) {
                     string zoneName = context->GetStringParam();
