@@ -250,7 +250,7 @@ public:
 
     const char* GetActionTitle() { return actionTitle_.c_str(); }
 
-    int ClampValueWithWarning(int value, int min, int max);
+    int ClampValueWithWarning(int value, int min_val, int max_val);
 
     void SetLastValue(double value) {
         lastValue_ = value;

@@ -114,6 +114,9 @@ extern int strToHex(string& valueStr);
 extern void GetTokens(vector<string>& tokens, const string& line);
 extern void GetTokens(vector<string>& tokens, const string& line, char delimiter);
 extern void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens, PropertyList& properties);
+extern void GetSteppedValues(const vector<string>& params, int start_idx, double& deltaValue, vector<double>& acceleratedDeltaValues, double& rangeMinimum, double& rangeMaximum, vector<double>& steppedValues, vector<int>& acceleratedTickValues);
+extern void GetParamStepsString(string& outputString, int numSteps);
+extern void GetParamStepsValues(vector<double>& outputVector, int numSteps);
 
 extern void RequestFocusedFXDialog(ZoneManager* zoneManager);
 extern void CloseFocusedFXDialog();
