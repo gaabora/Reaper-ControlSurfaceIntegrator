@@ -56,6 +56,58 @@ local function colorToHex(color)
     return string.format("#%02X%02X%02X", (color >> 24) & 0xFF, (color >> 16) & 0xFF, (color >> 8) & 0xFF)
 end
 
+local function rgbToHsv(red, green, blue)
+    red = clampChannel(red) / 255
+    green = clampChannel(green) / 255
+    blue = clampChannel(blue) / 255
+
+    local maxChannel = math.max(red, green, blue)
+    local minChannel = math.min(red, green, blue)
+    local delta = maxChannel - minChannel
+    local hue = 0
+
+    if delta > 0 then
+        if maxChannel == red then
+            hue = 60 * (((green - blue) / delta) % 6)
+        elseif maxChannel == green then
+            hue = 60 * (((blue - red) / delta) + 2)
+        else
+            hue = 60 * (((red - green) / delta) + 4)
+        end
+    end
+
+    local saturation = maxChannel == 0 and 0 or delta / maxChannel
+    return math.floor(hue + 0.5), math.floor(saturation * 100 + 0.5), math.floor(maxChannel * 100 + 0.5)
+end
+
+local function hsvToColor(hue, saturation, value)
+    hue = (tonumber(hue) or 0) % 360
+    saturation = math.max(0, math.min(100, tonumber(saturation) or 0)) / 100
+    value = math.max(0, math.min(100, tonumber(value) or 0)) / 100
+
+    local chroma = value * saturation
+    local huePrime = hue / 60
+    local x = chroma * (1 - math.abs((huePrime % 2) - 1))
+    local red, green, blue = 0, 0, 0
+
+    if huePrime < 1 then
+        red, green, blue = chroma, x, 0
+    elseif huePrime < 2 then
+        red, green, blue = x, chroma, 0
+    elseif huePrime < 3 then
+        red, green, blue = 0, chroma, x
+    elseif huePrime < 4 then
+        red, green, blue = 0, x, chroma
+    elseif huePrime < 5 then
+        red, green, blue = x, 0, chroma
+    else
+        red, green, blue = chroma, 0, x
+    end
+
+    local match = value - chroma
+    return packColor((red + match) * 255, (green + match) * 255, (blue + match) * 255)
+end
+
 local function parseHexColor(text)
     local hex = tostring(text or ""):upper():gsub("^%s*#?", ""):gsub("%s*$", "")
     if not hex:match("^%x%x%x%x%x%x$") then return nil end
@@ -169,7 +221,7 @@ end
 local function getPopupState(popupId, color)
     local state = popupState[popupId]
     if not state then
-        state = { red = 0, green = 0, blue = 0, hexValue = "#000000" }
+        state = { red = 0, green = 0, blue = 0, hue = 0, saturation = 0, value = 0, hexValue = "#000000" }
         popupState[popupId] = state
     end
     state.lastColor = normalizeColor(color)
@@ -181,6 +233,7 @@ local function syncEditFields(state, color)
     state.red = (color >> 24) & 0xFF
     state.green = (color >> 16) & 0xFF
     state.blue = (color >> 8) & 0xFF
+    state.hue, state.saturation, state.value = rgbToHsv(state.red, state.green, state.blue)
     state.hexValue = colorToHex(color)
 end
 
@@ -214,10 +267,19 @@ local function renderSectionTitle(ctx, text)
     imgui.Text(ctx, text)
 end
 
-local function renderChannelField(ctx, state, idSuffix, label, key)
+local function renderChannelField(ctx, state, idSuffix, label, key, maxValue)
+    maxValue = maxValue or 255
     imgui.SetNextItemWidth(ctx, 52)
     local changed
-    changed, state[key] = imgui.DragInt(ctx, "##manual_color_" .. label .. "_" .. idSuffix, state[key], 1, 0, 255)
+    changed, state[key] = imgui.DragInt(ctx, "##manual_color_" .. label .. "_" .. idSuffix, state[key], 1, 0, maxValue)
+    if imgui.IsItemHovered(ctx) then
+        local wheelValue = imgui.GetMouseWheel(ctx)
+        if wheelValue ~= 0 then
+            local step = wheelValue > 0 and 1 or -1
+            state[key] = math.max(0, math.min(maxValue, (tonumber(state[key]) or 0) + step))
+            changed = true
+        end
+    end
     imgui.SameLine(ctx, 0, 4)
     imgui.Text(ctx, label)
     return changed
@@ -228,8 +290,28 @@ local function renderManualFields(ctx, state, idSuffix)
     edited = renderChannelField(ctx, state, idSuffix, "R", "red") or edited
     edited = renderChannelField(ctx, state, idSuffix, "G", "green") or edited
     edited = renderChannelField(ctx, state, idSuffix, "B", "blue") or edited
-    if edited then state.hexValue = colorToHex(packColor(state.red, state.green, state.blue)) end
+    if edited then
+        local color = packColor(state.red, state.green, state.blue)
+        state.hue, state.saturation, state.value = rgbToHsv(state.red, state.green, state.blue)
+        state.hexValue = colorToHex(color)
+    end
     return edited
+end
+
+local function renderHsvFields(ctx, state, idSuffix)
+    local edited = false
+    edited = renderChannelField(ctx, state, idSuffix, "H", "hue", 360) or edited
+    edited = renderChannelField(ctx, state, idSuffix, "S", "saturation", 100) or edited
+    edited = renderChannelField(ctx, state, idSuffix, "V", "value", 100) or edited
+    if edited then
+        local color = hsvToColor(state.hue, state.saturation, state.value)
+        state.red = (color >> 24) & 0xFF
+        state.green = (color >> 16) & 0xFF
+        state.blue = (color >> 8) & 0xFF
+        state.hexValue = colorToHex(color)
+        return true, color
+    end
+    return false, nil
 end
 
 local function renderHexField(ctx, state, idSuffix)
@@ -316,11 +398,17 @@ end
 
 local function renderColorEditor(ctx, state, configState, binding, colorIndex, idSuffix, deps)
     imgui.BeginGroup(ctx)
-    local manualChanged = renderManualFields(ctx, state, "main_" .. idSuffix)
+    local manualChanged = renderManualFields(ctx, state, "rgb_" .. idSuffix)
     if manualChanged then applyColor(configState, binding, colorIndex, getEditedColor(state), deps, false) end
     imgui.EndGroup(ctx)
 
-    imgui.SameLine(ctx, 0, 12)
+    imgui.SameLine(ctx, 0, 8)
+    imgui.BeginGroup(ctx)
+    local hsvChanged, hsvColor = renderHsvFields(ctx, state, "hsv_" .. idSuffix)
+    if hsvChanged then applyColor(configState, binding, colorIndex, hsvColor, deps, false) end
+    imgui.EndGroup(ctx)
+
+    imgui.SameLine(ctx, 0, 8)
     imgui.BeginGroup(ctx)
     imgui.ColorButton(ctx, "##active_preview_" .. idSuffix, getEditedColor(state), previewFlags, theme.CONFIG.color_preview_width, theme.CONFIG.color_preview_height)
     local hexChanged, hexColor = renderHexField(ctx, state, "main_" .. idSuffix)
