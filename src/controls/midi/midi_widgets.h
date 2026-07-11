@@ -1,9 +1,7 @@
 #pragma once
-//
-//  midi_widgets.h — Umbrella header: includes all MIDI widget sub-headers.
-//
+// midi_widgets.h includes all MIDI widget sub-headers.
 
-#include "../../shared/handy_functions.h"
+#include "../../shared/utils.h"
 #include "midi_generators.h"
 #include "fb_generic.h"
 #include "fb_faderport.h"

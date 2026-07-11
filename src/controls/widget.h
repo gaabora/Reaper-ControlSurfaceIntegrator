@@ -5,45 +5,42 @@
 #include "preamble.h"
 #include "feedback.h"
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Widget
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 protected:
-    CSurfIntegrator *const csi_;
-    ControlSurface *const surface_;
+    CSurfIntegrator* const csi_;
+    ControlSurface* const surface_;
     string const name_;
     vector<unique_ptr<FeedbackProcessor>> feedbackProcessors_; // owns the objects
     int channelNumber_ = 0;
     int lastIncomingMessageTime_ = GetTickCount() - 30000;
     double lastIncomingDelta_ = 0.0;
-    
+
     double stepSize_ = 0.0;
     vector<double> accelerationValues_;
-    
+
     bool hasBeenUsedByUpdate_ = false;
-    
+
     bool isVirtual_ = false;
     bool isTwoState_ = false;
     bool hasDoublePressActions_ = false;
+
 public:
     // all Widgets are owned by their ControlSurface!
-    Widget(CSurfIntegrator *const csi,  ControlSurface *surface, const char *name) : csi_(csi), surface_(surface), name_(name)
-    {
+    Widget(CSurfIntegrator* const csi, ControlSurface* surface, const char* name)
+        : csi_(csi), surface_(surface), name_(name) {
         int suffixNumber = ExtractSuffixNumber(name);
-        if (suffixNumber > 0)
-            channelNumber_ = suffixNumber;
+        if (suffixNumber > 0) channelNumber_ = suffixNumber;
 
         isVirtual_ = find(VIRTUAL_TRIGGERS.begin(), VIRTUAL_TRIGGERS.end(), name) != VIRTUAL_TRIGGERS.end();
     }
-    
-    ~Widget()
-    {
-      feedbackProcessors_.clear();
+
+    ~Widget() {
+        feedbackProcessors_.clear();
     }
-    
-    vector<unique_ptr<FeedbackProcessor>> &GetFeedbackProcessors() { return feedbackProcessors_; }
-    
+
+    vector<unique_ptr<FeedbackProcessor>>& GetFeedbackProcessors() { return feedbackProcessors_; }
+
     static inline const vector<string> VIRTUAL_TRIGGERS = {
         "OnTrackSelection",
         "OnPageEnter",
@@ -56,38 +53,38 @@ public:
         "OnZoneActivation",
         "OnZoneDeactivation"
     };
-    
+
     void ClearHasBeenUsedByUpdate() { hasBeenUsedByUpdate_ = false; }
     void SetHasBeenUsedByUpdate() { hasBeenUsedByUpdate_ = true; }
     bool GetHasBeenUsedByUpdate() { return hasBeenUsedByUpdate_; }
-    
-    const char *GetName() { return name_.c_str(); }
-    ControlSurface *GetSurface() { return surface_; }
-    ZoneManager *GetZoneManager();
+
+    const char* GetName() { return name_.c_str(); }
+    ControlSurface* GetSurface() { return surface_; }
+    ZoneManager* GetZoneManager();
     bool IsVirtual() { return isVirtual_; }
 
     int GetChannelNumber() { return channelNumber_; }
-    
+
     void SetStepSize(double stepSize) { stepSize_ = stepSize; }
     double GetStepSize() { return stepSize_; }
     bool GetIsTwoState() { return isTwoState_; }
     void SetIsTwoState() { isTwoState_ = true; }
 
     void SetAccelerationValues(const vector<double> accelerationValues) { accelerationValues_ = accelerationValues; }
-    const vector<double> &GetAccelerationValues() { return accelerationValues_; }
-    
+    const vector<double>& GetAccelerationValues() { return accelerationValues_; }
+
     void SetIncomingMessageTime(int lastIncomingMessageTime) { lastIncomingMessageTime_ = lastIncomingMessageTime; }
     int GetLastIncomingMessageTime() { return lastIncomingMessageTime_; }
-    
+
     void SetLastIncomingDelta(double delta) { lastIncomingDelta_ = delta; }
     double GetLastIncomingDelta() { return lastIncomingDelta_; }
 
-    void Configure(const vector<unique_ptr<ActionContext>> &contexts);
-    void UpdateValue(const PropertyList &properties, double value);
-    void UpdateValue(const PropertyList &properties, const char * const &value);
-    void ForceValue(const PropertyList &properties, const char * const &value);
-    void UpdateColorValue(const rgba_color &color);
-    void SetXTouchDisplayColors(const char *colors);
+    void Configure(const vector<unique_ptr<ActionContext>>& contexts);
+    void UpdateValue(const PropertyList& properties, double value);
+    void UpdateValue(const PropertyList& properties, const char* const& value);
+    void ForceValue(const PropertyList& properties, const char* const& value);
+    void UpdateColorValue(const rgba_color& color);
+    void SetXTouchDisplayColors(const char* colors);
     void RestoreXTouchDisplayColors();
     void ForceClear();
 
@@ -95,14 +92,12 @@ public:
     bool HasDoublePressActions() { return hasDoublePressActions_; };
 
     double GetLastFeedbackValue() const {
-        if (!feedbackProcessors_.empty())
-            return feedbackProcessors_[0]->GetLastDoubleValue();
+        if (!feedbackProcessors_.empty()) return feedbackProcessors_[0]->GetLastDoubleValue();
         return 0.0;
     }
 
     rgba_color GetLastFeedbackColor() const {
-        if (!feedbackProcessors_.empty())
-            return feedbackProcessors_[0]->GetLastColor();
+        if (!feedbackProcessors_.empty()) return feedbackProcessors_[0]->GetLastColor();
         rgba_color empty;
         empty.a = 0;
         return empty;

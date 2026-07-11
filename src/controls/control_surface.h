@@ -7,29 +7,28 @@
 #include "zone_manager.h"
 #include "modifier_manager.h"
 #include "message_generator.h"
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 class ControlSurface
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-{    
+{
     friend class SurfaceTemplateParser; // surface_parser.h — parses surface template files
 
 private:
-    int *scrubModePtr_ = NULL;
+    int* scrubModePtr_ = NULL;
     int configScrubMode_ = 0;
-    
+
     bool isRewinding_ = false;
     bool isFastForwarding_ = false;
-    
+
     bool isTextLengthRestricted_ = false;
     int restrictedTextLength_ = 6;
-    
+
     bool usesLocalModifiers_ = false;
     bool listensToModifiers_ = false;
-        
+
     int latchTime_ = 100;
     int doublePressTime_ = 400;
-    
-    bool isOsdEnabled_= false;
+
+    bool isOsdEnabled_ = false;
     bool isOskEnabled_ = false;
 
     // OSK layout data parsed from Surface.txt
@@ -61,123 +60,113 @@ private:
     string surfaceFilePath_;
     int oskRunCounter_ = 0;
 
-    void ParseOskProperties(const string &propsPart, OskWidgetInfo &info);
+    void ParseOskProperties(const string& propsPart, OskWidgetInfo& info);
     void BuildCachedLayoutString();
 
-    vector<FeedbackProcessor *> trackColorFeedbackProcessors_; // does not own pointers
-    
+    vector<FeedbackProcessor*> trackColorFeedbackProcessors_; // does not own pointers
+
     vector<ChannelTouch> channelTouches_;
     vector<ChannelToggle> channelToggles_;
 
 protected:
     map<const string, double> stepSize_;
-    
+
     map<const string, map<int, int>> accelerationValuesForDecrement_;
     map<const string, map<int, int>> accelerationValuesForIncrement_;
     map<int, int> emptyAccelerationMap_;
-    
+
     map<const string, vector<double>> accelerationValues_;
     vector<double> emptyAccelerationValues_;
-    
-    void ProcessValues(const vector<vector<string>> &lines);
-    
-    CSurfIntegrator *const csi_;
-    IPageContext *const page_;
+
+    void ProcessValues(const vector<vector<string>>& lines);
+
+    CSurfIntegrator* const csi_;
+    IPageContext* const page_;
     string const name_;
     unique_ptr<ZoneManager> zoneManager_;
     unique_ptr<ModifierManager> modifierManager_;
-    
+
     int const numChannels_;
     int const channelOffset_;
-    
+
     int blinkTimeMs_ = 500;
     int holdTimeMs_ = 1000;
     int osdTimeMs_ = 3000;
 
-    vector<Widget *> widgets_; // owns list
+    vector<Widget*> widgets_; // owns list
     map<const string, unique_ptr<Widget>> widgetsByName_;
-    map<const string, unique_ptr<CSIMessageGenerator>> CSIMessageGeneratorsByMessage_;
+    map<const string, unique_ptr<MessageGenerator>> MessageGeneratorsByMessage_;
 
     bool speedX5_ = false;
 
-    ControlSurface(CSurfIntegrator *const csi, IPageContext *page, const string &name, int numChannels, int channelOffset) : csi_(csi), page_(page), name_(name), numChannels_(numChannels), channelOffset_(channelOffset), modifierManager_(make_unique<ModifierManager>(csi_, nullptr, this))
-    {
+    ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const string& name, int numChannels, int channelOffset)
+        : csi_(csi), page_(page), name_(name), numChannels_(numChannels), channelOffset_(channelOffset)
+        , modifierManager_(make_unique<ModifierManager>(csi_, nullptr, this)
+    ) {
         int size = 0;
-        scrubModePtr_ = (int*)get_config_var("scrubmode", &size);
-        
-        for (int i = 1 ; i <= numChannels; ++i)
-        {
+        scrubModePtr_ = (int*) get_config_var("scrubmode", &size);
+
+        for (int i = 1; i <= numChannels; ++i) {
             ChannelTouch channelTouch;
             channelTouch.channelNum = i;
             channelTouches_.push_back(channelTouch);
-            
+
             ChannelToggle channelToggle;
             channelToggle.channelNum = i;
             channelToggles_.push_back(channelToggle);
         }
     }
-    
-    void InitZoneManager(CSurfIntegrator *const csi, ControlSurface *surface, const string &zoneFolder, const string &fxZoneFolder)
-    {
+
+    void InitZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& fxZoneFolder) {
         zoneManager_ = make_unique<ZoneManager>(csi_, this, zoneFolder, fxZoneFolder);
         zoneManager_->Initialize();
     }
-    
-    void StopRewinding()
-    {
+
+    void StopRewinding() {
         isRewinding_ = false;
         *scrubModePtr_ = configScrubMode_;
-    
+
         speedX5_ = false;
     }
-    
-    void StopFastForwarding()
-    {
+
+    void StopFastForwarding() {
         isFastForwarding_ = false;
         *scrubModePtr_ = configScrubMode_;
-    
+
         speedX5_ = false;
     }
-        
-    void CancelRewindAndFastForward()
-    {
-        if (isRewinding_)
-            StopRewinding();
-        else if (isFastForwarding_)
-            StopFastForwarding();
+
+    void CancelRewindAndFastForward() {
+        if (isRewinding_) StopRewinding();
+        else if (isFastForwarding_) StopFastForwarding();
     }
-    
-    virtual void InitHardwiredWidgets(ControlSurface *surface)
-    {
-        for (const std::string& name : Widget::VIRTUAL_TRIGGERS) {
+
+    virtual void InitHardwiredWidgets(ControlSurface* surface) {
+        for (const std::string& name : Widget::VIRTUAL_TRIGGERS)
             AddWidget(surface, name.c_str());
-        }
     }
-    
-    void DoWidgetAction(const string &widgetName)
-    {
+
+    void DoWidgetAction(const string& widgetName) {
         if (widgetsByName_.count(widgetName) > 0)
             zoneManager_->DoAction(widgetsByName_[widgetName].get(), 1.0);
     }
-    
+
 public:
-    virtual ~ControlSurface()
-    {
+    virtual ~ControlSurface() {
         widgets_.clear();
         widgetsByName_.clear();
-        CSIMessageGeneratorsByMessage_.clear();
+        MessageGeneratorsByMessage_.clear();
     }
 
     // Used by widget-type handlers in widget_registrations.cpp to insert message generators.
-    void AddCSIMessageGenerator(const string &key, unique_ptr<CSIMessageGenerator> gen)
-    {
-        CSIMessageGeneratorsByMessage_.insert(make_pair(key, std::move(gen)));
+    void AddMessageGenerator(const string& key, unique_ptr<MessageGenerator> gen) {
+        MessageGeneratorsByMessage_.insert(make_pair(key, std::move(gen)));
     }
 
     void Stop();
     void Play();
     void Record();
-    
+
     bool GetShift();
     bool GetOption();
     bool GetControl();
@@ -200,32 +189,32 @@ public:
     void SetNudge(bool value);
     void SetZoom(bool value);
     void SetScrub(bool value);
-    
-    const vector<int> &GetModifiers();
+
+    const vector<int>& GetModifiers();
     void ClearModifiers();
-    void ClearModifier(const char *modifier);
-        
+    void ClearModifier(const char* modifier);
+
     virtual void RequestUpdate();
     void ForceClearTrack(int trackNum);
     void ForceUpdateTrackColors();
-    void OnTrackSelection(MediaTrack *track);
-    virtual void SendOSCMessage(const char *zoneName) {}
-    virtual void SendOSCMessage(const char *zoneName, int value) {}
-    virtual void SendOSCMessage(const char *zoneName, double value) {}
-    virtual void SendOSCMessage(const char *zoneName, const char *value) {}
+    void OnTrackSelection(MediaTrack* track);
+    virtual void SendOSCMessage(const char* zoneName) {}
+    virtual void SendOSCMessage(const char* zoneName, int value) {}
+    virtual void SendOSCMessage(const char* zoneName, double value) {}
+    virtual void SendOSCMessage(const char* zoneName, const char* value) {}
 
     virtual void HandleExternalInput() {}
     virtual void UpdateTimeDisplay() {}
     virtual void FlushIO() {}
-    
-    virtual void SendMidiSysExMessage(MIDI_event_ex_t *midiMessage) {}
+
+    virtual void SendMidiSysExMessage(MIDI_event_ex_t* midiMessage) {}
     virtual void SendMidiMessage(int first, int second, int third) {}
-    
-    ModifierManager *GetModifierManager() { return modifierManager_.get(); }
-    ZoneManager *GetZoneManager() { return zoneManager_.get(); }
-    IPageContext *GetPage() { return page_; }
-    const char *GetName() { return name_.c_str(); }
-    
+
+    ModifierManager* GetModifierManager() { return modifierManager_.get(); }
+    ZoneManager* GetZoneManager() { return zoneManager_.get(); }
+    IPageContext* GetPage() { return page_; }
+    const char* GetName() { return name_.c_str(); }
+
     int GetNumChannels() { return numChannels_; }
     int GetChannelOffset() { return channelOffset_; }
     rgba_color GetTrackColorForChannel(int channel);
@@ -234,126 +223,105 @@ public:
     bool GetIsFastForwarding() { return isFastForwarding_; }
 
     bool GetUsesLocalModifiers() { return usesLocalModifiers_; }
-    void ToggleUseLocalModifiers() { usesLocalModifiers_ = ! usesLocalModifiers_; }
+    void ToggleUseLocalModifiers() { usesLocalModifiers_ = !usesLocalModifiers_; }
     bool GetListensToModifiers() { return listensToModifiers_; }
     void SetListensToModifiers() { listensToModifiers_ = true; }
 
     void SetLatchTime(int value) { latchTime_ = value; }
     int GetLatchTime() { return latchTime_; }
-    
+
     void SetHoldTime(int value) { holdTimeMs_ = value; }
     int GetHoldTime() { return holdTimeMs_; }
-    
+
     void SetDoublePressTime(int value) { doublePressTime_ = value; }
     int GetDoublePressTime() { return doublePressTime_; }
-    
+
     void SetBlinkTime(int value) { blinkTimeMs_ = value; }
     int GetBlinkTime() { return blinkTimeMs_; }
 
     void SetOSDTime(int value) { osdTimeMs_ = value; }
     int GetOSDTime() { return osdTimeMs_; }
 
-    void UpdateCurrentActionContextModifiers()
-    {
-        if (! usesLocalModifiers_)
-            GetZoneManager()->UpdateCurrentActionContextModifiers();
-    }
-    
-    double GetStepSize(const char * const widgetClass)
-    {
+    void UpdateCurrentActionContextModifiers() { if (!usesLocalModifiers_) GetZoneManager()->UpdateCurrentActionContextModifiers(); }
+
+    double GetStepSize(const char* const widgetClass) {
         if (stepSize_.find(widgetClass) != stepSize_.end())
             return stepSize_[widgetClass];
         else
             return 0;
     }
 
-    const vector<double> GetAccelerationValues(const char * const  widgetClass)
-    {
+    const vector<double> GetAccelerationValues(const char* const widgetClass) {
         if (accelerationValues_.find(widgetClass) != accelerationValues_.end())
             return accelerationValues_[widgetClass];
         else
             return emptyAccelerationValues_;
     }
 
-    map<int, int> &GetAccelerationValuesForDecrement(const char * const  widgetClass)
-    {
+    map<int, int>& GetAccelerationValuesForDecrement(const char* const widgetClass) {
         if (accelerationValuesForDecrement_.count(widgetClass) > 0)
-             return accelerationValuesForDecrement_[widgetClass];
+            return accelerationValuesForDecrement_[widgetClass];
         else
             return emptyAccelerationMap_;
     }
-    
-    map<int, int> &GetAccelerationValuesForIncrement(const char * const  widgetClass)
-    {
+
+    map<int, int>& GetAccelerationValuesForIncrement(const char* const widgetClass) {
         if (accelerationValuesForIncrement_.count(widgetClass) > 0)
             return accelerationValuesForIncrement_[widgetClass];
-       else
-           return emptyAccelerationMap_;
+        else
+            return emptyAccelerationMap_;
     }
-    
-    void TouchChannel(int channelNum, bool isTouched)
-    {
-        for (auto &channelTouch : channelTouches_)
-            if (channelTouch.channelNum == channelNum)
-            {
+
+    void TouchChannel(int channelNum, bool isTouched) {
+        for (auto& channelTouch : channelTouches_)
+            if (channelTouch.channelNum == channelNum) {
                 channelTouch.isTouched = isTouched;
                 break;
             }
     }
-    
-    bool GetIsChannelTouched(int channelNum)
-    {
-        for (auto &channelTouch : channelTouches_)
+
+    bool GetIsChannelTouched(int channelNum) {
+        for (auto& channelTouch : channelTouches_)
             if (channelTouch.channelNum == channelNum)
                 return channelTouch.isTouched;
-
         return false;
     }
-       
-    void ToggleChannel(int channelNum)
-    {
-        for (auto &channelToggle : channelToggles_)
-            if (channelToggle.channelNum == channelNum)
-            {
-                channelToggle.isToggled = ! channelToggle.isToggled;
+
+    void ToggleChannel(int channelNum) {
+        for (auto& channelToggle : channelToggles_)
+            if (channelToggle.channelNum == channelNum) {
+                channelToggle.isToggled = !channelToggle.isToggled;
                 break;
             }
     }
-    
-    bool GetIsChannelToggled(int channelNum)
-    {
-        for (auto &channelToggle : channelToggles_)
+
+    bool GetIsChannelToggled(int channelNum) {
+        for (auto& channelToggle : channelToggles_)
             if (channelToggle.channelNum == channelNum)
                 return channelToggle.isToggled;
 
         return false;
     }
 
-    void ToggleRestrictTextLength(int length)
-    {
-        isTextLengthRestricted_ = ! isTextLengthRestricted_;
+    void ToggleRestrictTextLength(int length) {
+        isTextLengthRestricted_ = !isTextLengthRestricted_;
         restrictedTextLength_ = length;
     }
-    
-    const char *GetRestrictedLengthText(const char *textc, char *buf, int bufsz) // may return textc if not restricted
-    {
-        if (isTextLengthRestricted_ && strlen(textc) > restrictedTextLength_ && restrictedTextLength_ >= 0)
-        {
-            static const char * const filter_lists[3] = {
-              " \t\r\n",
-              " \t\r\n`~!@#$%^&*:()_|=?;:'\",",
-              " \t\r\n`~!@#$%^&*:()_|=?;:'\",aeiou"
+
+    const char* GetRestrictedLengthText(const char* textc, char* buf, int bufsz) { //TODO: review, may return textc if not restricted
+        if (isTextLengthRestricted_ && strlen(textc) > restrictedTextLength_ && restrictedTextLength_ >= 0) {
+            static const char* const filter_lists[3] = {
+                " \t\r\n",
+                " \t\r\n`~!@#$%^&*:()_|=?;:'\",",
+                " \t\r\n`~!@#$%^&*:()_|=?;:'\",aeiou"
             };
 
-            for (int pass = 0; pass < 3; ++pass)
-            {
-                const char *rd = textc;
+            for (int pass = 0; pass < 3; ++pass) {
+                const char* rd = textc;
                 int l = 0;
-                while (*rd && l < bufsz-1 && l <= restrictedTextLength_)
-                {
-                     if (!l || !strchr(filter_lists[pass], *rd))
-                         buf[l++] = *rd;
-                     rd++;
+                while (*rd && l < bufsz - 1 && l <= restrictedTextLength_) {
+                    if (!l || !strchr(filter_lists[pass], *rd)) buf[l++] = *rd;
+                    rd++;
                 }
                 if (pass < 2 && l > restrictedTextLength_) continue; // keep filtering
 
@@ -362,135 +330,96 @@ public:
             }
         }
         return textc;
+    }
 
-    }
-           
-    void AddTrackColorFeedbackProcessor(FeedbackProcessor *feedbackProcessor) // does not own this pointer
-    {
+    void AddTrackColorFeedbackProcessor(FeedbackProcessor* feedbackProcessor) { //TODO: review does not own this pointer
         if (feedbackProcessor != NULL)
-        trackColorFeedbackProcessors_.push_back(feedbackProcessor);
+            trackColorFeedbackProcessors_.push_back(feedbackProcessor);
     }
-        
-    void ForceClear()
-    {
+
+    void ForceClear() {
         for (auto widget : widgets_)
             widget->ForceClear();
-        
         FlushIO();
     }
-           
-    void TrackFXListChanged(MediaTrack *track)
-    {
-        OnTrackSelection(track);
-    }
 
-    void HandleStop()
-    {
+    void TrackFXListChanged(MediaTrack* track) { OnTrackSelection(track); }
+
+    void HandleStop() {
         DoWidgetAction("OnRecordStop");
         DoWidgetAction("OnPlayStop");
     }
-    
-    void HandlePlay()
-    {
-        DoWidgetAction("OnPlayStart");
-    }
-    
-    void HandleRecord()
-    {
-        DoWidgetAction("OnRecordStart");
-    }
-        
-    void StartRewinding()
-    {
-        if (isFastForwarding_)
-            StopFastForwarding();
 
-        if (isRewinding_) // on 2nd, 3rd, etc. press
-        {
-            speedX5_ = ! speedX5_;
+    void HandlePlay() { DoWidgetAction("OnPlayStart"); }
+    void HandleRecord() { DoWidgetAction("OnRecordStart"); }
+    void StartRewinding() {
+        if (isFastForwarding_) StopFastForwarding();
+
+        if (isRewinding_) {
+            speedX5_ = !speedX5_; // on 2nd, 3rd, etc. press
             return;
         }
-        
         int playState = GetPlayState();
         if (playState == 1 || playState == 2 || playState == 5 || playState == 6) // playing or paused or recording or paused whilst recording
             SetEditCurPos(GetPlayPosition(), true, false);
 
         CSurf_OnStop();
-        
         isRewinding_ = true;
         configScrubMode_ = *scrubModePtr_;
         *scrubModePtr_ = 2;
     }
-       
-    void StartFastForwarding()
-    {
-        if (isRewinding_)
-            StopRewinding();
 
-        if (isFastForwarding_) // on 2nd, 3rd, etc. press
-        {
-            speedX5_ = ! speedX5_;
+    void StartFastForwarding() {
+        if (isRewinding_) StopRewinding();
+
+        if (isFastForwarding_) {
+            speedX5_ = !speedX5_; // on 2nd, 3rd, etc. press
             return;
         }
-        
+
         int playState = GetPlayState();
-        if (playState == 1 || playState == 2 || playState == 5 || playState == 6) // playing or paused or recording or paused whilst recording
+        if (playState == 1 || playState == 2 || playState == 5 || playState == 6) // playing or paused or recording or paused whilst recording //FIXME: hardcoded to consts everywhere in this class
             SetEditCurPos(GetPlayPosition(), true, false);
 
         CSurf_OnStop();
-        
+
         isFastForwarding_ = true;
         configScrubMode_ = *scrubModePtr_;
         *scrubModePtr_ = 2;
     }
-    
-    void AddWidget(ControlSurface * surface, const char *widgetName)
-    {
-        if (widgetsByName_.count(string(widgetName)) == 0)
-        {
+
+    void AddWidget(ControlSurface* surface, const char* widgetName) {
+        if (widgetsByName_.count(string(widgetName)) == 0) {
             widgetsByName_.insert(make_pair(widgetName, make_unique<Widget>(csi_, surface, widgetName)));
-            
             if (widgetsByName_.count(widgetName) > 0)
                 widgets_.push_back(GetWidgetByName(widgetName));
         }
     }
 
-    Widget *GetWidgetByName(const string &widgetName)
-    {
-        if (widgetsByName_.count(widgetName.c_str()) > 0)
-            return widgetsByName_[widgetName].get();
-        else
-            return NULL;
+    Widget* GetWidgetByName(const string& widgetName) {
+        if (widgetsByName_.count(widgetName.c_str()) > 0) return widgetsByName_[widgetName].get();
+        else return NULL;
     }
 
-    void OnPageEnter()
-    {
+    void OnPageEnter() {
         ForceClear();
-        
         DoWidgetAction("OnPageEnter");
     }
-    
-    void OnPageLeave()
-    {
+
+    void OnPageLeave() {
         ForceClear();
-        
         DoWidgetAction("OnPageLeave");
     }
-    
-    void OnInitialization()
-    {
-        DoWidgetAction("OnInitialization");
-    }
+
+    void OnInitialization() { DoWidgetAction("OnInitialization"); }
     bool IsOsdEnabled() { return isOsdEnabled_; }
-    void SetOsdEnabled(bool value) {
-        isOsdEnabled_ = value;
-    }
+    void SetOsdEnabled(bool value) { isOsdEnabled_ = value; }
 
     bool GetOskEnabled() const { return isOskEnabled_; }
-    void SetOskEnabled(bool v) { isOskEnabled_ = v; }
-    void ParseOSKLayout(const string &surfaceFilePath);
+    void SetOskEnabled(bool value) { isOskEnabled_ = value; }
+    void ParseOSKLayout(const string& surfaceFilePath);
     void PublishOSKLayout();
     void PublishOSKState();
     void PublishOSKLabels();
-    const string &GetSurfaceFilePath() const { return surfaceFilePath_; }
+    const string& GetSurfaceFilePath() const { return surfaceFilePath_; }
 };

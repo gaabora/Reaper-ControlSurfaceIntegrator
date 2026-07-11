@@ -92,23 +92,23 @@ using std::make_shared;
 #endif
 
 #include "../shared/daw_api.h"
-#include "../shared/handy_functions.h"
+#include "../shared/utils.h"
 #include "../shared/types.h"
 
 #include "fwd.h"
 
 // External helpers declared in integrator.cpp / integrator_ui.cpp
-extern void TrimLine(string &line);
-extern void ReplaceAllWith(string &output, const char *replaceAny, const char *replacement);
-extern int strToHex(string &valueStr);
-extern void GetTokens(vector<string> &tokens, const string &line);
-extern void GetTokens(vector<string> &tokens, const string &line, char delimiter);
-extern void GetPropertiesFromTokens(int start, int finish, const vector<string> &tokens, PropertyList &properties);
+extern void TrimLine(string& line);
+extern void ReplaceAllWith(string& output, const char* replaceAny, const char* replacement);
+extern int strToHex(string& valueStr);
+extern void GetTokens(vector<string>& tokens, const string& line);
+extern void GetTokens(vector<string>& tokens, const string& line, char delimiter);
+extern void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens, PropertyList& properties);
 
-extern void RequestFocusedFXDialog(ZoneManager *zoneManager);
+extern void RequestFocusedFXDialog(ZoneManager* zoneManager);
 extern void CloseFocusedFXDialog();
-extern void UpdateLearnWindow(ZoneManager *zoneManager);
-extern void InitBlankLearnFocusedFXZone(ZoneManager *zoneManager, Zone *fxZone, MediaTrack *track, int fxSlot);
+extern void UpdateLearnWindow(ZoneManager* zoneManager);
+extern void InitBlankLearnFocusedFXZone(ZoneManager* zoneManager, Zone* fxZone, MediaTrack* track, int fxSlot);
 extern void ShutdownLearn();
 
 extern int g_debugLevel;

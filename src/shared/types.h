@@ -1,16 +1,12 @@
-//
-//  types.h
-//  reaper_csurf_integrator
-//
-//  Standalone value types, enums, and constants with no major-class dependencies.
-//  Everything in this file can be included by any translation unit.
-//
+// types.h
 
-#ifndef csi_types_h
-#define csi_types_h
+//  Standalone value types, enums, and constants with no major-class dependencies.
+
+#ifndef types_h
+#define types_h
 
 #ifndef WDL_NO_DEFINE_MINMAX
-#define WDL_NO_DEFINE_MINMAX
+  #define WDL_NO_DEFINE_MINMAX
 #endif
 
 #include <string>
@@ -43,9 +39,9 @@ const int SMLBUF = 256;
 // -------------------------------------------------------------------------
 // REAPER command IDs and CSI script paths
 // -------------------------------------------------------------------------
-static const char * const REASCRIPT_PATH__CSI_OSD = "/Scripts/CSI/CSI OSD on-screen display.lua";
-static const char * const REASCRIPT_HASH__CSI_OSD = "_RSba74d8dbb9258d14b5305a183a5f20e8a6e0f64f";
-static const char * const REASCRIPT_PATH__CSI_OSK = "/Scripts/CSI/CSI OSK on-screen keyboard.lua";
+static const char* const REASCRIPT_PATH__CSI_OSD = "/Scripts/CSI/CSI OSD on-screen display.lua";
+static const char* const REASCRIPT_HASH__CSI_OSD = "_RSba74d8dbb9258d14b5305a183a5f20e8a6e0f64f";
+static const char* const REASCRIPT_PATH__CSI_OSK = "/Scripts/CSI/CSI OSK on-screen keyboard.lua";
 static const int REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES = 41743;
 static const int REAPER__RESET_ALL_MIDI_CONTROL_SURFACE_DEVICES = 42348;
 static const int REAPER__FILE_NEW_PROJECT = 40023;
@@ -58,23 +54,22 @@ static const int REAPER__SWITCH_TO_PREVIOUS_PROJECT_TAB = 40861;
 // -------------------------------------------------------------------------
 // CSI identification strings
 // -------------------------------------------------------------------------
-static const char * const s_CSIName = "CSI";
-static const char * const s_CSIVersionDisplay = "v7.0";
-static const char * const s_MajorVersionToken = "7.0";
-static const char * const s_PageToken = "Page";
-static const char * const s_MidiSurfaceToken = "MIDI";
-static const char * const s_OSCSurfaceToken = "OSC";
-static const char * const s_OSCX32SurfaceToken = "OSCX32";
+static const char* const s_CSIName = "CSI";
+static const char* const s_CSIVersionDisplay = "v7.0";
+static const char* const s_MajorVersionToken = "7.0";
+static const char* const s_PageToken = "Page";
+static const char* const s_MidiSurfaceToken = "MIDI";
+static const char* const s_OSCSurfaceToken = "OSC";
+static const char* const s_OSCX32SurfaceToken = "OSCX32";
 
-static const char * const s_BadFileChars = " \\:*?<>|.,()/";
-static const char * const s_BeginAutoSection = "#Begin auto generated section";
-static const char * const s_EndAutoSection = "#End auto generated section";
+static const char* const s_BadFileChars = " \\:*?<>|.,()/";
+static const char* const s_BeginAutoSection = "#Begin auto generated section";
+static const char* const s_EndAutoSection = "#End auto generated section";
 
 // -------------------------------------------------------------------------
 // struct osd_data
 // -------------------------------------------------------------------------
-static vector<string> ExplodeString(const char separator, const string& value)
-{
+static vector<string> ExplodeString(const char separator, const string& value) {
     vector<string> result;
     size_t start = 0;
     size_t end = value.find(separator);
@@ -104,7 +99,7 @@ struct osd_data {
         origValue = osdValue;
 
         if (osdValue.front() == '\"') osdValue.erase(0, 1);
-        if (osdValue.back()  == '\"') osdValue.pop_back();
+        if (osdValue.back() == '\"') osdValue.pop_back();
 
         vector<string> osdParams = ExplodeString(';', osdValue);
 
@@ -131,31 +126,22 @@ struct osd_data {
 // -------------------------------------------------------------------------
 // struct rgba_color
 // -------------------------------------------------------------------------
-struct rgba_color
-{
+struct rgba_color {
     int r;
     int g;
     int b;
     int a;
 
-    bool operator == (const rgba_color &other) const
-    {
-        return r == other.r && g == other.g && b == other.b && a == other.a;
-    }
+    bool operator == (const rgba_color& other) const { return r == other.r && g == other.g && b == other.b && a == other.a; }
 
-    bool operator != (const rgba_color &other) const
-    {
-        return r != other.r || g != other.g || b != other.b || a != other.a;
-    }
+    bool operator != (const rgba_color& other) const { return r != other.r || g != other.g || b != other.b || a != other.a; }
 
-    const char *rgba_to_string(char *buf) const // buf must be at least 10 bytes
-    {
+    const char* rgba_to_string(char* buf) const { // buf must be at least 10 bytes
         snprintf(buf, 10, "#%02x%02x%02x%02x", r, g, b, a);
         return buf;
     }
 
-    rgba_color()
-    {
+    rgba_color() {
         r = 0;
         g = 0;
         b = 0;
@@ -166,10 +152,8 @@ struct rgba_color
 // -------------------------------------------------------------------------
 // struct MIDI_event_ex_t
 // -------------------------------------------------------------------------
-struct MIDI_event_ex_t : MIDI_event_t
-{
-    MIDI_event_ex_t()
-    {
+struct MIDI_event_ex_t : MIDI_event_t {
+    MIDI_event_ex_t() {
         frame_offset = 0;
         size = 3;
         midi_message[0] = 0x00;
@@ -178,8 +162,7 @@ struct MIDI_event_ex_t : MIDI_event_t
         midi_message[3] = 0x00;
     };
 
-    MIDI_event_ex_t(const unsigned char first, const unsigned char second, const unsigned char third)
-    {
+    MIDI_event_ex_t(const unsigned char first, const unsigned char second, const unsigned char third) {
         size = 3;
         midi_message[0] = first;
         midi_message[1] = second;
@@ -187,8 +170,7 @@ struct MIDI_event_ex_t : MIDI_event_t
         midi_message[3] = 0x00;
     };
 
-    bool IsEqualTo(const MIDI_event_ex_t *other) const
-    {
+    bool IsEqualTo(const MIDI_event_ex_t* other) const {
         if (this->size != other->size)
             return false;
 
@@ -203,10 +185,10 @@ struct MIDI_event_ex_t : MIDI_event_t
 // -------------------------------------------------------------------------
 // class ReloadPluginException
 // -------------------------------------------------------------------------
-class ReloadPluginException : public std::runtime_error {
+class ReloadPluginException : public std::runtime_error
+{
 public:
-    explicit ReloadPluginException(const std::string& message)
-        : std::runtime_error(message) {}
+    explicit ReloadPluginException(const std::string& message) : std::runtime_error(message) {}
 };
 
 // -------------------------------------------------------------------------
@@ -218,9 +200,7 @@ public:
 // (which conflicts when utils.h is included first in Phase 7 sub-headers).
 #include "utils.h"
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 enum PropertyType {
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_PROPERTY_TYPES(D) \
   D(Font) \
@@ -292,124 +272,116 @@ enum PropertyType {
 #undef DEFPT
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class PropertyList
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
     enum { MAX_PROP=24, RECLEN=10 };
     int nprops_;
     PropertyType props_[MAX_PROP];
     char vals_[MAX_PROP][RECLEN]; // if last byte is nonzero, pointer, otherwise, string
 
-    static char *get_item_ptr(char *vp) // returns a strdup'd string
-    {
-        if (!vp[RECLEN-1]) return NULL;
-        char *ret;
-        memcpy(&ret,vp,sizeof(char *));
+    static char* get_item_ptr(char* vp) { // returns a strdup'd string
+        if (!vp[RECLEN - 1]) return NULL;
+        char* ret;
+        memcpy(&ret, vp, sizeof(char*));
         return ret;
     }
 
-  public:
-    PropertyList() : nprops_(0) { }
-    ~PropertyList()
-    {
-        for (int x = 0; x < nprops_; ++x) free(get_item_ptr(&vals_[x][0]));
+public:
+    PropertyList() : nprops_(0) {}
+    ~PropertyList() {
+        for (int x = 0; x < nprops_; ++x)
+            free(get_item_ptr(&vals_[x][0]));
     }
 
-    void delete_props()
-    {
-        for (int x = 0; x < nprops_; ++x) free(get_item_ptr(&vals_[x][0]));
+    void delete_props() {
+        for (int x = 0; x < nprops_; ++x)
+            free(get_item_ptr(&vals_[x][0]));
         nprops_ = 0;
     }
 
-    void set_prop(PropertyType prop, const char *val)
-    {
+    void set_prop(PropertyType prop, const char* val) {
         int x;
         if (prop == PropertyType_Unknown)
             x = nprops_;
         else
-            for (x = 0; x < nprops_ && props_[x] != prop; ++x);
+            for (x = 0; x < nprops_ && props_[x] != prop; ++x)
+                ;
 
-        if (WDL_NOT_NORMALLY(x >= MAX_PROP)) return;
+        if (WDL_NOT_NORMALLY(x >= MAX_PROP))
+            return;
 
-        char *rec = &vals_[x][0];
-        if (x == nprops_)
-        {
+        char* rec = &vals_[x][0];
+        if (x == nprops_) {
             nprops_++;
             props_[x] = prop;
-        }
-        else
-        {
+        } else {
             free(get_item_ptr(rec));
         }
 
-        if (strlen(val) < RECLEN)
-        {
-          lstrcpyn_safe(rec, val, RECLEN);
-          rec[RECLEN-1] = 0;
-        }
-        else
-        {
+        if (strlen(val) < RECLEN) {
+            lstrcpyn_safe(rec, val, RECLEN);
+            rec[RECLEN - 1] = 0;
+        } else {
 #ifdef WIN32
-          char *v = _strdup(val);
+            char* v = _strdup(val);
 #else
-          char *v = strdup(val);
+            char* v = strdup(val);
 #endif
-          memcpy(rec, &v, sizeof(v));
-          rec[RECLEN-1] = 1;
+            memcpy(rec, &v, sizeof(v));
+            rec[RECLEN - 1] = 1;
         }
     }
-    void set_prop_int(PropertyType prop, int v) { char tmp[64]; snprintf(tmp,sizeof(tmp),"%d",v); set_prop(prop,tmp); }
+    void set_prop_int(PropertyType prop, int v) {
+        char tmp[64];
+        snprintf(tmp, sizeof(tmp), "%d", v);
+        set_prop(prop, tmp);
+    }
 
-    const char *get_prop(PropertyType prop) const
-    {
+    const char* get_prop(PropertyType prop) const {
         for (int x = 0; x < nprops_; ++x)
-            if (props_[x] == prop)
-            {
-                char *p = get_item_ptr((char *) (&vals_[x][0]));
+            if (props_[x] == prop) {
+                char* p = get_item_ptr((char*) (&vals_[x][0]));
                 return p ? p : &vals_[x][0];
             }
         return NULL;
     }
 
-    const char *enum_props(int x, PropertyType &type) const
-    {
-        if (x<0 || x >= nprops_) return NULL;
+    const char* enum_props(int x, PropertyType& type) const {
+        if (x < 0 || x >= nprops_) return NULL;
         type = props_[x];
-        return get_item_ptr((char*)&vals_[x][0]);
+        return get_item_ptr((char*) &vals_[x][0]);
     }
 
-    static PropertyType prop_from_string(const char *str)
-    {
-#define CHK(x) if (IsSameString(str,#x)) return PropertyType_##x;
+    static PropertyType prop_from_string(const char* str) {
+#define CHK(x)                 \
+    if (IsSameString(str, #x)) \
+        return PropertyType_##x;
         DECLARE_PROPERTY_TYPES(CHK)
 #undef CHK
         return PropertyType_Unknown;
     }
-    static const char *string_from_prop(PropertyType type)
-    {
-#define CHK(x) if (type == PropertyType_##x) return #x;
+    static const char* string_from_prop(PropertyType type) {
+#define CHK(x)                    \
+    if (type == PropertyType_##x) \
+        return #x;
         DECLARE_PROPERTY_TYPES(CHK)
 #undef CHK
         return NULL;
     }
 
-    void save_list(FILE *fxFile) const
-    {
-        for (int x = 0; x < nprops_; ++x)
-        {
-            const char *value = get_prop(props_[x]);
-            const char *key = string_from_prop(props_[x]);
+    void save_list(FILE* fxFile) const {
+        for (int x = 0; x < nprops_; ++x) {
+            const char* value = get_prop(props_[x]);
+            const char* key = string_from_prop(props_[x]);
 
             if (key && value)
                 fprintf(fxFile, "%s=%s ", key, value);
         }
     }
 
-    void print_to_buf(char * buf, int buf_size, PropertyType prop)
-    {
-        const char *key = string_from_prop(prop);
-        const char *value = get_prop(prop);
+    void print_to_buf(char* buf, int buf_size, PropertyType prop) {
+        const char* key = string_from_prop(prop);
+        const char* value = get_prop(prop);
 
         if (key && value)
             snprintf_append(buf, buf_size, "%s=%s ", key, value);
@@ -421,7 +393,7 @@ class PropertyList
 // -------------------------------------------------------------------------
 #define ACTION_TYPE_LIST(X) \
 /* Transport and Timeline */ \
- X(MoveCursor, "MoveEditCursor") \
+X(MoveCursor, "MoveEditCursor") \
 X(Rewind, "Rewind") \
 X(FastForward, "FastForward") \
 X(Play, "Play") \
@@ -637,4 +609,4 @@ enum class NavigatorType {
     Invalid
 };
 
-#endif /* csi_types_h */
+#endif /* types_h */

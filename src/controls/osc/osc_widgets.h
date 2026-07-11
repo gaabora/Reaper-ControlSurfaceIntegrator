@@ -1,21 +1,14 @@
-//
-//  control_surface_OSC_widgets.h
-//  reaper_csurf_integrator
-//
+// osc_widgets.h
 
-#ifndef control_surface_OSC_widgets_h
-#define control_surface_OSC_widgets_h
+#ifndef osc_widgets_h
+#define osc_widgets_h
 
-#include "../../shared/handy_functions.h"
+#include "../../shared/utils.h"
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class OSC_X32FeedbackProcessor : public OSC_FeedbackProcessor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 private:
-
-    enum X32Color
-    {
+    enum X32Color {
         COLOR_INVALID = -1,
         COLOR_OFF = 0,
         COLOR_RED,
@@ -27,59 +20,48 @@ private:
         COLOR_WHITE
     };
 
-    // rgbToColor() is provided by shared/utils.h (canonical implementation)
-
 public:
-    OSC_X32FeedbackProcessor(CSurfIntegrator *const csi, OSC_ControlSurface *surface, Widget *widget, const string &oscAddress) : OSC_FeedbackProcessor(csi, surface, widget, oscAddress)  {}
+    OSC_X32FeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& oscAddress)
+        : OSC_FeedbackProcessor(csi, surface, widget, oscAddress) {}
     ~OSC_X32FeedbackProcessor() {}
 
-    virtual const char *GetName() override { return "OSC_X32FeedbackProcessor"; }
+    virtual const char* GetName() override { return "OSC_X32FeedbackProcessor"; }
 
-    virtual void SetColorValue(const rgba_color &color) override
-    {
-        if (lastColor_ != color)
-        {
+    virtual void SetColorValue(const rgba_color& color) override {
+        if (lastColor_ != color) {
             lastColor_ = color;
-
             surface_->SendOSCMessage(this, oscAddress_.c_str(), rgbToColor(color.r, color.g, color.b));
         }
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class OSC_X32IntFeedbackProcessor : public OSC_IntFeedbackProcessor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 public:
-    OSC_X32IntFeedbackProcessor(CSurfIntegrator *const csi, OSC_ControlSurface *surface, Widget *widget, const string &oscAddress) : OSC_IntFeedbackProcessor(csi, surface, widget, oscAddress) {}
+    OSC_X32IntFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& oscAddress)
+        : OSC_IntFeedbackProcessor(csi, surface, widget, oscAddress) {}
     ~OSC_X32IntFeedbackProcessor() {}
 
-    virtual const char *GetName() override { return "OSC_X32IntFeedbackProcessor"; }
-    
-    virtual void ForceValue(const PropertyList &properties, double value) override
-    {
+    virtual const char* GetName() override { return "OSC_X32IntFeedbackProcessor"; }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
         lastDoubleValue_ = value;
-        
-        if (oscAddress_.find("/-stat/selidx/") != string::npos  && value != 0.0)
-        {
+        if (oscAddress_.find("/-stat/selidx/") != string::npos && value != 0.0) {
             string selectIndex = oscAddress_.substr(oscAddress_.find_last_of('/') + 1);
-            surface_->SendOSCMessage(this, "/-stat/selidx", (int)atoi(selectIndex.c_str()));
-        }
-        else
-            surface_->SendOSCMessage(this, oscAddress_.c_str(), (int)value);
+            surface_->SendOSCMessage(this, "/-stat/selidx", (int) atoi(selectIndex.c_str()));
+        } else
+            surface_->SendOSCMessage(this, oscAddress_.c_str(), (int) value);
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class X32_Fader_OSC_MessageGenerator : public CSIMessageGenerator
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class X32_Fader_OSC_MessageGenerator : public MessageGenerator
 {
 public:
-    X32_Fader_OSC_MessageGenerator(CSurfIntegrator *const csi, Widget *widget) : CSIMessageGenerator(csi, widget) {}
+    X32_Fader_OSC_MessageGenerator(CSurfIntegrator* const csi, Widget* widget)
+        : MessageGenerator(csi, widget) {}
     ~X32_Fader_OSC_MessageGenerator() {}
 
-    virtual void ProcessMessage(double value) override
-    {
+    virtual void ProcessMessage(double value) override {
         if      (value >= 0.5)    value = value *  40.0 - 30.0;  // max dB value: +10.
         else if (value >= 0.25)   value = value *  80.0 - 50.0;
         else if (value >= 0.0625) value = value * 160.0 - 70.0;
@@ -92,18 +74,16 @@ public:
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class OSC_X32FaderFeedbackProcessor : public OSC_FeedbackProcessor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 public:
-    OSC_X32FaderFeedbackProcessor(CSurfIntegrator *const csi, OSC_ControlSurface *surface, Widget *widget, const string &oscAddress) : OSC_FeedbackProcessor(csi, surface, widget, oscAddress) {}
+    OSC_X32FaderFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& oscAddress)
+        : OSC_FeedbackProcessor(csi, surface, widget, oscAddress) {}
     ~OSC_X32FaderFeedbackProcessor() {}
 
-    virtual const char *GetName() override { return "OSC_X32FaderFeedbackProcessor"; }
-    
-    virtual void ForceValue(const PropertyList &properties, double value) override
-    {
+    virtual const char* GetName() override { return "OSC_X32FaderFeedbackProcessor"; }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
         lastDoubleValue_ = value;
 
         value = VAL2DB(normalizedToVol(value));
@@ -118,51 +98,43 @@ public:
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class X32_RotaryToEncoder_OSC_MessageGenerator : public CSIMessageGenerator
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class X32_RotaryToEncoder_OSC_MessageGenerator : public MessageGenerator
 {
 public:
-    X32_RotaryToEncoder_OSC_MessageGenerator(CSurfIntegrator *const csi, Widget *widget) : CSIMessageGenerator(csi, widget) {}
+    X32_RotaryToEncoder_OSC_MessageGenerator(CSurfIntegrator* const csi, Widget* widget)
+        : MessageGenerator(csi, widget) {}
     ~X32_RotaryToEncoder_OSC_MessageGenerator() {}
 
-    virtual void ProcessMessage(double value) override
-    {
-        double delta = (1 / 128.0) * value ;
-        
-        if (delta < 0.5)
-            delta = -delta;
-        
+    virtual void ProcessMessage(double value) override {
+        double delta = (1 / 128.0) * value;
+
+        if (delta < 0.5) delta = -delta;
         delta *= 0.1;
-        
+
         widget_->SetLastIncomingDelta(delta);
         widget_->GetZoneManager()->DoRelativeAction(widget_, delta);
     }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class OSC_X32_RotaryToEncoderFeedbackProcessor : public OSC_FeedbackProcessor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 public:
-    OSC_X32_RotaryToEncoderFeedbackProcessor(CSurfIntegrator *const csi, OSC_ControlSurface *surface, Widget *widget, const string &oscAddress) : OSC_FeedbackProcessor(csi, surface, widget, oscAddress) {}
+    OSC_X32_RotaryToEncoderFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& oscAddress)
+        : OSC_FeedbackProcessor(csi, surface, widget, oscAddress) {}
     ~OSC_X32_RotaryToEncoderFeedbackProcessor() {}
 
-    virtual const char *GetName() override { return "OSC_X32_RotaryToEncoderFeedbackProcessor"; }
-    
-    virtual void SetValue(const PropertyList &properties, double value) override
-    {
-        if (widget_->GetLastIncomingDelta() != 0.0)
-        {
+    virtual const char* GetName() override { return "OSC_X32_RotaryToEncoderFeedbackProcessor"; }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        if (widget_->GetLastIncomingDelta() != 0.0) {
             widget_->SetLastIncomingDelta(0.0);
             ForceValue(properties, value);
         }
     }
-    
-    virtual void ForceValue(const PropertyList &properties, double value) override
-    {
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
         surface_->SendOSCMessage(this, oscAddress_.c_str(), 64);
     }
 };
 
-#endif /* control_surface_OSC_widgets_h */
+#endif /* osc_widgets_h */

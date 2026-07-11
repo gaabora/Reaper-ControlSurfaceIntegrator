@@ -9,47 +9,45 @@
 #include "action_color.h"
 #include "../controls/blink_state.h"
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class ActionContext
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 private:
-    CSurfIntegrator *const csi_;
-    Action *action_;
-    Widget  *const widget_;
-    Zone  *const zone_;
+    CSurfIntegrator* const csi_;
+    Action* action_;
+    Widget* const widget_;
+    Zone* const zone_;
 
     int intParam_ = 0;
-    
+
     string stringParam_;
     vector<string> sourceParams_;
     int paramIndex_ = 0;
     string fxParamDisplayName_;
-    
+
     string actionTitle_ = "";
     int commandId_ = 0;
     const char* commandText_;
     bool needsReloadAfterRun_ = false;
-    
-    ActionTiming     timing_;   ///< Hold, repeat, and double-press timing state
-    BlinkState       blink_;    ///< LED/display blink state
-    ActionColorState color_;    ///< Color and track-color state
-    ActionValueState value_;    ///< Range, stepped-values, and acceleration state
+
+    ActionTiming timing_; ///< Hold, repeat, and double-press timing state
+    BlinkState blink_; ///< LED/display blink state
+    ActionColorState color_; ///< Color and track-color state
+    ActionValueState value_; ///< Range, stepped-values, and acceleration state
 
     int runCount_ = 1;
 
-    bool provideFeedback_= true;
+    bool provideFeedback_ = true;
 
     char meterMode_[64] = "";
 
     string m_freeFormText;
 
     osd_data osdData_;
-    
+
     PropertyList widgetProperties_;
-        
+
     void UpdateTrackColor();
-    void GetSteppedValues(Widget *widget, Action *action,  Zone *zone, int paramNumber, const vector<string> &params, const PropertyList &widgetProperties, double &deltaValue, vector<double> &acceleratedDeltaValues, double &rangeMinimum, double &rangeMaximum, vector<double> &steppedValues, vector<int> &acceleratedTickValues);
+    void GetSteppedValues(Widget* widget, Action* action, Zone* zone, int paramNumber, const vector<string>& params, const PropertyList& widgetProperties, double& deltaValue, vector<double>& acceleratedDeltaValues, double& rangeMinimum, double& rangeMaximum, vector<double>& steppedValues, vector<int>& acceleratedTickValues);
     void ProcessActionTitle(string fallbackName);
     void LogAction(double value);
     void LogMessage(const std::string& msg, DebugLevel debugLevel = DEBUG_LEVEL_WARNING);
@@ -64,48 +62,51 @@ private:
 
 public:
     static int constexpr INHERIT_VALUE = -1;
-    static double constexpr BUTTON_RELEASE_MESSAGE_VALUE = 0.0;
-    ActionContext(CSurfIntegrator *const csi, Action *action, Widget *widget, Zone *zone, int paramIndex, const vector<string> &params);
+    static double constexpr BUTTON_RELEASE_MESSAGE_VALUE = 0.0; //FIXME: review usage, possibly improve for better support
+    ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& params);
 
     virtual ~ActionContext() {}
-    
-    CSurfIntegrator *GetCSI() { return csi_; }
-    
-    Action *GetAction() { return action_; }
-    Widget *GetWidget() { return widget_; }
-    Zone *GetZone() { return zone_; }
+
+    CSurfIntegrator* GetCSI() { return csi_; }
+
+    Action* GetAction() { return action_; }
+    Widget* GetWidget() { return widget_; }
+    Zone* GetZone() { return zone_; }
     int GetSlotIndex();
-    const char *GetName();
+    const char* GetName();
 
     int GetIntParam() { return intParam_; }
     int GetCommandId() { return commandId_; }
     const char* GetCommandText() { return commandText_; }
     bool NeedsReloadAfterRun() { return needsReloadAfterRun_; }
-    
-    const char *GetFXParamDisplayName() { return fxParamDisplayName_.c_str(); }
-    
-    MediaTrack *GetTrack();
-    vector<MediaTrack *> GetSelectedTracks(bool includeMaster = false);
-    
+
+    const char* GetFXParamDisplayName() { return fxParamDisplayName_.c_str(); }
+
+    MediaTrack* GetTrack();
+    vector<MediaTrack*> GetSelectedTracks(bool includeMaster = false);
+
     void DoRangeBoundAction(double value);
     void DoSteppedValueAction(double value);
     void DoAcceleratedSteppedValueAction(int accelerationIndex, double value);
     void DoAcceleratedDeltaValueAction(int accelerationIndex, double value);
-    
-    IPageContext *GetPage();
-    ControlSurface *GetSurface();
+
+    IPageContext* GetPage();
+    ControlSurface* GetSurface();
     // Convenience shorthand: equivalent to GetPage()->GetTrackNavigationManager().
     // Reduces the repetitive 2-hop chain in action implementations.
-    TrackNavigationManager *GetTrackNavigationManager();
+    TrackNavigationManager* GetTrackNavigationManager();
     int GetParamIndex() { return paramIndex_; }
     void SetParamIndex(int paramIndex) { paramIndex_ = paramIndex; }
-      
-    PropertyList &GetWidgetProperties() { return widgetProperties_; }
-    
+
+    PropertyList& GetWidgetProperties() { return widgetProperties_; }
+
     void SetIsValueInverted() { value_.isValueInverted = true; }
     void SetIsFeedbackInverted() { value_.isFeedbackInverted = true; }
 
-    void SetBlinkInterval(int value) { blink_.blinkSet = true; blink_.blinkIntervalMs = value; }
+    void SetBlinkInterval(int value) {
+        blink_.blinkSet = true;
+        blink_.blinkIntervalMs = value;
+    }
     int GetBlinkInterval();
 
     void SetDoublePress() { timing_.isDoublePress = true; }
@@ -114,28 +115,31 @@ public:
     void SetHoldDelay(int value) { timing_.holdDelayMs = value; }
     int GetHoldDelay();
 
-    void SetAction(Action *action) { action_ = action; RequestUpdate(); }
+    void SetAction(Action* action) {
+        action_ = action;
+        RequestUpdate();
+    }
     void DoAction(double value);
     void PerformAction(double value);
     void DoRelativeAction(double value);
     void DoRelativeAction(int accelerationIndex, double value);
-    
+
     void RequestUpdate();
     void RunDeferredActions();
     void ClearWidget();
     void UpdateWidgetValue(double value); // note: if passing the constant 0, must be 0.0 to avoid ambiguous type vs pointer
-    void UpdateWidgetValue(const char *value);
-    void ForceWidgetValue(const char *value);
+    void UpdateWidgetValue(const char* value);
+    void ForceWidgetValue(const char* value);
     void UpdateJSFXWidgetSteppedValue(double value);
     void UpdateColorValue(double value);
 
-    const char *GetStringParam() { return stringParam_.c_str(); }
-    const   vector<double> &GetAcceleratedDeltaValues() { return value_.acceleratedDeltaValues; }
-    void    SetAccelerationValues(const vector<double> &acceleratedDeltaValues) { value_.acceleratedDeltaValues = acceleratedDeltaValues; }
-    const   vector<int> &GetAcceleratedTickCounts() { return value_.acceleratedTickValues; }
-    void    SetTickCounts(const vector<int> &acceleratedTickValues) { value_.acceleratedTickValues = acceleratedTickValues; }
-    int     GetNumberOfSteppedValues() { return (int)value_.steppedValues.size(); }
-    const   vector<double> &GetSteppedValues() { return value_.steppedValues; }
+    const char* GetStringParam() { return stringParam_.c_str(); }
+    const   vector<double>& GetAcceleratedDeltaValues() { return value_.acceleratedDeltaValues; }
+    void    SetAccelerationValues(const vector<double>& acceleratedDeltaValues) { value_.acceleratedDeltaValues = acceleratedDeltaValues; }
+    const   vector<int>& GetAcceleratedTickCounts() { return value_.acceleratedTickValues; }
+    void    SetTickCounts(const vector<int>& acceleratedTickValues) { value_.acceleratedTickValues = acceleratedTickValues; }
+    int     GetNumberOfSteppedValues() { return (int) value_.steppedValues.size(); }
+    const   vector<double>& GetSteppedValues() { return value_.steppedValues; }
     double  GetDeltaValue() { return value_.deltaValue; }
     void    SetDeltaValue(double deltaValue) { value_.deltaValue = deltaValue; }
     double  GetRangeMinimum() const { return value_.rangeMinimum; }
@@ -143,78 +147,64 @@ public:
     double  GetRangeMaximum() const { return value_.rangeMaximum; }
     void    SetRangeMaximum(double rangeMaximum) { value_.rangeMaximum = rangeMaximum; }
     bool    GetProvideFeedback() { return provideFeedback_; }
-       
-    void SetStringParam(const char *stringParam) 
-    {
+
+    void SetStringParam(const char* stringParam) {
         stringParam_ = stringParam;
         RequestUpdate();
     }
 
-    void SetStepValues(const vector<double> &steppedValues) 
-    {
+    void SetStepValues(const vector<double>& steppedValues) {
         value_.steppedValues = steppedValues;
-        if (value_.steppedValuesIndex >= (int)steppedValues.size())
+        if (value_.steppedValuesIndex >= (int) steppedValues.size())
             value_.steppedValuesIndex = 0;
         RequestUpdate();
     }
 
-    void DoTouch(double value)
-    {
-        action_->Touch(this, value);
-    }
+    void DoTouch(double value) { action_->Touch(this, value); }
 
-    void SetRange(const vector<double> &range)
-    {
+    void SetRange(const vector<double>& range) {
         if (range.size() != 2)
             return;
-        
         value_.rangeMinimum = range[0];
         value_.rangeMaximum = range[1];
     }
-        
-    void SetSteppedValueIndex(double value)
-    {
+
+    void SetSteppedValueIndex(double value) {
         int index = 0;
         double delta = 100000000.0;
-        
-        for (int i = 0; i < (int)value_.steppedValues.size(); ++i)
-            if (fabs(value_.steppedValues[i] - value) < delta)
-            {
+
+        for (int i = 0; i < (int) value_.steppedValues.size(); ++i)
+            if (fabs(value_.steppedValues[i] - value) < delta) {
                 delta = fabs(value_.steppedValues[i] - value);
                 index = i;
             }
-        
+
         value_.steppedValuesIndex = index;
     }
 
-    char *GetPanValueString(double panVal, const char *dualPan, char *buf, int bufsz) const
-    {
+    char* GetPanValueString(double panVal, const char* dualPan, char* buf, int bufsz) const {
         bool left = false;
-        
-        if (panVal < 0)
-        {
+
+        if (panVal < 0) {
             left = true;
             panVal = -panVal;
         }
-        
-        int panIntVal = int(panVal  *100.0);
-        
-        if (left)
-        {
-            const char *prefix;
+
+        int panIntVal = int(panVal * 100.0);
+
+        if (left) {
+            const char* prefix;
             if (panIntVal == 100)
                 prefix = "";
             else if (panIntVal < 100 && panIntVal > 9)
                 prefix = " ";
             else
                 prefix = "  ";
-            
+
             snprintf(buf, bufsz, "<%s%d%s", prefix, panIntVal, dualPan ? dualPan : "");
-        }
-        else
-        {
-            const char *suffix;
-            
+        } else {
+            const char* suffix;
+
             if (panIntVal == 100)
                 suffix = "";
             else if (panIntVal < 100 && panIntVal > 9)
@@ -224,9 +214,8 @@ public:
 
             snprintf(buf, bufsz, "  %s%d%s>", dualPan && *dualPan ? dualPan : " ", panIntVal, suffix);
         }
-        
-        if (panIntVal == 0)
-        {
+
+        if (panIntVal == 0) {
             if (!dualPan || !dualPan[0])
                 lstrcpyn_safe(buf, "  <C>  ", bufsz);
             else if (IsSameString(dualPan, "L"))
@@ -237,24 +226,22 @@ public:
 
         return buf;
     }
-    
-    char *GetPanWidthValueString(double widthVal, char *buf, int bufsz) const
-    {
+
+    char* GetPanWidthValueString(double widthVal, char* buf, int bufsz) const {
         bool reversed = false;
-        
-        if (widthVal < 0)
-        {
+
+        if (widthVal < 0) {
             reversed = true;
             widthVal = -widthVal;
         }
-        
-        int widthIntVal = int(widthVal  *100.0);
-        
+
+        int widthIntVal = int(widthVal * 100.0);
+
         if (widthIntVal == 0)
             lstrcpyn_safe(buf, "<Mono> ", bufsz);
         else
             snprintf(buf, bufsz, "%s %d", reversed ? "Rev" : "Wid", widthIntVal);
-        
+
         return buf;
     }
 
@@ -314,7 +301,7 @@ public:
         }
         int fxSlotNum = this->GetSlotIndex();
         int fxParamNum = this->GetParamIndex();
-        if (fxSlotNum_ != fxSlotNum || fxParamNum_ != fxParamNum ) {
+        if (fxSlotNum_ != fxSlotNum || fxParamNum_ != fxParamNum) {
             fxSlotNum_ = fxSlotNum;
             fxParamNum_ = fxParamNum;
             fxParamDescription_ = DAW::GetFxParamDescription(track_, fxSlotNum_, fxParamNum_);
@@ -326,7 +313,7 @@ public:
         int fxSlotNum;
         int fxParamNum;
         if (GetLastTouchedFX(&trackNum, &fxSlotNum, &fxParamNum)) {
-            if (lastTrackNum_ != trackNum || fxSlotNum_ != fxSlotNum || fxParamNum_ != fxParamNum ) {
+            if (lastTrackNum_ != trackNum || fxSlotNum_ != fxSlotNum || fxParamNum_ != fxParamNum) {
                 track_ = DAW::GetTrack(trackNum);
                 if (track_) {
                     trackName_ = DAW::GetTrackName(track_);
@@ -355,7 +342,7 @@ public:
         int fxSlotNum;
         int fxParamNum;
         if (GetTCPFXParm(NULL, track_, index, &fxSlotNum, &fxParamNum)) {
-             if (fxSlotNum_ != fxSlotNum || fxParamNum_ != fxParamNum ) {
+            if (fxSlotNum_ != fxSlotNum || fxParamNum_ != fxParamNum) {
                 fxSlotNum_ = fxSlotNum;
                 fxParamNum_ = fxParamNum;
                 fxParamDescription_ = DAW::GetFxParamDescription(track_, fxSlotNum_, fxParamNum_);

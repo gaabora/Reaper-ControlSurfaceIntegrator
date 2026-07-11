@@ -1,8 +1,5 @@
 #pragma once
-//
-//  fwd.h — Forward declarations for all major CSI classes
-//  Included by extracted class headers to break circular include dependencies.
-//
+// fwd.h — Forward declarations for all major classes to break circular include dependencies
 
 class CSurfIntegrator;
 class IPageContext;
@@ -21,9 +18,9 @@ class SubZone;
 class Navigator;
 class Action;
 class ModifierManager;
-class CSIMessageGenerator;
-class AnyPress_CSIMessageGenerator;
-class Touch_CSIMessageGenerator;
-class Midi_CSIMessageGenerator;
+class MessageGenerator;
+class AnyPress_MessageGenerator;
+class Touch_MessageGenerator;
+class Midi_MessageGenerator;
 class OSC_FeedbackProcessor;
 class OSC_ControlSurfaceIO;

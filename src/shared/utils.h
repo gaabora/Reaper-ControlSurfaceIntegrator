@@ -1,14 +1,5 @@
-//
 //  utils.h
-//  reaper_csurf_integrator
-//
-//  Shared utility functions: numeric conversions, logging, string helpers,
-//  and the single canonical rgbToColor() implementation.
-//
-//  Functions are inline to avoid per-TU link issues (replaces the scattered
-//  static definitions).  The previous handy_functions.h now includes this
-//  file so existing #include "handy_functions.h" sites keep working.
-//
+//  Shared utility functions: numeric conversions, logging, string helpers, rgbToColor()
 
 #ifndef csi_utils_h
 #define csi_utils_h
@@ -26,6 +17,7 @@
     #include <stacktrace>
   #endif
 #endif
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -37,13 +29,7 @@
 #include <algorithm>
 #include <ctime>
 
-using namespace std;
-
-// -------------------------------------------------------------------------
-// Numeric conversions
-// -------------------------------------------------------------------------
-inline double int14ToNormalized(unsigned char msb, unsigned char lsb)
-{
+inline double int14ToNormalized(unsigned char msb, unsigned char lsb) {
     int val = lsb | (msb << 7);
     double normalizedVal = val / 16383.0;
     normalizedVal = normalizedVal < 0.0 ? 0.0 : normalizedVal;
@@ -51,34 +37,27 @@ inline double int14ToNormalized(unsigned char msb, unsigned char lsb)
     return normalizedVal;
 }
 
-inline double normalizedToVol(double val)
-{
+inline double normalizedToVol(double val) {
     double pos = val * 1000.0;
     pos = SLIDER2DB(pos);
     return DB2VAL(pos);
 }
 
-inline double volToNormalized(double vol)
-{
+inline double volToNormalized(double vol) {
     double d = (DB2SLIDER(VAL2DB(vol)) / 1000.0);
     if (d < 0.0) d = 0.0;
     else if (d > 1.0) d = 1.0;
     return d;
 }
 
-inline double normalizedToPan(double val)
-{
+inline double normalizedToPan(double val) {
     return 2.0 * val - 1.0;
 }
 
-inline double panToNormalized(double val)
-{
+inline double panToNormalized(double val) {
     return 0.5 * (val + 1.0);
 }
 
-// -------------------------------------------------------------------------
-// Multi-state enum
-// -------------------------------------------------------------------------
 enum MultiState {
     Undefined = -1,
     False = 0,
@@ -86,34 +65,26 @@ enum MultiState {
     Mixed = 2,
 };
 
-// -------------------------------------------------------------------------
-// Debug level enum
-// -------------------------------------------------------------------------
 enum DebugLevel {
-    DEBUG_LEVEL_ERROR   = 0,
+    DEBUG_LEVEL_ERROR = 0,
     DEBUG_LEVEL_WARNING = 1,
-    DEBUG_LEVEL_NOTICE  = 2,
-    DEBUG_LEVEL_INFO    = 3,
-    DEBUG_LEVEL_DEBUG   = 4
+    DEBUG_LEVEL_NOTICE = 2,
+    DEBUG_LEVEL_INFO = 3,
+    DEBUG_LEVEL_DEBUG = 4
 };
 
-inline const char* DebugLevelToString(int level)
-{
+inline const char* DebugLevelToString(int level) {
     switch (level) {
-        case DEBUG_LEVEL_ERROR:   return "ERROR";
+        case DEBUG_LEVEL_ERROR: return "ERROR";
         case DEBUG_LEVEL_WARNING: return "WARNING";
-        case DEBUG_LEVEL_NOTICE:  return "NOTICE";
-        case DEBUG_LEVEL_INFO:    return "INFO";
-        case DEBUG_LEVEL_DEBUG:   return "DEBUG";
-        default:                  return "UNKNOWN";
+        case DEBUG_LEVEL_NOTICE: return "NOTICE";
+        case DEBUG_LEVEL_INFO: return "INFO";
+        case DEBUG_LEVEL_DEBUG: return "DEBUG";
+        default: return "UNKNOWN";
     }
 }
 
-// -------------------------------------------------------------------------
-// Logging
-// -------------------------------------------------------------------------
-inline void LogMessage(const char* msg)
-{
+inline void LogMessage(const char* msg) {
     std::ofstream logFile(std::string(GetResourcePath()) + "/CSI/CSI.log", std::ios::app);
     if (logFile.is_open()) {
         char timeStr[32];
@@ -126,23 +97,19 @@ inline void LogMessage(const char* msg)
 }
 
 template <size_t N, typename... Args>
-inline void LogToConsole(const char (&format)[N], Args&&... args)
-{
+inline void LogToConsole(const char (&format)[N], Args&&... args) {
     std::vector<char> buffer(2048);
     snprintf(buffer.data(), buffer.size(), format, std::forward<Args>(args)...);
     ShowConsoleMsg(buffer.data());
     LogMessage(buffer.data());
 }
 
-// For literal-only messages with no formatting
-inline void LogToConsole(const char* message)
-{
+inline void LogToConsole(const char* message) {
     ShowConsoleMsg(message);
     LogMessage(message);
 }
 
-inline void LogStackTraceToConsole()
-{
+inline void LogStackTraceToConsole() {
 #ifdef _DEBUG
   #if defined(__cpp_lib_stacktrace)
     auto trace = stacktrace::current();
@@ -174,17 +141,15 @@ inline void LogStackTraceToConsole()
 // -------------------------------------------------------------------------
 // String helpers
 // -------------------------------------------------------------------------
-inline bool IsSameString(const char* a, const char* b)
-{
+inline bool IsSameString(const char* a, const char* b) {
     if (a == nullptr || b == nullptr) return false;
     return strcmp(a, b) == 0;
 }
 inline bool IsSameString(const std::string& a, const std::string& b) { return a == b; }
-inline bool IsSameString(const std::string& a, const char* b)        { return IsSameString(a.c_str(), b); }
-inline bool IsSameString(const char* a, const std::string& b)        { return IsSameString(a, b.c_str()); }
+inline bool IsSameString(const std::string& a, const char* b) { return IsSameString(a.c_str(), b); }
+inline bool IsSameString(const char* a, const std::string& b) { return IsSameString(a, b.c_str()); }
 
-inline std::string GetRelativePath(const char* absolutePath)
-{
+inline std::string GetRelativePath(const char* absolutePath) {
     const char* resourcePath = GetResourcePath();
     size_t resourcePathLen = strlen(resourcePath);
 
@@ -201,18 +166,17 @@ inline std::string GetRelativePath(const char* absolutePath)
     return std::string(absolutePath);
 }
 
-inline int ExtractSuffixNumber(const std::string& name)
-{
+inline int ExtractSuffixNumber(const std::string& name) {
     int result = -1;
     size_t index = name.length() - 1;
-    while (index >= 0 && isdigit(name[index])) index--;
+    while (index >= 0 && isdigit(name[index]))
+        index--;
     if (index < name.length() - 1)
         result = stoi(name.substr(index + 1));
     return result;
 }
 
-inline std::string JoinStringVector(const std::vector<std::string>& strings, const std::string& delimiter)
-{
+inline std::string JoinStringVector(const std::vector<std::string>& strings, const std::string& delimiter) {
     std::ostringstream oss;
     for (size_t i = 0; i < strings.size(); ++i) {
         oss << strings[i];
@@ -223,8 +187,7 @@ inline std::string JoinStringVector(const std::vector<std::string>& strings, con
 }
 
 template <size_t N>
-inline int CycleNextValue(const int (&arr)[N], int currentValue)
-{
+inline int CycleNextValue(const int (&arr)[N], int currentValue) {
     for (size_t i = 0; i < N; ++i) {
         if (arr[i] == currentValue)
             return arr[(i + 1) % N];
@@ -232,26 +195,19 @@ inline int CycleNextValue(const int (&arr)[N], int currentValue)
     return arr[0];
 }
 
-inline char* format_number(double v, char* buf, int bufsz)
-{
+inline char* format_number(double v, char* buf, int bufsz) {
     snprintf(buf, bufsz, "%.12f", v);
     WDL_remove_trailing_decimal_zeros(buf, 2);
     return buf;
 }
 
-inline bool IsCommentedOrEmpty(string& line)
-{
+inline bool IsCommentedOrEmpty(string& line) {
     return line == "" || line[0] == '\r' || line[0] == '/' || line[0] == '#';
 }
 
-// -------------------------------------------------------------------------
-// Color value parsing (hex string -> rgba_color)
-// Moved from daw_api.h / control_surface_integrator_Reaper.h
-// -------------------------------------------------------------------------
 #include "types.h"
 
-inline bool GetColorValue(const char *hexColor, rgba_color &colorValue)
-{
+inline bool GetColorValue(const char* hexColor, rgba_color& colorValue) {
     if (strlen(hexColor) == 7)
         return sscanf(hexColor, "#%2x%2x%2x", &colorValue.r, &colorValue.g, &colorValue.b) == 3;
     if (strlen(hexColor) == 9)
@@ -259,14 +215,6 @@ inline bool GetColorValue(const char *hexColor, rgba_color &colorValue)
     return false;
 }
 
-// -------------------------------------------------------------------------
-// rgbToColor — single canonical implementation (was duplicated in
-// XTouchDisplay_Midi_FeedbackProcessor and OSC_X32FeedbackProcessor)
-//
-// Returns an X-Touch / X32 color index from an RGB triple.
-// Color enum values: OFF=0, RED=1, GREEN=2, YELLOW=3,
-//                    BLUE=4, MAGENTA=5, CYAN=6, WHITE=7
-// -------------------------------------------------------------------------
 enum XTouchColorIndex {
     XTCOLOR_OFF     = 0,
     XTCOLOR_RED     = 1,
@@ -278,20 +226,19 @@ enum XTouchColorIndex {
     XTCOLOR_WHITE   = 7
 };
 
-inline int rgbToColor(int r, int g, int b)
-{
+inline int rgbToColor(int r, int g, int b) {
     // RGB -> HSV conversion (HSV is better for light matching)
-    float rf = (float)r / 255.0f;
-    float gf = (float)g / 255.0f;
-    float bf = (float)b / 255.0f;
+    float rf = (float) r / 255.0f;
+    float gf = (float) g / 255.0f;
+    float bf = (float) b / 255.0f;
 
     float h, s, v, colorMin, delta;
-    v = (float)max(max(rf, gf), bf);
+    v = (float) max(max(rf, gf), bf);
 
     if (v <= 0.10f)
         return XTCOLOR_WHITE;
 
-    colorMin = (float)min(min(rf, gf), bf);
+    colorMin = (float) min(min(rf, gf), bf);
     delta = v - colorMin;
     s = delta / v;
 
@@ -306,11 +253,11 @@ inline int rgbToColor(int r, int g, int b)
     if (h < 0) h += 360.0f;
 
     if (h >= 330 || h < 20)  return XTCOLOR_RED;
-    if (h >= 250)             return XTCOLOR_MAGENTA;
-    if (h >= 210)             return XTCOLOR_BLUE;
-    if (h >= 160)             return XTCOLOR_CYAN;
-    if (h >= 80)              return XTCOLOR_GREEN;
-    if (h >= 20)              return XTCOLOR_YELLOW;
+    if (h >= 250)            return XTCOLOR_MAGENTA;
+    if (h >= 210)            return XTCOLOR_BLUE;
+    if (h >= 160)            return XTCOLOR_CYAN;
+    if (h >= 80)             return XTCOLOR_GREEN;
+    if (h >= 20)             return XTCOLOR_YELLOW;
     return XTCOLOR_WHITE;
 }
 

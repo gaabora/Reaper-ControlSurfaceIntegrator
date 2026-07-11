@@ -1,0 +1,121 @@
+
+AccessModifierOffset: -4
+AlignAfterOpenBracket: DontAlign
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines: Left
+AlignOperands: DontAlign
+AlignTrailingComments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortIfStatementsOnASingleLine: Always
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+AlwaysBreakTemplateDeclarations: Yes
+BinPackArguments: false
+BinPackParameters: false
+BreakAfterJavaFieldAnnotations: false
+# BreakBeforeClosingParen: Always
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterCaseLabel: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  BeforeElse: false
+  AfterControlStatement: MultiLine
+  SplitEmptyFunction: false
+  BeforeLambdaBody: false
+# BreakBeforeCloseBracketBracedList: true  # clang-format 20+, not supported by v19
+# BreakBeforeCloseBracketFunction: true    # clang-format 20+, not supported by v19
+# BreakBeforeCloseBracketLoop: true        # clang-format 20+, not supported by v19
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+EmptyLineBeforeAccessModifier: LogicalBlock
+KeepEmptyLinesAtEOF: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializersBeforeComma: false
+BreakStringLiterals: false
+ColumnLimit: 0
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: false
+DerivePointerAlignment: false
+DisableFormat: false
+ExperimentalAutoDetectBinPacking: false
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+IndentWidth: 4
+IndentWrappedFunctionNames: false
+Language: Cpp
+MaxEmptyLinesToKeep: 1
+FixNamespaceComments: false
+NamespaceIndentation: All
+PointerAlignment: Left
+ReflowComments: false
+SortIncludes: false
+SpaceAfterCStyleCast: true
+SpaceAfterLogicalNot: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpaceBeforeInheritanceColon: true
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: true
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+Standard: "c++20"
+TabWidth: 4
+UseTab: Never
+UseCRLF: false
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCaseColons: false
+---
+Language: ObjC
+BasedOnStyle: Chromium
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: false
+  AfterCaseLabel: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  BeforeElse: false
+  AfterControlStatement: MultiLine
+  SplitEmptyFunction: false
+  BeforeLambdaBody: false
+  
+# BreakBeforeCloseBracketBracedList: true  # clang-format 20+, not supported by v19
+# BreakBeforeCloseBracketFunction: true    # clang-format 20+, not supported by v19
+# BreakBeforeCloseBracketLoop: true        # clang-format 20+, not supported by v19
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCaseColons: false
+KeepEmptyLinesAtEOF: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+ColumnLimit: 0
+IndentWidth: 4
+ObjCSpaceAfterProperty: true
+ObjCSpaceBeforeProtocolList: true
+PointerAlignment: Left
+SpacesBeforeTrailingComments: 1
+TabWidth: 4
+UseTab: Never

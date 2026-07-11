@@ -1,14 +1,8 @@
 #pragma once
-//
-//  daw_tracks.h — DAW namespace: track state access/mutation, auto-mode, VCA, solo,
-//                  mute, arm, bypass, and FX-touched/focused queries.
-//
-//  Also contains CheckTouchedOrFocusedFX (needs DAW::GetTrack defined below) and
-//  GetLastTouchedFXParamDescription (needs both GetTrackName and GetFxParamDescription).
-//
-//  Part of the Phase 7 decomposition of the DAW class.
-//  Included by daw_api.h — do not include directly.
-//
+// daw_tracks.h — DAW namespace: track state access/mutation, auto-mode, VCA, solo, mute, arm, bypass, and FX-touched/focused queries.
+// Also contains CheckTouchedOrFocusedFX (needs DAW::GetTrack defined below) and
+// GetLastTouchedFXParamDescription (needs both GetTrackName and GetFxParamDescription).
+// Included by daw_api.h — do not include directly.
 
 #include "daw_transport.h"
 #include "daw_utils.h"
@@ -18,22 +12,17 @@
 #include <string>
 using std::string;
 
-namespace DAW
-{
-    // -----------------------------------------------------------------------
+namespace DAW {
     // Track access
-    // -----------------------------------------------------------------------
 
     // Get a MediaTrack* by 1-based track number (0 = master track).
-    inline MediaTrack *GetTrack(int trackidx)
-    {
+    inline MediaTrack* GetTrack(int trackidx) {
         trackidx--;
         if (trackidx < 0) trackidx = 0;
         return ::GetTrack(NULL, trackidx);
     }
 
-    inline rgba_color GetTrackColor(MediaTrack *track)
-    {
+    inline rgba_color GetTrackColor(MediaTrack* track) {
         rgba_color color;
         if (DAW::ValidateTrackPtr(track))
             ::ColorFromNative(::GetTrackColor(track), &color.r, &color.g, &color.b);
@@ -43,45 +32,34 @@ namespace DAW
         return color;
     }
 
-    inline unsigned int GetTrackGroupMembership(MediaTrack *track, const char *groupname)
-    {
-        return DAW::ValidateTrackPtr(track)
-            ? ::GetSetTrackGroupMembership(track, groupname, 0, 0) : 0;
+    inline unsigned int GetTrackGroupMembership(MediaTrack* track, const char* groupname) {
+        return DAW::ValidateTrackPtr(track) ? ::GetSetTrackGroupMembership(track, groupname, 0, 0) : 0;
     }
 
-    inline unsigned int GetTrackGroupMembershipHigh(MediaTrack *track, const char *groupname)
-    {
-        return DAW::ValidateTrackPtr(track)
-            ? ::GetSetTrackGroupMembershipHigh(track, groupname, 0, 0) : 0;
+    inline unsigned int GetTrackGroupMembershipHigh(MediaTrack* track, const char* groupname) {
+        return DAW::ValidateTrackPtr(track) ? ::GetSetTrackGroupMembershipHigh(track, groupname, 0, 0) : 0;
     }
 
-    inline std::string GetTrackName(MediaTrack *track)
-    {
-        const char *tn = static_cast<const char*>(GetSetMediaTrackInfo(track, "P_NAME", nullptr));
+    inline std::string GetTrackName(MediaTrack* track) {
+        const char* tn = static_cast<const char*>(GetSetMediaTrackInfo(track, "P_NAME", nullptr));
         if (tn && *tn) return std::string(tn);
         int trackNum = static_cast<int>(
             reinterpret_cast<intptr_t>(GetSetMediaTrackInfo(track, "IP_TRACKNUMBER", nullptr)));
         return (trackNum == -1) ? "Master" : "Track " + std::to_string(trackNum);
     }
 
-    // -----------------------------------------------------------------------
     // FX focused/touched queries (placed here because they return MediaTrack*)
-    // -----------------------------------------------------------------------
-
-    inline bool CheckTouchedOrFocusedFX(MediaTrack **outTrack, int *fxSlotNum, int *fxParamNum)
-    {
+    inline bool CheckTouchedOrFocusedFX(MediaTrack** outTrack, int* fxSlotNum, int* fxParamNum) {
         if (!outTrack || !fxSlotNum || !fxParamNum) return false;
 
         int trackNum, trackIdx, itemIdx, itemTake, slotIdx, paramIdx;
 
         if (GetTouchedOrFocusedFX) {
-            if (GetTouchedOrFocusedFX(QUERY_CURRENTLY_FOCUSED_FX,
-                    &trackIdx, &itemIdx, &itemTake, &slotIdx, &paramIdx)) {
+            if (GetTouchedOrFocusedFX(QUERY_CURRENTLY_FOCUSED_FX, &trackIdx, &itemIdx, &itemTake, &slotIdx, &paramIdx)) {
                 if (paramIdx & 1) // open but no longer focused
                     *fxParamNum = -1;
             } else {
-                if (!GetTouchedOrFocusedFX(QUERY_LAST_TOUCHED_PARAMETER,
-                        &trackIdx, &itemIdx, &itemTake, &slotIdx, &paramIdx))
+                if (!GetTouchedOrFocusedFX(QUERY_LAST_TOUCHED_PARAMETER, &trackIdx, &itemIdx, &itemTake, &slotIdx, &paramIdx))
                     return false;
             }
             trackNum = trackIdx + 1;
@@ -91,7 +69,7 @@ namespace DAW
                 *fxParamNum = -1;
         }
 
-        MediaTrack *track = nullptr;
+        MediaTrack* track = nullptr;
         if (trackNum > 0)
             track = DAW::GetTrack(trackNum);
         else if (trackNum == 0)
@@ -99,67 +77,52 @@ namespace DAW
 
         if (!track) return false;
 
-        *outTrack  = track;
+        *outTrack = track;
         *fxSlotNum = slotIdx;
         *fxParamNum = paramIdx;
         return true;
     }
 
-    inline std::string GetLastTouchedFXParamDescription()
-    {
+    inline std::string GetLastTouchedFXParamDescription() {
         int trackNum = 0, fxSlotNum = 0, fxParamNum = 0;
         if (!GetLastTouchedFX(&trackNum, &fxSlotNum, &fxParamNum))
             return "No FX was touched";
-        if (MediaTrack *track = DAW::GetTrack(trackNum))
-            return DAW::GetFxParamDescription(track, fxSlotNum, fxParamNum)
-                 + " (" + DAW::GetTrackName(track) + ")";
+        if (MediaTrack* track = DAW::GetTrack(trackNum))
+            return DAW::GetFxParamDescription(track, fxSlotNum, fxParamNum) + " (" + DAW::GetTrackName(track) + ")";
         return "FAILED to GetLastTouchedFXParamDescription";
     }
 
-    // -----------------------------------------------------------------------
     // Track volume
-    // -----------------------------------------------------------------------
-
-    inline double GetTrackVolumeValue(MediaTrack *track)
-    {
+    inline double GetTrackVolumeValue(MediaTrack* track) {
         double value = 0.0, pan = 0.0;
         GetTrackUIVolPan(track, &value, &pan);
         return volToNormalized(value);
     }
 
-    inline void SetTrackVolumeValue(MediaTrack *track, double value)
-    {
+    inline void SetTrackVolumeValue(MediaTrack* track, double value) {
         CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(value), false), NULL);
     }
 
-    // -----------------------------------------------------------------------
     // Track automation
-    // -----------------------------------------------------------------------
-
-    inline void CycleTrackAutoMode(MediaTrack *track)
-    {
+    inline void CycleTrackAutoMode(MediaTrack* track) {
         if (!track) return;
         static const int cycleModes[] = {
             AUTOMODE_TRIM, AUTOMODE_READ, AUTOMODE_TOUCH, AUTOMODE_LATCH
         };
-        int currentMode = (int)GetMediaTrackInfo_Value(track, "I_AUTOMODE");
-        int nextMode    = CycleNextValue(cycleModes, currentMode);
+        int currentMode = (int) GetMediaTrackInfo_Value(track, "I_AUTOMODE");
+        int nextMode = CycleNextValue(cycleModes, currentMode);
         GetSetMediaTrackInfo(track, "I_AUTOMODE", &nextMode);
     }
 
-    // -----------------------------------------------------------------------
     // Solo
-    // -----------------------------------------------------------------------
 
-    inline bool GetTrackSolo(MediaTrack *track)
-    {
+    inline bool GetTrackSolo(MediaTrack* track) {
         if (track == GetMasterTrack(NULL))
             return (GetMasterMuteSoloFlags() & 2) != 0;
         return GetMediaTrackInfo_Value(track, "I_SOLO") > 0;
     }
 
-    inline void SetTrackSolo(MediaTrack *track, bool newState)
-    {
+    inline void SetTrackSolo(MediaTrack* track, bool newState) {
         if (!track) return;
         if (track == GetMasterTrack(NULL)) {
             int flags = GetMasterMuteSoloFlags();
@@ -170,82 +133,52 @@ namespace DAW
         }
     }
 
-    // -----------------------------------------------------------------------
     // Mute
-    // -----------------------------------------------------------------------
 
-    inline bool GetTrackMute(MediaTrack *track)
-    {
+    inline bool GetTrackMute(MediaTrack* track) {
         bool mute = false;
         GetTrackUIMute(track, &mute);
         return mute;
     }
 
-    inline void SetTrackMute(MediaTrack *track, bool newState)
-    {
-        if (track)
-            CSurf_SetSurfaceMute(track, CSurf_OnMuteChange(track, newState), NULL);
+    inline void SetTrackMute(MediaTrack* track, bool newState) {
+        if (track) CSurf_SetSurfaceMute(track, CSurf_OnMuteChange(track, newState), NULL);
     }
 
-    // -----------------------------------------------------------------------
     // Record arm
-    // -----------------------------------------------------------------------
-
-    inline bool GetTrackRecordArm(MediaTrack *track)
-    {
+    inline bool GetTrackRecordArm(MediaTrack* track) {
         return GetMediaTrackInfo_Value(track, "I_RECARM") != 0.0;
     }
 
-    inline void SetTrackRecordArm(MediaTrack *track, bool newState)
-    {
-        if (track)
-            CSurf_SetSurfaceRecArm(track, CSurf_OnRecArmChange(track, newState), NULL);
+    inline void SetTrackRecordArm(MediaTrack* track, bool newState) {
+        if (track) CSurf_SetSurfaceRecArm(track, CSurf_OnRecArmChange(track, newState), NULL);
     }
 
-    // -----------------------------------------------------------------------
     // Phase inversion
-    // -----------------------------------------------------------------------
 
-    inline bool GetTrackInvertPhase(MediaTrack *track)
-    {
+    inline bool GetTrackInvertPhase(MediaTrack* track) {
         return GetMediaTrackInfo_Value(track, "B_PHASE") != 0.0;
     }
 
-    inline void SetTrackInvertPhase(MediaTrack *track, bool newState)
-    {
-        if (track)
-            SetMediaTrackInfo_Value(track, "B_PHASE", newState ? 1.0 : 0.0);
+    inline void SetTrackInvertPhase(MediaTrack* track, bool newState) {
+        if (track) SetMediaTrackInfo_Value(track, "B_PHASE", newState ? 1.0 : 0.0);
     }
 
-    // -----------------------------------------------------------------------
     // FX chain bypass (whole track)
-    // -----------------------------------------------------------------------
+    inline bool GetTrackBypass(MediaTrack* track) { return GetMediaTrackInfo_Value(track, "I_FXEN") == 0; }
 
-    inline bool GetTrackBypass(MediaTrack *track)
-    {
-        return GetMediaTrackInfo_Value(track, "I_FXEN") == 0;
-    }
+    inline void SetTrackBypass(MediaTrack* track, bool newState) { if (track) SetMediaTrackInfo_Value(track, "I_FXEN", newState ? 0.0 : 1.0); }
 
-    inline void SetTrackBypass(MediaTrack *track, bool newState)
-    {
-        if (track)
-            SetMediaTrackInfo_Value(track, "I_FXEN", newState ? 0.0 : 1.0);
-    }
-
-    // -----------------------------------------------------------------------
     // Selective effects bypass (skips instruments on instrument tracks)
-    // -----------------------------------------------------------------------
-
-    inline bool GetTrackEffectsBypass(MediaTrack *track)
-    {
+    inline bool GetTrackEffectsBypass(MediaTrack* track) {
         if (DAW::GetTrackBypass(track)) return true;
 
         int fxCount = TrackFX_GetCount(track);
         if (fxCount == 0) return false;
 
-        int  instrumentIdx = TrackFX_GetInstrument(track);
-        int  startIdx      = instrumentIdx < 0 ? 0 : instrumentIdx + 1;
-        bool anyBypassed   = false;
+        int instrumentIdx = TrackFX_GetInstrument(track);
+        int startIdx = instrumentIdx < 0 ? 0 : instrumentIdx + 1;
+        bool anyBypassed = false;
 
         if (instrumentIdx >= 0) {
             if (!TrackFX_GetEnabled(track, instrumentIdx)) {
@@ -274,15 +207,14 @@ namespace DAW
         return anyBypassed;
     }
 
-    inline void SetTrackEffectsBypass(MediaTrack *track, bool newState)
-    {
+    inline void SetTrackEffectsBypass(MediaTrack* track, bool newState) {
         if (!track) return;
 
         int fxCount = TrackFX_GetCount(track);
         if (fxCount == 0) { DAW::SetTrackBypass(track, newState); return; }
 
-        int  instrumentIdx    = TrackFX_GetInstrument(track);
-        int  startIdx         = instrumentIdx < 0 ? 0 : instrumentIdx + 1;
+        int instrumentIdx = TrackFX_GetInstrument(track);
+        int startIdx = instrumentIdx < 0 ? 0 : instrumentIdx + 1;
         bool wasTrackBypassed = DAW::GetTrackBypass(track);
 
         Undo_BeginBlock();

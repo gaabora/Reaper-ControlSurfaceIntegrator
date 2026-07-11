@@ -4,9 +4,7 @@
 //
 #include "preamble.h"
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Action
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 public:
     virtual ~Action() {}
@@ -22,9 +20,9 @@ public:
             default: return "Unknown";
         }
     }
-    
+
     static ActionType NameToType(const std::string& name) {
-      #define X(enumName, strName) if (name == strName) return ActionType::enumName;
+      #define X(enumName, strName) if (name == strName)  return ActionType::enumName;
         ACTION_TYPE_LIST(X)
       #undef X
         return ActionType::Invalid;
@@ -51,14 +49,13 @@ public:
     virtual bool IsTrackSendRelated() { return false; }
     virtual bool IsTrackReceiveRelated() { return false; }
 
-    virtual void Touch(ActionContext *context, double value) {}
-    virtual void RequestUpdate(ActionContext *context) {}
-    virtual void Do(ActionContext *context, double value) {}
-    virtual double GetCurrentNormalizedValue(ActionContext *context) { return 0.0; }
-    virtual double GetCurrentDBValue(ActionContext *context) { return 0.0; }
+    virtual void Touch(ActionContext* context, double value) {}
+    virtual void RequestUpdate(ActionContext* context) {}
+    virtual void Do(ActionContext* context, double value) {}
+    virtual double GetCurrentNormalizedValue(ActionContext* context) { return 0.0; }
+    virtual double GetCurrentDBValue(ActionContext* context) { return 0.0; }
 
-    int GetPanMode(MediaTrack *track)
-    {
+    int GetPanMode(MediaTrack* track) {
         double pan1, pan2 = 0.0;
         int panMode = 0;
         GetTrackUIPan(track, &pan1, &pan2, &panMode);

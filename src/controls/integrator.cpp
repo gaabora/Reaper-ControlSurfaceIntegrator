@@ -1,9 +1,3 @@
-//
-//  control_surface_integrator.cpp
-//  reaper_control_surface_integrator
-//
-//
-
 #define INCLUDE_LOCALIZE_IMPORT_H
 #include "integrator.h"
 #include "zone_parser.h"
@@ -18,9 +12,9 @@
 
 extern WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-extern reaper_plugin_info_t *g_reaper_plugin_info;
+extern reaper_plugin_info_t* g_reaper_plugin_info;
 
-extern void WidgetMoved(ZoneManager *zoneManager, Widget *widget, int modifier);
+extern void WidgetMoved(ZoneManager* zoneManager, Widget* widget, int modifier);
 
 int g_minNumParamSteps = 1;
 int g_maxNumParamSteps = 30;
@@ -31,8 +25,7 @@ bool g_surfaceOutDisplay;
 
 bool g_fxParamsWrite;
 
-void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens, PropertyList& properties)
-{
+void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens, PropertyList& properties) {
     for (int i = start; i < finish; ++i) {
         std::string_view token = tokens[i];
         auto eqPos = token.find('=');
@@ -52,34 +45,28 @@ void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens
     }
 }
 
-void GetSteppedValues(const vector<string> &params, int start_idx, double &deltaValue, vector<double> &acceleratedDeltaValues, double &rangeMinimum, double &rangeMaximum, vector<double> &steppedValues, vector<int> &acceleratedTickValues)
-{
+void GetSteppedValues(const vector<string>& params, int start_idx, double& deltaValue, vector<double>& acceleratedDeltaValues, double& rangeMinimum, double& rangeMaximum, vector<double>& steppedValues, vector<int>& acceleratedTickValues) {
     int openSquareIndex = -1, closeSquareIndex = -1;
-    
+
     for (int i = start_idx; i < params.size(); ++i)
-        if (params[i] == "[")
-        {
+        if (params[i] == "[") {
             openSquareIndex = i;
             break;
         }
 
     if (openSquareIndex < 0) return;
-    
+
     for (int i = openSquareIndex + 1; i < params.size(); ++i)
-        if (params[i] == "]")
-        {
+        if (params[i] == "]") {
             closeSquareIndex = i;
             break;
         }
-    
-    if (closeSquareIndex > 0)
-    {
-        for (int i = openSquareIndex + 1; i < closeSquareIndex; ++i)
-        {
-            const char *str = params[i].c_str();
 
-            if (str[0] == '(' && str[strlen(str)-1] == ')')
-            {
+    if (closeSquareIndex > 0) {
+        for (int i = openSquareIndex + 1; i < closeSquareIndex; ++i) {
+            const char* str = params[i].c_str();
+
+            if (str[0] == '(' && str[strlen(str) - 1] == ')') {
                 str++; // skip (
 
                 // (1.0,2.0,3.0) -> acceleratedDeltaValues : mode = 2
@@ -87,45 +74,35 @@ void GetSteppedValues(const vector<string> &params, int start_idx, double &delta
                 // (1) or (1,2,3) -> acceleratedTickValues : mode = 0
                 const int mode = strstr(str, ".") ? strstr(str, ",") ? 2 : 1 : 0;
 
-                while (*str)
-                {
-                    if (mode == 0)
-                    {
+                while (*str) {
+                    if (mode == 0) {
                         int v = 0;
                         if (WDL_NOT_NORMALLY(sscanf(str, "%d", &v) != 1)) break;
                         acceleratedTickValues.push_back(v);
-                    }
-                    else
-                    {
+                    } else {
                         double v = 0.0;
-                        if (WDL_NOT_NORMALLY(sscanf(str,"%lf", &v) != 1)) break;
-                        if (mode == 1)
-                        {
+                        if (WDL_NOT_NORMALLY(sscanf(str, "%lf", &v) != 1)) break;
+                        if (mode == 1) {
                             deltaValue = v;
                             break;
                         }
                         acceleratedDeltaValues.push_back(v);
                     }
-
                     while (*str && *str != ',') str++;
                     if (*str == ',') str++;
                 }
             }
             // todo: support 1-3 syntax? else if (!strstr(str,".") && str[0] != '-' && strstr(str,"-"))
-            else
-            {
+            else {
                 // 1.0>3.0 writes to rangeMinimum/rangeMaximum
                 // 1 or 1.0 -> steppedValues
                 double a = 0.0, b = 0.0;
                 const int nmatch = sscanf(str, "%lf>%lf", &a, &b);
 
-                if (nmatch == 2)
-                {
-                    rangeMinimum = wdl_min(a,b);
-                    rangeMaximum = wdl_max(a,b);
-                }
-                else if (WDL_NORMALLY(nmatch == 1))
-                {
+                if (nmatch == 2) {
+                    rangeMinimum = wdl_min(a, b);
+                    rangeMaximum = wdl_max(a, b);
+                } else if (WDL_NORMALLY(nmatch == 1)) {
                     steppedValues.push_back(a);
                 }
             }
@@ -133,23 +110,17 @@ void GetSteppedValues(const vector<string> &params, int start_idx, double &delta
     }
 }
 
-static double EnumSteppedValues(int numSteps, int stepNumber)
-{
-    return floor(stepNumber / (double)(numSteps - 1)  *100.0 + 0.5)  *0.01;
+static double EnumSteppedValues(int numSteps, int stepNumber) {
+    return floor(stepNumber / (double) (numSteps - 1) * 100.0 + 0.5) * 0.01;
 }
 
-void GetParamStepsString(string& outputString, int numSteps) // appends to string 
-{
+void GetParamStepsString(string& outputString, int numSteps) { // appends to string
     // When number of steps equals 1, users are typically looking to use a button to reset.
     // A halfway value (0.5) is chosen as a good reset value instead of the previous 0.1.
-    if (numSteps == 1)
-    {
+    if (numSteps == 1) {
         outputString = "0.5";
-    }
-    else
-    {
-        for (int i = 0; i < numSteps; ++i)
-        {
+    } else {
+        for (int i = 0; i < numSteps; ++i) {
             char tmp[128];
             snprintf(tmp, sizeof(tmp), "%.2f", EnumSteppedValues(numSteps, i));
             WDL_remove_trailing_decimal_zeros(tmp, 0);
@@ -159,73 +130,57 @@ void GetParamStepsString(string& outputString, int numSteps) // appends to strin
     }
 }
 
-void GetParamStepsValues(vector<double> &outputVector, int numSteps)
-{
+void GetParamStepsValues(vector<double>& outputVector, int numSteps) {
     outputVector.clear();
-
     for (int i = 0; i < numSteps; ++i)
         outputVector.push_back(EnumSteppedValues(numSteps, i));
 }
 
-void TrimLine(string &line)
-{
+void TrimLine(string& line) { //FIXME move this kinda helpers from this file to utils.h
     const string tmp = line;
-    const char *p = tmp.c_str();
+    const char* p = tmp.c_str();
 
     // remove leading and trailing spaces
     // condense whitespace to single whitespace
     // stop copying at "//" (comment)
     line.clear();
-    for (;;)
-    {
+    for (;;) {
         // advance over whitespace
-        while (*p > 0 && isspace(*p))
-            p++;
-
+        while (*p > 0 && isspace(*p)) p++;
         // a single / at the beginning of a line indicates a comment
         if (!*p || p[0] == '/') break;
-
-        if (line.length())
-            line.append(" ",1);
-
+        if (line.length()) line.append(" ", 1);
         // copy non-whitespace to output
-        while (*p && (*p < 0 || !isspace(*p)))
-        {
-           if (p[0] == '/' && p[1] == '/') break; // existing behavior, maybe not ideal, but a comment can start anywhere
-           line.append(p++,1);
+        while (*p && (*p < 0 || !isspace(*p))) {
+            if (p[0] == '/' && p[1] == '/') break;
+            line.append(p++, 1);
         }
     }
     if (!line.empty() && g_debugLevel > DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] %s\n", line.c_str());
 }
 
-void ReplaceAllWith(string &output, const char *charsToReplace, const char *replacement)
-{
+void ReplaceAllWith(string& output, const char* charsToReplace, const char* replacement) {
     // replace all occurences of
     // any char in charsToReplace
     // with replacement string
     const string tmp = output;
-    const char *p = tmp.c_str();
+    const char* p = tmp.c_str();
     output.clear();
 
-    while (*p)
-    {
-        if (strchr(charsToReplace, *p) != NULL)
-        {
-            output.append(replacement);
-        }
-        else
-            output.append(p,1);
+    while (*p) {
+        if (strchr(charsToReplace, *p) != NULL) output.append(replacement);
+        else output.append(p, 1);
         p++;
     }
 }
 
-void GetTokens(vector<string> &tokens, const string &line) {
+void GetTokens(vector<string>& tokens, const string& line) {
     bool insideQuote = false;
     string token;
-    
+
     for (size_t i = 0; i < line.size(); ++i) {
         char c = line[i];
-        
+
         if (c == '"') {
             insideQuote = !insideQuote;
             if (!insideQuote) {
@@ -241,13 +196,12 @@ void GetTokens(vector<string> &tokens, const string &line) {
             token += c;
         }
     }
-    
+
     if (!token.empty())
         tokens.push_back(token);
 }
 
-void GetTokens(vector<string> &tokens, const string &line, char delimiter)
-{
+void GetTokens(vector<string>& tokens, const string& line, char delimiter) {
     istringstream iss(line);
     string token;
     while (getline(iss, token, delimiter))
@@ -256,34 +210,23 @@ void GetTokens(vector<string> &tokens, const string &line, char delimiter)
 
 // GetTokenLines moved to surface_parser.cpp (only used there)
 
-int strToHex(string &valueStr)
-{
-    return strtol(valueStr.c_str(), NULL, 16);
-}
+int strToHex(string& valueStr) { return strtol(valueStr.c_str(), NULL, 16); }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct MidiPort
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-{
+struct MidiPort {
     int port, refcnt;
-    void *dev;
-    
-    MidiPort(int portidx, void *devptr) : port(portidx), refcnt(1), dev(devptr) { };
+    void* dev;
+
+    MidiPort(int portidx, void* devptr) : port(portidx), refcnt(1), dev(devptr) {};
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi I/O Manager
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 static WDL_TypedBuf<MidiPort> s_midiInputs;
 static WDL_TypedBuf<MidiPort> s_midiOutputs;
 
-void ReleaseMidiInput(midi_Input *input)
-{
+void ReleaseMidiInput(midi_Input* input) {
     for (int i = 0; i < s_midiInputs.GetSize(); ++i)
-        if (s_midiInputs.Get()[i].dev == (void*)input)
-        {
-            if (!--s_midiInputs.Get()[i].refcnt)
-            {
+        if (s_midiInputs.Get()[i].dev == (void*) input) {
+            if (!--s_midiInputs.Get()[i].refcnt) {
                 input->stop();
                 delete input;
                 s_midiInputs.Delete(i);
@@ -292,13 +235,10 @@ void ReleaseMidiInput(midi_Input *input)
         }
 }
 
-void ReleaseMidiOutput(midi_Output *output)
-{
+void ReleaseMidiOutput(midi_Output* output) {
     for (int i = 0; i < s_midiOutputs.GetSize(); ++i)
-        if (s_midiOutputs.Get()[i].dev == (void*)output)
-        {
-            if (!--s_midiOutputs.Get()[i].refcnt)
-            {
+        if (s_midiOutputs.Get()[i].dev == (void*) output) {
+            if (!--s_midiOutputs.Get()[i].refcnt) {
                 delete output;
                 s_midiOutputs.Delete(i);
                 break;
@@ -306,203 +246,137 @@ void ReleaseMidiOutput(midi_Output *output)
         }
 }
 
-static midi_Input *GetMidiInputForPort(int inputPort)
-{
+static midi_Input* GetMidiInputForPort(int inputPort) {
     for (int i = 0; i < s_midiInputs.GetSize(); ++i)
-        if (s_midiInputs.Get()[i].port == inputPort)
-        {
+        if (s_midiInputs.Get()[i].port == inputPort) {
             s_midiInputs.Get()[i].refcnt++;
-            return (midi_Input *)s_midiInputs.Get()[i].dev;
+            return (midi_Input*) s_midiInputs.Get()[i].dev;
         }
-    
-    midi_Input *newInput = CreateMIDIInput(inputPort);
-    
-    if (newInput)
-    {
+
+    midi_Input* newInput = CreateMIDIInput(inputPort);
+
+    if (newInput) {
         newInput->start();
         MidiPort midiInputPort(inputPort, newInput);
         s_midiInputs.Add(midiInputPort);
     }
-    
+
     return newInput;
 }
 
-static midi_Output *GetMidiOutputForPort(int outputPort)
-{
+static midi_Output* GetMidiOutputForPort(int outputPort) {
     for (int i = 0; i < s_midiOutputs.GetSize(); ++i)
-        if (s_midiOutputs.Get()[i].port == outputPort)
-        {
+        if (s_midiOutputs.Get()[i].port == outputPort) {
             s_midiOutputs.Get()[i].refcnt++;
-            return (midi_Output *)s_midiOutputs.Get()[i].dev;
+            return (midi_Output*) s_midiOutputs.Get()[i].dev;
         }
-    
-    midi_Output *newOutput = CreateMIDIOutput(outputPort, false, NULL);
-    
-    if (newOutput)
-    {
+
+    midi_Output* newOutput = CreateMIDIOutput(outputPort, false, NULL);
+
+    if (newOutput) {
         MidiPort midiOutputPort(outputPort, newOutput);
         s_midiOutputs.Add(midiOutputPort);
     }
-    
+
     return newOutput;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct OSCSurfaceSocket
-////////////////////////////////7/////////////////////////////////////////////////////////////////////////////////////////
-{
+struct OSCSurfaceSocket {
     string surfaceName;
-    oscpkt::UdpSocket *socket;
+    oscpkt::UdpSocket* socket;
     int refcnt;
-    
-    OSCSurfaceSocket(const string &name, oscpkt::UdpSocket *s)
-    {
+
+    OSCSurfaceSocket(const string& name, oscpkt::UdpSocket* s) {
         surfaceName = name;
         socket = s;
         refcnt = 1;
     }
-    ~OSCSurfaceSocket()
-    {
-      delete socket;
-    }
+    ~OSCSurfaceSocket() { delete socket; }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC I/O Manager
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 static WDL_PtrList<OSCSurfaceSocket> s_inputSockets;
 static WDL_PtrList<OSCSurfaceSocket> s_outputSockets;
 
-static oscpkt::UdpSocket *GetInputSocketForPort(string surfaceName, int inputPort)
-{
+static oscpkt::UdpSocket* GetInputSocketForPort(string surfaceName, int inputPort) {
     for (int i = 0; i < s_inputSockets.GetSize(); ++i)
-        if (s_inputSockets.Get(i)->surfaceName == surfaceName)
-        {
+        if (s_inputSockets.Get(i)->surfaceName == surfaceName) {
             s_inputSockets.Get(i)->refcnt++;
             return s_inputSockets.Get(i)->socket; // return existing
         }
-    
+
     // otherwise make new
-    oscpkt::UdpSocket *newInputSocket = new oscpkt::UdpSocket();
-    
-    if (newInputSocket)
-    {
+    oscpkt::UdpSocket* newInputSocket = new oscpkt::UdpSocket();
+    if (newInputSocket) {
         newInputSocket->bindTo(inputPort);
-        
-        if (! newInputSocket->isOk())
-        {
+        if (!newInputSocket->isOk()) {
             //cerr << "Error opening port " << PORT_NUM << ": " << inSocket_.errorMessage() << "\n";
             return NULL;
         }
-        
         s_inputSockets.Add(new OSCSurfaceSocket(surfaceName, newInputSocket));
         return newInputSocket;
     }
-    
     return NULL;
 }
 
-static oscpkt::UdpSocket *GetOutputSocketForAddressAndPort(const string &surfaceName, const string &address, int outputPort)
-{
+static oscpkt::UdpSocket* GetOutputSocketForAddressAndPort(const string& surfaceName, const string& address, int outputPort) {
     for (int i = 0; i < s_outputSockets.GetSize(); ++i)
-        if (s_outputSockets.Get(i)->surfaceName == surfaceName)
-        {
+        if (s_outputSockets.Get(i)->surfaceName == surfaceName) {
             s_outputSockets.Get(i)->refcnt++;
             return s_outputSockets.Get(i)->socket; // return existing
         }
-    
+
     // otherwise make new
-    oscpkt::UdpSocket *newOutputSocket = new oscpkt::UdpSocket();
-    
-    if (newOutputSocket)
-    {
-        if ( ! newOutputSocket->connectTo(address, outputPort))
-        {
+    oscpkt::UdpSocket* newOutputSocket = new oscpkt::UdpSocket();
+    if (newOutputSocket) {
+        if (!newOutputSocket->connectTo(address, outputPort)) {
             //cerr << "Error connecting " << remoteDeviceIP_ << ": " << outSocket_.errorMessage() << "\n";
             return NULL;
         }
-        
-        if ( ! newOutputSocket->isOk())
-        {
+        if (!newOutputSocket->isOk()) {
             //cerr << "Error opening port " << outPort_ << ": " << outSocket_.errorMessage() << "\n";
             return NULL;
         }
-
         s_outputSockets.Add(new OSCSurfaceSocket(surfaceName, newOutputSocket));
         return newOutputSocket;
     }
-    
     return NULL;
 }
 
-static void collectFilesOfType(const string &type, const string &searchPath, vector<string> &results)
-{
+static void collectFilesOfType(const string& type, const string& searchPath, vector<string>& results) {
     filesystem::path zonePath { searchPath };
-    
     if (filesystem::exists(searchPath) && filesystem::is_directory(searchPath))
-        for (auto &file : filesystem::recursive_directory_iterator(searchPath))
+        for (auto& file : filesystem::recursive_directory_iterator(searchPath))
             if (file.path().extension() == type)
                 results.push_back(file.path().string());
 }
 
-//////////////////////////////////////////////////////////////////////////////
-// Midi_ControlSurface
-//////////////////////////////////////////////////////////////////////////////
-void Midi_ControlSurface::ProcessMidiWidget(int &lineNumber, ifstream &surfaceTemplateFile, const vector<string> &in_tokens)
-{
-    SurfaceTemplateParser::ParseMidiWidget(lineNumber, surfaceTemplateFile, in_tokens, this);
-}
+void Midi_ControlSurface::ProcessMIDIWidgetFile(const string& filePath, Midi_ControlSurface* surface) { SurfaceTemplateParser::ParseMidiTemplate(filePath, this); }
+void Midi_ControlSurface::ProcessMidiWidget(int& lineNumber, ifstream& surfaceTemplateFile, const vector<string>& in_tokens) { SurfaceTemplateParser::ParseMidiWidget(lineNumber, surfaceTemplateFile, in_tokens, this); }
 
-//////////////////////////////////////////////////////////////////////////////
-// OSC_ControlSurface
-//////////////////////////////////////////////////////////////////////////////
-void OSC_ControlSurface::ProcessOSCWidget(int &lineNumber, ifstream &surfaceTemplateFile, const vector<string> &in_tokens)
-{
-    SurfaceTemplateParser::ParseOSCWidget(lineNumber, surfaceTemplateFile, in_tokens, this);
-}
+void OSC_ControlSurface::ProcessOSCWidgetFile(const string& filePath) { SurfaceTemplateParser::ParseOSCTemplate(filePath, this); }
+void OSC_ControlSurface::ProcessOSCWidget(int& lineNumber, ifstream& surfaceTemplateFile, const vector<string>& in_tokens) { SurfaceTemplateParser::ParseOSCWidget(lineNumber, surfaceTemplateFile, in_tokens, this); }
 
 //////////////////////////////////////////////////////////////////////////////
 // ControlSurface
 //////////////////////////////////////////////////////////////////////////////
-void ControlSurface::ProcessValues(const vector<vector<string>> &lines)
-{
+void ControlSurface::ProcessValues(const vector<vector<string>>& lines) {
     bool inStepSizes = false;
     bool inAccelerationValues = false;
-        
-    for (int i = 0; i < (int)lines.size(); ++i)
-    {
-        if (lines[i].size() > 0)
-        {
-            if (lines[i][0] == "StepSize")
-            {
-                inStepSizes = true;
-                continue;
-            }
-            else if (lines[i][0] == "StepSizeEnd")
-            {
-                inStepSizes = false;
-                continue;
-            }
-            else if (lines[i][0] == "AccelerationValues")
-            {
-                inAccelerationValues = true;
-                continue;
-            }
-            else if (lines[i][0] == "AccelerationValuesEnd")
-            {
-                inAccelerationValues = false;
-                continue;
-            }
 
-            if (lines[i].size() > 1)
-            {
-                const string &widgetClass = lines[i][0];
-                
+    for (int i = 0; i < (int) lines.size(); ++i) {
+        if (lines[i].size() > 0) {
+            if (lines[i][0] == "StepSize") { inStepSizes = true; continue; }
+            else if (lines[i][0] == "StepSizeEnd") { inStepSizes = false; continue; }
+            else if (lines[i][0] == "AccelerationValues") { inAccelerationValues = true; continue; }
+            else if (lines[i][0] == "AccelerationValuesEnd") { inAccelerationValues = false; continue; }
+
+            if (lines[i].size() > 1) {
+                const string& widgetClass = lines[i][0];
+
                 if (inStepSizes)
                     stepSize_[widgetClass] = atof(lines[i][1].c_str());
-                else if (lines[i].size() > 2 && inAccelerationValues)
-                {
-                    
+                else if (lines[i].size() > 2 && inAccelerationValues) {
                     if (lines[i][1] == "Dec")
                         for (int j = 2; j < lines[i].size(); ++j)
                             accelerationValuesForDecrement_[widgetClass][strtol(lines[i][j].c_str(), NULL, 16)] = j - 2;
@@ -518,141 +392,95 @@ void ControlSurface::ProcessValues(const vector<vector<string>> &lines)
     }
 }
 
-//////////////////////////////////////////////////////////////////////////////
-// Midi_ControlSurface
-//////////////////////////////////////////////////////////////////////////////
-void Midi_ControlSurface::ProcessMIDIWidgetFile(const string &filePath, Midi_ControlSurface *surface)
-{
-    SurfaceTemplateParser::ParseMidiTemplate(filePath, this);
-}
-
-//////////////////////////////////////////////////////////////////////////////
-// OSC_ControlSurface
-//////////////////////////////////////////////////////////////////////////////
-void OSC_ControlSurface::ProcessOSCWidgetFile(const string &filePath)
-{
-    SurfaceTemplateParser::ParseOSCTemplate(filePath, this);
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CSurfIntegrator
-////////////////////////////////////////////////////////////////////////////////////////////////////////    void InitActionsDictionary() {
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 void CSurfIntegrator::InitActionsDictionary() {
-  #define X(className, strName) actions_.insert({strName, std::make_unique<className>()});
+#define X(className, strName) actions_.insert({ strName, std::make_unique<className>() });
     ACTION_TYPE_LIST(X)
-  #undef X
+#undef X
 }
-void CSurfIntegrator::Init()
-{
+void CSurfIntegrator::Init() {
     pages_.clear();
-    
     string currentBroadcaster;
-    
-    Page *currentPage = NULL;
-    
+    Page* currentPage = NULL;
     string CSIFolderPath = string(GetResourcePath()) + "/CSI";
-    
-    if ( ! filesystem::exists(CSIFolderPath))
-    {
+
+    if (!filesystem::exists(CSIFolderPath)) {
         LogToConsole("[ERROR] Missing CSI Folder. Please check your installation, cannot find %s\n", CSIFolderPath.c_str());
         return;
     }
-    
+
     string iniFilePath = string(GetResourcePath()) + "/CSI/CSI.ini";
-    
-    if ( ! filesystem::exists(iniFilePath))
-    {
+
+    if (!filesystem::exists(iniFilePath)) {
         LogToConsole("[ERROR] Missing CSI.ini. Please check your installation, cannot find %s\n", iniFilePath.c_str());
         return;
     }
 
-    
     int lineNumber = 0;
-    
-    try
-    {
+
+    try {
         ifstream iniFile(iniFilePath);
-               
-        for (string line; getline(iniFile, line) ; )
-        {
+
+        for (string line; getline(iniFile, line);) {
             TrimLine(line);
-            
-            if (lineNumber == 0)
-            {
+
+            if (lineNumber == 0) {
                 PropertyList pList;
                 vector<string> properties;
                 properties.push_back(line.c_str());
                 GetPropertiesFromTokens(0, 1, properties, pList);
 
-                const char *versionProp = pList.get_prop(PropertyType_Version);
-                if (versionProp)
-                {
+                const char* versionProp = pList.get_prop(PropertyType_Version);
+                if (versionProp) {
                     if (!IsSameString(versionProp, s_MajorVersionToken)) {
                         LogToConsole("[ERROR] CSI.ini version mismatch. -- Your CSI.ini file is not %s.\n", s_MajorVersionToken);
                         //FIXME: so what? make backup and generate new, or at least prompt to confirm
                         iniFile.close();
                         return;
-                    }
-                    else
-                    {
+                    } else {
                         lineNumber++;
                         continue;
                     }
-                }
-                else
-                {
+                } else {
                     LogToConsole("[ERROR] CSI.ini has no version.\n");
                     //FIXME: so what? generate new, or at least prompt to confirm
                     iniFile.close();
                     return;
                 }
             }
-            
-            if (IsCommentedOrEmpty(line))
-                continue;
-            
+
+            if (IsCommentedOrEmpty(line)) continue;
+
             vector<string> tokens;
             GetTokens(tokens, line.c_str());
-            
+
             if (tokens.size() > 0) {
                 PropertyList pList;
                 GetPropertiesFromTokens(0, (int) tokens.size(), tokens, pList);
-                
-                if (const char *typeProp = pList.get_prop(PropertyType_SurfaceType))
-                {
-                    if (const char *nameProp = pList.get_prop(PropertyType_SurfaceName))
-                    {
-                        if (const char *channelCountProp = pList.get_prop(PropertyType_SurfaceChannelCount))
-                        {
+
+                if (const char* typeProp = pList.get_prop(PropertyType_SurfaceType)) {
+                    if (const char* nameProp = pList.get_prop(PropertyType_SurfaceName)) {
+                        if (const char* channelCountProp = pList.get_prop(PropertyType_SurfaceChannelCount)) {
                             int channelCount = atoi(channelCountProp);
-                            
-                            if (IsSameString(typeProp, s_MidiSurfaceToken) && tokens.size() == 7)
-                            {
-                                if (pList.get_prop(PropertyType_MidiInput) != NULL &&
-                                    pList.get_prop(PropertyType_MidiOutput) != NULL &&
-                                    pList.get_prop(PropertyType_MIDISurfaceRefreshRate) != NULL &&
-                                    pList.get_prop(PropertyType_MaxMIDIMesssagesPerRun) != NULL)
-                                {
+
+                            if (IsSameString(typeProp, s_MidiSurfaceToken) && tokens.size() == 7) {
+                                if (pList.get_prop(PropertyType_MidiInput) != NULL && pList.get_prop(PropertyType_MidiOutput) != NULL && pList.get_prop(PropertyType_MIDISurfaceRefreshRate) != NULL && pList.get_prop(PropertyType_MaxMIDIMesssagesPerRun) != NULL) {
                                     int midiIn = atoi(pList.get_prop(PropertyType_MidiInput));
                                     int midiOut = atoi(pList.get_prop(PropertyType_MidiOutput));
                                     int surfaceRefreshRate = atoi(pList.get_prop(PropertyType_MIDISurfaceRefreshRate));
                                     int maxMIDIMesssagesPerRun = atoi(pList.get_prop(PropertyType_MaxMIDIMesssagesPerRun));
-                                    
+
                                     midiSurfacesIO_.push_back(make_unique<Midi_ControlSurfaceIO>(this, nameProp, channelCount, GetMidiInputForPort(midiIn), GetMidiOutputForPort(midiOut), surfaceRefreshRate, maxMIDIMesssagesPerRun));
                                 }
-                            }
-                            else if ((IsSameString(typeProp, s_OSCSurfaceToken) || IsSameString(typeProp, s_OSCX32SurfaceToken)) && tokens.size() == 7)
-                            {
-                                if (pList.get_prop(PropertyType_ReceiveOnPort) != NULL &&
-                                    pList.get_prop(PropertyType_TransmitToPort) != NULL &&
-                                    pList.get_prop(PropertyType_TransmitToIPAddress) != NULL &&
-                                    pList.get_prop(PropertyType_MaxPacketsPerRun) != NULL)
-                                {
-                                    const char *receiveOnPort = pList.get_prop(PropertyType_ReceiveOnPort);
-                                    const char *transmitToPort = pList.get_prop(PropertyType_TransmitToPort);
-                                    const char *transmitToIPAddress = pList.get_prop(PropertyType_TransmitToIPAddress);
+                            } else if ((IsSameString(typeProp, s_OSCSurfaceToken) || IsSameString(typeProp, s_OSCX32SurfaceToken)) && tokens.size() == 7) {
+                                if (pList.get_prop(PropertyType_ReceiveOnPort) != NULL && pList.get_prop(PropertyType_TransmitToPort) != NULL && pList.get_prop(PropertyType_TransmitToIPAddress) != NULL && pList.get_prop(PropertyType_MaxPacketsPerRun) != NULL) {
+                                    const char* receiveOnPort = pList.get_prop(PropertyType_ReceiveOnPort);
+                                    const char* transmitToPort = pList.get_prop(PropertyType_TransmitToPort);
+                                    const char* transmitToIPAddress = pList.get_prop(PropertyType_TransmitToIPAddress);
                                     int maxPacketsPerRun = atoi(pList.get_prop(PropertyType_MaxPacketsPerRun));
-                                    
+
                                     if (IsSameString(typeProp, s_OSCSurfaceToken))
                                         oscSurfacesIO_.push_back(make_unique<OSC_ControlSurfaceIO>(this, nameProp, channelCount, receiveOnPort, transmitToPort, transmitToIPAddress, maxPacketsPerRun));
                                     else if (IsSameString(typeProp, s_OSCX32SurfaceToken))
@@ -661,150 +489,101 @@ void CSurfIntegrator::Init()
                             }
                         }
                     }
-                }
-                else if (const char *pageNameProp = pList.get_prop(PropertyType_PageName))
-                {
+                } else if (const char* pageNameProp = pList.get_prop(PropertyType_PageName)) {
                     bool followMCP = true;
                     bool synchPages = true;
                     bool isScrollLinkEnabled = false;
                     bool isScrollSynchEnabled = false;
 
                     currentPage = NULL;
-                    
-                    if (tokens.size() > 1)
-                    {
-                        if (const char *pageFollowsMCPProp = pList.get_prop(PropertyType_PageFollowsMCP))
-                        {
-                            if (IsSameString(pageFollowsMCPProp, "No"))
-                                followMCP = false;
-                        }
-                        
-                        if (const char *synchPagesProp = pList.get_prop(PropertyType_SynchPages))
-                        {
-                            if (IsSameString(synchPagesProp, "No"))
-                                synchPages = false;
-                        }
-                        
-                        if (const char *scrollLinkProp = pList.get_prop(PropertyType_ScrollLink))
-                        {
-                            if (IsSameString(scrollLinkProp, "Yes"))
-                                isScrollLinkEnabled = true;
-                        }
-                        
-                        if (const char *scrollSynchProp = pList.get_prop(PropertyType_ScrollSynch))
-                        {
-                            if (IsSameString(scrollSynchProp, "Yes"))
-                                isScrollSynchEnabled = true;
-                        }
 
+                    if (tokens.size() > 1) {
+                        if (const char* pageFollowsMCPProp = pList.get_prop(PropertyType_PageFollowsMCP)) if (IsSameString(pageFollowsMCPProp, "No")) followMCP = false;
+                        if (const char* synchPagesProp = pList.get_prop(PropertyType_SynchPages)) if (IsSameString(synchPagesProp, "No")) synchPages = false;
+                        if (const char* scrollLinkProp = pList.get_prop(PropertyType_ScrollLink)) if (IsSameString(scrollLinkProp, "Yes")) isScrollLinkEnabled = true;
+                        if (const char* scrollSynchProp = pList.get_prop(PropertyType_ScrollSynch)) if (IsSameString(scrollSynchProp, "Yes")) isScrollSynchEnabled = true;
                         pages_.push_back(make_unique<Page>(this, pageNameProp, followMCP, synchPages, isScrollLinkEnabled, isScrollSynchEnabled));
                         currentPage = pages_.back().get();
                     }
-                }
-                else if (const char *broadcasterProp = pList.get_prop(PropertyType_Broadcaster))
-                {
+                } else if (const char* broadcasterProp = pList.get_prop(PropertyType_Broadcaster)) {
                     currentBroadcaster = broadcasterProp;
-                }
-                else if (currentPage && tokens.size() > 2 && currentBroadcaster != "" && pList.get_prop(PropertyType_Listener) != NULL)
-                {
-                    if (currentPage && tokens.size() > 2 && currentBroadcaster != "")
-                    {
-                        
-                        ControlSurface *broadcaster = NULL;
-                        ControlSurface *listener = NULL;
-                        
-                        const vector<unique_ptr<ControlSurface>> &surfaces = currentPage->GetSurfaces();
-                        
+                } else if (currentPage && tokens.size() > 2 && currentBroadcaster != "" && pList.get_prop(PropertyType_Listener) != NULL) {
+                    if (currentPage && tokens.size() > 2 && currentBroadcaster != "") {
+                        ControlSurface* broadcaster = NULL;
+                        ControlSurface* listener = NULL;
+
+                        const vector<unique_ptr<ControlSurface>>& surfaces = currentPage->GetSurfaces();
+
                         string currentSurface = string(pList.get_prop(PropertyType_Listener));
-                        
-                        for (int i = 0; i < surfaces.size(); ++i)
-                        {
+
+                        for (int i = 0; i < surfaces.size(); ++i) {
                             if (surfaces[i]->GetName() == currentBroadcaster)
                                 broadcaster = surfaces[i].get();
                             if (surfaces[i]->GetName() == currentSurface)
-                                 listener = surfaces[i].get();
+                                listener = surfaces[i].get();
                         }
-                        
-                        if (broadcaster != NULL && listener != NULL)
-                        {
+
+                        if (broadcaster != NULL && listener != NULL) {
                             broadcaster->GetZoneManager()->AddListener(listener);
                             listener->GetZoneManager()->SetListenerCategories(pList);
                         }
                     }
-                }
-                else if (currentPage && tokens.size() == 5)
-                {
-                    if (const char *surfaceProp = pList.get_prop(PropertyType_Surface))
-                    {
-                        if (const char *surfaceFolderProp = pList.get_prop(PropertyType_SurfaceFolder))
-                        {
-                            if (const char *startChannelProp = pList.get_prop(PropertyType_StartChannel))
-                            {
+                } else if (currentPage && tokens.size() == 5) {
+                    if (const char* surfaceProp = pList.get_prop(PropertyType_Surface)) {
+                        if (const char* surfaceFolderProp = pList.get_prop(PropertyType_SurfaceFolder)) {
+                            if (const char* startChannelProp = pList.get_prop(PropertyType_StartChannel)) {
                                 int startChannel = atoi(startChannelProp);
-                                
+
                                 string baseDir = string(GetResourcePath()) + string("/CSI/Surfaces/");
-                                     
-                                if ( ! filesystem::exists(baseDir))
-                                {
+
+                                if (!filesystem::exists(baseDir)) {
                                     LogToConsole("[ERROR] Missing Surfaces Folder %s\n", baseDir.c_str());
 
                                     return;
                                 }
-                                
+
                                 string surfaceFile = baseDir + surfaceFolderProp + "/Surface.txt";
-                                
-                                if ( ! filesystem::exists(surfaceFile))
-                                {
+
+                                if (!filesystem::exists(surfaceFile)) {
                                     LogToConsole("[ERROR] Missing Surfaces File %s\n", surfaceFile.c_str());
                                 }
-                                
+
                                 string zoneFolder = baseDir + surfaceFolderProp + "/Zones";
-                                if (const char *zoneFolderProp = pList.get_prop(PropertyType_ZoneFolder))
+                                if (const char* zoneFolderProp = pList.get_prop(PropertyType_ZoneFolder))
                                     zoneFolder = baseDir + zoneFolderProp + "/Zones";
-                                
-                                if ( ! filesystem::exists(zoneFolder))
-                                {
+
+                                if (!filesystem::exists(zoneFolder)) {
                                     LogToConsole("[ERROR] Missing Zone Folder %s\n", zoneFolder.c_str());
                                 }
-                                
+
                                 string fxZoneFolder = baseDir + surfaceFolderProp + "/FXZones";
-                                if (const char *fxZoneFolderProp = pList.get_prop(PropertyType_FXZoneFolder))
+                                if (const char* fxZoneFolderProp = pList.get_prop(PropertyType_FXZoneFolder))
                                     fxZoneFolder = baseDir + fxZoneFolderProp + "/FXZones";
 
-                                if ( ! filesystem::exists(fxZoneFolder))
-                                {
-                                    try
-                                    {
+                                if (!filesystem::exists(fxZoneFolder)) {
+                                    try {
                                         RecursiveCreateDirectory(fxZoneFolder.c_str(), 0);
-                                    }
-                                    catch (const std::exception& e)
-                                    {
+                                    } catch (const std::exception& e) {
                                         LogToConsole("[ERROR] FAILED to Init. Unable to create folder %s\n", fxZoneFolder.c_str());
                                         LogToConsole("Exception: %s\n", e.what());
 
                                         return;
                                     }
-
                                 }
 
                                 bool foundIt = false;
-                                
-                                for (auto &io : midiSurfacesIO_)
-                                {
-                                    if (IsSameString(surfaceProp, io->GetName()))
-                                    {
+
+                                for (auto& io : midiSurfacesIO_) {
+                                    if (IsSameString(surfaceProp, io->GetName())) {
                                         foundIt = true;
                                         currentPage->GetSurfaces().push_back(make_unique<Midi_ControlSurface>(this, currentPage, surfaceProp, startChannel, surfaceFile.c_str(), zoneFolder.c_str(), fxZoneFolder.c_str(), io.get()));
                                         break;
                                     }
                                 }
-                                
-                                if ( ! foundIt)
-                                {
-                                    for (auto &io : oscSurfacesIO_)
-                                    {
-                                        if (IsSameString(surfaceProp, io->GetName()))
-                                        {
+
+                                if (!foundIt) {
+                                    for (auto& io : oscSurfacesIO_) {
+                                        if (IsSameString(surfaceProp, io->GetName())) {
                                             foundIt = true;
                                             currentPage->GetSurfaces().push_back(make_unique<OSC_ControlSurface>(this, currentPage, surfaceProp, startChannel, surfaceFile.c_str(), zoneFolder.c_str(), fxZoneFolder.c_str(), io.get()));
                                             break;
@@ -816,40 +595,33 @@ void CSurfIntegrator::Init()
                     }
                 }
             }
-            
+
             lineNumber++;
         }
-    }
-    catch (const std::exception& e)
-    {
+    } catch (const std::exception& e) {
         LogToConsole("[ERROR] FAILED to Init in %s, around line %d\n", iniFilePath.c_str(), lineNumber);
         LogToConsole("Exception: %s\n", e.what());
     }
-    
+
     if (pages_.size() == 0)
         pages_.push_back(make_unique<Page>(this, "Home", false, false, false, false));
-    
-    for (auto &page : pages_)
-    {
-        for (auto &surface : page->GetSurfaces())
-            surface->ForceClear();
 
+    for (auto& page : pages_) {
+        for (auto& surface : page->GetSurfaces())
+            surface->ForceClear();
         page->OnInitialization();
     }
 }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ActionContext
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget *widget, Zone *zone, int paramIndex, const vector<string> &paramsAndProperties) : csi_(csi), action_(action), widget_(widget), zone_(zone), paramIndex_(paramIndex)
-{
+////////// ActionContext ////////
+ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& paramsAndProperties)
+    : csi_(csi), action_(action), widget_(widget), zone_(zone), paramIndex_(paramIndex) {
     vector<string> params;
-    for (int i = 0; i < (int)(paramsAndProperties).size(); ++i) {
+    for (int i = 0; i < (int) (paramsAndProperties).size(); ++i) {
         if ((paramsAndProperties)[i].find("=") == string::npos)
             params.push_back((paramsAndProperties)[i]);
         sourceParams_.push_back((paramsAndProperties)[i]);
     }
-    GetPropertiesFromTokens(0, (int)(paramsAndProperties).size(), paramsAndProperties, widgetProperties_);
+    GetPropertiesFromTokens(0, (int) (paramsAndProperties).size(), paramsAndProperties, widgetProperties_);
 
     const char* feedback = widgetProperties_.get_prop(PropertyType_Feedback);
     if (feedback && IsSameString(feedback, "No"))
@@ -864,8 +636,7 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
         timing_.holdRepeatIntervalMs = atoi(holdRepeatInterval);
 
     const char* runCount = widgetProperties_.get_prop(PropertyType_RunCount);
-    if (runCount)
-        runCount_ = atoi(runCount);
+    if (runCount) runCount_ = atoi(runCount);
     if (runCount_ < 1) {
         runCount_ = 1;
         this->LogMessage(string("invalid value for RunCount '") + runCount + "'", DEBUG_LEVEL_WARNING);
@@ -875,11 +646,11 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
     if (blinkTime)
         SetBlinkInterval(atoi(blinkTime));
 
-    const char * meterMode  = widgetProperties_.get_prop(PropertyType_MeterMode);
-    if (meterMode  &&  strlen(meterMode) > 0)
+    const char* meterMode = widgetProperties_.get_prop(PropertyType_MeterMode);
+    if (meterMode && strlen(meterMode) > 0)
         strncpy(meterMode_, meterMode, sizeof(meterMode_) - 1);
 
-    for (int i = 0; i < (int)(paramsAndProperties).size(); ++i) {
+    for (int i = 0; i < (int) (paramsAndProperties).size(); ++i) {
         if (paramsAndProperties[i] == "NoFeedback") {
             provideFeedback_ = false;
         } else if (paramsAndProperties[i] == "Blink") {
@@ -888,53 +659,42 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
     }
 
     string actionName = "";
-    
+
     if (params.size() > 0)
         actionName = params[0];
-    
+
     // Action with int param, could include leading minus sign
-    if (params.size() > 1 && (isdigit(params[1][0]) ||  params[1][0] == '-'))  // C++ 2003 says empty strings can be queried without catastrophe :)
-    {
-        intParam_= atol(params[1].c_str());
+    if (params.size() > 1 && (isdigit(params[1][0]) || params[1][0] == '-')) {
+        intParam_ = atol(params[1].c_str());
     }
-    
-    if (actionName == "Bank" && (params.size() > 2 && (isdigit(params[2][0]) ||  params[2][0] == '-')))  // C++ 2003 says empty strings can be queried without catastrophe :)
-    {
+
+    if (actionName == "Bank" && (params.size() > 2 && (isdigit(params[2][0]) || params[2][0] == '-'))) {
         stringParam_ = params[1];
-        intParam_= atol(params[2].c_str());
+        intParam_ = atol(params[2].c_str());
     }
 
     // Action with param index, must be positive
-    if (params.size() > 1 && isdigit(params[1][0]))  // C++ 2003 says empty strings can be queried without catastrophe :)
-    {
+    if (params.size() > 1 && isdigit(params[1][0])) {
         paramIndex_ = atol(params[1].c_str());
     }
-    
+
     // Action with string param
     if (params.size() > 1)
         stringParam_ = params[1];
-    
-    if (actionName == "TrackVolumeDB" || actionName == "TrackSendVolumeDB")
-    {
+
+    if (actionName == "TrackVolumeDB" || actionName == "TrackSendVolumeDB") {
         value_.rangeMinimum = -144.0;
         value_.rangeMaximum = 24.0;
     }
-    
-    if (actionName == "TrackPanPercent" ||
-        actionName == "TrackPanWidthPercent" ||
-        actionName == "TrackPanLPercent" ||
-        actionName == "TrackPanRPercent")
-    {
+
+    if (actionName == "TrackPanPercent" || actionName == "TrackPanWidthPercent" || actionName == "TrackPanLPercent" || actionName == "TrackPanRPercent") {
         value_.rangeMinimum = -100.0;
         value_.rangeMaximum = 100.0;
     }
-   
-    if ((actionName == "Reaper" ||
-         actionName == "ReaperDec" ||
-         actionName == "ReaperInc") && params.size() > 1)
-    {
+
+    if ((actionName == "Reaper" || actionName == "ReaperDec" || actionName == "ReaperInc") && params.size() > 1) {
         if (isdigit(params[1][0])) {
-            commandId_ =  atol(params[1].c_str());
+            commandId_ = atol(params[1].c_str());
         } else {
             commandId_ = NamedCommandLookup(params[1].c_str());
             if (commandId_ == 0) {
@@ -958,42 +718,37 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
             this->LogMessage(string("action '") + DAW::GetCommandName(commandId_) + "' does not provide feedback", DEBUG_LEVEL_NOTICE);
         }
     }
-        
-    if ((actionName == "FXParam" || actionName == "JSFXParam") &&
-          params.size() > 1 && isdigit(params[1][0]))
-    {
+
+    if ((actionName == "FXParam" || actionName == "JSFXParam") && params.size() > 1 && isdigit(params[1][0])) {
         paramIndex_ = atol(params[1].c_str());
     }
-    
-    if (actionName == "FXParamValueDisplay" && params.size() > 1 && isdigit(params[1][0]))
-    {
+
+    if (actionName == "FXParamValueDisplay" && params.size() > 1 && isdigit(params[1][0])) {
         paramIndex_ = atol(params[1].c_str());
     }
-    
-    if (actionName == "FXParamNameDisplay" && params.size() > 1 && isdigit(params[1][0]))
-    {
+
+    if (actionName == "FXParamNameDisplay" && params.size() > 1 && isdigit(params[1][0])) {
         paramIndex_ = atol(params[1].c_str());
-        
+
         if (params.size() > 2 && params[2] != "{" && params[2] != "[")
-               fxParamDisplayName_ = params[2];
+            fxParamDisplayName_ = params[2];
     }
-    
-    if (actionName == "FixedTextDisplay" && (params.size() > 2 && (isdigit(params[2][0]))))  // C++ 2003 says empty strings can be queried without catastrophe :)
-    {
+
+    if (actionName == "FixedTextDisplay" && (params.size() > 2 && (isdigit(params[2][0])))) {
         stringParam_ = params[1];
-        paramIndex_= atol(params[2].c_str());
+        paramIndex_ = atol(params[2].c_str());
     }
-    
+
     if (params.size() > 0)
         color_.ParseColors(params);
-    
+
     GetSteppedValues(widget, action_, zone_, paramIndex_, params, widgetProperties_, value_.deltaValue, value_.acceleratedDeltaValues, value_.rangeMinimum, value_.rangeMaximum, value_.steppedValues, value_.acceleratedTickValues);
 
     if (value_.acceleratedTickValues.size() < 1)
         value_.acceleratedTickValues.push_back(0);
 
     ProcessActionTitle(actionName);
-    
+
     const char* osdValue = widgetProperties_.get_prop(PropertyType_OSD);
     osdData_ = osd_data(osdValue ? osdValue : "?");
     if (osdData_.message == "No")
@@ -1005,8 +760,7 @@ ActionContext::ActionContext(CSurfIntegrator *const csi, Action *action, Widget 
         osdData_.bgColor = osd_data::COLOR_ERROR;
 }
 
-void ActionContext::ProcessActionTitle(string origName)
-{
+void ActionContext::ProcessActionTitle(string origName) {
     if (commandId_ > 0) {
         actionTitle_ = DAW::GetCommandName(commandId_);
         return;
@@ -1014,7 +768,7 @@ void ActionContext::ProcessActionTitle(string origName)
     const ActionType actionType = this->GetAction()->GetType();
     const char* actionName = this->GetAction()->GetName();
     const char* stringParam = this->GetStringParam();
-    
+
     switch (actionType) {
         case ActionType::InvalidAction:
             actionTitle_ = "InvalidAction: " + origName;
@@ -1023,76 +777,48 @@ void ActionContext::ProcessActionTitle(string origName)
             actionTitle_ = string("Automation: ") + TrackNavigationManager::GetAutoModeDisplayNameNoOverride(atoi(stringParam));
             break;
         default:
-            if (IsSameString(stringParam, "{")|| IsSameString(stringParam, "["))
-                actionTitle_ = actionName; //TODO: fix parser?
-            else
-                actionTitle_ = (stringParam && stringParam[0] != '\0') ? string(actionName) + " " + stringParam : actionName;
+            if (IsSameString(stringParam, "{") || IsSameString(stringParam, "[")) actionTitle_ = actionName; //TODO: fix parser?
+            else actionTitle_ = (stringParam && stringParam[0] != '\0') ? string(actionName) + " " + stringParam : actionName;
             break;
     }
 }
 
-IPageContext *ActionContext::GetPage()
-{
-    return widget_->GetSurface()->GetPage();
-}
-
-TrackNavigationManager *ActionContext::GetTrackNavigationManager()
-{
-    return GetPage()->GetTrackNavigationManager();
-}
-
-ControlSurface *ActionContext::GetSurface()
-{
-    return widget_->GetSurface();
-}
-
-MediaTrack *ActionContext::GetTrack()
-{
-    return zone_->GetNavigator()->GetTrack();
-}
-
+IPageContext* ActionContext::GetPage() { return widget_->GetSurface()->GetPage(); }
+TrackNavigationManager* ActionContext::GetTrackNavigationManager() { return GetPage()->GetTrackNavigationManager(); }
+ControlSurface* ActionContext::GetSurface() { return widget_->GetSurface(); }
+MediaTrack* ActionContext::GetTrack() { return zone_->GetNavigator()->GetTrack(); }
 vector<MediaTrack*> ActionContext::GetSelectedTracks(bool includeMaster) {
     if (this->GetZone()->GetNavigator()->GetType() == NavigatorType::SelectedTrackNavigator) {
         return this->GetPage()->GetTrackNavigationManager()->GetSelectedTracks(includeMaster);
     } else {
         MediaTrack* track = this->GetTrack();
-        return track ? vector<MediaTrack*>{ track } : vector<MediaTrack*>{};
+        return track ? vector<MediaTrack*> { track } : vector<MediaTrack*> {};
     }
 }
 
-int ActionContext::GetSlotIndex()
-{
-    return zone_->GetSlotIndex();
-}
+int ActionContext::GetSlotIndex() { return zone_->GetSlotIndex(); }
 
-const char *ActionContext::GetName()
-{
-    return zone_->GetAlias();
-}
+const char* ActionContext::GetName() { return zone_->GetAlias(); }
 
-void ActionContext::RequestUpdate()
-{
-    if (provideFeedback_)
+void ActionContext::RequestUpdate() {
+    if (provideFeedback_) 
         action_->RequestUpdate(this);
 }
 
-void ActionContext::ClearWidget()
-{
+void ActionContext::ClearWidget() {
     UpdateWidgetValue(0.0);
     UpdateWidgetValue("");
 }
 
-void ActionContext::UpdateColorValue(double value)
-{
+void ActionContext::UpdateColorValue(double value) {
     if (color_.supportsColor) {
         color_.currentColorIndex = value == 0 ? 0 : 1;
-        if (color_.colorValues.size() > (size_t)color_.currentColorIndex)
+        if (color_.colorValues.size() > (size_t) color_.currentColorIndex)
             widget_->UpdateColorValue(color_.colorValues[color_.currentColorIndex]);
     }
 }
 
-void ActionContext::UpdateWidgetValue(double value)
-{
+void ActionContext::UpdateWidgetValue(double value) {
     if (value_.steppedValues.size() > 0)
         SetSteppedValueIndex(value);
 
@@ -1107,7 +833,7 @@ void ActionContext::UpdateWidgetValue(double value)
     widget_->UpdateValue(widgetProperties_, value);
 
     UpdateColorValue(value);
-    
+
     if (osdData_.IsAwaitFeedback())
         ProcessOSD(value, true);
 
@@ -1115,33 +841,27 @@ void ActionContext::UpdateWidgetValue(double value)
         UpdateTrackColor();
 }
 
-void ActionContext::UpdateJSFXWidgetSteppedValue(double value)
-{
+void ActionContext::UpdateJSFXWidgetSteppedValue(double value) {
     if (value_.steppedValues.size() > 0)
         SetSteppedValueIndex(value);
 }
 
-void ActionContext::UpdateTrackColor()
-{
-    if (MediaTrack* track = zone_->GetNavigator()->GetTrack())
-    {
+void ActionContext::UpdateTrackColor() {
+    if (MediaTrack* track = zone_->GetNavigator()->GetTrack()) {
         rgba_color color = DAW::GetTrackColor(track);
         widget_->UpdateColorValue(color);
     }
 }
 
-void ActionContext::UpdateWidgetValue(const char* value)
-{
+void ActionContext::UpdateWidgetValue(const char* value) {
     widget_->UpdateValue(widgetProperties_, value ? value : "");
 }
 
-void ActionContext::ForceWidgetValue(const char* value)
-{
+void ActionContext::ForceWidgetValue(const char* value) {
     widget_->ForceValue(widgetProperties_, value ? value : "");
 }
 
-void ActionContext::LogAction(double value)
-{
+void ActionContext::LogAction(double value) {
     if (g_debugLevel < DEBUG_LEVEL_INFO) return;
     if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
     if (value < 0 && GetRangeMinimum() >= 0) return;
@@ -1164,54 +884,26 @@ void ActionContext::LogAction(double value)
     if (runCount_ > 1) oss << " RunCount=" << runCount_;
     if (blink_.blinkSet) {
         oss << " Blink";
-        if (blink_.blinkIntervalMs > 0)
-            oss << "=" << blink_.blinkIntervalMs;
+        if (blink_.blinkIntervalMs > 0) oss << "=" << blink_.blinkIntervalMs;
     }
-
-    LogToConsole("[INFO] @%s/{%s}: [%s] '%s' > %s (%s) val:%0.2f ctx:%s\n"
-        ,this->GetSurface()->GetName()
-        ,this->GetZone()->GetName()
-        ,this->GetWidget()->GetName()
-        ,JoinStringVector(sourceParams_, " ").c_str()
-        ,actionTitle_.c_str()
-        ,oss.str().c_str()
-        ,value
-        ,this->GetName()
-    );
+    LogToConsole("[INFO] @%s/{%s}: [%s] '%s' > %s (%s) val:%0.2f ctx:%s\n", this->GetSurface()->GetName(), this->GetZone()->GetName(), this->GetWidget()->GetName(), JoinStringVector(sourceParams_, " ").c_str(), actionTitle_.c_str(), oss.str().c_str(), value, this->GetName());
 }
 
 void ActionContext::LogMessage(const std::string& msg, DebugLevel debugLevel) {
-    if (g_debugLevel >= debugLevel) {
-        LogToConsole("[%s] @%s/{%s}: [%s] %s(%s) # %s\n"
-            ,DebugLevelToString(debugLevel)
-            ,this->GetSurface()->GetName()
-            ,this->GetZone()->GetName()
-            ,this->GetWidget()->GetName()
-            ,this->GetAction()->GetName()
-            ,this->GetStringParam()
-            ,msg.c_str()
-        );
-    }
+    if (g_debugLevel >= debugLevel) LogToConsole("[%s] @%s/{%s}: [%s] %s(%s) # %s\n", DebugLevelToString(debugLevel), this->GetSurface()->GetName(), this->GetZone()->GetName(), this->GetWidget()->GetName(), this->GetAction()->GetName(), this->GetStringParam(), msg.c_str());
 }
 
 int ActionContext::ClampValueWithWarning(int value, int min, int max) {
     int clamped = std::max(min, std::min(value, max));
-    if (clamped != value) {
-        this->LogMessage("invalid value = " + to_string(value) + " (allowed: " + to_string(min) + "–" + to_string(max) + ")", DEBUG_LEVEL_WARNING);
-    }
+    if (clamped != value) this->LogMessage("invalid value = " + to_string(value) + " (allowed: " + to_string(min) + "–" + to_string(max) + ")", DEBUG_LEVEL_WARNING);
     return clamped;
 }
 
-int ActionContext::GetBlinkInterval() {
-    return blink_.blinkIntervalMs == INHERIT_VALUE ? this->GetSurface()->GetBlinkTime() : blink_.blinkIntervalMs;
-}
-int ActionContext::GetHoldDelay() {
-    return timing_.holdDelayMs == INHERIT_VALUE ? this->GetSurface()->GetHoldTime() : timing_.holdDelayMs;
-}
+int ActionContext::GetBlinkInterval() { return blink_.blinkIntervalMs == INHERIT_VALUE ? this->GetSurface()->GetBlinkTime() : blink_.blinkIntervalMs; }
+int ActionContext::GetHoldDelay() { return timing_.holdDelayMs == INHERIT_VALUE ? this->GetSurface()->GetHoldTime() : timing_.holdDelayMs; }
 
 // runs once button pressed/released
-void ActionContext::DoAction(double value)
-{
+void ActionContext::DoAction(double value) {
     DWORD nowTs = GetTickCount();
     int holdDelayMs = this->GetHoldDelay();
     timing_.deferredValue = value;
@@ -1224,7 +916,7 @@ void ActionContext::DoAction(double value)
             timing_.doublePressStartTs = 0;
             if (!timing_.isDoublePress && holdDelayMs == 0) return; // block normal press inside double-press window
         }
-    } 
+    }
 
     if (timing_.holdRepeatIntervalMs > 0) {
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
@@ -1249,8 +941,7 @@ void ActionContext::DoAction(double value)
 }
 
 // runs in loop to support button hold/repeat actions
-void ActionContext::RunDeferredActions()
-{
+void ActionContext::RunDeferredActions() {
     int holdDelayMs = GetHoldDelay();
 
     if (holdDelayMs > 0
@@ -1277,45 +968,40 @@ void ActionContext::RunDeferredActions()
     }
 }
 
-void ActionContext::PerformAction(double value)
-{
-    if (!value_.steppedValues.empty())
-    {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
-        if (value_.steppedValuesIndex == (int)value_.steppedValues.size() - 1)
-        {
+void ActionContext::PerformAction(double value) {
+    if (!value_.steppedValues.empty()) {
+        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE)
+            return;
+        if (value_.steppedValuesIndex == (int) value_.steppedValues.size() - 1) {
             if (value_.steppedValues[0] < value_.steppedValues[value_.steppedValuesIndex]) // GAW -- only wrap if 1st value is lower
                 value_.steppedValuesIndex = 0;
-        }
-        else value_.steppedValuesIndex++;
+        } else
+            value_.steppedValuesIndex++;
 
         for (int i = 0; i < runCount_; ++i)
             DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
-    }
-    else for (int i = 0; i < runCount_; ++i)
-        DoRangeBoundAction(value);
+    } else
+        for (int i = 0; i < runCount_; ++i)
+            DoRangeBoundAction(value);
 }
 
-void ActionContext::DoRelativeAction(double delta)
-{
+void ActionContext::DoRelativeAction(double delta) {
     if (value_.steppedValues.size() > 0)
         DoSteppedValueAction(delta);
     else
         DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) + (value_.deltaValue != 0.0 ? (delta > 0 ? value_.deltaValue : -value_.deltaValue) : delta));
 }
 
-void ActionContext::DoRelativeAction(int accelerationIndex, double delta)
-{
+void ActionContext::DoRelativeAction(int accelerationIndex, double delta) {
     if (value_.steppedValues.size() > 0)
         DoAcceleratedSteppedValueAction(accelerationIndex, delta);
     else if (value_.acceleratedDeltaValues.size() > 0)
         DoAcceleratedDeltaValueAction(accelerationIndex, delta);
     else
-        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) +  (value_.deltaValue != 0.0 ? (delta > 0 ? value_.deltaValue : -value_.deltaValue) : delta));
+        DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) + (value_.deltaValue != 0.0 ? (delta > 0 ? value_.deltaValue : -value_.deltaValue) : delta));
 }
 
-void ActionContext::ProcessOSD(double value, bool fromFeedback)
-{
+void ActionContext::ProcessOSD(double value, bool fromFeedback) {
     if (!GetSurface()->IsOsdEnabled()) return;
     if (GetWidget()->IsVirtual()) return;
     if (osdData_.message.empty()) return;
@@ -1326,9 +1012,10 @@ void ActionContext::ProcessOSD(double value, bool fromFeedback)
     int colorIdx = (int) value;
     if (osdData_.bgColors.empty()) {
         if (color_.supportsColor && !color_.colorValues.empty()) {
-
-            if (color_.colorValues.size() == 1) colorIdx = 0;
-            if ((int) color_.colorValues.size() - 1 < colorIdx) colorIdx = (int) color_.colorValues.size() - 1;
+            if (color_.colorValues.size() == 1)
+                colorIdx = 0;
+            if ((int) color_.colorValues.size() - 1 < colorIdx)
+                colorIdx = (int) color_.colorValues.size() - 1;
 
             char hexColor[8];
             snprintf(hexColor, sizeof(hexColor), "#%02X%02X%02X", color_.colorValues[colorIdx].r, color_.colorValues[colorIdx].g, color_.colorValues[colorIdx].b);
@@ -1338,14 +1025,17 @@ void ActionContext::ProcessOSD(double value, bool fromFeedback)
             osdData_.bgColor = (value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) ? "1" : "0";
         }
     } else {
-        if (osdData_.bgColors.size() == 1) colorIdx = 0;
-        if ((int) osdData_.bgColors.size() - 1 < colorIdx) colorIdx = (int) osdData_.bgColors.size() - 1;
+        if (osdData_.bgColors.size() == 1)
+            colorIdx = 0;
+        if ((int) osdData_.bgColors.size() - 1 < colorIdx)
+            colorIdx = (int) osdData_.bgColors.size() - 1;
         osdData_.bgColor = osdData_.bgColors[colorIdx];
     }
-    if (osdData_.timeoutMs == 0) osdData_.timeoutMs = GetSurface()->GetOSDTime();
+    if (osdData_.timeoutMs == 0)
+        osdData_.timeoutMs = GetSurface()->GetOSDTime();
 
     if ((action_->IsVolumeRelated() || action_->IsPanRelated()) && !(action_->IsDisplayRelated() || action_->IsMeterRelated())) {
-        if (MediaTrack *track = this->GetTrack()) {
+        if (MediaTrack* track = this->GetTrack()) {
             ostringstream oss;
             double vol, pan = 0.0;
             GetTrackUIVolPan(track, &vol, &pan);
@@ -1353,8 +1043,9 @@ void ActionContext::ProcessOSD(double value, bool fromFeedback)
             if (action_->IsPanRelated()) {
                 if (pan == 0.0) oss << "Center";
                 else oss << std::fixed << std::setprecision(2) << std::abs(pan * 100) << "%" << (pan > 0 ? "R" : "L");
-            } else oss << std::fixed << std::setprecision(2) << VAL2DB(vol) << " dB";
-            
+            } else
+                oss << std::fixed << std::setprecision(2) << VAL2DB(vol) << " dB";
+
             osdData_.message = oss.str();
         } else {
             osdData_.message = string(action_->GetName()) + ": No track selected";
@@ -1399,139 +1090,125 @@ void ActionContext::ProcessOSD(double value, bool fromFeedback)
 bool ActionContext::OsdIgnoresButtonRelease() {
     const ActionType actionType = this->GetAction()->GetType();
     if (actionType == ActionType::Bank
-     || actionType == ActionType::SetShift
-     || actionType == ActionType::SetOption
-     || actionType == ActionType::SetControl
-     || actionType == ActionType::SetAlt
-     || actionType == ActionType::SetFlip
-     || actionType == ActionType::SetGlobal
-     || actionType == ActionType::SetMarker
-     || actionType == ActionType::SetNudge
-     || actionType == ActionType::SetZoom
-     || actionType == ActionType::SetScrub
-     || actionType == ActionType::FXParam
-     || actionType == ActionType::JSFXParam
-     || actionType == ActionType::TCPFXParam
-     || actionType == ActionType::LastTouchedFXParam
-     || actionType == ActionType::TrackVolume
-     || actionType == ActionType::SoftTakeover7BitTrackVolume
-     || actionType == ActionType::SoftTakeover14BitTrackVolume
-     || actionType == ActionType::TrackVolumeDB
-     || actionType == ActionType::TrackPan
-     || actionType == ActionType::TrackPanPercent
-     || actionType == ActionType::TrackPanWidth
-     || actionType == ActionType::TrackPanWidthPercent
-     || actionType == ActionType::TrackPanL
-     || actionType == ActionType::TrackPanLPercent
-     || actionType == ActionType::TrackPanR
-     || actionType == ActionType::TrackPanRPercent
-     || actionType == ActionType::TrackPanAutoLeft
-     || actionType == ActionType::TrackPanAutoRight
-     || actionType == ActionType::TrackSendVolume
-     || actionType == ActionType::TrackSendVolumeDB
-     || actionType == ActionType::TrackSendPan
-     || actionType == ActionType::TrackSendPanPercent
-     || actionType == ActionType::TrackReceiveVolume
-     || actionType == ActionType::TrackReceiveVolumeDB
-     || actionType == ActionType::TrackReceivePan
-     || actionType == ActionType::TrackReceivePanPercent
-     || actionType == ActionType::MoveCursor
-     || actionType == ActionType::TrackVolumeWithMeterAverageLR
-     || actionType == ActionType::TrackVolumeWithMeterMaxPeakLR
-    ) {
+        || actionType == ActionType::SetShift
+        || actionType == ActionType::SetOption
+        || actionType == ActionType::SetControl
+        || actionType == ActionType::SetAlt
+        || actionType == ActionType::SetFlip
+        || actionType == ActionType::SetGlobal
+        || actionType == ActionType::SetMarker
+        || actionType == ActionType::SetNudge
+        || actionType == ActionType::SetZoom
+        || actionType == ActionType::SetScrub
+        || actionType == ActionType::FXParam
+        || actionType == ActionType::JSFXParam
+        || actionType == ActionType::TCPFXParam
+        || actionType == ActionType::LastTouchedFXParam
+        || actionType == ActionType::TrackVolume
+        || actionType == ActionType::SoftTakeover7BitTrackVolume
+        || actionType == ActionType::SoftTakeover14BitTrackVolume
+        || actionType == ActionType::TrackVolumeDB
+        || actionType == ActionType::TrackPan
+        || actionType == ActionType::TrackPanPercent
+        || actionType == ActionType::TrackPanWidth
+        || actionType == ActionType::TrackPanWidthPercent
+        || actionType == ActionType::TrackPanL
+        || actionType == ActionType::TrackPanLPercent
+        || actionType == ActionType::TrackPanR
+        || actionType == ActionType::TrackPanRPercent
+        || actionType == ActionType::TrackPanAutoLeft
+        || actionType == ActionType::TrackPanAutoRight
+        || actionType == ActionType::TrackSendVolume
+        || actionType == ActionType::TrackSendVolumeDB
+        || actionType == ActionType::TrackSendPan
+        || actionType == ActionType::TrackSendPanPercent
+        || actionType == ActionType::TrackReceiveVolume
+        || actionType == ActionType::TrackReceiveVolumeDB
+        || actionType == ActionType::TrackReceivePan
+        || actionType == ActionType::TrackReceivePanPercent
+        || actionType == ActionType::MoveCursor
+        || actionType == ActionType::TrackVolumeWithMeterAverageLR
+        || actionType == ActionType::TrackVolumeWithMeterMaxPeakLR) {
         return false;
     }
     return true;
 }
 
-void ActionContext::DoRangeBoundAction(double value)
-{
+void ActionContext::DoRangeBoundAction(double value) {
     this->LogAction(value);
 
     if (value > value_.rangeMaximum)
         value = value_.rangeMaximum;
-    
+
     if (value < value_.rangeMinimum)
         value = value_.rangeMinimum;
-    
+
     if (value_.isValueInverted)
         value = 1.0 - value;
-    
+
     for (int i = 0; i < runCount_; ++i)
         action_->Do(this, value);
 
     this->ProcessOSD(value, false);
 }
 
-void ActionContext::DoSteppedValueAction(double delta)
-{
-    if (delta > 0)
-    {
+void ActionContext::DoSteppedValueAction(double delta) {
+    if (delta > 0) {
         value_.steppedValuesIndex++;
-        
-        if (value_.steppedValuesIndex > (int)value_.steppedValues.size() - 1)
-            value_.steppedValuesIndex = (int)value_.steppedValues.size() - 1;
-        
+
+        if (value_.steppedValuesIndex > (int) value_.steppedValues.size() - 1)
+            value_.steppedValuesIndex = (int) value_.steppedValues.size() - 1;
+
         DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
-    }
-    else
-    {
+    } else {
         value_.steppedValuesIndex--;
-        
-        if (value_.steppedValuesIndex < 0 )
+
+        if (value_.steppedValuesIndex < 0)
             value_.steppedValuesIndex = 0;
-        
+
         DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
     }
 }
 
-void ActionContext::DoAcceleratedSteppedValueAction(int accelerationIndex, double delta)
-{
-    if (delta > 0)
-    {
+void ActionContext::DoAcceleratedSteppedValueAction(int accelerationIndex, double delta) {
+    if (delta > 0) {
         value_.accumulatedIncTicks++;
         value_.accumulatedDecTicks = value_.accumulatedDecTicks - 1 < 0 ? 0 : value_.accumulatedDecTicks - 1;
-    }
-    else if (delta < 0)
-    {
+    } else if (delta < 0) {
         value_.accumulatedDecTicks++;
         value_.accumulatedIncTicks = value_.accumulatedIncTicks - 1 < 0 ? 0 : value_.accumulatedIncTicks - 1;
     }
-    
-    accelerationIndex = accelerationIndex > (int)value_.acceleratedTickValues.size() - 1 ? (int)value_.acceleratedTickValues.size() - 1 : accelerationIndex;
+
+    accelerationIndex = accelerationIndex > (int) value_.acceleratedTickValues.size() - 1 ? (int) value_.acceleratedTickValues.size() - 1 : accelerationIndex;
     accelerationIndex = accelerationIndex < 0 ? 0 : accelerationIndex;
-    
-    if (delta > 0 && value_.accumulatedIncTicks >= value_.acceleratedTickValues[accelerationIndex])
-    {
+
+    if (delta > 0 && value_.accumulatedIncTicks >= value_.acceleratedTickValues[accelerationIndex]) {
         value_.accumulatedIncTicks = 0;
         value_.accumulatedDecTicks = 0;
-        
+
         value_.steppedValuesIndex++;
-        
-        if (value_.steppedValuesIndex > (int)value_.steppedValues.size() - 1)
-            value_.steppedValuesIndex = (int)value_.steppedValues.size() - 1;
-        
+
+        if (value_.steppedValuesIndex > (int) value_.steppedValues.size() - 1)
+            value_.steppedValuesIndex = (int) value_.steppedValues.size() - 1;
+
         DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
-    }
-    else if (delta < 0 && value_.accumulatedDecTicks >= value_.acceleratedTickValues[accelerationIndex])
-    {
+    } else if (delta < 0 && value_.accumulatedDecTicks >= value_.acceleratedTickValues[accelerationIndex]) {
         value_.accumulatedIncTicks = 0;
         value_.accumulatedDecTicks = 0;
-        
+
         value_.steppedValuesIndex--;
-        
-        if (value_.steppedValuesIndex < 0 )
+
+        if (value_.steppedValuesIndex < 0)
             value_.steppedValuesIndex = 0;
-        
+
         DoRangeBoundAction(value_.steppedValues[value_.steppedValuesIndex]);
     }
 }
 
-void ActionContext::DoAcceleratedDeltaValueAction(int accelerationIndex, double delta)
-{
-    accelerationIndex = accelerationIndex > (int)value_.acceleratedDeltaValues.size() - 1 ? (int)value_.acceleratedDeltaValues.size() - 1 : accelerationIndex;
+void ActionContext::DoAcceleratedDeltaValueAction(int accelerationIndex, double delta) {
+    accelerationIndex = accelerationIndex > (int) value_.acceleratedDeltaValues.size() - 1 ? (int) value_.acceleratedDeltaValues.size() - 1 : accelerationIndex;
     accelerationIndex = accelerationIndex < 0 ? 0 : accelerationIndex;
-    
+
     if (delta > 0.0)
         DoRangeBoundAction(action_->GetCurrentNormalizedValue(this) + value_.acceleratedDeltaValues[accelerationIndex]);
     else
@@ -1540,33 +1217,27 @@ void ActionContext::DoAcceleratedDeltaValueAction(int accelerationIndex, double 
 
 // GetColorValues and SetColor have been moved to ActionColorState::ParseColors() in action_color.h (Phase 6).
 
-void ActionContext::GetSteppedValues(Widget *widget, Action *action,  Zone *zone, int paramNumber, const vector<string> &params, const PropertyList &widgetProperties, double &deltaValue, vector<double> &acceleratedDeltaValues, double &rangeMinimum, double &rangeMaximum, vector<double> &steppedValues, vector<int> &acceleratedTickValues)
-{
+void ActionContext::GetSteppedValues(Widget* widget, Action* action, Zone* zone, int paramNumber, const vector<string>& params, const PropertyList& widgetProperties, double& deltaValue, vector<double>& acceleratedDeltaValues, double& rangeMinimum, double& rangeMaximum, vector<double>& steppedValues, vector<int>& acceleratedTickValues) {
     ::GetSteppedValues(params, 0, deltaValue, acceleratedDeltaValues, rangeMinimum, rangeMaximum, steppedValues, acceleratedTickValues);
-    
+
     if (deltaValue == 0.0 && widget->GetStepSize() != 0.0)
         deltaValue = widget->GetStepSize();
-    
+
     if (acceleratedDeltaValues.size() == 0 && widget->GetAccelerationValues().size() != 0)
         acceleratedDeltaValues = widget->GetAccelerationValues();
-         
-    if (steppedValues.size() > 0 && acceleratedTickValues.size() == 0)
-    {
+
+    if (steppedValues.size() > 0 && acceleratedTickValues.size() == 0) {
         double stepSize = deltaValue;
-        
-        if (stepSize != 0.0)
-        {
+
+        if (stepSize != 0.0) {
             stepSize *= 10000.0;
 
             int stepCount = (int) steppedValues.size();
             int baseTickCount = (NUM_ELEM(s_tickCounts_) > stepCount)
                 ? s_tickCounts_[stepCount]
-                : s_tickCounts_[NUM_ELEM(s_tickCounts_) - 1]
-            ;
+                : s_tickCounts_[NUM_ELEM(s_tickCounts_) - 1];
             int tickCount = int(baseTickCount / stepSize + 0.5);
             acceleratedTickValues.push_back(tickCount);
-
-
         }
     }
 }
@@ -1574,62 +1245,48 @@ void ActionContext::GetSteppedValues(Widget *widget, Action *action,  Zone *zone
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Zone
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
-void Zone::InitSubZones(const vector<string> &subZones, const char *widgetSuffix)
-{
-    map<const string, CSIZoneInfo> &zoneInfo = zoneManager_->GetZoneInfo();
+void Zone::InitSubZones(const vector<string>& subZones, const char* widgetSuffix) {
+    map<const string, ZoneInfo>& zoneInfo = zoneManager_->GetZoneInfo();
 
-    for (int i = 0; i < (int)subZones.size(); ++i)
-    {
-        if (zoneInfo.find(subZones[i]) != zoneInfo.end())
-        {
+    for (int i = 0; i < (int) subZones.size(); ++i) {
+        if (zoneInfo.find(subZones[i]) != zoneInfo.end()) {
             subZones_.push_back(make_unique<SubZone>(csi_, zoneManager_, GetNavigator(), GetSlotIndex(), subZones[i], zoneInfo[subZones[i]].alias, zoneInfo[subZones[i]].filePath, this));
             zoneManager_->LoadZoneFile(subZones_.back().get(), widgetSuffix);
         }
     }
 }
 
-int Zone::GetSlotIndex()
-{
-    if (name_ == "TrackSend")
-        return zoneManager_->GetTrackSendOffset();
-    if (name_ == "TrackReceive")
-        return zoneManager_->GetTrackReceiveOffset();
-    if (name_ == "TrackFXMenu")
-        return zoneManager_->GetTrackFXMenuOffset();
-    if (name_ == "SelectedTrack")
+int Zone::GetSlotIndex() {
+    if (name_ == "TrackSend") return zoneManager_->GetTrackSendOffset();
+    if (name_ == "TrackReceive") return zoneManager_->GetTrackReceiveOffset();
+    if (name_ == "TrackFXMenu") return zoneManager_->GetTrackFXMenuOffset();
+    if (name_ == "SelectedTrack") return slotIndex_;
+    if (name_ == "SelectedTrackSend") return slotIndex_ + zoneManager_->GetSelectedTrackSendOffset();
+    if (name_ == "SelectedTrackReceive") return slotIndex_ + zoneManager_->GetSelectedTrackReceiveOffset();
+    if (name_ == "SelectedTrackFXMenu") return slotIndex_ + zoneManager_->GetSelectedTrackFXMenuOffset();
+    if (name_ == "MasterTrackFXMenu") return slotIndex_ + zoneManager_->GetMasterTrackFXMenuOffset();
+    else
         return slotIndex_;
-    if (name_ == "SelectedTrackSend")
-        return slotIndex_ + zoneManager_->GetSelectedTrackSendOffset();
-    if (name_ == "SelectedTrackReceive")
-        return slotIndex_ + zoneManager_->GetSelectedTrackReceiveOffset();
-    if (name_ == "SelectedTrackFXMenu")
-        return slotIndex_ + zoneManager_->GetSelectedTrackFXMenuOffset();
-    if (name_ == "MasterTrackFXMenu")
-        return slotIndex_ + zoneManager_->GetMasterTrackFXMenuOffset();
-    else return slotIndex_;
 }
 
-void Zone::AddWidget(Widget *widget)
-{
+void Zone::AddWidget(Widget* widget) {
     if (find(widgets_.begin(), widgets_.end(), widget) == widgets_.end())
         widgets_.push_back(widget);
 }
 
-void Zone::Activate()
-{
+void Zone::Activate() {
     UpdateCurrentActionContextModifiers();
     //TODO: fix WidgetN forme HomeZone stops working if subzone has Shift+WidgetN but no WidgetN / subsone requires redefining WidgetN if there are WidgetN+ModifierX
-    for (auto &widget : widgets_)
-    {
+    for (auto& widget : widgets_) {
         if (IsSameString(widget->GetName(), "OnZoneActivation"))
-            for (auto &actionContext :  GetActionContexts(widget))
+            for (auto& actionContext : GetActionContexts(widget))
                 actionContext->DoAction(1.0);
 
         widget->Configure(GetActionContexts(widget));
     }
 
     isActive_ = true;
-    
+
     if (IsSameString(GetName(), "VCA"))
         zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateVCAMode();
     else if (IsSameString(GetName(), "Folder"))
@@ -1639,21 +1296,17 @@ void Zone::Activate()
 
     zoneManager_->GetSurface()->SendOSCMessage(GetName());
 
-    for (auto &subZone : subZones_)
+    for (auto& subZone : subZones_)
         subZone->Deactivate();
 
-    for (auto &includedZone : includedZones_)
+    for (auto& includedZone : includedZones_)
         includedZone->Activate();
 }
 
-void Zone::Deactivate()
-{
-    if (!isActive_)
-        return;
-    for (auto &widget : widgets_)
-    {
-        for (auto &actionContext : GetActionContexts(widget))
-        {
+void Zone::Deactivate() {
+    if (!isActive_) return;
+    for (auto& widget : widgets_) {
+        for (auto& actionContext : GetActionContexts(widget)) {
             actionContext->UpdateWidgetValue(0.0);
             actionContext->UpdateWidgetValue("");
 
@@ -1663,221 +1316,176 @@ void Zone::Deactivate()
     }
 
     isActive_ = false;
-    
+
     if (IsSameString(GetName(), "VCA"))
         zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateVCAMode();
     else if (IsSameString(GetName(), "Folder"))
         zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateFolderMode();
     else if (IsSameString(GetName(), "SelectedTracks"))
         zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateSelectedTracksMode();
-    
-    for (auto &includedZone : includedZones_)
+
+    for (auto& includedZone : includedZones_)
         includedZone->Deactivate();
 
-    for (auto &subZone : subZones_)
+    for (auto& subZone : subZones_)
         subZone->Deactivate();
 }
 
-void Zone::RequestUpdate()
-{
-    if (! isActive_)
-        return;
-    
-    for (auto &subZone : subZones_)
+void Zone::RequestUpdate() {
+    if (!isActive_) return;
+
+    for (auto& subZone : subZones_)
         subZone->RequestUpdate();
 
-    for (auto &includedZone : includedZones_)
+    for (auto& includedZone : includedZones_)
         includedZone->RequestUpdate();
-    
-    for (auto widget : widgets_)
-    {
-        if ( ! widget->GetHasBeenUsedByUpdate())
-        {
+
+    for (auto widget : widgets_) {
+        if (!widget->GetHasBeenUsedByUpdate()) {
             widget->SetHasBeenUsedByUpdate();
             RequestUpdateWidget(widget);
         }
     }
 }
 
-void Zone::SetXTouchDisplayColors(const char *colors)
-{
-    for (auto &widget : widgets_)
-       widget->SetXTouchDisplayColors(colors);
+void Zone::SetXTouchDisplayColors(const char* colors) {
+    for (auto& widget : widgets_)
+        widget->SetXTouchDisplayColors(colors);
 }
 
-void Zone::RestoreXTouchDisplayColors()
-{
-    for (auto &widget : widgets_)
+void Zone::RestoreXTouchDisplayColors() {
+    for (auto& widget : widgets_)
         widget->RestoreXTouchDisplayColors();
 }
 
-void Zone::DoAction(Widget *widget, bool &isUsed, double value)
-{
-    if (! isActive_ || isUsed)
-        return;
-        
-    for (auto &subZone : subZones_)
+void Zone::DoAction(Widget* widget, bool& isUsed, double value) {
+    if (!isActive_ || isUsed) return;
+
+    for (auto& subZone : subZones_)
         subZone->DoAction(widget, isUsed, value);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
-    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end())
-    {
+    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end()) {
         isUsed = true;
-        
-        for (auto &actionContext : GetActionContexts(widget))
+
+        for (auto& actionContext : GetActionContexts(widget))
             actionContext->DoAction(value);
-    }
-    else
-    {
-        for (auto &includedZone : includedZones_)
+    } else {
+        for (auto& includedZone : includedZones_)
             includedZone->DoAction(widget, isUsed, value);
     }
 }
 
-void Zone::DoRelativeAction(Widget *widget, bool &isUsed, double delta)
-{
-    if (! isActive_ || isUsed)
-        return;
-    
-    for (auto &subZone : subZones_)
+void Zone::DoRelativeAction(Widget* widget, bool& isUsed, double delta) {
+    if (!isActive_ || isUsed) return;
+
+    for (auto& subZone : subZones_)
         subZone->DoRelativeAction(widget, isUsed, delta);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
-    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end())
-    {
+    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end()) {
         isUsed = true;
 
-        for (auto &actionContext : GetActionContexts(widget))
+        for (auto& actionContext : GetActionContexts(widget))
             actionContext->DoRelativeAction(delta);
-    }
-    else
-    {
-        for (auto &includedZone : includedZones_)
+    } else {
+        for (auto& includedZone : includedZones_)
             includedZone->DoRelativeAction(widget, isUsed, delta);
     }
 }
 
-void Zone::DoRelativeAction(Widget *widget, bool &isUsed, int accelerationIndex, double delta)
-{
-    if (! isActive_ || isUsed)
-        return;
+void Zone::DoRelativeAction(Widget* widget, bool& isUsed, int accelerationIndex, double delta) {
+    if (!isActive_ || isUsed) return;
 
-    for (auto &subZone : subZones_)
+    for (auto& subZone : subZones_)
         subZone->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
-    
-    if (isUsed)
-        return;
 
-    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end())
-    {
+    if (isUsed) return;
+
+    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end()) {
         isUsed = true;
 
-        for (auto &actionContext : GetActionContexts(widget))
+        for (auto& actionContext : GetActionContexts(widget))
             actionContext->DoRelativeAction(accelerationIndex, delta);
-    }
-    else
-    {
-        for (auto &includedZone : includedZones_)
+    } else {
+        for (auto& includedZone : includedZones_)
             includedZone->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
     }
 }
 
-void Zone::DoTouch(Widget *widget, const char *widgetName, bool &isUsed, double value)
-{
-    if (! isActive_ || isUsed)
-        return;
+void Zone::DoTouch(Widget* widget, const char* widgetName, bool& isUsed, double value) {
+    if (!isActive_ || isUsed) return;
 
-    for (auto &subZone : subZones_)
+    for (auto& subZone : subZones_)
         subZone->DoTouch(widget, widgetName, isUsed, value);
-    
-    if (isUsed)
-        return;
-    
-    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end())
-    {
+
+    if (isUsed) return;
+
+    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end()) {
         isUsed = true;
 
-        for (auto &actionContext : GetActionContexts(widget))
+        for (auto& actionContext : GetActionContexts(widget))
             actionContext->DoTouch(value);
-    }
-    else 
-    {
-        for (auto &includedZone : includedZones_)
+    } else {
+        for (auto& includedZone : includedZones_)
             includedZone->DoTouch(widget, widgetName, isUsed, value);
     }
 }
 
-void Zone::UpdateCurrentActionContextModifiers()
-{
-    for (auto &widget : widgets_)
-    {
+void Zone::UpdateCurrentActionContextModifiers() {
+    for (auto& widget : widgets_) {
         UpdateCurrentActionContextModifier(widget);
         widget->Configure(GetActionContexts(widget, currentActionContextModifiers_[widget]));
     }
-    
-    for (auto &includedZone : includedZones_)
+
+    for (auto& includedZone : includedZones_)
         includedZone->UpdateCurrentActionContextModifiers();
 
-    for (auto &subZone : subZones_)
+    for (auto& subZone : subZones_)
         subZone->UpdateCurrentActionContextModifiers();
 }
 
-void Zone::UpdateCurrentActionContextModifier(Widget *widget)
-{
-    for(int i = 0; i < (int)widget->GetSurface()->GetModifiers().size(); ++i)
-    {
-        if(actionContextDictionary_[widget].count(widget->GetSurface()->GetModifiers()[i]) > 0)
-        {
+void Zone::UpdateCurrentActionContextModifier(Widget* widget) {
+    for (int i = 0; i < (int) widget->GetSurface()->GetModifiers().size(); ++i) {
+        if (actionContextDictionary_[widget].count(widget->GetSurface()->GetModifiers()[i]) > 0) {
             currentActionContextModifiers_[widget] = widget->GetSurface()->GetModifiers()[i];
             break;
         }
     }
 }
 
-ActionContext *Zone::AddActionContext(Widget *widget, int modifier, Zone *zone, const char *actionName, vector<string> &params)
-{
+ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params) {
     const auto& action = csi_->GetAction(actionName);
-    if (!IsSameString(action->GetName(), actionName) && IsSameString(action->GetName(), "InvalidAction")) LogToConsole("[ERROR] @%s/{%s} [%s] InvalidAction: %s\n"
-        ,widget->GetSurface()->GetName()
-        ,zone->GetName()
-        ,widget->GetName()
-        ,actionName
-    );
+    if (!IsSameString(action->GetName(), actionName) && IsSameString(action->GetName(), "InvalidAction"))
+        LogToConsole("[ERROR] @%s/{%s} [%s] InvalidAction: %s\n", widget->GetSurface()->GetName(), zone->GetName(), widget->GetName(), actionName);
 
     actionContextDictionary_[widget][modifier].push_back(make_unique<ActionContext>(csi_, action, widget, zone, 0, params));
 
     return actionContextDictionary_[widget][modifier].back().get();
 }
 
-const vector<unique_ptr<ActionContext>> &Zone::GetActionContexts(Widget *widget)
-{
-    if(currentActionContextModifiers_.count(widget) == 0)
-        UpdateCurrentActionContextModifier(widget);
-    
+const vector<unique_ptr<ActionContext>>& Zone::GetActionContexts(Widget* widget) {
+    if (currentActionContextModifiers_.count(widget) == 0) UpdateCurrentActionContextModifier(widget);
+
     bool isTouched = false;
     bool isToggled = false;
-    
-    if(widget->GetSurface()->GetIsChannelTouched(widget->GetChannelNumber()))
-        isTouched = true;
 
-    if(widget->GetSurface()->GetIsChannelToggled(widget->GetChannelNumber()))
-        isToggled = true;
-    
-    if(currentActionContextModifiers_.count(widget) > 0 && actionContextDictionary_.count(widget) > 0)
-    {
+    if (widget->GetSurface()->GetIsChannelTouched(widget->GetChannelNumber())) isTouched = true;
+
+    if (widget->GetSurface()->GetIsChannelToggled(widget->GetChannelNumber())) isToggled = true;
+
+    if (currentActionContextModifiers_.count(widget) > 0 && actionContextDictionary_.count(widget) > 0) {
         int modifier = currentActionContextModifiers_[widget];
-        
-        if(isTouched && isToggled && actionContextDictionary_[widget].count(modifier + 3) > 0)
+
+        if (isTouched && isToggled && actionContextDictionary_[widget].count(modifier + 3) > 0)
             return actionContextDictionary_[widget][modifier + 3];
-        else if(isTouched && actionContextDictionary_[widget].count(modifier + 1) > 0)
+        else if (isTouched && actionContextDictionary_[widget].count(modifier + 1) > 0)
             return actionContextDictionary_[widget][modifier + 1];
-        else if(isToggled && actionContextDictionary_[widget].count(modifier + 2) > 0)
+        else if (isToggled && actionContextDictionary_[widget].count(modifier + 2) > 0)
             return actionContextDictionary_[widget][modifier + 2];
-        else if(actionContextDictionary_[widget].count(modifier) > 0)
+        else if (actionContextDictionary_[widget].count(modifier) > 0)
             return actionContextDictionary_[widget][modifier];
     }
 
@@ -1887,165 +1495,137 @@ const vector<unique_ptr<ActionContext>> &Zone::GetActionContexts(Widget *widget)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Widget
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-ZoneManager *Widget::GetZoneManager()
-{
-    return surface_->GetZoneManager();
-}
+ZoneManager* Widget::GetZoneManager() { return surface_->GetZoneManager(); }
 
-void Widget::Configure(const vector<unique_ptr<ActionContext>> &contexts)
-{
-    for (auto &feedbackProcessor : feedbackProcessors_)
+void Widget::Configure(const vector<unique_ptr<ActionContext>>& contexts) {
+    for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->Configure(contexts);
 }
 
-void  Widget::UpdateValue(const PropertyList &properties, double value)
-{
-    for (auto &feedbackProcessor : feedbackProcessors_)
+void Widget::UpdateValue(const PropertyList& properties, double value) {
+    for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->SetValue(properties, value);
 }
 
-void  Widget::UpdateValue(const PropertyList &properties, const char * const &value)
-{
-    for (auto &feedbackProcessor : feedbackProcessors_)
+void Widget::UpdateValue(const PropertyList& properties, const char* const& value) {
+    for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->SetValue(properties, value);
 }
 
-void  Widget::ForceValue(const PropertyList &properties, const char * const &value)
-{
-    for (auto &feedbackProcessor : feedbackProcessors_)
+void Widget::ForceValue(const PropertyList& properties, const char* const& value) {
+    for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->ForceValue(properties, value);
 }
 
-void  Widget::UpdateColorValue(const rgba_color &color)
-{
-    for (auto &feedbackProcessor : feedbackProcessors_)
+void Widget::UpdateColorValue(const rgba_color& color) {
+    for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->SetColorValue(color);
 }
 
-void Widget::SetXTouchDisplayColors(const char *colors)
-{
-    for (auto &feedbackProcessor : feedbackProcessors_)
+void Widget::SetXTouchDisplayColors(const char* colors) {
+    for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->SetXTouchDisplayColors(colors);
 }
 
-void Widget::RestoreXTouchDisplayColors()
-{
-    for (auto &feedbackProcessor : feedbackProcessors_)
+void Widget::RestoreXTouchDisplayColors() {
+    for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->RestoreXTouchDisplayColors();
 }
 
-void  Widget::ForceClear()
-{
-    for (auto &feedbackProcessor : feedbackProcessors_)
+void Widget::ForceClear() {
+    for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->ForceClear();
 }
 
-void Widget::LogInput(double value)
-{
+void Widget::LogInput(double value) {
     if (g_surfaceInDisplay) LogToConsole("wIN <- %s %s %f\n", GetSurface()->GetName(), GetName(), value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi_FeedbackProcessor
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void Midi_FeedbackProcessor::SendMidiSysExMessage(MIDI_event_ex_t *midiMessage)
-{
+void Midi_FeedbackProcessor::SendMidiSysExMessage(MIDI_event_ex_t* midiMessage) {
     surface_->SendMidiSysExMessage(midiMessage);
 }
 
-void Midi_FeedbackProcessor::SendMidiMessage(int first, int second, int third)
-{
+void Midi_FeedbackProcessor::SendMidiMessage(int first, int second, int third) {
     bool updateMeters = surface_->GetHasMCUMeters() && first == 0xd0; // MUST UPDATE METERS REGARDLESS OF LAST MESSAGE SENT AS METERS ON THE WILL DECAY TO OFF IF NOT UPDATE REGULARLY
- 
-    if (updateMeters  ||  first != lastMessageSent_.midi_message[0] || second != lastMessageSent_.midi_message[1] || third != lastMessageSent_.midi_message[2])
-    {
+
+    if (updateMeters || first != lastMessageSent_.midi_message[0] || second != lastMessageSent_.midi_message[1] || third != lastMessageSent_.midi_message[2]) {
         char buffer[10];
         snprintf(buffer, sizeof(buffer), "%02x %02x %02x", first, second, third);
 
-        if (updateMeters)
-            snprintf(buffer, sizeof(buffer), "%02x %02x", first, second);
+        if (updateMeters) snprintf(buffer, sizeof(buffer), "%02x %02x", first, second);
 
         this->LogMessage(buffer);
         ForceMidiMessage(first, second, third);
     }
 }
 
-void Midi_FeedbackProcessor::ForceMidiMessage(int first, int second, int third)
-{
+void Midi_FeedbackProcessor::ForceMidiMessage(int first, int second, int third) {
     lastMessageSent_.midi_message[0] = first;
     lastMessageSent_.midi_message[1] = second;
     lastMessageSent_.midi_message[2] = third;
     surface_->SendMidiMessage(first, second, third);
 }
 
-void Midi_FeedbackProcessor::LogMessage(char* value)
-{
+void Midi_FeedbackProcessor::LogMessage(char* value) {
     if (g_surfaceOutDisplay) LogToConsole("@S:'%s' [W:'%s'] MIDI: %s\n", surface_->GetName(), widget_->GetName(), value);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC_FeedbackProcessor
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void OSC_FeedbackProcessor::SetColorValue(const rgba_color &color)
-{
-    if (lastColor_ != color)
-    {
+void OSC_FeedbackProcessor::SetColorValue(const rgba_color& color) {
+    if (lastColor_ != color) {
         lastColor_ = color;
         char tmp[32];
         surface_->SendOSCMessage(this, (oscAddress_ + "/Color").c_str(), color.rgba_to_string(tmp));
     }
 }
 
-void OSC_FeedbackProcessor::ForceValue(const PropertyList &properties, double value)
-{
-    if ((GetTickCount() - GetWidget()->GetLastIncomingMessageTime()) < 50) // adjust the 50 millisecond value to give you smooth behaviour without making updates sluggish
-        return;
-
+void OSC_FeedbackProcessor::ForceValue(const PropertyList& properties, double value) {
+    if ((GetTickCount() - GetWidget()->GetLastIncomingMessageTime()) < 50) return; //FIXME: hardcoded to const or setting.  adjust the 50 millisecond value to give you smooth behaviour without making updates sluggish  
     lastDoubleValue_ = value;
     surface_->SendOSCMessage(this, oscAddress_.c_str(), value);
 }
 
-void OSC_FeedbackProcessor::ForceValue(const PropertyList &properties, const char * const &value)
-{
+void OSC_FeedbackProcessor::ForceValue(const PropertyList& properties, const char* const& value) {
     lastStringValue_ = value;
     char tmp[MEDBUF];
-    surface_->SendOSCMessage(this, oscAddress_.c_str(), GetWidget()->GetSurface()->GetRestrictedLengthText(value,tmp,sizeof(tmp)));
+    surface_->SendOSCMessage(this, oscAddress_.c_str(), GetWidget()->GetSurface()->GetRestrictedLengthText(value, tmp, sizeof(tmp)));
 }
 
-void OSC_FeedbackProcessor::ForceClear()
-{
+void OSC_FeedbackProcessor::ForceClear() {
     lastDoubleValue_ = 0.0;
     surface_->SendOSCMessage(this, oscAddress_.c_str(), 0.0);
-    
     lastStringValue_ = "";
     surface_->SendOSCMessage(this, oscAddress_.c_str(), "");
 }
 
-void OSC_IntFeedbackProcessor::ForceClear()
-{
+void OSC_IntFeedbackProcessor::ForceClear() {
     lastDoubleValue_ = 0.0;
-    surface_->SendOSCMessage(this, oscAddress_.c_str(), (int)0);
+    surface_->SendOSCMessage(this, oscAddress_.c_str(), (int) 0);
 }
 
-void OSC_IntFeedbackProcessor::ForceValue(const PropertyList &properties, double value)
-{
+void OSC_IntFeedbackProcessor::ForceValue(const PropertyList& properties, double value) {
     lastDoubleValue_ = value;
-    
-    surface_->SendOSCMessage(this, oscAddress_.c_str(), (int)value);
+    surface_->SendOSCMessage(this, oscAddress_.c_str(), (int) value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ZoneManager
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-ZoneManager::ZoneManager(CSurfIntegrator *const csi, ControlSurface *surface, const string &zoneFolder, const string &fxZoneFolder) : csi_(csi), surface_(surface), zoneFolder_(zoneFolder), fxZoneFolder_(fxZoneFolder == "" ? zoneFolder : fxZoneFolder) {}
+ZoneManager::ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& fxZoneFolder)
+    : csi_(csi), surface_(surface), zoneFolder_(zoneFolder), fxZoneFolder_(fxZoneFolder == "" ? zoneFolder : fxZoneFolder) {
+}
 
-Navigator *ZoneManager::GetNavigatorForTrack(MediaTrack *track) { return surface_->GetPage()->GetTrackNavigationManager()->GetNavigatorForTrack(track); }
-Navigator *ZoneManager::GetMasterTrackNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetMasterTrackNavigator(); }
-Navigator *ZoneManager::GetSelectedTrackNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetSelectedTrackNavigator(); }
-Navigator *ZoneManager::GetFocusedFXNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetFocusedFXNavigator(); }
+Navigator* ZoneManager::GetNavigatorForTrack(MediaTrack* track) { return surface_->GetPage()->GetTrackNavigationManager()->GetNavigatorForTrack(track); }
+Navigator* ZoneManager::GetMasterTrackNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetMasterTrackNavigator(); }
+Navigator* ZoneManager::GetSelectedTrackNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetSelectedTrackNavigator(); }
+Navigator* ZoneManager::GetFocusedFXNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetFocusedFXNavigator(); }
 int ZoneManager::GetNumChannels() { return surface_->GetNumChannels(); }
 
-void ZoneManager::Initialize()
-{
+void ZoneManager::Initialize() {
     PreProcessZones();
 
     if (zoneInfo_.find("Home") == zoneInfo_.end())
@@ -2055,7 +1635,6 @@ void ZoneManager::Initialize()
     LoadZoneFile(homeZone_.get(), "");
     zoneInfo_["Home"].isLoaded = true;
     zoneInfo_["Home"].isReferenced = true;
-    
     if (zoneInfo_.find("LastTouchedFXParam") != zoneInfo_.end()) {
         lastTouchedFXParamZone_ = make_shared<Zone>(csi_, this, GetFocusedFXNavigator(), 0, "LastTouchedFXParam", "LastTouchedFXParam", zoneInfo_["LastTouchedFXParam"].filePath);
         LoadZoneFile(lastTouchedFXParamZone_.get(), "");
@@ -2076,35 +1655,33 @@ void ZoneManager::Initialize()
     } else {
         for (const auto& entry : zoneInfo_) {
             if (IsSameString(entry.first, "FXEpilogue")
-             || IsSameString(entry.first, "FXPrologue")
-             || IsSameString(entry.first, "FXRowLayout")
-             || IsSameString(entry.first, "FXWidgetLayout")
-             || IsSameString(entry.first, "GoZones")
+                || IsSameString(entry.first, "FXPrologue")
+                || IsSameString(entry.first, "FXRowLayout")
+                || IsSameString(entry.first, "FXWidgetLayout")
+                || IsSameString(entry.first, "GoZones")
             ) continue;
             if (!entry.second.isLoaded && !entry.second.isFxZone) {
                 zoneList.push_back(entry.first);
             }
         }
         LoadZones(goZones_, zoneList);
-    
+
         for (const auto& entry : zoneInfo_) {
-            CSIZoneInfo zoneInfo = entry.second;
+            ZoneInfo zoneInfo = entry.second;
             if (zoneInfo.isLoaded && !zoneInfo.isReferenced)
                 if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Zone '%s' was loaded but never referenced! %s\n", entry.first.c_str(), GetRelativePath(zoneInfo.filePath.c_str()));
-            if (!zoneInfo.isLoaded && zoneInfo.isReferenced)
-                LogToConsole("[ERROR] Zone '%s' was referenced but not loaded! (%s)\n", entry.first.c_str(), GetRelativePath(zoneInfo.filePath.c_str()));
+            if (!zoneInfo.isLoaded && zoneInfo.isReferenced) LogToConsole("[ERROR] Zone '%s' was referenced but not loaded! (%s)\n", entry.first.c_str(), GetRelativePath(zoneInfo.filePath.c_str()));
         }
     }
 
     homeZone_->Activate();
 }
 
-void ZoneManager::PreProcessZoneFile(const string &filePath)
-{
+void ZoneManager::PreProcessZoneFile(const string& filePath) {
     try {
         ifstream file(filePath);
-        
-        CSIZoneInfo info;
+
+        ZoneInfo info;
         info.filePath = filePath;
 
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] PreProcessZoneFile: %s\n", GetRelativePath(filePath.c_str()));
@@ -2113,30 +1690,25 @@ void ZoneManager::PreProcessZoneFile(const string &filePath)
 
         for (string line; getline(file, line);) {
             TrimLine(line);
-            
-            if (IsCommentedOrEmpty(line))
-                continue;
-            
+
+            if (IsCommentedOrEmpty(line)) continue;
+
             vector<string> tokens;
             GetTokens(tokens, line);
 
             PropertyList pList;
             GetPropertiesFromTokens(0, (int) tokens.size(), tokens, pList);
-// "AU:", "AUi:", "VST:", "VST3:", "VST3i:", "VSTi:", "JS:", "Rewire:", "CLAP:", "CLAPi:", 
+            // "AU:", "AUi:", "VST:", "VST3:", "VST3i:", "VSTi:", "JS:", "Rewire:", "CLAP:", "CLAPi:",
             if (tokens[0] == "Zone" && tokens.size() > 1) {
                 info.alias = tokens.size() > 2 ? tokens[2] : tokens[1];
 
-                if (const char *propValue =  pList.get_prop(PropertyType_NavType)) {
+                if (const char* propValue = pList.get_prop(PropertyType_NavType)) {
                     NavigatorType type = Navigator::NameToType(propValue);
 
                     if (type != NavigatorType::Invalid) {
                         info.navigator = propValue;
                     } else {
-                        LogToConsole("[ERROR] Invalid value for property NavType=%s (supported: %s) in file %s\n"
-                            ,propValue
-                            ,JoinStringVector(Navigator::GetSupportedNames(), ", ").c_str()
-                            ,GetRelativePath(filePath.c_str())
-                        );
+                        LogToConsole("[ERROR] Invalid value for property NavType=%s (supported: %s) in file %s\n", propValue, JoinStringVector(Navigator::GetSupportedNames(), ", ").c_str(), GetRelativePath(filePath.c_str()));
                     }
                 }
                 //TODO: GoSubZone LeaveSubZone GoZone GoHome validity check
@@ -2146,9 +1718,7 @@ void ZoneManager::PreProcessZoneFile(const string &filePath)
 
             break;
         }
-    }
-    catch (const std::exception& e)
-    {
+    } catch (const std::exception& e) {
         LogToConsole("[ERROR] FAILED to PreProcessZoneFile in %s\n", filePath.c_str());
         LogToConsole("Exception: %s\n", e.what());
     }
@@ -2156,66 +1726,43 @@ void ZoneManager::PreProcessZoneFile(const string &filePath)
 
 static ModifierManager s_modifierManager(NULL);
 
-void ZoneManager::GetWidgetNameAndModifiers(const string &line, string &baseWidgetName, int &modifier, bool &isValueInverted, bool &isFeedbackInverted, bool &hasHoldModifier, bool &HasDoublePressPseudoModifier, bool &isDecrease, bool &isIncrease)
-{
+void ZoneManager::GetWidgetNameAndModifiers(const string& line, string& baseWidgetName, int& modifier, bool& isValueInverted, bool& isFeedbackInverted, bool& hasHoldModifier, bool& HasDoublePressPseudoModifier, bool& isDecrease, bool& isIncrease) {
     vector<string> tokens;
     GetTokens(tokens, line, '+');
-    
+
     baseWidgetName = tokens[tokens.size() - 1];
 
-    if (tokens.size() > 1)
-    {
-        for (int i = 0; i < tokens.size() - 1; ++i)
-        {
-            if (tokens[i].find("Touch") != string::npos)
-                modifier += 1;
-            else if (tokens[i] == "Toggle")
-                modifier += 2;
-            else if (tokens[i] == "Invert")
-                isValueInverted = true;
-            else if (tokens[i] == "InvertFB")
-                isFeedbackInverted = true;
-            else if (tokens[i] == "Hold")
-                hasHoldModifier = true;
-            else if (tokens[i] == "DoublePress")
-                HasDoublePressPseudoModifier = true;
-            else if (tokens[i] == "Decrease")
-                isDecrease = true;
-            else if (tokens[i] == "Increase")
-                isIncrease = true;
+    if (tokens.size() > 1) {
+        for (int i = 0; i < tokens.size() - 1; ++i) {
+            if (tokens[i].find("Touch") != string::npos) modifier += 1;
+            else if (tokens[i] == "Toggle") modifier += 2;
+            else if (tokens[i] == "Invert") isValueInverted = true;
+            else if (tokens[i] == "InvertFB") isFeedbackInverted = true;
+            else if (tokens[i] == "Hold") hasHoldModifier = true;
+            else if (tokens[i] == "DoublePress") HasDoublePressPseudoModifier = true;
+            else if (tokens[i] == "Decrease") isDecrease = true;
+            else if (tokens[i] == "Increase") isIncrease = true;
         }
     }
-    
+
     tokens.erase(tokens.begin() + tokens.size() - 1);
-    
+
     modifier += s_modifierManager.GetModifierValue(tokens);
 }
 
-void ZoneManager::GetNavigatorsForZone(const char *zoneName, const char *navigatorName, vector<Navigator *> &navigators)
-{
+void ZoneManager::GetNavigatorsForZone(const char* zoneName, const char* navigatorName, vector<Navigator*>& navigators) {
     if (IsSameString(navigatorName, "MasterTrackNavigator") || IsSameString(zoneName, "MasterTrack"))
         navigators.push_back(GetMasterTrackNavigator());
     else if (IsSameString(zoneName, "MasterTrackFXMenu"))
         for (int i = 0; i < GetNumChannels(); ++i)
             navigators.push_back(GetMasterTrackNavigator());
-    else if (IsSameString(navigatorName, "TrackNavigator") ||
-             IsSameString(zoneName, "Track") ||
-             IsSameString(zoneName, "VCA") ||
-             IsSameString(zoneName, "Folder") ||
-             IsSameString(zoneName, "SelectedTracks") ||
-             IsSameString(zoneName, "TrackSend") ||
-             IsSameString(zoneName, "TrackReceive") ||
-             IsSameString(zoneName, "TrackFXMenu"))
-        for (int i = 0; i < GetNumChannels(); ++i)
-        {
-            Navigator *channelNavigator = GetSurface()->GetPage()->GetTrackNavigationManager()->GetNavigatorForChannel(i + GetSurface()->GetChannelOffset());
+    else if (IsSameString(navigatorName, "TrackNavigator") || IsSameString(zoneName, "Track") || IsSameString(zoneName, "VCA") || IsSameString(zoneName, "Folder") || IsSameString(zoneName, "SelectedTracks") || IsSameString(zoneName, "TrackSend") || IsSameString(zoneName, "TrackReceive") || IsSameString(zoneName, "TrackFXMenu"))
+        for (int i = 0; i < GetNumChannels(); ++i) {
+            Navigator* channelNavigator = GetSurface()->GetPage()->GetTrackNavigationManager()->GetNavigatorForChannel(i + GetSurface()->GetChannelOffset());
             if (channelNavigator)
                 navigators.push_back(channelNavigator);
         }
-    else if (IsSameString(zoneName, "SelectedTrack") ||
-             IsSameString(zoneName, "SelectedTrackSend") ||
-             IsSameString(zoneName, "SelectedTrackReceive") ||
-             IsSameString(zoneName, "SelectedTrackFXMenu"))
+    else if (IsSameString(zoneName, "SelectedTrack") || IsSameString(zoneName, "SelectedTrackSend") || IsSameString(zoneName, "SelectedTrackReceive") || IsSameString(zoneName, "SelectedTrackFXMenu"))
         for (int i = 0; i < GetNumChannels(); ++i)
             navigators.push_back(GetSelectedTrackNavigator());
     else if (IsSameString(navigatorName, "FocusedFXNavigator"))
@@ -2224,7 +1771,6 @@ void ZoneManager::GetNavigatorsForZone(const char *zoneName, const char *navigat
     else
         navigators.push_back(GetSelectedTrackNavigator());
 }
-
 
 void ZoneManager::LoadZones(vector<unique_ptr<Zone>>& zones, vector<string>& zoneList) {
     string missingZoneNames;
@@ -2244,7 +1790,7 @@ void ZoneManager::LoadZones(vector<unique_ptr<Zone>>& zones, vector<string>& zon
             continue;
         }
 
-        CSIZoneInfo& zoneInfo = zoneInfoPair->second;
+        ZoneInfo& zoneInfo = zoneInfoPair->second;
         vector<Navigator*> navigators;
         GetNavigatorsForZone(zoneName.c_str(), navigatorName.c_str(), navigators);
 
@@ -2261,8 +1807,7 @@ void ZoneManager::LoadZones(vector<unique_ptr<Zone>>& zones, vector<string>& zon
                         break;
                     }
                 }
-                if (alreadyLoaded)
-                    continue;
+                if (alreadyLoaded) continue;
             } else {
                 alias += to_string(j + 1);
                 widgetSuffix = to_string(j + 1);
@@ -2279,117 +1824,84 @@ void ZoneManager::LoadZones(vector<unique_ptr<Zone>>& zones, vector<string>& zon
         LogToConsole("No .zon files found for zones: %s\n", missingZoneNames.c_str());
 }
 
-void ZoneManager::LoadZoneFile(Zone *zone, const char *widgetSuffix)
-{
+void ZoneManager::LoadZoneFile(Zone* zone, const char* widgetSuffix) {
     LoadZoneFile(zone, zone->GetSourceFilePath(), widgetSuffix);
 }
 
-void ZoneManager::LoadZoneFile(Zone *zone, const char *filePath, const char *widgetSuffix)
-{
+void ZoneManager::LoadZoneFile(Zone* zone, const char* filePath, const char* widgetSuffix) {
     ZoneFileParser::ParseFile(this, zone, filePath, widgetSuffix);
 }
 
-void ZoneManager::AddListener(ControlSurface *surface)
-{
+void ZoneManager::AddListener(ControlSurface* surface) {
     listeners_.push_back(surface->GetZoneManager());
 }
 
-void ZoneManager::SetListenerCategories(PropertyList &pList)
-{
-    if (const char *property =  pList.get_prop(PropertyType_GoHome))
-        if (IsSameString(property, "Yes"))
-            listensToGoHome_ = true;
-    
-    if (const char *property =  pList.get_prop(PropertyType_SelectedTrackSends))
-        if (IsSameString(property, "Yes"))
-            listensToSends_ = true;
-    
-    if (const char *property =  pList.get_prop(PropertyType_SelectedTrackReceives))
-        if (IsSameString(property, "Yes"))
-            listensToReceives_ = true;
-    
-    if (const char *property =  pList.get_prop(PropertyType_FXMenu))
-        if (IsSameString(property, "Yes"))
-            listensToFXMenu_ = true;
-    
-    if (const char *property =  pList.get_prop(PropertyType_SelectedTrackFX))
-        if (IsSameString(property, "Yes"))
-            listensToSelectedTrackFX_ = true;
-    
-    if (const char *property =  pList.get_prop(PropertyType_Modifiers))
-        if (IsSameString(property, "Yes"))
-            surface_->SetListensToModifiers();
+void ZoneManager::SetListenerCategories(PropertyList& pList) {
+    if (const char* property = pList.get_prop(PropertyType_GoHome)) if (IsSameString(property, "Yes")) listensToGoHome_ = true;
+    if (const char* property = pList.get_prop(PropertyType_SelectedTrackSends)) if (IsSameString(property, "Yes")) listensToSends_ = true;
+    if (const char* property = pList.get_prop(PropertyType_SelectedTrackReceives)) if (IsSameString(property, "Yes")) listensToReceives_ = true;
+    if (const char* property = pList.get_prop(PropertyType_FXMenu)) if (IsSameString(property, "Yes")) listensToFXMenu_ = true;
+    if (const char* property = pList.get_prop(PropertyType_SelectedTrackFX)) if (IsSameString(property, "Yes")) listensToSelectedTrackFX_ = true;
+    if (const char* property = pList.get_prop(PropertyType_Modifiers)) if (IsSameString(property, "Yes")) surface_->SetListensToModifiers();
 }
 
-void ZoneManager::CheckFocusedFXState()
-{
+void ZoneManager::CheckFocusedFXState() {
     int trackNumber = 0;
     int itemNumber = 0;
     int takeNumber = 0;
     int fxSlot = 0;
     int paramIndex = 0;
-    
+
     bool retVal = GetTouchedOrFocusedFX(1, &trackNumber, &itemNumber, &takeNumber, &fxSlot, &paramIndex);
-    
-    if (! isFocusedFXMappingEnabled_)
+
+    if (!isFocusedFXMappingEnabled_) 
         return;
 
-    if (! retVal || (retVal && (paramIndex & 0x01)))
-    {
+    if (!retVal || (retVal && (paramIndex & 0x01))) {
         if (focusedFXZone_ != NULL)
             ClearFocusedFX();
-        
+
         return;
     }
-    
-    if (fxSlot < 0)
-        return;
-    
-    MediaTrack *focusedTrack = NULL;
+
+    if (fxSlot < 0) return;
+
+    MediaTrack* focusedTrack = NULL;
 
     trackNumber++;
-    
-    if (retVal && ! (paramIndex & 0x01))
-    {
+
+    if (retVal && !(paramIndex & 0x01)) {
         if (trackNumber > 0)
             focusedTrack = DAW::GetTrack(trackNumber);
         else if (trackNumber == 0)
             focusedTrack = GetMasterTrack(NULL);
     }
-    
-    if (focusedTrack)
-    {
+
+    if (focusedTrack) {
         char fxName[MEDBUF];
         TrackFX_GetFXName(focusedTrack, fxSlot, fxName, sizeof(fxName));
-        
-        if(focusedFXZone_ != NULL && focusedFXZone_->GetSlotIndex() == fxSlot && IsSameString(fxName, focusedFXZone_->GetName()))
-            return;
-        else
-            ClearFocusedFX();
-        
-        if (zoneInfo_.find(fxName) != zoneInfo_.end())
-        {
+
+        if (focusedFXZone_ != NULL && focusedFXZone_->GetSlotIndex() == fxSlot && IsSameString(fxName, focusedFXZone_->GetName())) return;
+        else ClearFocusedFX();
+
+        if (zoneInfo_.find(fxName) != zoneInfo_.end()) {
             focusedFXZone_ = make_shared<Zone>(csi_, this, GetFocusedFXNavigator(), fxSlot, fxName, zoneInfo_[fxName].alias, zoneInfo_[fxName].filePath.c_str());
             LoadZoneFile(focusedFXZone_.get(), "");
             focusedFXZone_->Activate();
-        }            
+        }
     }
 }
 
-void ZoneManager::GoSelectedTrackFX()
-{
+void ZoneManager::GoSelectedTrackFX() {
     selectedTrackFXZones_.clear();
-    
-    if (MediaTrack *selectedTrack = surface_->GetPage()->GetTrackNavigationManager()->GetSelectedTrack(true))
-    {
-        for (int i = 0; i < TrackFX_GetCount(selectedTrack); ++i)
-        {
+
+    if (MediaTrack* selectedTrack = surface_->GetPage()->GetTrackNavigationManager()->GetSelectedTrack(true)) {
+        for (int i = 0; i < TrackFX_GetCount(selectedTrack); ++i) {
             char fxName[MEDBUF];
-            
+
             TrackFX_GetFXName(selectedTrack, i, fxName, sizeof(fxName));
-            
-            if (zoneInfo_.find(fxName) != zoneInfo_.end())
-            {
+
+            if (zoneInfo_.find(fxName) != zoneInfo_.end()) {
                 shared_ptr<Zone> zone = make_shared<Zone>(csi_, this, GetSelectedTrackNavigator(), i, fxName, zoneInfo_[fxName].alias, zoneInfo_[fxName].filePath);
                 LoadZoneFile(zone.get(), "");
                 selectedTrackFXZones_.push_back(zone);
@@ -2399,281 +1911,241 @@ void ZoneManager::GoSelectedTrackFX()
     }
 }
 
-void ZoneManager::GoFXSlot(MediaTrack *track, Navigator *navigator, int fxSlot)
-{
-    if (fxSlot > TrackFX_GetCount(track) - 1)
-        return;
-        
+void ZoneManager::GoFXSlot(MediaTrack* track, Navigator* navigator, int fxSlot) {
+    if (fxSlot > TrackFX_GetCount(track) - 1) return;
+
     char fxName[MEDBUF];
-    
+
     TrackFX_GetFXName(track, fxSlot, fxName, sizeof(fxName));
 
-    if (zoneInfo_.find(fxName) != zoneInfo_.end())
-    {
-        ClearFXSlot();        
+    if (zoneInfo_.find(fxName) != zoneInfo_.end()) {
+        ClearFXSlot();
         fxSlotZone_ = make_shared<Zone>(csi_, this, navigator, fxSlot, fxName, zoneInfo_[fxName].alias, zoneInfo_[fxName].filePath);
         LoadZoneFile(fxSlotZone_.get(), "");
         fxSlotZone_->Activate();
-    }
-    else
+    } else
         TrackFX_SetOpen(track, fxSlot, true);
 }
 
-void ZoneManager::UpdateCurrentActionContextModifiers()
-{  
+void ZoneManager::UpdateCurrentActionContextModifiers() {
     if (learnFocusedFXZone_ != NULL)
         learnFocusedFXZone_->UpdateCurrentActionContextModifiers();
 
     if (lastTouchedFXParamZone_ != NULL)
         lastTouchedFXParamZone_->UpdateCurrentActionContextModifiers();
-    
+
     if (focusedFXZone_ != NULL)
         focusedFXZone_->UpdateCurrentActionContextModifiers();
-    
+
     for (int i = 0; i < selectedTrackFXZones_.size(); ++i)
         selectedTrackFXZones_[i]->UpdateCurrentActionContextModifiers();
-    
+
     if (fxSlotZone_ != NULL)
         fxSlotZone_->UpdateCurrentActionContextModifiers();
-    
+
     if (homeZone_ != NULL)
         homeZone_->UpdateCurrentActionContextModifiers();
-    
+
     for (int i = 0; i < goZones_.size(); ++i)
         goZones_[i]->UpdateCurrentActionContextModifiers();
 }
 
-void ZoneManager::PreProcessZones()
-{
+void ZoneManager::PreProcessZones() {
     if (zoneFolder_[0] == 0)
         return LogToConsole("[ERROR] Please check your CSI.ini, cannot find Zone folder for %s in: %s/CSI/Zones/", GetSurface()->GetName(), GetResourcePath());
 
-    vector<string>  zoneFilesToProcess;
+    vector<string> zoneFilesToProcess;
     collectFilesOfType(".zon", zoneFolder_, zoneFilesToProcess);
 
     if (zoneFilesToProcess.size() == 0)
         return LogToConsole("[ERROR] Cannot find Zone files for %s in: %s", GetSurface()->GetName(), zoneFolder_.c_str());
-    
+
     collectFilesOfType(".zon", fxZoneFolder_, zoneFilesToProcess);
 
-    for (const string &zoneFile : zoneFilesToProcess)
+    for (const string& zoneFile : zoneFilesToProcess)
         PreProcessZoneFile(zoneFile);
 }
 
-void ZoneManager::DoAction(Widget *widget, double value)
-{
+void ZoneManager::DoAction(Widget* widget, double value) {
     widget->LogInput(value);
-    
+
     bool isUsed = false;
-    
+
     DoAction(widget, value, isUsed);
 }
-    
-void ZoneManager::DoAction(Widget *widget, double value, bool &isUsed)
-{
+
+void ZoneManager::DoAction(Widget* widget, double value, bool& isUsed) {
     if (!widget->IsVirtual() && value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE && surface_->GetModifiers().size() > 0)
         WidgetMoved(this, widget, surface_->GetModifiers()[0]);
-    
+
     if (learnFocusedFXZone_ != NULL)
         learnFocusedFXZone_->DoAction(widget, isUsed, value);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     if (lastTouchedFXParamZone_ != NULL && isLastTouchedFXParamMappingEnabled_)
         lastTouchedFXParamZone_->DoAction(widget, isUsed, value);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
     if (focusedFXZone_ != NULL)
         focusedFXZone_->DoAction(widget, isUsed, value);
-    
-    if (isUsed)
-        return;
-    
+
+    if (isUsed) return;
+
     for (int i = 0; i < selectedTrackFXZones_.size(); ++i)
         selectedTrackFXZones_[i]->DoAction(widget, isUsed, value);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     if (fxSlotZone_ != NULL)
         fxSlotZone_->DoAction(widget, isUsed, value);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     for (int i = 0; i < goZones_.size(); ++i)
         goZones_[i]->DoAction(widget, isUsed, value);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
     if (homeZone_ != NULL)
         homeZone_->DoAction(widget, isUsed, value);
 }
 
-void ZoneManager::DoRelativeAction(Widget *widget, double delta)
-{
+void ZoneManager::DoRelativeAction(Widget* widget, double delta) {
     widget->LogInput(delta);
-    
+
     bool isUsed = false;
-    
+
     DoRelativeAction(widget, delta, isUsed);
 }
 
-void ZoneManager::DoRelativeAction(Widget *widget, double delta, bool &isUsed)
-{
+void ZoneManager::DoRelativeAction(Widget* widget, double delta, bool& isUsed) {
     if (surface_->GetModifiers().size() > 0)
         WidgetMoved(this, widget, surface_->GetModifiers()[0]);
 
     if (learnFocusedFXZone_ != NULL)
         learnFocusedFXZone_->DoRelativeAction(widget, isUsed, delta);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
     if (lastTouchedFXParamZone_ != NULL && isLastTouchedFXParamMappingEnabled_)
         lastTouchedFXParamZone_->DoRelativeAction(widget, isUsed, delta);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
     if (focusedFXZone_ != NULL)
         focusedFXZone_->DoRelativeAction(widget, isUsed, delta);
-    
-    if (isUsed)
-        return;
-    
+
+    if (isUsed) return;
+
     for (int i = 0; i < selectedTrackFXZones_.size(); ++i)
         selectedTrackFXZones_[i]->DoRelativeAction(widget, isUsed, delta);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     if (fxSlotZone_ != NULL)
         fxSlotZone_->DoRelativeAction(widget, isUsed, delta);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     for (int i = 0; i < goZones_.size(); ++i)
         goZones_[i]->DoRelativeAction(widget, isUsed, delta);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     if (homeZone_ != NULL)
         homeZone_->DoRelativeAction(widget, isUsed, delta);
 }
 
-void ZoneManager::DoRelativeAction(Widget *widget, int accelerationIndex, double delta)
-{
+void ZoneManager::DoRelativeAction(Widget* widget, int accelerationIndex, double delta) {
     widget->LogInput(delta);
-    
+
     bool isUsed = false;
-    
+
     DoRelativeAction(widget, accelerationIndex, delta, isUsed);
 }
 
-void ZoneManager::DoRelativeAction(Widget *widget, int accelerationIndex, double delta, bool &isUsed)
-{
+void ZoneManager::DoRelativeAction(Widget* widget, int accelerationIndex, double delta, bool& isUsed) {
     if (surface_->GetModifiers().size() > 0)
         WidgetMoved(this, widget, surface_->GetModifiers()[0]);
 
     if (learnFocusedFXZone_ != NULL)
         learnFocusedFXZone_->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
     if (lastTouchedFXParamZone_ != NULL && isLastTouchedFXParamMappingEnabled_)
         lastTouchedFXParamZone_->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     if (focusedFXZone_ != NULL)
         focusedFXZone_->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
-    
-    if (isUsed)
-        return;
-    
+
+    if (isUsed) return;
+
     for (int i = 0; i < selectedTrackFXZones_.size(); ++i)
         selectedTrackFXZones_[i]->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     if (fxSlotZone_ != NULL)
         fxSlotZone_->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     for (int i = 0; i < goZones_.size(); ++i)
         goZones_[i]->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
     if (homeZone_ != NULL)
         homeZone_->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
 }
 
-void ZoneManager::DoTouch(Widget *widget, double value)
-{
+void ZoneManager::DoTouch(Widget* widget, double value) {
     widget->LogInput(value);
-    
     bool isUsed = false;
-    
     DoTouch(widget, value, isUsed);
 }
 
-void ZoneManager::DoTouch(Widget *widget, double value, bool &isUsed)
-{
+void ZoneManager::DoTouch(Widget* widget, double value, bool& isUsed) {
     surface_->TouchChannel(widget->GetChannelNumber(), value != 0);
-       
+
     // GAW -- temporary
     //if (surface_->GetModifiers().GetSize() > 0 && value != 0.0) // ignore touch releases for Learn mode
-        //WidgetMoved(this, widget, surface_->GetModifiers().Get()[0]);
+    //WidgetMoved(this, widget, surface_->GetModifiers().Get()[0]);
 
     //if (learnFocusedFXZone_ != NULL)
-        //learnFocusedFXZone_->DoTouch(widget, widget->GetName(), isUsed, value);
+    //learnFocusedFXZone_->DoTouch(widget, widget->GetName(), isUsed, value);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
     if (lastTouchedFXParamZone_ != NULL && isLastTouchedFXParamMappingEnabled_)
         lastTouchedFXParamZone_->DoTouch(widget, widget->GetName(), isUsed, value);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     if (focusedFXZone_ != NULL)
         focusedFXZone_->DoTouch(widget, widget->GetName(), isUsed, value);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     for (int i = 0; i < selectedTrackFXZones_.size(); ++i)
         selectedTrackFXZones_[i]->DoTouch(widget, widget->GetName(), isUsed, value);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     if (fxSlotZone_ != NULL)
         fxSlotZone_->DoTouch(widget, widget->GetName(), isUsed, value);
-    
-    if (isUsed)
-        return;
+
+    if (isUsed) return;
 
     for (int i = 0; i < goZones_.size(); ++i)
         goZones_[i]->DoTouch(widget, widget->GetName(), isUsed, value);
 
-    if (isUsed)
-        return;
+    if (isUsed) return;
 
     if (homeZone_ != NULL)
         homeZone_->DoTouch(widget, widget->GetName(), isUsed, value);
@@ -2682,40 +2154,34 @@ void ZoneManager::DoTouch(Widget *widget, double value, bool &isUsed)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ModifierManager
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void ModifierManager::RecalculateModifiers()
-{
-    if (surface_ == NULL && page_ == NULL)
-        return;
-    
-    if (modifierCombinations_.ResizeOK(1,false))
-      modifierCombinations_.Get()[0] = 0 ;
-           
+void ModifierManager::RecalculateModifiers() {
+    if (surface_ == NULL && page_ == NULL) return;
+
+    if (modifierCombinations_.ResizeOK(1, false))
+        modifierCombinations_.Get()[0] = 0;
     Modifiers activeModifierIndices[MaxModifiers];
     int activeModifierIndices_cnt = 0;
-    
+
     for (int i = 0; i < MaxModifiers; ++i)
         if (modifiers_[i].isEngaged)
-            activeModifierIndices[activeModifierIndices_cnt++] = (Modifiers)i;
-    
-    if (activeModifierIndices_cnt>0)
-    {
-        GetCombinations(activeModifierIndices,activeModifierIndices_cnt, modifierCombinations_);
+            activeModifierIndices[activeModifierIndices_cnt++] = (Modifiers) i;
+
+    if (activeModifierIndices_cnt > 0) {
+        GetCombinations(activeModifierIndices, activeModifierIndices_cnt, modifierCombinations_);
         qsort(modifierCombinations_.Get(), modifierCombinations_.GetSize(), sizeof(modifierCombinations_.Get()[0]), intcmp_rev);
     }
-    
+
     modifierVector_.clear();
-    
+
     for (int i = 0; i < modifierCombinations_.GetSize(); ++i)
         modifierVector_.push_back(modifierCombinations_.Get()[i]);
-    
     if (surface_ != NULL)
         surface_->GetZoneManager()->UpdateCurrentActionContextModifiers();
     else if (page_ != NULL)
         page_->UpdateCurrentActionContextModifiers();
 }
 
-void ModifierManager::SetLatchModifier(bool value, Modifiers modifier, int latchTime)
-{
+void ModifierManager::SetLatchModifier(bool value, Modifiers modifier, int latchTime) {
     if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
         const char* modifierName = stringFromModifier(modifier);
         DWORD keyReleasedTime = GetTickCount();
@@ -2746,49 +2212,37 @@ void ModifierManager::SetLatchModifier(bool value, Modifiers modifier, int latch
             modifiers_[modifier].pressedTime = 0;
         }
     }
-    
     RecalculateModifiers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // TrackNavigationManager
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void TrackNavigationManager::RebuildTracks()
-{
+void TrackNavigationManager::RebuildTracks() {
     int oldTracksSize = (int) tracks_.size();
 
     tracks_.clear();
 
-    if (isFolderViewActive_)
-    {
+    if (isFolderViewActive_) {
         parentOfCurrentFolderTrack_ = nullptr;
         std::vector<MediaTrack*> ancestorStack;
 
         // Find the parent of the current folder track, and the index of the first track in the folder
         int trackID = 1;
-        if (currentFolderTrackID_ > 0 && currentFolderTrackID_ < GetNumTracks())
-        {
-            for (; trackID <= GetNumTracks(); trackID++)
-            {
+        if (currentFolderTrackID_ > 0 && currentFolderTrackID_ < GetNumTracks()) {
+            for (; trackID <= GetNumTracks(); trackID++) {
                 MediaTrack* track = CSurf_TrackFromID(trackID, followMCP_);
                 int depthOffset = static_cast<int>(GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH"));
 
-                if (trackID == currentFolderTrackID_)
-                {
-                    if (depthOffset == 1)
-                    {
-                        trackID++; // The next track is the first one in the folder (a folder cannot be empty)
-                    }
-                    else // The currentFolderTrackID_ is not a folder actually
-                    {
-                        if (!ancestorStack.empty())
-                        {
+                if (trackID == currentFolderTrackID_) {
+                    if (depthOffset == 1) {
+                        trackID++; // next track is the first one in the folder (a folder cannot be empty)
+                    } else { // currentFolderTrackID_ is not a folder actually
+                        if (!ancestorStack.empty()) {
                             currentFolderTrackID_ = GetIdFromTrack(ancestorStack.back()); // Back to last parent folder
                             trackID = currentFolderTrackID_ + 1; // Next track is the first one in the folder
                             ancestorStack.pop_back();
-                        }
-                        else
-                        {
+                        } else {
                             currentFolderTrackID_ = 0; // Back to the root level
                             trackID = 1;
                         }
@@ -2804,31 +2258,23 @@ void TrackNavigationManager::RebuildTracks()
         }
 
         // Set the parent folder ancestor stack
-        if (!ancestorStack.empty())
-            parentOfCurrentFolderTrack_ = ancestorStack.back();
+        if (!ancestorStack.empty()) parentOfCurrentFolderTrack_ = ancestorStack.back();
 
         // List the tracks in the folder
         int relativeDepth = 0; // Where 0 is the level of the current folder content
-        for (; trackID <= GetNumTracks(); trackID++)
-        {
+        for (; trackID <= GetNumTracks(); trackID++) {
             MediaTrack* track = CSurf_TrackFromID(trackID, followMCP_);
-            if (!track)
-                continue;
+            if (!track) continue;
 
             if (relativeDepth == 0 && IsTrackVisible(track, followMCP_))
                 tracks_.push_back(track);
 
             relativeDepth += static_cast<int>(GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH"));
 
-            // Last track of the folder
-            if (relativeDepth < 0)
-                break;
+            if (relativeDepth < 0) break; // Last track of the folder
         }
-    }
-    else
-    {
-        for (int i = 1; i <= GetNumTracks(); ++i)
-        {
+    } else {
+        for (int i = 1; i <= GetNumTracks(); ++i) {
             MediaTrack* track = CSurf_TrackFromID(i, followMCP_);
             if (!track)
                 continue;
@@ -2838,60 +2284,49 @@ void TrackNavigationManager::RebuildTracks()
         }
     }
 
-    if (tracks_.size() < oldTracksSize)
-    {
+    if (tracks_.size() < oldTracksSize) {
         for (int i = oldTracksSize; i > tracks_.size(); i--)
             page_->ForceClearTrack(i - trackOffset_);
     }
 
-    if (tracks_.size() != oldTracksSize)
+    if (tracks_.size() != oldTracksSize) 
         page_->ForceUpdateTrackColors();
 }
 
-void TrackNavigationManager::RebuildSelectedTracks()
-{
-    if (currentTrackVCAFolderMode_ == TrackVCAFolderMode::VCA || currentTrackVCAFolderMode_ == TrackVCAFolderMode::Folder)
-        return;
+void TrackNavigationManager::RebuildSelectedTracks() {
+    if (currentTrackVCAFolderMode_ == TrackVCAFolderMode::VCA || currentTrackVCAFolderMode_ == TrackVCAFolderMode::Folder) return;
 
     int oldTracksSize = (int) selectedTracks_.size();
-    
+
     selectedTracksInclMaster_.clear();
     selectedTracks_.clear();
     for (int i = 0; i <= GetNumTracks(); i++) {
         MediaTrack* track = GetTrackFromId(i);
-        if (*(int*)GetSetMediaTrackInfo(track, "I_SELECTED", NULL)) {
+        if (*(int*) GetSetMediaTrackInfo(track, "I_SELECTED", NULL)) {
             selectedTracksInclMaster_.push_back(track);
             if (i > 0) selectedTracks_.push_back(track);
         }
     }
 
     //FIXME compare all changes
-    if (selectedTracks_.size() < oldTracksSize)
-    {
+    if (selectedTracks_.size() < oldTracksSize) {
         for (int i = oldTracksSize; i > selectedTracks_.size(); i--)
             page_->ForceClearTrack(i - selectedTracksOffset_);
     }
-    
+
     if (selectedTracks_.size() != oldTracksSize)
         page_->ForceUpdateTrackColors();
 }
 
-void TrackNavigationManager::AdjustSelectedTrackBank(int amount)
-{
-    if (MediaTrack *selectedTrack = GetSelectedTrack())
-    {
+void TrackNavigationManager::AdjustSelectedTrackBank(int amount) {
+    if (MediaTrack* selectedTrack = GetSelectedTrack()) {
         int trackNum = GetIdFromTrack(selectedTrack);
-        
+
         trackNum += amount;
-        
-        if (trackNum < 1)
-            trackNum = 1;
-        
-        if (trackNum > GetNumTracks())
-            trackNum = GetNumTracks();
-        
-        if (MediaTrack *trackToSelect = GetTrackFromId(trackNum))
-        {
+
+        if (trackNum < 1) trackNum = 1;
+        if (trackNum > GetNumTracks()) trackNum = GetNumTracks();
+        if (MediaTrack* trackToSelect = GetTrackFromId(trackNum)) {
             SetOnlyTrackSelected(trackToSelect);
             if (GetScrollLink())
                 SetMixerScroll(trackToSelect);
@@ -2904,89 +2339,73 @@ void TrackNavigationManager::AdjustSelectedTrackBank(int amount)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void ControlSurface::Stop()
-{
-    if (isRewinding_ || isFastForwarding_) // set the cursor to the Play position
-        CSurf_OnPlay();
- 
+void ControlSurface::Stop() {
+    if (isRewinding_ || isFastForwarding_) CSurf_OnPlay(); // set the cursor to the Play position
     page_->SignalStop();
     CancelRewindAndFastForward();
     CSurf_OnStop();
 }
 
-void ControlSurface::Play()
-{
+void ControlSurface::Play() {
     page_->SignalPlay();
     CancelRewindAndFastForward();
     CSurf_OnPlay();
 }
 
-void ControlSurface::Record()
-{
+void ControlSurface::Record() {
     page_->SignalRecord();
     CancelRewindAndFastForward();
     CSurf_OnRecord();
 }
 
-void ControlSurface::OnTrackSelection(MediaTrack *track)
-{
+void ControlSurface::OnTrackSelection(MediaTrack* track) {
     string onTrackSelection("OnTrackSelection");
-    
-    if (widgetsByName_.count(onTrackSelection) > 0)
-    {
+
+    if (widgetsByName_.count(onTrackSelection) > 0) {
         if (GetMediaTrackInfo_Value(track, "I_SELECTED"))
             zoneManager_->DoAction(widgetsByName_[onTrackSelection].get(), 1.0);
         else
             zoneManager_->OnTrackDeselection();
-        
         zoneManager_->OnTrackSelection();
     }
 }
 
-void ControlSurface::ForceClearTrack(int trackNum)
-{
+void ControlSurface::ForceClearTrack(int trackNum) {
     for (auto widget : widgets_)
-        if (widget->GetChannelNumber() + channelOffset_ == trackNum)
+        if (widget->GetChannelNumber() + channelOffset_ == trackNum) //TODO +break?
             widget->ForceClear();
 }
 
-void ControlSurface::ForceUpdateTrackColors()
-{
+void ControlSurface::ForceUpdateTrackColors() {
     for (auto trackColorFeedbackProcessor : trackColorFeedbackProcessors_)
         trackColorFeedbackProcessor->ForceUpdateTrackColors();
 }
 
-rgba_color ControlSurface::GetTrackColorForChannel(int channel)
-{
+rgba_color ControlSurface::GetTrackColorForChannel(int channel) {
     rgba_color white;
     white.r = 255;
     white.g = 255;
     white.b = 255;
 
-    if (channel < 0 || channel >= numChannels_)
-        return white;
-    
-    if (MediaTrack *track = page_->GetTrackNavigationManager()->GetNavigatorForChannel(channel + channelOffset_)->GetTrack())
+    if (channel < 0 || channel >= numChannels_) return white;
+
+    if (MediaTrack* track = page_->GetTrackNavigationManager()->GetNavigatorForChannel(channel + channelOffset_)->GetTrack())
         return DAW::GetTrackColor(track);
     else
         return white;
 }
 
-void ControlSurface::RequestUpdate()
-{
+void ControlSurface::RequestUpdate() {
     for (auto widget : widgets_)
         widget->ClearHasBeenUsedByUpdate();
 
     zoneManager_->RequestUpdate();
 
     const PropertyList properties;
-    
-    for (auto &widget : widgets_)
-    {
-        if ( ! widget->GetHasBeenUsedByUpdate())
-        {
+
+    for (auto& widget : widgets_) {
+        if (!widget->GetHasBeenUsedByUpdate()) {
             widget->SetHasBeenUsedByUpdate();
-            
             rgba_color color;
             widget->UpdateValue(properties, 0.0);
             widget->UpdateValue(properties, "");
@@ -2994,16 +2413,13 @@ void ControlSurface::RequestUpdate()
         }
     }
 
-    if (isRewinding_)
-    {
+    if (isRewinding_) {
         if (GetCursorPosition() == 0)
             StopRewinding();
-        else
-        {
+        else {
             CSurf_OnRew(0);
 
-            if (speedX5_ == true)
-            {
+            if (speedX5_ == true) {
                 CSurf_OnRew(0);
                 CSurf_OnRew(0);
                 CSurf_OnRew(0);
@@ -3011,17 +2427,14 @@ void ControlSurface::RequestUpdate()
             }
         }
     }
-        
-    else if (isFastForwarding_)
-    {
+
+    else if (isFastForwarding_) {
         if (GetCursorPosition() > GetProjectLength(NULL))
             StopFastForwarding();
-        else
-        {
+        else {
             CSurf_OnFwd(0);
-            
-            if (speedX5_ == true)
-            {
+
+            if (speedX5_ == true) {
                 CSurf_OnFwd(0);
                 CSurf_OnFwd(0);
                 CSurf_OnFwd(0);
@@ -3031,88 +2444,77 @@ void ControlSurface::RequestUpdate()
     }
 }
 
-bool ControlSurface::GetShift()
-{
+bool ControlSurface::GetShift() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetShift();
     else
         return page_->GetModifierManager()->GetShift();
 }
 
-bool ControlSurface::GetOption()
-{
+bool ControlSurface::GetOption() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetOption();
     else
         return page_->GetModifierManager()->GetOption();
 }
 
-bool ControlSurface::GetControl()
-{
+bool ControlSurface::GetControl() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetControl();
     else
         return page_->GetModifierManager()->GetControl();
 }
 
-bool ControlSurface::GetAlt()
-{
+bool ControlSurface::GetAlt() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetAlt();
     else
         return page_->GetModifierManager()->GetAlt();
 }
 
-bool ControlSurface::GetFlip()
-{
+bool ControlSurface::GetFlip() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetFlip();
     else
         return page_->GetModifierManager()->GetFlip();
 }
 
-bool ControlSurface::GetGlobal()
-{
+bool ControlSurface::GetGlobal() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetGlobal();
     else
         return page_->GetModifierManager()->GetGlobal();
 }
 
-bool ControlSurface::GetMarker()
-{
+bool ControlSurface::GetMarker() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetMarker();
     else
         return page_->GetModifierManager()->GetMarker();
 }
 
-bool ControlSurface::GetNudge()
-{
+bool ControlSurface::GetNudge() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetNudge();
     else
         return page_->GetModifierManager()->GetNudge();
 }
 
-bool ControlSurface::GetZoom()
-{
+bool ControlSurface::GetZoom() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetZoom();
     else
         return page_->GetModifierManager()->GetZoom();
 }
 
-bool ControlSurface::GetScrub()
-{
+bool ControlSurface::GetScrub() {
     if (usesLocalModifiers_ || listensToModifiers_)
         return modifierManager_->GetScrub();
     else
         return page_->GetModifierManager()->GetScrub();
 }
 
-void ControlSurface::SetModifierValue(int value)
-{
+void ControlSurface::SetModifierValue(int value) {
     if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
         modifierManager_->SetModifierValue(value);
     else if (usesLocalModifiers_)
@@ -3120,202 +2522,163 @@ void ControlSurface::SetModifierValue(int value)
     else
         page_->GetModifierManager()->SetModifierValue(value);
 }
-
-void ControlSurface::SetShift(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+//FIXME: maybe make repeating ControlSurface::Get* ControlSurface::Set* modifier functions more dry?
+void ControlSurface::SetShift(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetShift(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetShift(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetShift(value, latchTime_);
     else
         page_->GetModifierManager()->SetShift(value, latchTime_);
 }
 
-void ControlSurface::SetOption(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetOption(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetOption(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetOption(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetOption(value, latchTime_);
     else
         page_->GetModifierManager()->SetOption(value, latchTime_);
 }
 
-void ControlSurface::SetControl(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetControl(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetControl(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetControl(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetControl(value, latchTime_);
     else
         page_->GetModifierManager()->SetControl(value, latchTime_);
 }
 
-void ControlSurface::SetAlt(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetAlt(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetAlt(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetAlt(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetAlt(value, latchTime_);
     else
         page_->GetModifierManager()->SetAlt(value, latchTime_);
 }
 
-void ControlSurface::SetFlip(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetFlip(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetFlip(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetFlip(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetFlip(value, latchTime_);
     else
         page_->GetModifierManager()->SetFlip(value, latchTime_);
 }
 
-void ControlSurface::SetGlobal(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetGlobal(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetGlobal(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetGlobal(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetGlobal(value, latchTime_);
     else
         page_->GetModifierManager()->SetGlobal(value, latchTime_);
 }
 
-void ControlSurface::SetMarker(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetMarker(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetMarker(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetMarker(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetMarker(value, latchTime_);
     else
         page_->GetModifierManager()->SetMarker(value, latchTime_);
 }
 
-void ControlSurface::SetNudge(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetNudge(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetNudge(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetNudge(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetNudge(value, latchTime_);
     else
         page_->GetModifierManager()->SetNudge(value, latchTime_);
 }
 
-void ControlSurface::SetZoom(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetZoom(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetZoom(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetZoom(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetZoom(value, latchTime_);
     else
         page_->GetModifierManager()->SetZoom(value, latchTime_);
 }
 
-void ControlSurface::SetScrub(bool value)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::SetScrub(bool value) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->SetScrub(value, latchTime_);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->SetScrub(value, latchTime_);
-    }
-    else if (usesLocalModifiers_)
+    } else if (usesLocalModifiers_)
         modifierManager_->SetScrub(value, latchTime_);
     else
         page_->GetModifierManager()->SetScrub(value, latchTime_);
 }
 
-const vector<int> &ControlSurface::GetModifiers()
-{
-    if (usesLocalModifiers_ || listensToModifiers_)
-        return modifierManager_->GetModifiers();
-    else
-        return page_->GetModifierManager()->GetModifiers();
+const vector<int>& ControlSurface::GetModifiers() {
+    if (usesLocalModifiers_ || listensToModifiers_) return modifierManager_->GetModifiers();
+    else return page_->GetModifierManager()->GetModifiers();
 }
 
-void ControlSurface::ClearModifier(const char *modifier)
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::ClearModifier(const char* modifier) {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->ClearModifier(modifier);
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->ClearModifier(modifier);
-    }
-    else if (usesLocalModifiers_ || listensToModifiers_)
+    } else if (usesLocalModifiers_ || listensToModifiers_)
         modifierManager_->ClearModifier(modifier);
     else
         page_->GetModifierManager()->ClearModifier(modifier);
 }
 
-void ControlSurface::ClearModifiers()
-{
-    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_)
-    {
+void ControlSurface::ClearModifiers() {
+    if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
         modifierManager_->ClearModifiers();
-        
-        for (auto &listener : zoneManager_->GetListeners())
-            if (listener->GetSurface()->GetListensToModifiers() && ! listener->GetSurface()->GetUsesLocalModifiers() &listener->GetSurface()->GetName() != name_)
+
+        for (auto& listener : zoneManager_->GetListeners())
+            if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
                 listener->GetSurface()->GetModifierManager()->ClearModifiers();
-    }
-    else if (usesLocalModifiers_ || listensToModifiers_)
+    } else if (usesLocalModifiers_ || listensToModifiers_)
         modifierManager_->ClearModifiers();
     else
         page_->GetModifierManager()->ClearModifiers();
@@ -3324,25 +2687,22 @@ void ControlSurface::ClearModifiers()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi_ControlSurfaceIO
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void Midi_ControlSurfaceIO::HandleExternalInput(Midi_ControlSurface *surface)
-{
-    if (midiInput_)
-    {
+void Midi_ControlSurfaceIO::HandleExternalInput(Midi_ControlSurface* surface) {
+    if (midiInput_) {
         midiInput_->SwapBufsPrecise(GetTickCount(), GetTickCount());
-        MIDI_eventlist *list = midiInput_->GetReadBuf();
+        MIDI_eventlist* list = midiInput_->GetReadBuf();
         int bpos = 0;
-        MIDI_event_t *evt;
+        MIDI_event_t* evt;
         while ((evt = list->EnumItems(&bpos)))
-            surface->ProcessMidiMessage((MIDI_event_ex_t*)evt);
+            surface->ProcessMidiMessage((MIDI_event_ex_t*) evt);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator *const csi, IPageContext *page, const char *name, int channelOffset, const char *surfaceFile, const char *zoneFolder, const char *fxZoneFolder, Midi_ControlSurfaceIO *surfaceIO)
-: ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO)
-{
+Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* fxZoneFolder, Midi_ControlSurfaceIO* surfaceIO)
+    : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO) {
     MidiWidgetRegistry::EnsureRegistered();
     ProcessMIDIWidgetFile(surfaceFile, this);
     InitHardwiredWidgets(this);
@@ -3351,204 +2711,160 @@ Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator *const csi, IPageContex
     InitZoneManager(csi_, this, zoneFolder, fxZoneFolder);
 }
 
-void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t *evt)
-{
-    if (g_surfaceRawInDisplay)
-    {
-        LogToConsole("IN <- %s %02x %02x %02x \n", name_.c_str(), evt->midi_message[0], evt->midi_message[1], evt->midi_message[2]);
-        // LogStackTraceToConsole();
-    }
+void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t* evt) {
+    if (g_surfaceRawInDisplay) LogToConsole("IN <- %s %02x %02x %02x \n", name_.c_str(), evt->midi_message[0], evt->midi_message[1], evt->midi_message[2]);
 
-    string threeByteKey = to_string(evt->midi_message[0]  * 0x10000 + evt->midi_message[1]  * 0x100 + evt->midi_message[2]);
-    string twoByteKey = to_string(evt->midi_message[0]  * 0x10000 + evt->midi_message[1]  * 0x100);
+    string threeByteKey = to_string(evt->midi_message[0] * 0x10000 + evt->midi_message[1] * 0x100 + evt->midi_message[2]);
+    string twoByteKey = to_string(evt->midi_message[0] * 0x10000 + evt->midi_message[1] * 0x100);
     string oneByteKey = to_string(evt->midi_message[0] * 0x10000);
 
     // At this point we don't know how much of the message comprises the key, so try all three
-    if (CSIMessageGeneratorsByMessage_.find(threeByteKey) != CSIMessageGeneratorsByMessage_.end())
-        CSIMessageGeneratorsByMessage_[threeByteKey]->ProcessMidiMessage(evt);
-    else if (CSIMessageGeneratorsByMessage_.find(twoByteKey) != CSIMessageGeneratorsByMessage_.end())
-        CSIMessageGeneratorsByMessage_[twoByteKey]->ProcessMidiMessage(evt);
-    else if (CSIMessageGeneratorsByMessage_.find(oneByteKey) != CSIMessageGeneratorsByMessage_.end())
-        CSIMessageGeneratorsByMessage_[oneByteKey]->ProcessMidiMessage(evt);
+    if (MessageGeneratorsByMessage_.find(threeByteKey) != MessageGeneratorsByMessage_.end())
+        MessageGeneratorsByMessage_[threeByteKey]->ProcessMidiMessage(evt);
+    else if (MessageGeneratorsByMessage_.find(twoByteKey) != MessageGeneratorsByMessage_.end())
+        MessageGeneratorsByMessage_[twoByteKey]->ProcessMidiMessage(evt);
+    else if (MessageGeneratorsByMessage_.find(oneByteKey) != MessageGeneratorsByMessage_.end())
+        MessageGeneratorsByMessage_[oneByteKey]->ProcessMidiMessage(evt);
 }
 
-void Midi_ControlSurface::SendMidiSysExMessage(MIDI_event_ex_t *midiMessage)
-{
+void Midi_ControlSurface::SendMidiSysExMessage(MIDI_event_ex_t* midiMessage) {
     surfaceIO_->QueueMidiSysExMessage(midiMessage);
-    
-    if (g_surfaceOutDisplay)
-    {
+    if (g_surfaceOutDisplay) {
         string output = "OUT->";
-        
         output += name_ + " ";
-
         char buf[32];
-
-        for (int i = 0; i < midiMessage->size; ++i)
-        {
+        for (int i = 0; i < midiMessage->size; ++i) {
             snprintf(buf, sizeof(buf), "%02x ", midiMessage->midi_message[i]);
             output += buf;
         }
-        
         output += " # Midi_ControlSurface::SendMidiSysExMessage\n";
-
         ShowConsoleMsg(output.c_str());
     }
 }
 
-void Midi_ControlSurface::SendMidiMessage(int first, int second, int third)
-{
+void Midi_ControlSurface::SendMidiMessage(int first, int second, int third) {
     surfaceIO_->SendMidiMessage(first, second, third);
-    
     if (g_surfaceOutDisplay) LogToConsole("%s %02x %02x %02x # Midi_ControlSurface::SendMidiMessage\n", ("OUT->" + name_).c_str(), first, second, third);
 }
 
- ////////////////////////////////////////////////////////////////////////////////////////////////////////
- // OSC_ControlSurfaceIO
- ////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// OSC_ControlSurfaceIO
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-OSC_X32ControlSurfaceIO::OSC_X32ControlSurfaceIO(CSurfIntegrator *const csi, const char *surfaceName, int channelCount, const char *receiveOnPort, const char *transmitToPort, const char *transmitToIpAddress, int maxPacketsPerRun) : OSC_ControlSurfaceIO(csi, surfaceName, channelCount, receiveOnPort, transmitToPort, transmitToIpAddress, maxPacketsPerRun) {}
+OSC_X32ControlSurfaceIO::OSC_X32ControlSurfaceIO(CSurfIntegrator* const csi, const char* surfaceName, int channelCount, const char* receiveOnPort, const char* transmitToPort, const char* transmitToIpAddress, int maxPacketsPerRun)
+    : OSC_ControlSurfaceIO(csi, surfaceName, channelCount, receiveOnPort, transmitToPort, transmitToIpAddress, maxPacketsPerRun) {
+}
 
-OSC_ControlSurfaceIO::OSC_ControlSurfaceIO(CSurfIntegrator *const csi, const char *surfaceName, int channelCount, const char *receiveOnPort, const char *transmitToPort, const char *transmitToIpAddress, int maxPacketsPerRun) : csi_(csi), name_(surfaceName), channelCount_(channelCount)
-{
+OSC_ControlSurfaceIO::OSC_ControlSurfaceIO(CSurfIntegrator* const csi, const char* surfaceName, int channelCount, const char* receiveOnPort, const char* transmitToPort, const char* transmitToIpAddress, int maxPacketsPerRun)
+    : csi_(csi), name_(surfaceName), channelCount_(channelCount) {
     // private:
     maxPacketsPerRun_ = maxPacketsPerRun < 0 ? 0 : maxPacketsPerRun;
 
     if (!IsSameString(receiveOnPort, transmitToPort)) {
-        inSocket_  = GetInputSocketForPort(surfaceName, atoi(receiveOnPort));
+        inSocket_ = GetInputSocketForPort(surfaceName, atoi(receiveOnPort));
         outSocket_ = GetOutputSocketForAddressAndPort(surfaceName, transmitToIpAddress, atoi(transmitToPort));
-    }
-    else // WHEN INPUT AND OUTPUT SOCKETS ARE THE SAME -- DO MAGIC :)
-    {
-        oscpkt::UdpSocket *inSocket = GetInputSocketForPort(surfaceName, atoi(receiveOnPort));
+    } else {
+        // WHEN INPUT AND OUTPUT SOCKETS ARE THE SAME -- DO MAGIC :)
+        oscpkt::UdpSocket* inSocket = GetInputSocketForPort(surfaceName, atoi(receiveOnPort));
 
         struct addrinfo hints;
-        struct addrinfo *addressInfo;
+        struct addrinfo* addressInfo;
         memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = AF_INET;      // IPV4
+        hints.ai_family = AF_INET; // IPV4
         hints.ai_socktype = SOCK_DGRAM; // UDP
-        hints.ai_flags = 0x00000001;    // socket address is intended for bind
+        hints.ai_flags = 0x00000001; // socket address is intended for bind
         getaddrinfo(transmitToIpAddress, transmitToPort, &hints, &addressInfo);
-        memcpy(&(inSocket->remote_addr), (void*)(addressInfo->ai_addr), addressInfo->ai_addrlen);
+        memcpy(&(inSocket->remote_addr), (void*) (addressInfo->ai_addr), addressInfo->ai_addrlen);
 
-        inSocket_  = inSocket;
+        inSocket_ = inSocket;
         outSocket_ = inSocket;
     }
- }
+}
 
-OSC_ControlSurfaceIO::~OSC_ControlSurfaceIO()
-{
-    Sleep(33);
-    
+OSC_ControlSurfaceIO::~OSC_ControlSurfaceIO() {
+    Sleep(33); //FIXME: hordcoded to const
     int count = 0;
-    while (packetQueue_.GetSize()>=sizeof(int) && ++count < 100)
-    {
+    while (packetQueue_.GetSize() >= sizeof(int) && ++count < 100) {
         BeginRun();
-        if (count) Sleep(33);
+        if (count) Sleep(33); //FIXME: hordcoded to const
     }
-
-    if (inSocket_)
-    {
-        for (int x = 0; x < s_inputSockets.GetSize(); ++x)
-        {
-            if (s_inputSockets.Get(x)->socket == inSocket_)
-            {
-                if (!--s_inputSockets.Get(x)->refcnt)
-                    s_inputSockets.Delete(x, true);
+    if (inSocket_) {
+        for (int x = 0; x < s_inputSockets.GetSize(); ++x) {
+            if (s_inputSockets.Get(x)->socket == inSocket_) {
+                if (!--s_inputSockets.Get(x)->refcnt) s_inputSockets.Delete(x, true);
                 break;
             }
         }
     }
-    if (outSocket_ && outSocket_ != inSocket_)
-    {
-        for (int x = 0; x < s_outputSockets.GetSize(); ++x)
-        {
-            if (s_outputSockets.Get(x)->socket == outSocket_)
-            {
-                if (!--s_outputSockets.Get(x)->refcnt)
-                    s_outputSockets.Delete(x, true);
+    if (outSocket_ && outSocket_ != inSocket_) {
+        for (int x = 0; x < s_outputSockets.GetSize(); ++x) {
+            if (s_outputSockets.Get(x)->socket == outSocket_) {
+                if (!--s_outputSockets.Get(x)->refcnt) s_outputSockets.Delete(x, true);
                 break;
             }
         }
     }
 }
 
-void OSC_ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface *surface)
-{
-   if (inSocket_ != NULL && inSocket_->isOk())
-   {
-       while (inSocket_->receiveNextPacket(0))  // timeout, in ms
-       {
-           packetReader_.init(inSocket_->packetData(), inSocket_->packetSize());
-           oscpkt::Message *message;
-           
-           while (packetReader_.isOk() && (message = packetReader_.popMessage()) != 0)
-           {
-               if (message->arg().isFloat())
-               {
-                   float value = 0;
-                   message->arg().popFloat(value);
-                   surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
-               }
-               else if (message->arg().isInt32())
-               {
-                   int value;
-                   message->arg().popInt32(value);
-                   surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
-               }
-           }
-       }
-   }
+void OSC_ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface* surface) {
+    if (inSocket_ != NULL && inSocket_->isOk()) {
+        while (inSocket_->receiveNextPacket(0)) {
+            packetReader_.init(inSocket_->packetData(), inSocket_->packetSize());
+            oscpkt::Message* message;
+
+            while (packetReader_.isOk() && (message = packetReader_.popMessage()) != 0) {
+                if (message->arg().isFloat()) {
+                    float value = 0;
+                    message->arg().popFloat(value);
+                    surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
+                } else if (message->arg().isInt32()) {
+                    int value;
+                    message->arg().popInt32(value);
+                    surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
+                }
+            }
+        }
+    }
 }
 
-void OSC_X32ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface *surface)
-{
-   if (inSocket_ != NULL && inSocket_->isOk())
-   {
-       while (inSocket_->receiveNextPacket(0))  // timeout, in ms
-       {
-           packetReader_.init(inSocket_->packetData(), inSocket_->packetSize());
-           oscpkt::Message *message;
-           
-           while (packetReader_.isOk() && (message = packetReader_.popMessage()) != 0)
-           {
-               if (message->arg().isFloat())
-               {
-                   float value = 0;
-                   message->arg().popFloat(value);
-                   surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
-               }
-               else if (message->arg().isInt32())
-               {
-                   int value;
-                   message->arg().popInt32(value);
-                   
-                   if (message->addressPattern() == "/-stat/selidx")
-                   {
-                       string x32Select = message->addressPattern() + "/";
-                       
-                       if (value < 10)
-                           x32Select += "0";
+void OSC_X32ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface* surface) {
+    if (inSocket_ != NULL && inSocket_->isOk()) {
+        while (inSocket_->receiveNextPacket(0)) {
+            packetReader_.init(inSocket_->packetData(), inSocket_->packetSize());
+            oscpkt::Message* message;
 
-                       char buf[64];
-                       snprintf(buf, sizeof(buf), "%d", value);
-                       x32Select += buf;
-                                              
-                       surface->ProcessOSCMessage(x32Select.c_str(), 1.0);
-                   }
-                   else
-                       surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
-               }
-           }
-       }
-   }
+            while (packetReader_.isOk() && (message = packetReader_.popMessage()) != 0) {
+                if (message->arg().isFloat()) {
+                    float value = 0;
+                    message->arg().popFloat(value);
+                    surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
+                } else if (message->arg().isInt32()) {
+                    int value;
+                    message->arg().popInt32(value);
+
+                    if (message->addressPattern() == "/-stat/selidx") {
+                        string x32Select = message->addressPattern() + "/";
+
+                        if (value < 10) x32Select += "0";
+
+                        char buf[64];
+                        snprintf(buf, sizeof(buf), "%d", value);
+                        x32Select += buf;
+
+                        surface->ProcessOSCMessage(x32Select.c_str(), 1.0);
+                    } else
+                        surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
+                }
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator *const csi, IPageContext *page, const char *name, int channelOffset, const char *templateFilename, const char *zoneFolder, const char *fxZoneFolder, OSC_ControlSurfaceIO *surfaceIO) : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO)
-
+OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* fxZoneFolder, OSC_ControlSurfaceIO* surfaceIO)
+    : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO) 
 {
     ProcessOSCWidgetFile(templateFilename);
     InitHardwiredWidgets(this);
@@ -3556,64 +2872,48 @@ OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator *const csi, IPageContext 
     InitZoneManager(csi_, this, zoneFolder, fxZoneFolder);
 }
 
-void OSC_ControlSurface::ProcessOSCMessage(const char *message, double value)
-{
-    if (CSIMessageGeneratorsByMessage_.find(message) != CSIMessageGeneratorsByMessage_.end())
-        CSIMessageGeneratorsByMessage_[message]->ProcessMessage(value);
-    
+void OSC_ControlSurface::ProcessOSCMessage(const char* message, double value) {
+    if (MessageGeneratorsByMessage_.find(message) != MessageGeneratorsByMessage_.end())
+        MessageGeneratorsByMessage_[message]->ProcessMessage(value);
     if (g_surfaceInDisplay) LogToConsole("IN <- %s %s %f\n", name_.c_str(), message, value);
 }
 
-void OSC_ControlSurface::SendOSCMessage(const char *zoneName)
-{
+void OSC_ControlSurface::SendOSCMessage(const char* zoneName) {
     string oscAddress(zoneName);
     ReplaceAllWith(oscAddress, s_BadFileChars, "_");
     oscAddress = "/" + oscAddress;
 
     surfaceIO_->SendOSCMessage(oscAddress.c_str());
-        
     if (g_surfaceOutDisplay) LogToConsole("->LoadingZone---->%s\n", name_.c_str());
 }
 
-void OSC_ControlSurface::SendOSCMessage(const char *oscAddress, int value)
-{
+void OSC_ControlSurface::SendOSCMessage(const char* oscAddress, int value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-        
     if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %d # Surface::SendOSCMessage 1\n", name_.c_str(), oscAddress, value);
 }
 
-void OSC_ControlSurface::SendOSCMessage(const char *oscAddress, double value)
-{
+void OSC_ControlSurface::SendOSCMessage(const char* oscAddress, double value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-        
     if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %f # Surface::SendOSCMessage 2\n", name_.c_str(), oscAddress, value);
 }
 
-void OSC_ControlSurface::SendOSCMessage(const char *oscAddress, const char *value)
-{
+void OSC_ControlSurface::SendOSCMessage(const char* oscAddress, const char* value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-        
     if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %s # Surface::SendOSCMessage 3\n", name_.c_str(), oscAddress, value);
 }
 
-void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor *feedbackProcessor, const char *oscAddress, double value)
-{
+void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, double value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-    
     if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %f # Surface::SendOSCMessage 4\n", feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
 }
 
-void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor *feedbackProcessor, const char *oscAddress, int value)
-{
+void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, int value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-
     if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %s %d # Surface::SendOSCMessage 5\n", name_.c_str(), feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
 }
 
-void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor *feedbackProcessor, const char *oscAddress, const char *value)
-{
+void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, const char* value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-
     if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %s %s # Surface::SendOSCMessage 6\n", name_.c_str(), feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
 }
 
@@ -3626,21 +2926,19 @@ static struct
     char data[MEDBUF];
 } s_midiSysExData;
 
-void Midi_ControlSurface::SendSysexInitData(int line[], int numElem)
-{
+void Midi_ControlSurface::SendSysexInitData(int line[], int numElem) {
     memset(s_midiSysExData.data, 0, sizeof(s_midiSysExData.data));
 
-    s_midiSysExData.evt.frame_offset=0;
-    s_midiSysExData.evt.size=0;
-    
+    s_midiSysExData.evt.frame_offset = 0;
+    s_midiSysExData.evt.size = 0;
+
     for (int i = 0; i < numElem; ++i)
         s_midiSysExData.evt.midi_message[s_midiSysExData.evt.size++] = line[i];
-    
+
     SendMidiSysExMessage(&s_midiSysExData.evt);
 }
 
-void Midi_ControlSurface::InitializeMCU()
-{
+void Midi_ControlSurface::InitializeMCU() {
     int line1[] = { 0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7 };
     int line2[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x00, 0xF7 };
     int line3[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x21, 0x01, 0xF7 };
@@ -3666,8 +2964,7 @@ void Midi_ControlSurface::InitializeMCU()
     SendSysexInitData(line11, NUM_ELEM(line11));
 }
 
-void Midi_ControlSurface::InitializeMCUXT()
-{
+void Midi_ControlSurface::InitializeMCUXT() {
     int line1[] = { 0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7 };
     int line2[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x00, 0xF7 };
     int line3[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x21, 0x01, 0xF7 };
@@ -3679,7 +2976,7 @@ void Midi_ControlSurface::InitializeMCUXT()
     int line9[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x05, 0x01, 0xF7 };
     int line10[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x06, 0x01, 0xF7 };
     int line11[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x07, 0x01, 0xF7 };
-    
+
     SendSysexInitData(line1, NUM_ELEM(line1));
     SendSysexInitData(line2, NUM_ELEM(line2));
     SendSysexInitData(line3, NUM_ELEM(line3));
@@ -3696,99 +2993,65 @@ void Midi_ControlSurface::InitializeMCUXT()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CSurfIntegrator
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-static const char * const Control_Surface_Integrator = "Control Surface Integrator";
+static const char* const Control_Surface_Integrator = "Control Surface Integrator";
 
-CSurfIntegrator::CSurfIntegrator()
-{
+CSurfIntegrator::CSurfIntegrator() {
     InitActionsDictionary();
 
     int size = 0;
     int index = projectconfig_var_getoffs("projtimemode", &size);
-    timeModeOffs_ = size==4 ? index : -1;
-    
+    timeModeOffs_ = size == 4 ? index : -1;
+
     index = projectconfig_var_getoffs("projtimemode2", &size);
-    timeMode2Offs_ = size==4 ? index : -1;
-    
+    timeMode2Offs_ = size == 4 ? index : -1;
+
     index = projectconfig_var_getoffs("projmeasoffs", &size);
-    measOffsOffs_ = size==4 ? index : - 1;
-    
+    measOffsOffs_ = size == 4 ? index : -1;
+
     index = projectconfig_var_getoffs("projtimeoffs", &size);
-    timeOffsOffs_ = size==8 ? index : -1;
-    
+    timeOffsOffs_ = size == 8 ? index : -1;
+
     index = projectconfig_var_getoffs("panmode", &size);
-    projectPanModeOffs_ = size==4 ? index : -1;
+    projectPanModeOffs_ = size == 4 ? index : -1;
 
     // these are supported by ~7.10+, previous versions we fallback to get_config_var() on-demand
     index = projectconfig_var_getoffs("projmetrov1", &size);
-    projectMetronomePrimaryVolumeOffs_ = size==8 ? index : -1;
+    projectMetronomePrimaryVolumeOffs_ = size == 8 ? index : -1;
 
     index = projectconfig_var_getoffs("projmetrov2", &size);
-    projectMetronomeSecondaryVolumeOffs_ = size==8 ? index : -1;
+    projectMetronomeSecondaryVolumeOffs_ = size == 8 ? index : -1;
 }
 
-CSurfIntegrator::~CSurfIntegrator()
-{
+CSurfIntegrator::~CSurfIntegrator() {
     Shutdown();
-
     midiSurfacesIO_.clear();
     oscSurfacesIO_.clear();
     pages_.clear();
     actions_.clear();
 }
 
-const char *CSurfIntegrator::GetTypeString()
-{
-    return "CSI";
-}
+const char* CSurfIntegrator::GetDescString() { return Control_Surface_Integrator; }
 
-const char *CSurfIntegrator::GetDescString()
-{
-    return Control_Surface_Integrator;
-}
-
-const char *CSurfIntegrator::GetConfigString() // string of configuration data
-{
-    snprintf(configtmp, sizeof(configtmp),"0 0");
+const char* CSurfIntegrator::GetConfigString() {
+    snprintf(configtmp, sizeof(configtmp), "0 0");
     return configtmp;
 }
 
-int CSurfIntegrator::Extended(int call, void *parm1, void *parm2, void *parm3)
-{
-    if (call == CSURF_EXT_SUPPORTS_EXTENDED_TOUCH)
-    {
-        return 1;
-    }
-    
-    if (call == CSURF_EXT_RESET)
-    {
-       Init();
-    }
-    
-    if (call == CSURF_EXT_SETFXCHANGE)
-    {
-        // parm1=(MediaTrack*)track, whenever FX are added, deleted, or change order
-        TrackFXListChanged((MediaTrack*)parm1);
-    }
-        
-    if (call == CSURF_EXT_SETMIXERSCROLL)
-    {
-        MediaTrack *leftPtr = (MediaTrack *)parm1;
-        
+int CSurfIntegrator::Extended(int call, void* parm1, void* parm2, void* parm3) {
+    if (call == CSURF_EXT_SUPPORTS_EXTENDED_TOUCH) return 1;
+    if (call == CSURF_EXT_RESET) Init();
+    if (call == CSURF_EXT_SETFXCHANGE) TrackFXListChanged((MediaTrack*) parm1); // parm1=(MediaTrack*)track, whenever FX are added, deleted, or change order
+    if (call == CSURF_EXT_SETMIXERSCROLL) {
+        MediaTrack* leftPtr = (MediaTrack*) parm1;
         int offset = CSurf_TrackToID(leftPtr, true);
-        
         offset--;
-        
-        if (offset < 0)
-            offset = 0;
-            
+        if (offset < 0) offset = 0;
         SetTrackOffset(offset);
     }
-        
     return 1;
 }
 
-static IReaperControlSurface *createFunc(const char *type_string, const char *configString, int *errStats)
-{
+static IReaperControlSurface* createFunc(const char* type_string, const char* configString, int* errStats) {
     return new CSurfIntegrator();
 }
 
@@ -3796,31 +3059,29 @@ static IReaperControlSurface *createFunc(const char *type_string, const char *co
 // ControlSurface - OSK (On-Screen Keyboard) Implementation
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ControlSurface::ParseOskProperties(const string &propsPart, OskWidgetInfo &info) {
+void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& info) {
     if (propsPart.empty()) return;
-    
     vector<string> tokens;
     GetTokens(tokens, propsPart);
-    
-    for (const auto &token : tokens) {
+
+    for (const auto& token : tokens) {
         if (token == "OSKHidden") {
             info.hidden = true;
             continue;
         }
-        
         auto eqPos = token.find('=');
         if (eqPos == string::npos) continue;
-        
+
         string key = token.substr(0, eqPos);
         string val = token.substr(eqPos + 1);
-        
+
         // Remove quotes if present
         if (val.size() >= 2 && val.front() == '"' && val.back() == '"')
             val = val.substr(1, val.size() - 2);
-        
+
         if (key == "Shape") info.shape = val;
-        else if (key == "Width") info.width = (float)atof(val.c_str());
-        else if (key == "Height") info.height = (float)atof(val.c_str());
+        else if (key == "Width") info.width = (float) atof(val.c_str());
+        else if (key == "Height") info.height = (float) atof(val.c_str());
         else if (key == "Group") info.group = val;
         else if (key == "Label") info.label = val;
         else if (key == "Color") info.color = val;
@@ -3829,16 +3090,15 @@ void ControlSurface::ParseOskProperties(const string &propsPart, OskWidgetInfo &
 
 void ControlSurface::BuildCachedLayoutString() {
     cachedOskLayoutString_.clear();
-    
-    for (const auto &row : oskLayout_) {
-        if (!cachedOskLayoutString_.empty())
-            cachedOskLayoutString_ += "\n";
-        
+
+    for (const auto& row : oskLayout_) {
+        if (!cachedOskLayoutString_.empty()) cachedOskLayoutString_ += "\n";
+
         bool firstCell = true;
-        for (const auto &cell : row.cells) {
+        for (const auto& cell : row.cells) {
             if (!firstCell) cachedOskLayoutString_ += "|";
             firstCell = false;
-            
+
             if (cell.isSpacer) {
                 char buf[32];
                 snprintf(buf, sizeof(buf), "SPACER:%.2f", cell.spacerWidth);
@@ -3847,11 +3107,11 @@ void ControlSurface::BuildCachedLayoutString() {
                 cachedOskLayoutString_ += cell.widget.name;
                 cachedOskLayoutString_ += ":Shape=";
                 cachedOskLayoutString_ += cell.widget.shape;
-                
+
                 char buf[64];
                 snprintf(buf, sizeof(buf), ",Width=%.2f,Height=%.2f", cell.widget.width, cell.widget.height);
                 cachedOskLayoutString_ += buf;
-                
+
                 if (!cell.widget.group.empty()) {
                     cachedOskLayoutString_ += ",Group=";
                     cachedOskLayoutString_ += cell.widget.group;
@@ -3869,20 +3129,16 @@ void ControlSurface::BuildCachedLayoutString() {
     }
 }
 
-void ControlSurface::ParseOSKLayout(const string &surfaceFilePath) {
+void ControlSurface::ParseOSKLayout(const string& surfaceFilePath) {
     surfaceFilePath_ = surfaceFilePath;
     oskLayout_.clear();
-    
     try {
         ifstream file(surfaceFilePath);
         if (!file.is_open()) return;
-        
         OskRow currentRow;
         bool hasRow = false;
-        
         for (string line; getline(file, line);) {
             TrimLine(line);
-            
             // Check for # OSKRow
             if (line == "# OSKRow") {
                 if (hasRow && !currentRow.cells.empty())
@@ -3891,13 +3147,11 @@ void ControlSurface::ParseOSKLayout(const string &surfaceFilePath) {
                 hasRow = true;
                 continue;
             }
-            
             // Check for # OSKSpacer Width=N
             if (line.find("# OSKSpacer") == 0) {
                 float width = 0.5f;
                 auto pos = line.find("Width=");
-                if (pos != string::npos)
-                    width = (float)atof(line.c_str() + pos + 6);
+                if (pos != string::npos) width = (float) atof(line.c_str() + pos + 6);
                 if (hasRow) {
                     OskCell cell;
                     cell.isSpacer = true;
@@ -3906,82 +3160,64 @@ void ControlSurface::ParseOSKLayout(const string &surfaceFilePath) {
                 }
                 continue;
             }
-            
             // Check for Widget line with possible # properties
             if (line.find("Widget ") == 0) {
                 auto hashPos = line.find('#');
                 string widgetPart = (hashPos != string::npos) ? line.substr(0, hashPos) : line;
                 string propsPart = (hashPos != string::npos) ? line.substr(hashPos + 1) : "";
-                
                 vector<string> tokens;
                 GetTokens(tokens, widgetPart);
                 if (tokens.size() < 2) continue;
-                
                 OskWidgetInfo info;
                 info.name = tokens[1];
-                
                 ParseOskProperties(propsPart, info);
-                
-                if (info.hidden) continue;  // Skip hidden widgets
-                
+
+                if (info.hidden) continue; // Skip hidden widgets
                 if (!hasRow) {
                     currentRow = OskRow();
                     hasRow = true;
                 }
-                
                 OskCell cell;
                 cell.isSpacer = false;
                 cell.widget = info;
                 currentRow.cells.push_back(cell);
             }
         }
-        
+
         if (hasRow && !currentRow.cells.empty())
             oskLayout_.push_back(std::move(currentRow));
-        
         BuildCachedLayoutString();
-        
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         LogToConsole("[ERROR] ParseOSKLayout failed for %s: %s\n", surfaceFilePath.c_str(), e.what());
     }
 }
 
 void ControlSurface::PublishOSKLayout() {
     if (!isOskEnabled_) return;
-    
+
     string key = string("Layout_") + name_;
     ::SetExtState("CSI_OSK", key.c_str(), cachedOskLayoutString_.c_str(), false);
 }
 
 void ControlSurface::PublishOSKState() {
     if (!isOskEnabled_) return;
-    
     // Throttle to ~10Hz (every 3rd call of 30Hz)
     if (++oskRunCounter_ < 3) return;
     oskRunCounter_ = 0;
-    
     string state;
-    
-    for (const auto &row : oskLayout_) {
-        for (const auto &cell : row.cells) {
+    for (const auto& row : oskLayout_) {
+        for (const auto& cell : row.cells) {
             if (cell.isSpacer) continue;
-            
-            Widget *w = GetWidgetByName(cell.widget.name);
+            Widget* w = GetWidgetByName(cell.widget.name);
             if (!w) continue;
-            
             double value = w->GetLastFeedbackValue();
             rgba_color color = w->GetLastFeedbackColor();
-            
             if (!state.empty()) state += ";";
-            
             char buf[128];
-            snprintf(buf, sizeof(buf), "%s=V:%.2f,C:#%02X%02X%02X", 
-                cell.widget.name.c_str(), value,
-                (unsigned char)color.r, (unsigned char)color.g, (unsigned char)color.b);
+            snprintf(buf, sizeof(buf), "%s=V:%.2f,C:#%02X%02X%02X", cell.widget.name.c_str(), value, (unsigned char) color.r, (unsigned char) color.g, (unsigned char) color.b);
             state += buf;
         }
     }
-    
     if (state != cachedOskStateString_) {
         cachedOskStateString_ = state;
         string key = string("State_") + name_;
@@ -3992,56 +3228,54 @@ void ControlSurface::PublishOSKState() {
 void ControlSurface::PublishOSKLabels() {
     if (!isOskEnabled_) return;
     if (!zoneManager_) return;
-    
+
     string labels;
-    
+
     // Collect labels from active zones
     // Walk all widgets and find their current ActionContexts, look for KeyLabel property
-    for (const auto &row : oskLayout_) {
-        for (const auto &cell : row.cells) {
+    for (const auto& row : oskLayout_) {
+        for (const auto& cell : row.cells) {
             if (cell.isSpacer) continue;
-            
-            Widget *w = GetWidgetByName(cell.widget.name);
+
+            Widget* w = GetWidgetByName(cell.widget.name);
             if (!w) continue;
-            
+
             // Get the current action contexts for this widget (respects modifiers)
-            const auto &contexts = zoneManager_->GetCurrentActionContextsForWidget(w);
-            
+            const auto& contexts = zoneManager_->GetCurrentActionContextsForWidget(w);
+
             string keyLabel;
-            for (const auto &ctx : contexts) {
-                const char *kl = ctx->GetWidgetProperties().get_prop(PropertyType_KeyLabel);
+            for (const auto& ctx : contexts) {
+                const char* kl = ctx->GetWidgetProperties().get_prop(PropertyType_KeyLabel);
                 if (kl && kl[0] != '\0') {
                     keyLabel = kl;
                     break;
                 }
             }
-            
+
             // Fallback: use action title
             if (keyLabel.empty()) {
-                for (const auto &ctx : contexts) {
-                    const char *title = ctx->GetActionTitle();
+                for (const auto& ctx : contexts) {
+                    const char* title = ctx->GetActionTitle();
                     if (title && title[0] != '\0') {
                         keyLabel = title;
                         break;
                     }
                 }
             }
-            
+
             // Final fallback: widget name or label override
             if (keyLabel.empty()) {
-                if (!cell.widget.label.empty())
-                    keyLabel = cell.widget.label;
-                else
-                    keyLabel = cell.widget.name;
+                if (!cell.widget.label.empty()) keyLabel = cell.widget.label;
+                else keyLabel = cell.widget.name;
             }
-            
+
             if (!labels.empty()) labels += ";";
             labels += cell.widget.name;
             labels += "=";
             labels += keyLabel;
         }
     }
-    
+
     if (labels != cachedOskLabelsString_) {
         cachedOskLabelsString_ = labels;
         string key = string("Labels_") + name_;
@@ -4049,26 +3283,17 @@ void ControlSurface::PublishOSKLabels() {
     }
 }
 
-static HWND configFunc(const char *type_string, HWND parent, const char *initConfigString)
-{
-    HWND hwnd = CreateDialogParam(g_hInst, MAKEINTRESOURCE(IDD_SURFACEEDIT_CSI), parent, dlgProcMainConfig, (LPARAM)initConfigString);
+static HWND configFunc(const char* type_string, HWND parent, const char* initConfigString) {
+    HWND hwnd = CreateDialogParam(g_hInst, MAKEINTRESOURCE(IDD_SURFACEEDIT_CSI), parent, dlgProcMainConfig, (LPARAM) initConfigString);
     if (hwnd) g_openDialogs.push_back(hwnd);
     return hwnd;
 }
 
-reaper_csurf_reg_t csurf_integrator_reg =
-{
-    "CSI",
-    Control_Surface_Integrator,
-    createFunc,
-    configFunc,
-};
+reaper_csurf_reg_t csurf_integrator_reg = { "CSI", Control_Surface_Integrator, createFunc, configFunc };
 
-
-void localize_init(void * (*GetFunc)(const char *name))
-{
-    *(void **)&importedLocalizeFunc = GetFunc("__localizeFunc");
-    *(void **)&importedLocalizeMenu = GetFunc("__localizeMenu");
-    *(void **)&importedLocalizeInitializeDialog = GetFunc("__localizeInitializeDialog");
-    *(void **)&importedLocalizePrepareDialog = GetFunc("__localizePrepareDialog");
+void localize_init(void* (*GetFunc)(const char* name)) {
+    *(void**) &importedLocalizeFunc = GetFunc("__localizeFunc");
+    *(void**) &importedLocalizeMenu = GetFunc("__localizeMenu");
+    *(void**) &importedLocalizeInitializeDialog = GetFunc("__localizeInitializeDialog");
+    *(void**) &importedLocalizePrepareDialog = GetFunc("__localizePrepareDialog");
 }
