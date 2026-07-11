@@ -633,8 +633,7 @@ public:
         if (col)
             GetColorValue(col, textColor);
 
-        struct
-        {
+        struct {
             MIDI_event_ex_t evt;
             char data[256];
         } midiSysExData;
@@ -660,7 +659,7 @@ public:
         midiSysExData.evt.midi_message[midiSysExData.evt.size++] = textColor.g / 2;
         midiSysExData.evt.midi_message[midiSysExData.evt.size++] = textColor.b / 2;
         
-        for (int i = 0; i < displayText[i]; ++i)
+        for (int i = 0; displayText[i]; ++i)
             midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayText[i];
         
         midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF7;
