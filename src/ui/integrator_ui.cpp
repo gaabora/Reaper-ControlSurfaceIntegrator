@@ -12,19 +12,24 @@ extern int g_maxNumParamSteps;
 
 static int s_dlgResult = IDCANCEL;
 
-static bool s_isUpdatingParameters = false;
+// Learn FX dialog state — all mutable state belonging to the FX Learn workflow.
+// Grouped here so state is scoped to the dialog lifetime and dangling-pointer
+// risks are surfaced in one place rather than scattered across 10+ static vars.
+struct LearnFXState {
+    bool isUpdatingParameters = false;
+    Widget* currentWidget = nullptr;
+    int currentModifier = 0;
+    string pageSurfaceFXLearnLevel;
+    int lastTouchedParamNum = -1;
+    double lastTouchedParamValue = -1.0;
+    MediaTrack* focusedTrack = nullptr;
+    int fxSlot = 0;
+    char fxName[MEDBUF] = {};
+    char fxAlias[MEDBUF] = {};
+    ActionContext* editAdvancedContext = nullptr;  // owned by dlgProcEditAdvanced
+};
+static LearnFXState s_learnFX;
 static HWND s_hwndLearnFXDlg = NULL;
-static Widget* s_currentWidget = NULL;
-static int s_currentModifier = 0;
-
-static string s_pageSurfaceFXLearnLevel;
-
-static int s_lastTouchedParamNum = -1;
-static double s_lastTouchedParamValue = -1.0;
-static MediaTrack* s_focusedTrack = NULL;
-static int s_fxSlot = 0;
-static char s_fxName[MEDBUF];
-static char s_fxAlias[MEDBUF];
 
 static void OnDialogInit(HWND hwndDlg) {
     g_openDialogs.push_back(hwndDlg);
@@ -297,8 +302,6 @@ static unsigned int& GetButtonColorForID(unsigned int id) {
     return s_buttonColors[0][2];
 }
 
-static ActionContext* context = NULL;
-
 static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     SurfaceFXTemplate* t = GetSurfaceFXTemplate(s_hwndLearnFXDlg);
 
@@ -306,7 +309,7 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
         return 0;
 
     ZoneManager* zoneManager = t->zoneManager;
-    Widget* widget = s_currentWidget;
+    Widget* widget = s_learnFX.currentWidget;
 
     char buf[MEDBUF];
 
@@ -319,9 +322,9 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 
     switch (uMsg) {
         case WM_INITDIALOG: {
-            context = GetFirstContext(zoneManager, widget, modifier);
+            s_learnFX.editAdvancedContext = GetFirstContext(zoneManager, widget, modifier);
 
-            if (context == NULL)
+            if (s_learnFX.editAdvancedContext == NULL)
                 break;
 
             char titleBuf[MEDBUF];
@@ -337,17 +340,17 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
 
             SetWindowText(hwndDlg, titleBuf);
 
-            snprintf(buf, sizeof(buf), "%0.2f", context->GetDeltaValue());
+            snprintf(buf, sizeof(buf), "%0.2f", s_learnFX.editAdvancedContext->GetDeltaValue());
             SetDlgItemText(hwndDlg, IDC_EDIT_Delta, buf);
 
-            snprintf(buf, sizeof(buf), "%0.2f", context->GetRangeMinimum());
+            snprintf(buf, sizeof(buf), "%0.2f", s_learnFX.editAdvancedContext->GetRangeMinimum());
             SetDlgItemText(hwndDlg, IDC_EDIT_RangeMin, buf);
 
-            snprintf(buf, sizeof(buf), "%0.2f", context->GetRangeMaximum());
+            snprintf(buf, sizeof(buf), "%0.2f", s_learnFX.editAdvancedContext->GetRangeMaximum());
             SetDlgItemText(hwndDlg, IDC_EDIT_RangeMax, buf);
 
             char tmp[MEDBUF];
-            const vector<double>& steppedValues = context->GetSteppedValues();
+            const vector<double>& steppedValues = s_learnFX.editAdvancedContext->GetSteppedValues();
             string steps;
 
             for (int i = 0; i < steppedValues.size(); ++i) {
@@ -356,7 +359,7 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
             }
             SetDlgItemText(hwndDlg, IDC_EditSteps, steps.c_str());
 
-            const vector<double>& acceleratedDeltaValues = context->GetAcceleratedDeltaValues();
+            const vector<double>& acceleratedDeltaValues = s_learnFX.editAdvancedContext->GetAcceleratedDeltaValues();
             string deltas;
 
             for (int i = 0; i < (int) acceleratedDeltaValues.size(); ++i) {
@@ -365,7 +368,7 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
             }
             SetDlgItemText(hwndDlg, IDC_EDIT_DeltaValues, deltas.c_str());
 
-            const vector<int>& acceleratedTickCounts = context->GetAcceleratedTickCounts();
+            const vector<int>& acceleratedTickCounts = s_learnFX.editAdvancedContext->GetAcceleratedTickCounts();
             string ticks = "";
 
             for (int i = 0; i < (int) acceleratedTickCounts.size(); ++i) {
@@ -375,7 +378,7 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
             SetDlgItemText(hwndDlg, IDC_EDIT_TickValues, ticks.c_str());
 
             // NEW: Set the Free Form text field from the ActionContext.
-            SetDlgItemText(hwndDlg, IDC_EDIT_FREE_FORM, context->GetFreeFormText());
+            SetDlgItemText(hwndDlg, IDC_EDIT_FREE_FORM, s_learnFX.editAdvancedContext->GetFreeFormText());
 
             OnDialogInit(hwndDlg);
         } break;
@@ -384,20 +387,20 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
             switch (LOWORD(wParam)) {
                 case IDOK:
                     if (HIWORD(wParam) == BN_CLICKED) {
-                        if (context == NULL) {
+                        if (s_learnFX.editAdvancedContext == NULL) {
                             s_dlgResult = IDCANCEL;
                             EndDialog(hwndDlg, 0);
                             return 0;
                         }
 
                         GetDlgItemText(hwndDlg, IDC_EDIT_Delta, buf, sizeof(buf));
-                        context->SetDeltaValue(atof(buf));
+                        s_learnFX.editAdvancedContext->SetDeltaValue(atof(buf));
 
                         GetDlgItemText(hwndDlg, IDC_EDIT_RangeMin, buf, sizeof(buf));
-                        context->SetRangeMinimum(atof(buf));
+                        s_learnFX.editAdvancedContext->SetRangeMinimum(atof(buf));
 
                         GetDlgItemText(hwndDlg, IDC_EDIT_RangeMax, buf, sizeof(buf));
-                        context->SetRangeMaximum(atof(buf));
+                        s_learnFX.editAdvancedContext->SetRangeMaximum(atof(buf));
 
                         GetDlgItemText(hwndDlg, IDC_EDIT_DeltaValues, buf, sizeof(buf));
                         vector<string> tokens;
@@ -405,7 +408,7 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
                         vector<double> deltas;
                         for (int i = 0; i < tokens.size(); ++i)
                             deltas.push_back(atof(tokens[i].c_str()));
-                        context->SetAccelerationValues(deltas);
+                        s_learnFX.editAdvancedContext->SetAccelerationValues(deltas);
 
                         GetDlgItemText(hwndDlg, IDC_EDIT_TickValues, buf, sizeof(buf));
                         tokens.clear();
@@ -413,7 +416,7 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
                         vector<int> ticks;
                         for (int i = 0; i < tokens.size(); ++i)
                             ticks.push_back(atoi(tokens[i].c_str()));
-                        context->SetTickCounts(ticks);
+                        s_learnFX.editAdvancedContext->SetTickCounts(ticks);
 
                         GetDlgItemText(hwndDlg, IDC_EditSteps, buf, sizeof(buf));
                         tokens.clear();
@@ -421,11 +424,11 @@ static WDL_DLGRET dlgProcEditAdvanced(HWND hwndDlg, UINT uMsg, WPARAM wParam, LP
                         vector<double> steps;
                         for (int i = 0; i < tokens.size(); ++i)
                             steps.push_back(atof(tokens[i].c_str()));
-                        context->SetStepValues(steps);
+                        s_learnFX.editAdvancedContext->SetStepValues(steps);
 
                         // NEW: Retrieve Free Form Text and store it in the ActionContext.
                         GetDlgItemText(hwndDlg, IDC_EDIT_FREE_FORM, buf, sizeof(buf));
-                        context->SetFreeFormText(buf);
+                        s_learnFX.editAdvancedContext->SetFreeFormText(buf);
 
                         s_dlgResult = IDOK;
 
@@ -543,9 +546,9 @@ static void LoadTemplates(SurfaceFXTemplate* fxTemplate) {
         }
 
         if (fxTemplate->fonts.size() > 0 || fxTemplate->hasColor)
-            s_pageSurfaceFXLearnLevel = "Level3";
+            s_learnFX.pageSurfaceFXLearnLevel = "Level3";
         else
-            s_pageSurfaceFXLearnLevel = "Level2";
+            s_learnFX.pageSurfaceFXLearnLevel = "Level2";
 
     } catch (const std::exception& e) {
         LogToConsole("[ERROR] FAILED to LoadTemplates in %s\n", zoneInfo["FXWidgetLayout"].filePath.c_str());
@@ -579,7 +582,7 @@ static void WriteBoilerPlate(FILE* fxFile, string& fxBoilerplatePath) {
 }
 
 static void SaveZone(SurfaceFXTemplate* t) {
-    if (s_focusedTrack == NULL || s_fxName[0] == 0 || t == NULL)
+    if (s_learnFX.focusedTrack == NULL || s_learnFX.fxName[0] == 0 || t == NULL)
         return;
 
     ZoneManager* zoneManager = t->zoneManager;
@@ -593,7 +596,7 @@ static void SaveZone(SurfaceFXTemplate* t) {
     try {
         RecursiveCreateDirectory(path, 0);
 
-        string trimmedFXName = s_fxName;
+        string trimmedFXName = s_learnFX.fxName;
         ReplaceAllWith(trimmedFXName, s_BadFileChars, "_");
 
         char filePath[BUFSIZ];
@@ -603,7 +606,7 @@ static void SaveZone(SurfaceFXTemplate* t) {
         FILE* fxFile = fopenUTF8(filePath, "wb");
 
         if (fxFile) {
-            fprintf(fxFile, "Zone \"%s\" \"%s\"\n", s_fxName, s_fxAlias);
+            fprintf(fxFile, "Zone \"%s\" \"%s\"\n", s_learnFX.fxName, s_learnFX.fxAlias);
 
             map<const string, ZoneInfo>& zoneInfo = zoneManager->GetZoneInfo();
 
@@ -756,9 +759,9 @@ static void SaveZone(SurfaceFXTemplate* t) {
 
         ZoneInfo info;
         info.filePath = filePath;
-        info.alias = s_fxAlias;
+        info.alias = s_learnFX.fxAlias;
 
-        zoneManager->AddZoneFilePath(s_fxName, info);
+        zoneManager->AddZoneFilePath(s_learnFX.fxName, info);
     } catch (const std::exception& e) {
         LogToConsole("[ERROR] FAILED to SaveZone %s\n", path);
         LogToConsole("Exception: %s\n", e.what());
@@ -766,7 +769,7 @@ static void SaveZone(SurfaceFXTemplate* t) {
 }
 
 static void ClearParams(HWND hwndDlg) {
-    s_isUpdatingParameters = true;
+    s_learnFX.isUpdatingParameters = true;
 
     SetDlgItemText(hwndDlg, IDC_PickRingStyle, "");
     SetDlgItemText(hwndDlg, IDC_PickSteps, "");
@@ -788,7 +791,7 @@ static void ClearParams(HWND hwndDlg) {
     GetClientRect(hwndDlg, &rect);
     InvalidateRect(hwndDlg, &rect, 0);
 
-    s_isUpdatingParameters = false;
+    s_learnFX.isUpdatingParameters = false;
 }
 
 static void GetFullWidgetName(Widget* widget, int modifier, char* widgetNamBuf, int bufSize) {
@@ -816,7 +819,7 @@ static void FillPropertiesParams(HWND hwndDlg, SurfaceFXTemplate* t, Widget* wid
     if (paramContext == NULL)
         return;
 
-    s_isUpdatingParameters = true;
+    s_learnFX.isUpdatingParameters = true;
 
     char buf[MEDBUF];
     buf[0] = 0;
@@ -922,7 +925,7 @@ static void FillPropertiesParams(HWND hwndDlg, SurfaceFXTemplate* t, Widget* wid
     GetClientRect(hwndDlg, &rect);
     InvalidateRect(hwndDlg, &rect, 0);
 
-    s_isUpdatingParameters = false;
+    s_learnFX.isUpdatingParameters = false;
 }
 
 static void FillAdvancedParams(HWND hwndDlg, SurfaceFXTemplate* t, Widget* widget, int modifier) {
@@ -1048,7 +1051,7 @@ static void FillParams(HWND hwndDlg, SurfaceFXTemplate* t, Widget* widget, int m
     if (paramContext->GetAction()->GetType() == ActionType::NoAction)
         ClearParams(hwndDlg);
     else {
-        TrackFX_GetParamName(s_focusedTrack, s_fxSlot, s_lastTouchedParamNum, buf, sizeof(buf));
+        TrackFX_GetParamName(s_learnFX.focusedTrack, s_learnFX.fxSlot, s_learnFX.lastTouchedParamNum, buf, sizeof(buf));
         SetDlgItemText(hwndDlg, IDC_FXParamNameEdit, buf);
         FillAdvancedParams(hwndDlg, t, widget, modifier);
     }
@@ -1081,7 +1084,7 @@ static void HandleAssigment(SurfaceFXTemplate* t, Widget* widget, int modifier, 
     if (paramIdx < 0)
         return;
 
-    if (s_fxSlot < 0)
+    if (s_learnFX.fxSlot < 0)
         return;
 
     FXCell* cell = GetCell(t, widget, modifier);
@@ -1123,7 +1126,7 @@ static void HandleAssigment(SurfaceFXTemplate* t, Widget* widget, int modifier, 
         EnableWindow(GetDlgItem(t->hwnd, IDC_Assign), false);
         EnableWindow(GetDlgItem(t->hwnd, IDC_DeepEdit), false);
     } else if (paramContext->GetAction()->GetType() != ActionType::FXParam && paramContext->GetAction()->GetType() != ActionType::JSFXParam) {
-        paramContext->SetAction(zoneManager->GetCSI()->GetFXParamAction(s_fxName));
+        paramContext->SetAction(zoneManager->GetCSI()->GetFXParamAction(s_learnFX.fxName));
         paramContext->SetParamIndex(paramIdx);
         paramContext->SetStringParam("");
 
@@ -1139,7 +1142,7 @@ static void HandleAssigment(SurfaceFXTemplate* t, Widget* widget, int modifier, 
             }
         }
 
-        TrackFX_GetParamName(s_focusedTrack, s_fxSlot, paramIdx, buf, sizeof(buf));
+        TrackFX_GetParamName(s_learnFX.focusedTrack, s_learnFX.fxSlot, paramIdx, buf, sizeof(buf));
 
         char fullWidgetName[MEDBUF];
         snprintf(fullWidgetName, sizeof(fullWidgetName), "%s%s%d", t->nameWidget, cell->suffix.c_str(), cell->channel);
@@ -1284,7 +1287,7 @@ static WDL_DLGRET dlgProcEditFXAlias(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
     switch (uMsg) {
         case WM_INITDIALOG:
             s_dlgResult = IDCANCEL;
-            SetDlgItemText(hwndDlg, IDC_EDIT_FXAlias, s_fxAlias);
+            SetDlgItemText(hwndDlg, IDC_EDIT_FXAlias, s_learnFX.fxAlias);
             OnDialogInit(hwndDlg);
             break;
 
@@ -1292,7 +1295,7 @@ static WDL_DLGRET dlgProcEditFXAlias(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
             switch (LOWORD(wParam)) {
                 case IDOK:
                     if (HIWORD(wParam) == BN_CLICKED) {
-                        GetDlgItemText(hwndDlg, IDC_EDIT_FXAlias, s_fxAlias, sizeof(s_fxAlias));
+                        GetDlgItemText(hwndDlg, IDC_EDIT_FXAlias, s_learnFX.fxAlias, sizeof(s_learnFX.fxAlias));
                         s_dlgResult = IDOK;
                         EndDialog(hwndDlg, 0);
                     }
@@ -1359,10 +1362,10 @@ static void CreateContextMap(SurfaceFXTemplate* t) {
 }
 
 static void ReleaseFX() {
-    s_focusedTrack = NULL;
-    s_fxSlot = -1;
-    s_lastTouchedParamNum = -1;
-    s_lastTouchedParamValue = -1.0;
+    s_learnFX.focusedTrack = nullptr;
+    s_learnFX.fxSlot = -1;
+    s_learnFX.lastTouchedParamNum = -1;
+    s_learnFX.lastTouchedParamValue = -1.0;
 }
 
 static HFONT hFont16 = NULL;
@@ -1376,7 +1379,7 @@ static WDL_DLGRET dlgProcLearnFXDeepEdit(HWND hwndDlg, UINT uMsg, WPARAM wParam,
     if (t)
         zoneManager = t->zoneManager;
 
-    Widget* widget = s_currentWidget;
+    Widget* widget = s_learnFX.currentWidget;
 
     char buf[MEDBUF];
 
@@ -1395,10 +1398,10 @@ static WDL_DLGRET dlgProcLearnFXDeepEdit(HWND hwndDlg, UINT uMsg, WPARAM wParam,
             if (hFont14)
                 SendMessage(GetDlgItem(hwndDlg, IDC_FXParamNameEdit), WM_SETFONT, (WPARAM) hFont14, 0);
 
-            SetWindowText(hwndDlg, s_fxAlias);
+            SetWindowText(hwndDlg, s_learnFX.fxAlias);
             SetDlgItemText(hwndDlg, IDC_SurfaceName, t->zoneManager->GetSurface()->GetName());
 
-            FillParams(hwndDlg, t, s_currentWidget, s_currentModifier);
+            FillParams(hwndDlg, t, s_learnFX.currentWidget, s_learnFX.currentModifier);
             OnDialogInit(hwndDlg);
         } break;
 
@@ -1669,7 +1672,7 @@ static WDL_DLGRET dlgProcLearnFXDeepEdit(HWND hwndDlg, UINT uMsg, WPARAM wParam,
                     break;
 
                 case IDC_Edit_FixedTextDisplayTop:
-                    if (HIWORD(wParam) == EN_CHANGE && !s_isUpdatingParameters) {
+                    if (HIWORD(wParam) == EN_CHANGE && !s_learnFX.isUpdatingParameters) {
                         buf[0] = 0;
 
                         GetDlgItemText(hwndDlg, IDC_Edit_FixedTextDisplayTop, buf, sizeof(buf));
@@ -1682,7 +1685,7 @@ static WDL_DLGRET dlgProcLearnFXDeepEdit(HWND hwndDlg, UINT uMsg, WPARAM wParam,
                     break;
 
                 case IDC_Edit_FixedTextDisplayBottom:
-                    if (HIWORD(wParam) == EN_CHANGE && !s_isUpdatingParameters) {
+                    if (HIWORD(wParam) == EN_CHANGE && !s_learnFX.isUpdatingParameters) {
                         buf[0] = 0;
 
                         GetDlgItemText(hwndDlg, IDC_Edit_FixedTextDisplayBottom, buf, sizeof(buf));
@@ -1708,7 +1711,7 @@ static WDL_DLGRET dlgProcLearnFXDeepEdit(HWND hwndDlg, UINT uMsg, WPARAM wParam,
                     break;
 
                 case IDC_Edit_ParamValueDisplayTop:
-                    if (HIWORD(wParam) == EN_CHANGE && !s_isUpdatingParameters) {
+                    if (HIWORD(wParam) == EN_CHANGE && !s_learnFX.isUpdatingParameters) {
                         buf[0] = 0;
 
                         GetDlgItemText(hwndDlg, IDC_Edit_ParamValueDisplayTop, buf, sizeof(buf));
@@ -1721,7 +1724,7 @@ static WDL_DLGRET dlgProcLearnFXDeepEdit(HWND hwndDlg, UINT uMsg, WPARAM wParam,
                     break;
 
                 case IDC_Edit_ParamValueDisplayBottom:
-                    if (HIWORD(wParam) == EN_CHANGE && !s_isUpdatingParameters) {
+                    if (HIWORD(wParam) == EN_CHANGE && !s_learnFX.isUpdatingParameters) {
                         buf[0] = 0;
 
                         GetDlgItemText(hwndDlg, IDC_Edit_ParamValueDisplayBottom, buf, sizeof(buf));
@@ -1747,10 +1750,11 @@ static WDL_DLGRET dlgProcLearnFX(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
     if (t)
         zoneManager = t->zoneManager;
 
-    Widget* widget = s_currentWidget;
+    Widget* widget = s_learnFX.currentWidget;
 
     switch (uMsg) {
         case WM_INITDIALOG: {
+            SetWindowLongPtr(hwndDlg, GWLP_USERDATA, (LONG_PTR)&s_learnFX);
             hFont16 = CreateFont(16, 0, 0, 0, 0, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
 
             if (hFont16)
@@ -1784,8 +1788,8 @@ static WDL_DLGRET dlgProcLearnFX(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 
             ReleaseFX();
 
-            s_currentWidget = NULL;
-            s_currentModifier = -1;
+            s_learnFX.currentWidget = NULL;
+            s_learnFX.currentModifier = -1;
 
             if (hFont16)
                 DeleteObject(hFont16);
@@ -1793,16 +1797,17 @@ static WDL_DLGRET dlgProcLearnFX(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
             if (hFont14)
                 DeleteObject(hFont14);
 
+            s_learnFX = LearnFXState{};   // reset state on dialog close
             DestroyWindow(hwndDlg);
             s_hwndLearnFXDlg = NULL;
         } break;
 
         case WM_USER + 1024: {
-            s_lastTouchedParamNum = -1;
-            SetWindowText(hwndDlg, s_fxAlias);
+            s_learnFX.lastTouchedParamNum = -1;
+            SetWindowText(hwndDlg, s_learnFX.fxAlias);
 
             if (SurfaceFXTemplate* t = GetSurfaceFXTemplate(hwndDlg)) {
-                t->zoneManager->LoadLearnFocusedFXZone(s_focusedTrack, s_fxName, s_fxSlot);
+                t->zoneManager->LoadLearnFocusedFXZone(s_learnFX.focusedTrack, s_learnFX.fxName, s_learnFX.fxSlot);
                 CreateContextMap(t);
             }
         } break;
@@ -1837,7 +1842,7 @@ static WDL_DLGRET dlgProcLearnFX(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
             switch (LOWORD(wParam)) {
                 case IDC_Assign:
                     if (HIWORD(wParam) == BN_CLICKED) {
-                        int paramNum = s_lastTouchedParamNum;
+                        int paramNum = s_learnFX.lastTouchedParamNum;
                         if (paramNum < 0)
                             break;
 
@@ -1851,7 +1856,7 @@ static WDL_DLGRET dlgProcLearnFX(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
 
                 case IDC_Unassign:
                     if (HIWORD(wParam) == BN_CLICKED) {
-                        int paramNum = s_lastTouchedParamNum;
+                        int paramNum = s_learnFX.lastTouchedParamNum;
                         if (paramNum < 0)
                             break;
 
@@ -1868,15 +1873,15 @@ static WDL_DLGRET dlgProcLearnFX(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM 
                         DialogBox(g_hInst, MAKEINTRESOURCE(IDD_DIALOG_EditFXAlias), g_hwnd, dlgProcEditFXAlias);
 
                         if (s_dlgResult == IDOK)
-                            SetWindowText(hwndDlg, s_fxAlias);
+                            SetWindowText(hwndDlg, s_learnFX.fxAlias);
                     }
                     break;
 
                 case IDC_DeepEdit:
                     if (HIWORD(wParam) == BN_CLICKED) {
-                        if (s_pageSurfaceFXLearnLevel == "Level2")
+                        if (s_learnFX.pageSurfaceFXLearnLevel == "Level2")
                             DialogBox(g_hInst, MAKEINTRESOURCE(IDD_DIALOG_LearnFXLevel2), g_hwnd, dlgProcLearnFXDeepEdit);
-                        else if (s_pageSurfaceFXLearnLevel == "Level3")
+                        else if (s_learnFX.pageSurfaceFXLearnLevel == "Level3")
                             DialogBox(g_hInst, MAKEINTRESOURCE(IDD_DIALOG_LearnFXLevel3), g_hwnd, dlgProcLearnFXDeepEdit);
                     }
                     break;
@@ -1905,7 +1910,7 @@ void WidgetMoved(ZoneManager* zoneManager, Widget* widget, int modifier) {
     if (!t->hwnd)
         return;
 
-    if (s_focusedTrack == NULL)
+    if (s_learnFX.focusedTrack == NULL)
         return;
 
     if (zoneManager == NULL)
@@ -1918,8 +1923,8 @@ void WidgetMoved(ZoneManager* zoneManager, Widget* widget, int modifier) {
     if (find(widgets.begin(), widgets.end(), widget) == widgets.end())
         return zoneManager->GetCSI()->ShowErrorOSD(string("Widget [") + widget->GetName() + "] is not defined in FXWidgetLayout");
 
-    s_currentWidget = widget;
-    s_currentModifier = modifier;
+    s_learnFX.currentWidget = widget;
+    s_learnFX.currentModifier = modifier;
 
     char buf[MEDBUF];
     GetFullWidgetName(widget, modifier, buf, sizeof(buf));
@@ -1972,29 +1977,29 @@ static void InitLearnFocusedFXDialog(ZoneManager* zoneManager) {
 }
 
 void LaunchLearnFocusedFXDialog(ZoneManager* zoneManager) {
-    TrackFX_GetFXName(s_focusedTrack, s_fxSlot, s_fxName, sizeof(s_fxName));
+    TrackFX_GetFXName(s_learnFX.focusedTrack, s_learnFX.fxSlot, s_learnFX.fxName, sizeof(s_learnFX.fxName));
 
     map<const string, ZoneInfo>& zoneInfo = zoneManager->GetZoneInfo();
 
-    memset(s_fxAlias, 0, sizeof(s_fxAlias));
+    memset(s_learnFX.fxAlias, 0, sizeof(s_learnFX.fxAlias));
 
-    if (zoneInfo.find(s_fxName) != zoneInfo.end())
-        lstrcpyn_safe(s_fxAlias, zoneInfo[s_fxName].alias.c_str(), sizeof(s_fxAlias));
+    if (zoneInfo.find(s_learnFX.fxName) != zoneInfo.end())
+        lstrcpyn_safe(s_learnFX.fxAlias, zoneInfo[s_learnFX.fxName].alias.c_str(), sizeof(s_learnFX.fxAlias));
     else
-        zoneManager->GetAlias(s_fxName, s_fxAlias, sizeof(s_fxAlias));
+        zoneManager->GetAlias(s_learnFX.fxName, s_learnFX.fxAlias, sizeof(s_learnFX.fxAlias));
 
     InitLearnFocusedFXDialog(zoneManager);
 }
 
 void RequestFocusedFXDialog(ZoneManager* zoneManager) {
-    if (s_focusedTrack != NULL && s_surfaceFXTemplates.size() == 1 && s_surfaceFXTemplates[0]->zoneManager == zoneManager) {
+    if (s_learnFX.focusedTrack != NULL && s_surfaceFXTemplates.size() == 1 && s_surfaceFXTemplates[0]->zoneManager == zoneManager) {
         SurfaceFXTemplate const* t = s_surfaceFXTemplates[0].get();
         if (t->hwnd != NULL) {
             SendMessage(t->hwnd, WM_CLOSE, 0, 0);
             return;
         }
     }
-    if (DAW::CheckTouchedOrFocusedFX(&s_focusedTrack, &s_fxSlot, &s_lastTouchedParamNum))
+    if (DAW::CheckTouchedOrFocusedFX(&s_learnFX.focusedTrack, &s_learnFX.fxSlot, &s_learnFX.lastTouchedParamNum))
         LaunchLearnFocusedFXDialog(zoneManager);
     else
         zoneManager->GetCSI()->ShowErrorOSD("No active FX windows!");
@@ -2028,9 +2033,9 @@ void UpdateLearnWindow(ZoneManager* zoneManager) {
         double maxvalOut = 0.0;
         double currentParamValue = TrackFX_GetParam(DAW::GetTrack(trackNumberOut), fxNumberOut, paramNumberOut, &minvalOut, &maxvalOut);
 
-        if (s_lastTouchedParamNum != paramNumberOut || s_lastTouchedParamValue != currentParamValue) {
-            s_lastTouchedParamNum = paramNumberOut;
-            s_lastTouchedParamValue = currentParamValue;
+        if (s_learnFX.lastTouchedParamNum != paramNumberOut || s_learnFX.lastTouchedParamValue != currentParamValue) {
+            s_learnFX.lastTouchedParamNum = paramNumberOut;
+            s_learnFX.lastTouchedParamValue = currentParamValue;
 
             if (IsWindowVisible(GetDlgItem(t->hwnd, IDC_Assign))) {
                 char buf[MEDBUF];
