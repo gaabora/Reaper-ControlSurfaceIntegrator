@@ -5,6 +5,7 @@
 //
 
 class CSurfIntegrator;
+class IPageContext;
 class FeedbackProcessor;
 class Midi_FeedbackProcessor;
 class Widget;

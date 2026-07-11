@@ -3,6 +3,7 @@
 //  control_surface.h — ControlSurface base class
 //
 #include "preamble.h"
+#include "page_interface.h"
 #include "zone_manager.h"
 #include "modifier_manager.h"
 #include "message_generator.h"
@@ -79,7 +80,7 @@ protected:
     void ProcessValues(const vector<vector<string>> &lines);
     
     CSurfIntegrator *const csi_;
-    Page *const page_;
+    IPageContext *const page_;
     string const name_;
     unique_ptr<ZoneManager> zoneManager_;
     unique_ptr<ModifierManager> modifierManager_;
@@ -97,7 +98,7 @@ protected:
 
     bool speedX5_ = false;
 
-    ControlSurface(CSurfIntegrator *const csi, Page *page, const string &name, int numChannels, int channelOffset) : csi_(csi), page_(page), name_(name), numChannels_(numChannels), channelOffset_(channelOffset), modifierManager_(make_unique<ModifierManager>(csi_, (Page *)NULL, this))
+    ControlSurface(CSurfIntegrator *const csi, IPageContext *page, const string &name, int numChannels, int channelOffset) : csi_(csi), page_(page), name_(name), numChannels_(numChannels), channelOffset_(channelOffset), modifierManager_(make_unique<ModifierManager>(csi_, nullptr, this))
     {
         int size = 0;
         scrubModePtr_ = (int*)get_config_var("scrubmode", &size);
@@ -220,7 +221,7 @@ public:
     
     ModifierManager *GetModifierManager() { return modifierManager_.get(); }
     ZoneManager *GetZoneManager() { return zoneManager_.get(); }
-    Page *GetPage() { return page_; }
+    IPageContext *GetPage() { return page_; }
     const char *GetName() { return name_.c_str(); }
     
     int GetNumChannels() { return numChannels_; }

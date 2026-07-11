@@ -3,6 +3,7 @@
 //  navigator.h — Navigator base class and all concrete Navigator subclasses
 //
 #include "preamble.h"
+#include "page_interface.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Navigator
@@ -10,7 +11,7 @@ class Navigator
 {
 protected:
     const CSurfIntegrator *const csi_;
-    Page *const page_;
+    IPageContext *const page_;
     bool isVolumeTouched_ = false;
     bool isPanTouched_ = false;
     bool isPanWidthTouched_ = false;
@@ -18,7 +19,7 @@ protected:
     bool isPanRightTouched_ = false;
     bool isMCUTrackPanWidth_ = false;
 
-    Navigator(const CSurfIntegrator *const csi, Page * page) : csi_(csi), page_(page) {}
+    Navigator(const CSurfIntegrator *const csi, IPageContext * page) : csi_(csi), page_(page) {}
 
 public:
     virtual ~Navigator() {}
@@ -82,7 +83,7 @@ protected:
     TrackNavigationManager *const trackNavigationManager_;
 
 public:
-    TrackNavigator(CSurfIntegrator *const csi, Page *page, TrackNavigationManager *trackNavigationManager, int channelNum) : Navigator(csi, page), trackNavigationManager_(trackNavigationManager), channelNum_(channelNum) {}
+    TrackNavigator(CSurfIntegrator *const csi, IPageContext *page, TrackNavigationManager *trackNavigationManager, int channelNum) : Navigator(csi, page), trackNavigationManager_(trackNavigationManager), channelNum_(channelNum) {}
     virtual ~TrackNavigator() {}
     
     NavigatorType GetType() const override { return NavigatorType::TrackNavigator; }
@@ -101,7 +102,7 @@ private:
     MediaTrack *const track_;
     
 public:
-    FixedTrackNavigator(CSurfIntegrator *const csi, Page *page, MediaTrack *const track) : Navigator(csi, page), track_(track) {}
+    FixedTrackNavigator(CSurfIntegrator *const csi, IPageContext *page, MediaTrack *const track) : Navigator(csi, page), track_(track) {}
     virtual ~FixedTrackNavigator() {}
     
     NavigatorType GetType() const override { return NavigatorType::FixedTrackNavigator; }
@@ -114,7 +115,7 @@ class MasterTrackNavigator : public Navigator
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 public:
-    MasterTrackNavigator(CSurfIntegrator *const csi, Page * page) : Navigator(csi, page) {}
+    MasterTrackNavigator(CSurfIntegrator *const csi, IPageContext * page) : Navigator(csi, page) {}
     virtual ~MasterTrackNavigator() {}
     
     NavigatorType GetType() const override { return NavigatorType::MasterTrackNavigator; }
@@ -127,7 +128,7 @@ class SelectedTrackNavigator : public Navigator
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 public:
-    SelectedTrackNavigator(CSurfIntegrator *const csi, Page * page) : Navigator(csi, page) {}
+    SelectedTrackNavigator(CSurfIntegrator *const csi, IPageContext * page) : Navigator(csi, page) {}
     virtual ~SelectedTrackNavigator() {}
     
     NavigatorType GetType() const override { return NavigatorType::SelectedTrackNavigator; }
@@ -140,7 +141,7 @@ class FocusedFXNavigator : public Navigator
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 public:
-    FocusedFXNavigator(CSurfIntegrator *const csi, Page * page) : Navigator(csi, page) {}
+    FocusedFXNavigator(CSurfIntegrator *const csi, IPageContext * page) : Navigator(csi, page) {}
     virtual ~FocusedFXNavigator() {}
     
     NavigatorType GetType() const override { return NavigatorType::FocusedFXNavigator; }

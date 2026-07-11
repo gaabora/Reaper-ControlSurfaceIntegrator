@@ -132,7 +132,7 @@ public:
     void DoAcceleratedSteppedValueAction(int accelerationIndex, double value);
     void DoAcceleratedDeltaValueAction(int accelerationIndex, double value);
     
-    Page *GetPage();
+    IPageContext *GetPage();
     ControlSurface *GetSurface();
     int GetParamIndex() { return paramIndex_; }
     void SetParamIndex(int paramIndex) { paramIndex_ = paramIndex; }

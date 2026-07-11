@@ -278,16 +278,16 @@ public:
     void SetTrackOffset(int offset)
     {
         if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
-            pages_[currentPageIndex_]->SetTrackOffset(offset);
+            pages_[currentPageIndex_]->GetTrackNavigationManager()->SetTrackOffset(offset);
     }
     
-    void AdjustBank(Page *sendingPage, const char *zoneName, int amount)
+    void AdjustBank(IPageContext *sendingPage, const char *zoneName, int amount)
     {
-        if (! sendingPage->GetSynchPages())
+        if (! sendingPage->GetTrackNavigationManager()->GetSynchPages())
             sendingPage->AdjustBank(zoneName, amount);
         else
             for (int i = 0; i < pages_.size(); ++i)
-                if (pages_[currentPageIndex_]->GetSynchPages())
+                if (pages_[currentPageIndex_]->GetTrackNavigationManager()->GetSynchPages())
                     pages_[currentPageIndex_]->AdjustBank(zoneName, amount);
     }
        

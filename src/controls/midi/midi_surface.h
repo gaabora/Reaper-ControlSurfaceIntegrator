@@ -145,7 +145,7 @@ private:
     void SendSysexInitData(int line[], int numElem);
     
 public:
-    Midi_ControlSurface(CSurfIntegrator *const csi, Page *page, const char *name, int channelOffset, const char *surfaceFile, const char *zoneFolder, const char *fxZoneFolder, Midi_ControlSurfaceIO *surfaceIO);
+    Midi_ControlSurface(CSurfIntegrator *const csi, IPageContext *page, const char *name, int channelOffset, const char *surfaceFile, const char *zoneFolder, const char *fxZoneFolder, Midi_ControlSurfaceIO *surfaceIO);
 
     virtual ~Midi_ControlSurface() {}
     

@@ -1060,7 +1060,7 @@ MediaTrack *MasterTrackNavigator::GetTrack()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 MediaTrack *SelectedTrackNavigator::GetTrack()
 {
-    return page_->GetSelectedTrack(true);
+    return page_->GetTrackNavigationManager()->GetSelectedTrack(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1284,7 +1284,7 @@ void ActionContext::ProcessActionTitle(string origName)
     }
 }
 
-Page *ActionContext::GetPage()
+IPageContext *ActionContext::GetPage()
 {
     return widget_->GetSurface()->GetPage();
 }
@@ -1301,7 +1301,7 @@ MediaTrack *ActionContext::GetTrack()
 
 vector<MediaTrack*> ActionContext::GetSelectedTracks(bool includeMaster) {
     if (this->GetZone()->GetNavigator()->GetType() == NavigatorType::SelectedTrackNavigator) {
-        return this->GetPage()->GetSelectedTracks(includeMaster);
+        return this->GetPage()->GetTrackNavigationManager()->GetSelectedTracks(includeMaster);
     } else {
         MediaTrack* track = this->GetTrack();
         return track ? vector<MediaTrack*>{ track } : vector<MediaTrack*>{};
@@ -1960,11 +1960,11 @@ void Zone::Activate()
     isActive_ = true;
     
     if (IsSameString(GetName(), "VCA"))
-        zoneManager_->GetSurface()->GetPage()->ActivateVCAMode();
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateVCAMode();
     else if (IsSameString(GetName(), "Folder"))
-        zoneManager_->GetSurface()->GetPage()->ActivateFolderMode();
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateFolderMode();
     else if (IsSameString(GetName(), "SelectedTracks"))
-        zoneManager_->GetSurface()->GetPage()->ActivateSelectedTracksMode();
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateSelectedTracksMode();
 
     zoneManager_->GetSurface()->SendOSCMessage(GetName());
 
@@ -1994,11 +1994,11 @@ void Zone::Deactivate()
     isActive_ = false;
     
     if (IsSameString(GetName(), "VCA"))
-        zoneManager_->GetSurface()->GetPage()->DeactivateVCAMode();
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateVCAMode();
     else if (IsSameString(GetName(), "Folder"))
-        zoneManager_->GetSurface()->GetPage()->DeactivateFolderMode();
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateFolderMode();
     else if (IsSameString(GetName(), "SelectedTracks"))
-        zoneManager_->GetSurface()->GetPage()->DeactivateSelectedTracksMode();
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateSelectedTracksMode();
     
     for (auto &includedZone : includedZones_)
         includedZone->Deactivate();
@@ -2367,10 +2367,10 @@ void OSC_IntFeedbackProcessor::ForceValue(const PropertyList &properties, double
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ZoneManager::ZoneManager(CSurfIntegrator *const csi, ControlSurface *surface, const string &zoneFolder, const string &fxZoneFolder) : csi_(csi), surface_(surface), zoneFolder_(zoneFolder), fxZoneFolder_(fxZoneFolder == "" ? zoneFolder : fxZoneFolder) {}
 
-Navigator *ZoneManager::GetNavigatorForTrack(MediaTrack *track) { return surface_->GetPage()->GetNavigatorForTrack(track); }
-Navigator *ZoneManager::GetMasterTrackNavigator() { return surface_->GetPage()->GetMasterTrackNavigator(); }
-Navigator *ZoneManager::GetSelectedTrackNavigator() { return surface_->GetPage()->GetSelectedTrackNavigator(); }
-Navigator *ZoneManager::GetFocusedFXNavigator() { return surface_->GetPage()->GetFocusedFXNavigator(); }
+Navigator *ZoneManager::GetNavigatorForTrack(MediaTrack *track) { return surface_->GetPage()->GetTrackNavigationManager()->GetNavigatorForTrack(track); }
+Navigator *ZoneManager::GetMasterTrackNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetMasterTrackNavigator(); }
+Navigator *ZoneManager::GetSelectedTrackNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetSelectedTrackNavigator(); }
+Navigator *ZoneManager::GetFocusedFXNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetFocusedFXNavigator(); }
 int ZoneManager::GetNumChannels() { return surface_->GetNumChannels(); }
 
 void ZoneManager::Initialize()
@@ -2537,7 +2537,7 @@ void ZoneManager::GetNavigatorsForZone(const char *zoneName, const char *navigat
              IsSameString(zoneName, "TrackFXMenu"))
         for (int i = 0; i < GetNumChannels(); ++i)
         {
-            Navigator *channelNavigator = GetSurface()->GetPage()->GetNavigatorForChannel(i + GetSurface()->GetChannelOffset());
+            Navigator *channelNavigator = GetSurface()->GetPage()->GetTrackNavigationManager()->GetNavigatorForChannel(i + GetSurface()->GetChannelOffset());
             if (channelNavigator)
                 navigators.push_back(channelNavigator);
         }
@@ -2862,7 +2862,7 @@ void ZoneManager::GoSelectedTrackFX()
 {
     selectedTrackFXZones_.clear();
     
-    if (MediaTrack *selectedTrack = surface_->GetPage()->GetSelectedTrack(true))
+    if (MediaTrack *selectedTrack = surface_->GetPage()->GetTrackNavigationManager()->GetSelectedTrack(true))
     {
         for (int i = 0; i < TrackFX_GetCount(selectedTrack); ++i)
         {
@@ -3448,7 +3448,7 @@ rgba_color ControlSurface::GetTrackColorForChannel(int channel)
     if (channel < 0 || channel >= numChannels_)
         return white;
     
-    if (MediaTrack *track = page_->GetNavigatorForChannel(channel + channelOffset_)->GetTrack())
+    if (MediaTrack *track = page_->GetTrackNavigationManager()->GetNavigatorForChannel(channel + channelOffset_)->GetTrack())
         return DAW::GetTrackColor(track);
     else
         return white;
@@ -3822,7 +3822,7 @@ void Midi_ControlSurfaceIO::HandleExternalInput(Midi_ControlSurface *surface)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator *const csi, Page *page, const char *name, int channelOffset, const char *surfaceFile, const char *zoneFolder, const char *fxZoneFolder, Midi_ControlSurfaceIO *surfaceIO)
+Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator *const csi, IPageContext *page, const char *name, int channelOffset, const char *surfaceFile, const char *zoneFolder, const char *fxZoneFolder, Midi_ControlSurfaceIO *surfaceIO)
 : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO)
 {
     MidiWidgetRegistry::EnsureRegistered();
@@ -4029,7 +4029,7 @@ void OSC_X32ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface *surface)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator *const csi, Page *page, const char *name, int channelOffset, const char *templateFilename, const char *zoneFolder, const char *fxZoneFolder, OSC_ControlSurfaceIO *surfaceIO) : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO)
+OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator *const csi, IPageContext *page, const char *name, int channelOffset, const char *templateFilename, const char *zoneFolder, const char *fxZoneFolder, OSC_ControlSurfaceIO *surfaceIO) : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO)
 
 {
     ProcessOSCWidgetFile(templateFilename);

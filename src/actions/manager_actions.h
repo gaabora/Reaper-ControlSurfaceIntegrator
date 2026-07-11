@@ -224,14 +224,14 @@ public:
     
     void RequestUpdate(ActionContext *context) override
     {
-        context->UpdateWidgetValue(context->GetPage()->GetSynchPages());
+        context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetSynchPages());
     }
     
     void Do(ActionContext *context, double value) override
     {
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         
-        context->GetPage()->ToggleSynchPages();
+        context->GetPage()->GetTrackNavigationManager()->ToggleSynchPages();
     }
 };
 
@@ -244,14 +244,14 @@ public:
     
     void RequestUpdate(ActionContext *context) override
     {
-        context->UpdateWidgetValue(context->GetPage()->GetFollowMCP());
+        context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetFollowMCP());
     }
 
     void Do(ActionContext *context, double value) override
     {
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         
-        context->GetPage()->ToggleFollowMCP();
+        context->GetPage()->GetTrackNavigationManager()->ToggleFollowMCP();
     }
 };
 
@@ -264,14 +264,14 @@ public:
     
     void RequestUpdate(ActionContext *context) override
     {
-        context->UpdateWidgetValue(context->GetPage()->GetScrollLink());
+        context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetScrollLink());
     }
     
     void Do(ActionContext *context, double value) override
     {
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         
-        context->GetPage()->ToggleScrollLink(context->GetIntParam());
+        context->GetPage()->GetTrackNavigationManager()->ToggleScrollLink(context->GetIntParam());
     }
 };
 

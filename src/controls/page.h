@@ -3,6 +3,7 @@
 //  page.h — Page class (and out-of-line ZoneManager methods that depend on ControlSurface)
 //
 #include "preamble.h"
+#include "page_interface.h"
 #include "control_surface.h"
 #include "modifier_manager.h"
 #include "track_nav_manager.h"
@@ -61,7 +62,7 @@ inline void ZoneManager::GoHome()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class Page
+class Page : public IPageContext
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 {
 protected:
@@ -74,18 +75,18 @@ protected:
 public:
     Page(CSurfIntegrator *const csi, const char *name, bool followMCP,  bool synchPages, bool isScrollLinkEnabled, bool isScrollSynchEnabled) : csi_(csi), name_(name), trackNavigationManager_(make_unique<TrackNavigationManager>(csi_, this, followMCP, synchPages, isScrollLinkEnabled, isScrollSynchEnabled)), modifierManager_(make_unique<ModifierManager>(csi_, this, (ControlSurface *)NULL)) {}
 
-    ~Page()
+    virtual ~Page() override
     {
         surfaces_.clear();
     }
         
-    const char *GetName() { return name_.c_str(); }
+    const char *GetName() override { return name_.c_str(); }
     
-    ModifierManager *GetModifierManager() { return modifierManager_.get(); }
+    ModifierManager *GetModifierManager() override { return modifierManager_.get(); }
     
     vector<unique_ptr<ControlSurface>> &GetSurfaces() { return surfaces_; }
        
-    void UpdateCurrentActionContextModifiers()
+    void UpdateCurrentActionContextModifiers() override
     {
         for (auto &surface : surfaces_)
             surface->UpdateCurrentActionContextModifiers();
@@ -97,13 +98,13 @@ public:
             surface->ForceClear();
     }
     
-    void ForceClearTrack(int trackNum)
+    void ForceClearTrack(int trackNum) override
     {
         for (auto &surface : surfaces_)
             surface->ForceClearTrack(trackNum);
     }
     
-    void ForceUpdateTrackColors()
+    void ForceUpdateTrackColors() override
     {
         for (auto &surface : surfaces_)
             surface->ForceUpdateTrackColors();
@@ -114,7 +115,7 @@ public:
         return trackNavigationManager_->GetIsControlTouched(track, touchedControl);
     }
     
-    void OnTrackSelection(MediaTrack *track)
+    void OnTrackSelection(MediaTrack *track) override
     {
         trackNavigationManager_->OnTrackSelection();
         
@@ -127,7 +128,7 @@ public:
         trackNavigationManager_->OnTrackListChange();
     }
     
-    void OnTrackSelectionBySurface(MediaTrack *track)
+    void OnTrackSelectionBySurface(MediaTrack *track) override
     {
         trackNavigationManager_->OnTrackSelectionBySurface(track);
         
@@ -163,37 +164,37 @@ public:
             surface->OnInitialization();
     }
     
-    void SignalStop()
+    void SignalStop() override
     {
         for (auto &surface : surfaces_)
             surface->HandleStop();
     }
     
-    void SignalPlay()
+    void SignalPlay() override
     {
         for (auto &surface : surfaces_)
             surface->HandlePlay();
     }
     
-    void SignalRecord()
+    void SignalRecord() override
     {
         for (auto &surface : surfaces_)
             surface->HandleRecord();
     }
             
-    void GoHome()
+    void GoHome() override
     {
         for (auto &surface : surfaces_)
             surface->GetZoneManager()->GoHome();
     }
     
-    void GoZone(const char *name)
+    void GoZone(const char *name) override
     {
         for (auto &surface : surfaces_)
             surface->GetZoneManager()->GoZone(name);
     }
     
-    void AdjustBank(const char *zoneName, int amount)
+    void AdjustBank(const char *zoneName, int amount) override
     {
         if (IsSameString(zoneName, "Track"))
             trackNavigationManager_->AdjustTrackBank(amount);
@@ -210,46 +211,7 @@ public:
                 surface->GetZoneManager()->AdjustBank(zoneName, amount);
     }
     
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Page facade for TrackNavigationManager
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    bool GetSynchPages() { return trackNavigationManager_->GetSynchPages(); }
-    bool GetScrollLink() { return trackNavigationManager_->GetScrollLink(); }
-    bool GetFollowMCP() { return trackNavigationManager_->GetFollowMCP(); }
-    int  GetNumTracks() { return trackNavigationManager_->GetNumTracks(); }
-    Navigator *GetMasterTrackNavigator() { return trackNavigationManager_->GetMasterTrackNavigator(); }
-    Navigator * GetSelectedTrackNavigator() { return trackNavigationManager_->GetSelectedTrackNavigator(); }
-    Navigator * GetFocusedFXNavigator() { return trackNavigationManager_->GetFocusedFXNavigator(); }
-    void ToggleFolderView() { trackNavigationManager_->ToggleFolderView(); }
-    bool GetIsFolderViewActive() { return trackNavigationManager_->GetIsFolderViewActive(); }
-    MediaTrack* SetCurrentFolder(MediaTrack* track) { return trackNavigationManager_->SetCurrentFolder(track); }
-    MediaTrack* ExitCurrentFolder() { return trackNavigationManager_->ExitCurrentFolder(); }
-    bool IsAtRootFolderLevel() { return trackNavigationManager_->IsAtRootFolderLevel(); }
-    void ActivateVCAMode() { trackNavigationManager_->ActivateVCAMode(); }
-    void DeactivateVCAMode() { trackNavigationManager_->DeactivateVCAMode(); }
-    void ActivateFolderMode() { trackNavigationManager_->ActivateFolderMode(); }
-    void DeactivateFolderMode() { trackNavigationManager_->DeactivateFolderMode(); }
-    void ActivateSelectedTracksMode() { trackNavigationManager_->ActivateSelectedTracksMode(); }
-    void DeactivateSelectedTracksMode() { trackNavigationManager_->DeactivateSelectedTracksMode(); }
-    Navigator * GetNavigatorForTrack(MediaTrack *track) { return trackNavigationManager_->GetNavigatorForTrack(track); }
-    Navigator * GetNavigatorForChannel(int channelNum) { return trackNavigationManager_->GetNavigatorForChannel(channelNum); }
-    MediaTrack *GetTrackFromId(int trackNumber) { return trackNavigationManager_->GetTrackFromId(trackNumber); }
-    int GetIdFromTrack(MediaTrack *track) { return trackNavigationManager_->GetIdFromTrack(track); }
-    bool GetIsTrackVisible(MediaTrack *track) { return trackNavigationManager_->GetIsTrackVisible(track); }
-    bool GetIsVCASpilled(MediaTrack *track) { return trackNavigationManager_->GetIsVCASpilled(track); }
-    void ToggleVCASpill(MediaTrack *track) { trackNavigationManager_->ToggleVCASpill(track); }
-    bool GetIsFolderSpilled(MediaTrack *track) { return trackNavigationManager_->GetIsFolderSpilled(track); }
-    void ToggleFolderSpill(MediaTrack *track) { trackNavigationManager_->ToggleFolderSpill(track); }
-    void ToggleScrollLink(int targetChannel) { trackNavigationManager_->ToggleScrollLink(targetChannel); }
-    void ToggleSynchPages() { trackNavigationManager_->ToggleSynchPages(); }
-    void ToggleFollowMCP() { trackNavigationManager_->ToggleFollowMCP(); }
-    void SetTrackOffset(int offset) { trackNavigationManager_->SetTrackOffset(offset); }
-    MediaTrack *GetSelectedTrack(bool includeMaster = false) { return trackNavigationManager_->GetSelectedTrack(includeMaster); }
-    void NextInputMonitorMode(MediaTrack *track) { trackNavigationManager_->NextInputMonitorMode(track); }
-    const char *GetAutoModeDisplayName(int modeIndex) { return trackNavigationManager_->GetAutoModeDisplayName(modeIndex); }
-    const char *GetGlobalAutoModeDisplayName() { return trackNavigationManager_->GetGlobalAutoModeDisplayName(); }
-    const char *GetCurrentInputMonitorMode(MediaTrack *track) { return trackNavigationManager_->GetCurrentInputMonitorMode(track); }
-    const vector<MediaTrack *> &GetSelectedTracks(bool includeMaster = false) { return trackNavigationManager_->GetSelectedTracks(includeMaster); }
+    TrackNavigationManager* GetTrackNavigationManager() override { return trackNavigationManager_.get(); }
     
     
     /*

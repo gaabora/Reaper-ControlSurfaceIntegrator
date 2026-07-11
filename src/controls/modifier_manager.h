@@ -9,7 +9,7 @@ class ModifierManager
 {
 private:
     CSurfIntegrator *const csi_;
-    Page *page_;
+    IPageContext *page_;
     ControlSurface *surface_;
     
     enum Modifiers
@@ -101,7 +101,7 @@ private:
     void SetLatchModifier(bool value, Modifiers modifier, int latchTime);
 
 public:
-    ModifierManager(CSurfIntegrator *const csi, Page *page = NULL, ControlSurface *surface = NULL) : csi_(csi), page_(page), surface_(surface)
+    ModifierManager(CSurfIntegrator *const csi, IPageContext *page = nullptr, ControlSurface *surface = NULL) : csi_(csi), page_(page), surface_(surface)
     {
         int *p = modifierCombinations_.ResizeOK(1);
         if (WDL_NORMALLY(p)) p[0]=0;

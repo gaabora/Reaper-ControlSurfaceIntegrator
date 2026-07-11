@@ -204,7 +204,7 @@ public:
     virtual void RequestUpdate(ActionContext *context) override
     {
         if (MediaTrack *track = context->GetTrack())
-            context->UpdateWidgetValue(context->GetPage()->GetIsVCASpilled(track));
+            context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetIsVCASpilled(track));
         else
             context->UpdateWidgetValue(0.0);
     }
@@ -214,7 +214,7 @@ public:
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         
         if (MediaTrack *track = context->GetTrack())
-            context->GetPage()->ToggleVCASpill(track);
+            context->GetPage()->GetTrackNavigationManager()->ToggleVCASpill(track);
     }
 };
 
@@ -228,7 +228,7 @@ public:
     virtual void RequestUpdate(ActionContext *context) override
     {
         if (MediaTrack *track = context->GetTrack())
-            context->UpdateWidgetValue(context->GetPage()->GetIsFolderSpilled(track));
+            context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetIsFolderSpilled(track));
         else
             context->UpdateWidgetValue(0.0);
     }
@@ -238,7 +238,7 @@ public:
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
         
         if (MediaTrack *track = context->GetTrack())
-            context->GetPage()->ToggleFolderSpill(track);
+            context->GetPage()->GetTrackNavigationManager()->ToggleFolderSpill(track);
     }
 };
 
@@ -335,7 +335,7 @@ public:
     virtual void RequestUpdate(ActionContext *context) override
     {
         if (MediaTrack *track = context->GetTrack())
-            context->UpdateWidgetValue(context->GetPage()->GetAutoModeDisplayName((int)GetMediaTrackInfo_Value(track, "I_AUTOMODE")));
+            context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetAutoModeDisplayName((int)GetMediaTrackInfo_Value(track, "I_AUTOMODE")));
     }
     
     virtual void Do(ActionContext *context, double value) override
@@ -390,7 +390,7 @@ public:
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) return;
 
         if (MediaTrack *track = context->GetTrack())
-            context->GetPage()->NextInputMonitorMode(track);
+            context->GetPage()->GetTrackNavigationManager()->NextInputMonitorMode(track);
     }
 };
 
@@ -404,7 +404,7 @@ public:
     virtual void RequestUpdate(ActionContext *context) override
     {
         if (MediaTrack *track = context->GetTrack())
-            context->UpdateWidgetValue(context->GetPage()->GetAutoModeDisplayName((int)GetMediaTrackInfo_Value(track, "I_AUTOMODE")));
+            context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetAutoModeDisplayName((int)GetMediaTrackInfo_Value(track, "I_AUTOMODE")));
     }
 };
 
@@ -459,7 +459,7 @@ public:
     
     virtual void RequestUpdate(ActionContext* context) override
     {
-        if (context->GetPage()->GetIsFolderViewActive())
+        if (context->GetPage()->GetTrackNavigationManager()->GetIsFolderViewActive())
             context->UpdateWidgetValue(1.0);
         else
             context->UpdateWidgetValue(0.0);
@@ -469,7 +469,7 @@ public:
     {
         if (value == 0.0) return; // ignore button releases
 
-        context->GetPage()->ToggleFolderView();
+        context->GetPage()->GetTrackNavigationManager()->ToggleFolderView();
     }
 };
 
@@ -491,7 +491,7 @@ public:
 
         if (MediaTrack* track = context->GetTrack())
         {
-            MediaTrack* trackToSelect = context->GetPage()->SetCurrentFolder(track);
+            MediaTrack* trackToSelect = context->GetPage()->GetTrackNavigationManager()->SetCurrentFolder(track);
             if (trackToSelect != nullptr)
             {
                 SetOnlyTrackSelected(trackToSelect);
@@ -510,7 +510,7 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override
     {
-        if (context->GetPage()->IsAtRootFolderLevel())
+        if (context->GetPage()->GetTrackNavigationManager()->IsAtRootFolderLevel())
             context->UpdateWidgetValue(0.0);
         else
             context->UpdateWidgetValue(1.0);
@@ -520,7 +520,7 @@ public:
     {
         if (value == 0.0) return; // ignore button releases
 
-        MediaTrack* trackToSelect = context->GetPage()->ExitCurrentFolder();
+        MediaTrack* trackToSelect = context->GetPage()->GetTrackNavigationManager()->ExitCurrentFolder();
         if (trackToSelect != nullptr)
         {
             SetOnlyTrackSelected(trackToSelect);
@@ -539,7 +539,7 @@ public:
     virtual void RequestUpdate(ActionContext *context) override
     {
         if (MediaTrack *track = context->GetTrack())
-            context->UpdateWidgetValue(context->GetPage()->GetGlobalAutoModeDisplayName());
+            context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetGlobalAutoModeDisplayName());
     }
 };
 
@@ -553,7 +553,7 @@ public:
     virtual void RequestUpdate(ActionContext *context) override
     {
         if (MediaTrack *track = context->GetTrack())
-            context->UpdateWidgetValue(context->GetPage()->GetCurrentInputMonitorMode(track));
+            context->UpdateWidgetValue(context->GetPage()->GetTrackNavigationManager()->GetCurrentInputMonitorMode(track));
     }
 };
 

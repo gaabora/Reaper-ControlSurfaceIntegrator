@@ -18,7 +18,7 @@ class TrackNavigationManager
 {
 protected:
     CSurfIntegrator *const csi_;
-    Page *const page_;
+    IPageContext *const page_;
     bool followMCP_;
     bool synchPages_;
     bool isScrollLinkEnabled_;
@@ -105,7 +105,7 @@ protected:
     }
     
 public:
-    TrackNavigationManager(CSurfIntegrator *const csi, Page *page, bool followMCP,  bool synchPages, bool isScrollLinkEnabled, bool isScrollSynchEnabled) :
+    TrackNavigationManager(CSurfIntegrator *const csi, IPageContext *page, bool followMCP,  bool synchPages, bool isScrollLinkEnabled, bool isScrollSynchEnabled) :
     csi_(csi),
     page_(page),
     followMCP_(followMCP),
