@@ -193,7 +193,6 @@ OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext*
 {
     ProcessOSCWidgetFile(templateFilename);
     InitHardwiredWidgets(this);
-    ParseOSKLayout(templateFilename);
     InitZoneManager(csi_, this, zoneFolder, fxZoneFolder);
 }
 

@@ -278,6 +278,21 @@ public:
         ::SetExtState("CSI_OSK", "Surfaces", surfaces.c_str(), false);
     }
 
+    bool HasAnyOSKEnabled() const {
+        if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
+            for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+                if (surface->GetOskEnabled())
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// Publish the surface name that most recently triggered ToggleOSK ON.
+    void PublishOSKActiveSurface(const string& surfaceName) {
+        ::SetExtState("CSI_OSK", "ActiveSurface", surfaceName.c_str(), false);
+    }
+
     Action* GetFXParamAction(char* FXName) {
         if (strstr(FXName, "JS: ")) return actions_["JSFXParam"].get();
         else return actions_["FXParam"].get();

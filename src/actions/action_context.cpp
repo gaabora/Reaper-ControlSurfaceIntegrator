@@ -113,7 +113,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         int feedbackState = GetToggleCommandState(commandId_);
         if (feedbackState == -1 && provideFeedback_) {
             provideFeedback_ = false;
-            this->LogMessage(string("action '") + DAW::GetCommandName(commandId_) + "' does not provide feedback", DEBUG_LEVEL_NOTICE);
+            this->LogMessage(string("action '") + DAW::GetCommandName(commandId_) + "' does not provide feedback", DEBUG_LEVEL_DEBUG);
         }
     }
 

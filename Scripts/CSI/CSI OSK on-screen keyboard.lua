@@ -28,20 +28,20 @@ local EXT_CMD_SECTION = "CSI_OSK_CMD"
 local EXT_SETTINGS    = "CSI_OSK_SETTINGS"
 
 local COLORS = {
-    win_bg         = 0x1E1E1Eff,
-    button_off     = 0x3A3A3Aff,
-    button_on      = 0x5A8A5Aff,
-    button_hover   = 0x4A6A9Aff,
+    win_bg         = 0x1e1e1eff,
+    button_off     = 0x3a3a3aff,
+    button_on      = 0xffb029ff,
+    button_hover   = 0x4a6a9aff,
     text_normal    = 0x000000ff,
     text_dim       = 0x444444ff,
-    tab_bg         = 0x2A2A2Aff,
-    tab_active     = 0x3C6191ff,
+    tab_bg         = 0x2a2a2aff,
+    tab_active     = 0x3c6191ff,
     round_off      = 0x444444ff,
-    round_on_play  = 0x40A040ff,
+    round_on_play  = 0x40a040ff,
     round_on_stop  = 0x808080ff,
-    round_on_rec   = 0xCC3030ff,
+    round_on_rec   = 0xcc3030ff,
     arrow_off      = 0x505050ff,
-    arrow_on       = 0x70B070ff,
+    arrow_on       = 0x70b070ff,
 }
 
 -- ================================================================
@@ -53,6 +53,7 @@ local FONT_SMALL = nil
 
 local surfaces = {}          -- array of surface names
 local currentSurface = 1     -- selected tab index
+local lastActiveSurface = "" -- last value of CSI_OSK/ActiveSurface (change detection)
 
 -- per-surface data: layouts[surfName], states[surfName], labels[surfName]
 local layouts     = {}       -- parsed layout: array of rows, each row = array of cells
@@ -67,8 +68,8 @@ local rawLabelMaps = {}
 local processedLabelCache = {}
 
 local BUTTON_SIZE = 64
-local BUTTON_PAD_H = 8  -- horizontal padding between buttons (pixels before zoom)
-local BUTTON_PAD_V = 0  -- vertical padding between rows (pixels before zoom)
+local BUTTON_PAD_H = 5  -- horizontal padding between buttons (pixels before zoom)
+local BUTTON_PAD_V = 5  -- vertical padding between rows (pixels before zoom)
 local ZOOM        = 0.9
 local BUTTON_ASPECT = 1.4  -- width/height ratio
 local ARROW_ANGLE = 120    -- arrow triangle apex angle in degrees (>90 = obtuse)
@@ -99,13 +100,20 @@ local LABEL_REPLACEMENTS = {
     ["toggle"] = "",
     ["reaper"] = "",
     ["toolbar"] = "",
-    ["move edit"] = "",
+    ["move edit cursor to"] = "",
     ["cycle"] = "",
     ["previous"] = "prev",
     ["current"] = "curr",
     ["one"] = "1",
     ["and"] = "&",
     ["show"] = "",
+    ["track"] = "",
+    ["effects"] = "fx",
+    ["set"] = "",
+    ["blink"] = "",
+    ["go zone"] = "",
+    ["go to"] = "",
+    ["record"] = "rec",
     -- Add more: ["SomeWord"] = "Replacement",
 } 
 
@@ -315,8 +323,9 @@ local function RenderOSDBar(ctx)
     local ty = cy + padV
     imgui.DrawList_AddText(drawList, tx, ty, textCol, osd_text)
 
-    -- Advance cursor so ImGui accounts for the bar height
-    imgui.Dummy(ctx, avW, barH)
+    -- Advance cursor height only; do not contribute width, or auto-resize can
+    -- get stuck at a previously wider value.
+    imgui.Dummy(ctx, 0, barH)
     imgui.PopFont(ctx)
 end
 
@@ -395,6 +404,25 @@ end
 -- ================================================================
 -- Parsing
 -- ================================================================
+local function FilterGroupedDuplicates(row)
+    local filtered = {}
+    local seenGroups = {}
+
+    for _, cell in ipairs(row) do
+        if cell.isSpacer or not cell.group or cell.group == "" then
+            filtered[#filtered + 1] = cell
+        else
+            local groupKey = tostring(cell.group):lower()
+            if not seenGroups[groupKey] then
+                seenGroups[groupKey] = true
+                filtered[#filtered + 1] = cell
+            end
+        end
+    end
+
+    return filtered
+end
+
 local function ParseLayout(layoutStr)
     local result = {}
     for rowStr in layoutStr:gmatch("[^\n]+") do
@@ -408,18 +436,19 @@ local function ParseLayout(layoutStr)
                 cell.isSpacer = false
                 local name = cellStr:match("^([^:]+)")
                 cell.name = name
-                cell.shape  = cellStr:match("Shape=([^,]+)") or "Rect"
+                cell.shape  = (cellStr:match("Shape=([^,]+)") or "rect"):lower()
                 cell.width  = tonumber(cellStr:match("Width=([%d%.]+)")) or 1.0
                 cell.height = tonumber(cellStr:match("Height=([%d%.]+)")) or 1.0
+                cell.top    = tonumber(cellStr:match("Top=([%d%.]+)")) or 0.0
+                if cell.shape == "fader" then cell.rowSpan = cell.height else cell.rowSpan = 1 end
                 cell.group  = cellStr:match("Group=([^,]+)") or ""
                 cell.label  = cellStr:match("Label=(.+)$") or ""
-                -- Accept "Color=#RRGGBB" or "Color=RRGGBB" (hexToImCol handles both)
-                local colorHex    = cellStr:match("Color=(#?%x+)")
-                if colorHex    then cell.color    = hexToImCol(colorHex)    end
+                local colorHex = cellStr:match("Color=(#?%x+)")
+                if colorHex then cell.color = hexToImCol(colorHex) end
             end
             row[#row + 1] = cell
         end
-        result[#result + 1] = row
+        result[#result + 1] = FilterGroupedDuplicates(row)
     end
     return result
 end
@@ -545,6 +574,23 @@ local function PollData()
     end
 
     return true -- keep running
+end
+
+--- Poll ActiveSurface and, when show_all_surfaces is OFF, switch currentSurface
+--- to the surface that most recently triggered ToggleOSK ON.
+local function PollActiveSurface()
+    local active = r.GetExtState(EXT_SECTION, "ActiveSurface")
+    if active == lastActiveSurface then return end
+    lastActiveSurface = active
+    if active == "" then return end
+    if not vars.show_all_surfaces then
+        for i, name in ipairs(surfaces) do
+            if name == active then
+                currentSurface = i
+                break
+            end
+        end
+    end
 end
 
 -- ================================================================
@@ -694,13 +740,15 @@ local function RenderCenteredWrappedText(ctx, drawList, text, centerX, centerY, 
 end
 
 
-local function DrawRectButton(ctx, drawList, surfName, cell, bw, bh)
+local function DrawRectButton(ctx, drawList, surfName, cell, bw, bh, yOffset)
     local label = getProcessedLabel(GetButtonLabel(surfName, cell))
     local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
     local cx, cy = imgui.GetCursorScreenPos(ctx)
+    local drawY = cy + (yOffset or 0)
 
-    imgui.DrawList_AddRectFilled(drawList, cx, cy, cx + bw, cy + bh, bgCol, 4)
-    RenderCenteredWrappedText(ctx, drawList, label, cx + bw / 2, cy + bh / 2, bw - 8, bh)
+    imgui.DrawList_AddRectFilled(drawList, cx, drawY, cx + bw, drawY + bh, bgCol, 4)
+    RenderCenteredWrappedText(ctx, drawList, label, cx + bw / 2, drawY + bh / 2, bw - 8, bh)
+    imgui.SetCursorScreenPos(ctx, cx, cy)
     DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
 end
 
@@ -708,16 +756,17 @@ end
 --- Round buttons ignore the aspect ratio for their visual shape but occupy the
 --- full grid cell (bw x bh) for layout alignment. The circle/stadium is drawn
 --- centered within the cell using the aspect-free dimensions (visualW x bh).
-local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW)
+local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW, yOffset)
     local label = getProcessedLabel(GetButtonLabel(surfName, cell))
     local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
     local cx, cy = imgui.GetCursorScreenPos(ctx)
+    local drawY = cy + (yOffset or 0)
 
     local offsetX = (bw - visualW) / 2
     local vx = cx + offsetX
     local pad2 = 2
     local centerX = vx + visualW / 2
-    local centerY = cy + bh / 2
+    local centerY = drawY + bh / 2
     local segments = 18
 
     local innerW = visualW - pad2 * 2
@@ -751,8 +800,8 @@ local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW)
             end
         else
             local radius = innerW / 2 - inset
-            local bodyTop  = cy + pad2 + radius + inset
-            local bodyBot  = cy + bh - pad2 - radius - inset
+            local bodyTop  = drawY + pad2 + radius + inset
+            local bodyBot  = drawY + bh - pad2 - radius - inset
             for i = 0, segments do
                 local angle = math.pi + (i / segments) * math.pi
                 imgui.DrawList_PathLineTo(drawList,
@@ -771,6 +820,7 @@ local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW)
     drawStadiumPath(0)
     imgui.DrawList_PathFillConvex(drawList, bgCol)
     RenderCenteredWrappedText(ctx, drawList, label, centerX, centerY, visualW - 12, bh)
+    imgui.SetCursorScreenPos(ctx, cx, cy)
     DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
 end
 
@@ -779,7 +829,7 @@ end
 --- For obtuse angles (>90°), the triangle base extends beyond the body edges,
 --- creating a wider, shallower point. Point depth = (dim/2) / tan(angle/2).
 --- Supports left, right, up, down directions.
-local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction)
+local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction, yOffset)
     local label = getProcessedLabel(GetButtonLabel(surfName, cell))
     local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
     local value = GetButtonValue(surfName, cell.name)
@@ -787,6 +837,7 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction)
     if value > 0 then bgCol = applyAlpha(COLORS.arrow_on, vars.btn_transparency) end
 
     local cx, cy = imgui.GetCursorScreenPos(ctx)
+    local drawY = cy + (yOffset or 0)
     local halfAngleRad = math.rad(ARROW_ANGLE / 2)
     local pointDepth
     if direction == "left" or direction == "right" then
@@ -804,34 +855,34 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction)
         if direction == "left" then
             local bodyL = cx + pointDepth
             local bodyR = cx + bw
-            imgui.DrawList_PathLineTo(drawList, bodyL, cy)           -- body top-left
-            imgui.DrawList_PathLineTo(drawList, bodyR, cy)           -- body top-right
-            imgui.DrawList_PathLineTo(drawList, bodyR, cy + bh)      -- body bottom-right
-            imgui.DrawList_PathLineTo(drawList, bodyL, cy + bh)      -- body bottom-left
-            imgui.DrawList_PathLineTo(drawList, cx, cy + bh / 2)     -- triangle tip
+            imgui.DrawList_PathLineTo(drawList, bodyL, drawY)           -- body top-left
+            imgui.DrawList_PathLineTo(drawList, bodyR, drawY)           -- body top-right
+            imgui.DrawList_PathLineTo(drawList, bodyR, drawY + bh)      -- body bottom-right
+            imgui.DrawList_PathLineTo(drawList, bodyL, drawY + bh)      -- body bottom-left
+            imgui.DrawList_PathLineTo(drawList, cx, drawY + bh / 2)     -- triangle tip
         elseif direction == "right" then
             local bodyL = cx
             local bodyR = cx + bw - pointDepth
-            imgui.DrawList_PathLineTo(drawList, bodyL, cy)            -- body top-left
-            imgui.DrawList_PathLineTo(drawList, bodyR, cy)            -- body top-right
-            imgui.DrawList_PathLineTo(drawList, cx + bw, cy + bh / 2) -- triangle tip
-            imgui.DrawList_PathLineTo(drawList, bodyR, cy + bh)      -- body bottom-right
-            imgui.DrawList_PathLineTo(drawList, bodyL, cy + bh)      -- body bottom-left
+            imgui.DrawList_PathLineTo(drawList, bodyL, drawY)            -- body top-left
+            imgui.DrawList_PathLineTo(drawList, bodyR, drawY)            -- body top-right
+            imgui.DrawList_PathLineTo(drawList, cx + bw, drawY + bh / 2) -- triangle tip
+            imgui.DrawList_PathLineTo(drawList, bodyR, drawY + bh)      -- body bottom-right
+            imgui.DrawList_PathLineTo(drawList, bodyL, drawY + bh)      -- body bottom-left
         elseif direction == "up" then
-            local bodyT = cy + pointDepth
-            local bodyB = cy + bh
-            imgui.DrawList_PathLineTo(drawList, cx + bw / 2, cy)     -- triangle tip
+            local bodyT = drawY + pointDepth
+            local bodyB = drawY + bh
+            imgui.DrawList_PathLineTo(drawList, cx + bw / 2, drawY)     -- triangle tip
             imgui.DrawList_PathLineTo(drawList, cx + bw, bodyT)      -- body top-right
             imgui.DrawList_PathLineTo(drawList, cx + bw, bodyB)      -- body bottom-right
             imgui.DrawList_PathLineTo(drawList, cx, bodyB)            -- body bottom-left
             imgui.DrawList_PathLineTo(drawList, cx, bodyT)            -- body top-left
         elseif direction == "down" then
-            local bodyT = cy
-            local bodyB = cy + bh - pointDepth
+            local bodyT = drawY
+            local bodyB = drawY + bh - pointDepth
             imgui.DrawList_PathLineTo(drawList, cx, bodyT)            -- body top-left
             imgui.DrawList_PathLineTo(drawList, cx + bw, bodyT)      -- body top-right
             imgui.DrawList_PathLineTo(drawList, cx + bw, bodyB)      -- body bottom-right
-            imgui.DrawList_PathLineTo(drawList, cx + bw / 2, cy + bh) -- triangle tip
+            imgui.DrawList_PathLineTo(drawList, cx + bw / 2, drawY + bh) -- triangle tip
             imgui.DrawList_PathLineTo(drawList, cx, bodyB)            -- body bottom-left
         end
     end
@@ -843,24 +894,96 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction)
     local labelCX, labelCY
     if direction == "left" then
         labelCX = cx + pointDepth + (bw - pointDepth) / 2
-        labelCY = cy + bh / 2
+        labelCY = drawY + bh / 2
     elseif direction == "right" then
         labelCX = cx + (bw - pointDepth) / 2
-        labelCY = cy + bh / 2
+        labelCY = drawY + bh / 2
     elseif direction == "up" then
         labelCX = cx + bw / 2
-        labelCY = cy + pointDepth + (bh - pointDepth) / 2
+        labelCY = drawY + pointDepth + (bh - pointDepth) / 2
     elseif direction == "down" then
         labelCX = cx + bw / 2
-        labelCY = cy + (bh - pointDepth) / 2
+        labelCY = drawY + (bh - pointDepth) / 2
     else
         labelCX = cx + bw / 2
-        labelCY = cy + bh / 2
+        labelCY = drawY + bh / 2
     end
 
     local bodyW = (direction == "left" or direction == "right") and (bw - pointDepth) or bw
     RenderCenteredWrappedText(ctx, drawList, label, labelCX, labelCY, bodyW - 8, bh)
+    imgui.SetCursorScreenPos(ctx, cx, cy)
     DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
+end
+
+local function DrawFaderControl(ctx, drawList, surfName, cell, bw, bh, yOffset)
+    local label = getProcessedLabel(GetButtonLabel(surfName, cell))
+    local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
+    local value = GetButtonValue(surfName, cell.name)
+    value = math.max(0.0, math.min(1.0, value or 0.0))
+
+    local cx, cy = imgui.GetCursorScreenPos(ctx)
+    local drawY = cy + (yOffset or 0)
+    local radius = 4
+    imgui.DrawList_AddRectFilled(drawList, cx, drawY, cx + bw, drawY + bh, bgCol, radius)
+
+    local pad = 8
+    local labelH = 16
+    local trackL = cx + bw * 0.35
+    local trackR = cx + bw * 0.65
+    local trackT = drawY + pad
+    local trackB = drawY + bh - pad - labelH
+
+    local trackBg = applyAlpha(dimColor(GetButtonColor(surfName, cell.name), 0.35), vars.btn_transparency)
+    imgui.DrawList_AddRectFilled(drawList, trackL, trackT, trackR, trackB, trackBg, 3)
+
+    local fillTop = trackB - (trackB - trackT) * value
+    local fillCol = applyAlpha(brightenColor(GetButtonColor(surfName, cell.name), 25), vars.btn_transparency)
+    imgui.DrawList_AddRectFilled(drawList, trackL, fillTop, trackR, trackB, fillCol, 3)
+
+    local knobY = fillTop
+    local knobH = 8
+    local knobCol = applyAlpha(0xDDDDDDff, vars.btn_transparency)
+    imgui.DrawList_AddRectFilled(drawList, trackL - 4, knobY - knobH / 2, trackR + 4, knobY + knobH / 2, knobCol, 2)
+
+    RenderCenteredWrappedText(ctx, drawList, label, cx + bw / 2, drawY + bh - 9, bw - 8, 16)
+    imgui.SetCursorScreenPos(ctx, cx, cy)
+    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
+end
+
+local function DrawFaderControlSpanning(ctx, drawList, surfName, cell, bw, visualH, hitH, yOffset)
+    local label = getProcessedLabel(GetButtonLabel(surfName, cell))
+    local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
+    local value = GetButtonValue(surfName, cell.name)
+    value = math.max(0.0, math.min(1.0, value or 0.0))
+
+    local cx, cy = imgui.GetCursorScreenPos(ctx)
+    local drawY = cy + (yOffset or 0)
+    local radius = 4
+    imgui.DrawList_AddRectFilled(drawList, cx, drawY, cx + bw, drawY + visualH, bgCol, radius)
+
+    local pad = 8
+    local labelH = 16
+    local trackL = cx + bw * 0.35
+    local trackR = cx + bw * 0.65
+    local trackT = drawY + pad
+    local trackB = drawY + visualH - pad - labelH
+
+    local trackBg = applyAlpha(dimColor(GetButtonColor(surfName, cell.name), 0.35), vars.btn_transparency)
+    imgui.DrawList_AddRectFilled(drawList, trackL, trackT, trackR, trackB, trackBg, 3)
+
+    local fillTop = trackB - (trackB - trackT) * value
+    local fillCol = applyAlpha(brightenColor(GetButtonColor(surfName, cell.name), 25), vars.btn_transparency)
+    imgui.DrawList_AddRectFilled(drawList, trackL, fillTop, trackR, trackB, fillCol, 3)
+
+    local knobY = fillTop
+    local knobH = 8
+    local knobCol = applyAlpha(0xDDDDDDff, vars.btn_transparency)
+    imgui.DrawList_AddRectFilled(drawList, trackL - 4, knobY - knobH / 2, trackR + 4, knobY + knobH / 2, knobCol, 2)
+
+    RenderCenteredWrappedText(ctx, drawList, label, cx + bw / 2, drawY + visualH - 9, bw - 8, 16)
+    -- Keep layout height to one row while drawing a multi-row visual.
+    imgui.SetCursorScreenPos(ctx, cx, cy)
+    DrawButtonInteraction(ctx, surfName, cell, bw, hitH)
 end
 
 -- ================================================================
@@ -881,42 +1004,129 @@ local function RenderSurface(ctx, surfName)
     local padH  = BUTTON_PAD_H * ZOOM                 -- horizontal padding between buttons
     local padV  = BUTTON_PAD_V * ZOOM                 -- vertical padding between rows
 
+    -- Grid spacing is controlled explicitly via padH/padV below.
+    imgui.PushStyleVar(ctx, imgui.StyleVar_ItemSpacing, 0, 0)
+
+    local function getCellMetrics(cell)
+        local shape = (cell.shape or "Rect"):lower()
+        local heightFactor = cell.height or 1.0
+        local rowSpan = cell.rowSpan or 1
+
+        if shape == "fader" then
+            -- For faders, h/height acts as vertical span input.
+            rowSpan = math.max(1, math.floor((cell.height or 1.0) + 0.5))
+            heightFactor = 1.0
+        else
+            rowSpan = math.max(1, math.floor((rowSpan or 1) + 0.5))
+            heightFactor = math.max(0.1, heightFactor)
+        end
+
+        return shape, heightFactor, rowSpan
+    end
+
+    local activeRowSpans = {}
+
     for rowIdx, row in ipairs(layout) do
         -- Compute max cell height for this row (for spacer/row-spacing)
         local rowMaxH = baseH
         for _, cell in ipairs(row) do
             if not cell.isSpacer then
-                local cellH = baseH * (cell.height or 1.0)
+                local _, heightFactor, _ = getCellMetrics(cell)
+                local cellH = baseH * heightFactor
                 if cellH > rowMaxH then rowMaxH = cellH end
             end
         end
 
-        for cellIdx, cell in ipairs(row) do
-            if cellIdx > 1 then
+        local renderItems = {}
+        local col = 1
+        for _, cell in ipairs(row) do
+            while activeRowSpans[col] and activeRowSpans[col].remaining > 0 do
+                renderItems[#renderItems + 1] = { isOccupied = true, spanCell = activeRowSpans[col].cell }
+                col = col + 1
+            end
+            renderItems[#renderItems + 1] = { cell = cell }
+            if not cell.isSpacer then
+                local _, _, rowSpan = getCellMetrics(cell)
+                if rowSpan > 1 then
+                    activeRowSpans[col] = {
+                        cell = cell,
+                        remaining = math.max((activeRowSpans[col] and activeRowSpans[col].remaining) or 0, rowSpan - 1),
+                        newlyAdded = true
+                    }
+                end
+            end
+            col = col + 1
+        end
+
+        -- Keep right-edge spanned columns reserved even when this row has fewer cells.
+        local maxOccupiedCol = 0
+        for c, spanInfo in pairs(activeRowSpans) do
+            if spanInfo.remaining > 0 and c > maxOccupiedCol then
+                maxOccupiedCol = c
+            end
+        end
+        while col <= maxOccupiedCol do
+            if activeRowSpans[col] and activeRowSpans[col].remaining > 0 then
+                renderItems[#renderItems + 1] = { isOccupied = true, spanCell = activeRowSpans[col].cell }
+            else
+                renderItems[#renderItems + 1] = { isOccupied = true }
+            end
+            col = col + 1
+        end
+
+        for itemIdx, item in ipairs(renderItems) do
+            if itemIdx > 1 then
                 imgui.SameLine(ctx, 0, padH)
             end
 
-            if cell.isSpacer then
-                imgui.Dummy(ctx, baseW * (cell.width or 0.5), rowMaxH)
-            else
-                local bw = baseW * (cell.width or 1.0)  -- all buttons use same grid width
-                local bh = baseH * (cell.height or 1.0)
-                local shape = (cell.shape or "Rect"):lower()
-
-                if shape == "round" then
-                    -- Round shape ignores aspect for visual size, but occupies full grid cell
-                    local visualW = baseH * (cell.width or 1.0)  -- aspect-free visual width
-                    DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW)
-                elseif shape == "leftarrow" then
-                    DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "left")
-                elseif shape == "rightarrow" then
-                    DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "right")
-                elseif shape == "uparrow" then
-                    DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "up")
-                elseif shape == "downarrow" then
-                    DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "down")
+            if item.isOccupied then
+                if item.spanCell and not item.spanCell.isSpacer then
+                    imgui.Dummy(ctx, baseW * (item.spanCell.width or 1.0), rowMaxH)
                 else
-                    DrawRectButton(ctx, drawList, surfName, cell, bw, bh)
+                    imgui.Dummy(ctx, baseW, rowMaxH)
+                end
+            else
+                local cell = item.cell
+                if cell.isSpacer then
+                imgui.Dummy(ctx, baseW * (cell.width or 0.5), rowMaxH)
+                else
+                    local bw = baseW * (cell.width or 1.0)
+                    local shape, heightFactor, rowSpan = getCellMetrics(cell)
+                    local bh = baseH * heightFactor
+                    local topPad = math.max(0, (cell.top or 0.0) * baseH)
+
+                    if shape == "round" then
+                        local visualW = baseH * (cell.width or 1.0)
+                        DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW, topPad)
+                    elseif shape == "leftarrow" then
+                        DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "left", topPad)
+                    elseif shape == "rightarrow" then
+                        DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "right", topPad)
+                    elseif shape == "uparrow" then
+                        DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "up", topPad)
+                    elseif shape == "downarrow" then
+                        DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, "down", topPad)
+                    elseif shape == "fader" then
+                        if rowSpan > 1 then
+                            local visualH = baseH * heightFactor * rowSpan + padV * (rowSpan - 1)
+                            DrawFaderControlSpanning(ctx, drawList, surfName, cell, bw, visualH, bh, topPad)
+                        else
+                            DrawFaderControl(ctx, drawList, surfName, cell, bw, bh, topPad)
+                        end
+                    else
+                        DrawRectButton(ctx, drawList, surfName, cell, bw, bh, topPad)
+                    end
+                end
+            end
+        end
+
+        for c, spanInfo in pairs(activeRowSpans) do
+            if spanInfo.newlyAdded then
+                spanInfo.newlyAdded = false  -- origin row: don't decrement yet
+            else
+                spanInfo.remaining = spanInfo.remaining - 1
+                if spanInfo.remaining <= 0 then
+                    activeRowSpans[c] = nil
                 end
             end
         end
@@ -926,6 +1136,8 @@ local function RenderSurface(ctx, surfName)
             imgui.Dummy(ctx, 0, padV)
         end
     end
+
+    imgui.PopStyleVar(ctx)
 end
 
 local function RenderAllSurfaces(ctx)
@@ -1019,6 +1231,7 @@ local function main()
     if not PollData() then
         return -- Close requested
     end
+    PollActiveSurface()
 
     if #surfaces == 0 then
         r.defer(main)
@@ -1033,6 +1246,7 @@ local function main()
         imgui.WindowFlags_NoScrollbar
         | imgui.WindowFlags_NoCollapse
         | imgui.WindowFlags_AlwaysAutoResize
+        | imgui.WindowFlags_NoTitleBar
     )
     imgui.PopStyleColor(ctx, 2)
 

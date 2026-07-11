@@ -14,9 +14,13 @@ void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& 
         }
         auto eqPos = token.find('=');
         if (eqPos == string::npos) continue;
-
         string key = token.substr(0, eqPos);
         string val = token.substr(eqPos + 1);
+        // TrimLine(key);
+        // TrimLine(val);
+        // transform(key.begin(), key.end(), key.begin(), ::tolower);
+        // if (key != "label") transform(val.begin(), val.end(), val.begin(), ::tolower);
+        //TODO: review the formats, maybe make all parsers everywhere case insensitive and trim tokens
 
         // Remove quotes if present
         if (val.size() >= 2 && val.front() == '"' && val.back() == '"')
@@ -25,6 +29,7 @@ void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& 
         if (key == "Shape") info.shape = val;
         else if (key == "Width") info.width = (float) atof(val.c_str());
         else if (key == "Height") info.height = (float) atof(val.c_str());
+        else if (key == "Top") info.top = (float) atof(val.c_str());
         else if (key == "Group") info.group = val;
         else if (key == "Label") info.label = val;
         else if (key == "Color") info.color = val;
@@ -52,7 +57,7 @@ void ControlSurface::BuildCachedLayoutString() {
                 cachedOskLayoutString_ += cell.widget.shape;
 
                 char buf[64];
-                snprintf(buf, sizeof(buf), ",Width=%.2f,Height=%.2f", cell.widget.width, cell.widget.height);
+                snprintf(buf, sizeof(buf), ",Width=%.2f,Height=%.2f,Top=%.2f", cell.widget.width, cell.widget.height, cell.widget.top);
                 cachedOskLayoutString_ += buf;
 
                 if (!cell.widget.group.empty()) {
@@ -82,6 +87,8 @@ void ControlSurface::ParseOSKLayout(const string& surfaceFilePath) {
         bool hasRow = false;
         for (string line; getline(file, line);) {
             TrimLine(line);
+            // transform(line.begin(), line.end(), line.begin(), ::tolower);
+
             if (line == "# OSKRow") {
                 if (hasRow && !currentRow.cells.empty())
                     oskLayout_.push_back(std::move(currentRow));
@@ -148,10 +155,10 @@ void ControlSurface::PublishOSKState() {
     for (const auto& row : oskLayout_) {
         for (const auto& cell : row.cells) {
             if (cell.isSpacer) continue;
-            Widget* w = GetWidgetByName(cell.widget.name);
-            if (!w) continue;
-            double value = w->GetLastFeedbackValue();
-            rgba_color color = w->GetLastFeedbackColor();
+            Widget* widget = GetWidgetByName(cell.widget.name);
+            if (!widget) continue;
+            double value = widget->GetLastFeedbackValue();
+            rgba_color color = widget->GetLastFeedbackColor();
             if (!state.empty()) state += ";";
             char buf[128];
             snprintf(buf, sizeof(buf), "%s=V:%.2f,C:#%02X%02X%02X", cell.widget.name.c_str(), value, (unsigned char) color.r, (unsigned char) color.g, (unsigned char) color.b);
@@ -177,11 +184,11 @@ void ControlSurface::PublishOSKLabels() {
         for (const auto& cell : row.cells) {
             if (cell.isSpacer) continue;
 
-            Widget* w = GetWidgetByName(cell.widget.name);
-            if (!w) continue;
+            Widget* widget = GetWidgetByName(cell.widget.name);
+            if (!widget) continue;
 
             // Get the current action contexts for this widget (respects modifiers)
-            const auto& contexts = zoneManager_->GetCurrentActionContextsForWidget(w);
+            const auto& contexts = zoneManager_->GetCurrentActionContextsForWidget(widget);
 
             string keyLabel;
             for (const auto& ctx : contexts) {

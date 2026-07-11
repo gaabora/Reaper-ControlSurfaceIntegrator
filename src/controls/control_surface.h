@@ -34,9 +34,10 @@ private:
     // OSK layout data parsed from Surface.txt
     struct OskWidgetInfo {
         string name;
-        string shape = "Rect";
+        string shape = "";
         float width = 1.0f;
         float height = 1.0f;
+        float top = 0.0f;
         string group;
         string label;
         bool hidden = false;
