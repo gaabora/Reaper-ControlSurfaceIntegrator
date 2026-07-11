@@ -1,0 +1,16 @@
+{
+    "runtime.version": "Lua 5.4",
+    "diagnostics.globals": [
+        "reaper"
+    ],
+    "workspace": {
+        "library": [
+            "t:/apps/DevTools/VSCode/data/extensions/antoinebalaine.reascript-docs-0.1.16/resources/Sexan_reaper_defs.lua",
+            "t:/apps/DevTools/VSCode/data/extensions/antoinebalaine.reascript-docs-0.1.16/resources/imgui_defs_0.10.lua",
+            "t:/apps/DevTools/VSCode/data/extensions/antoinebalaine.reascript-docs-0.1.16/resources/reawwise_defs.lua"
+            // "~/.vscode/extensions/antoinebalaine.reascript-docs-0.1.16/resources/Sexan_reaper_defs.lua",
+            // "~/.vscode/extensions/antoinebalaine.reascript-docs-0.1.16/resources/imgui_defs_0.10.lua",
+            // "~/.vscode/extensions/antoinebalaine.reascript-docs-0.1.16/resources/reawwise_defs.lua"
+        ]
+    }
+}

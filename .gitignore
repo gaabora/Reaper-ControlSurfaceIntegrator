@@ -45,5 +45,5 @@ lib/
 .vs/
 .vscode/settings.json
 
-# /CSI/
+/CSI/
 tmp/
