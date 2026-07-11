@@ -392,8 +392,7 @@ public:
     virtual const char* GetName() override { return "MFT_RGB_Midi_FeedbackProcessor"; }
 
     virtual void ForceClear() override {
-        if (g_debugLevel >= DEBUG_LEVEL_NOTICE)
-            LogToConsole("[NOTICE] # ForceClear do not force LED off\n");
+        if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] # ForceClear do not force LED off\n");
         // rgba_color color;
         // ForceColorValue(color);
     }
@@ -411,14 +410,12 @@ public:
         else {
             int colorInt = GetColorIntFromRGB(color.r, color.g, color.b);
             if (colorInt == 0) {
-                if (g_debugLevel >= DEBUG_LEVEL_NOTICE)
-                    LogToConsole("[NOTICE] ForceColorValue ignores color=0, do not force LED off\n");
+                if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ForceColorValue ignores color=0, do not force LED off\n");
             } else {
                 SendMidiMessage(midiFeedbackMessage1_.midi_message[0], midiFeedbackMessage1_.midi_message[1], colorInt);
                 SendMidiMessage(midiFeedbackMessage1_.midi_message[0] + 1, midiFeedbackMessage1_.midi_message[1], 47);
             }
         }
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
     }
 };

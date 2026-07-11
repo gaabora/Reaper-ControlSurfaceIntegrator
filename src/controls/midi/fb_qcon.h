@@ -42,8 +42,7 @@ public:
     }
 
     virtual void SetValue(const PropertyList& properties, double value) override {
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] QConProXMasterVUMeter_Midi_FeedbackProcessor: 0xd1, 0x%02x\n", (param_ << 4) | GetMidiMeterValue(value));
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] QConProXMasterVUMeter_Midi_FeedbackProcessor: 0xd1, 0x%02x\n", (param_ << 4) | GetMidiMeterValue(value));
         SendMidiMessage(0xd1, (param_ << 4) | GetMidiMeterValue(value), 0);
     }
 

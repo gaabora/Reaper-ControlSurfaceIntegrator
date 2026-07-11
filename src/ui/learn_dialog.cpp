@@ -137,8 +137,7 @@ struct FXCell {
     }
 
     void SetNameWidget(Widget* widget, const char* displayWidgetName, const char* paramName) {
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] SetNameWidget %s %s %s\n", widget->GetName(), displayWidgetName, paramName);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] SetNameWidget %s %s %s\n", widget->GetName(), displayWidgetName, paramName);
         for (auto displayWidget : displayWidgets) {
             if (IsSameString(displayWidget->GetName(), displayWidgetName)) {
                 ActionContext* paramContext = GetFirstContext(zoneManager, widget, modifier);

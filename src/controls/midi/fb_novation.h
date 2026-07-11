@@ -31,7 +31,6 @@ public:
             .add(color.r / 2).add(color.g / 2).add(color.b / 2)
             .end();
         SendMidiSysExMessage(builder.message());
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
     }
 };

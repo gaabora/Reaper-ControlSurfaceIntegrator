@@ -79,12 +79,13 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
                 }
 
                 if (widget == NULL) {
-                    LogToConsole("[WARNING] Widget '%s' not found in surface '%s' (file: %s, line %d)\n", widgetName.c_str(), zm->surface_->GetName(), GetRelativePath(filePath).c_str(), lineNumber);
+                    if (widgetSuffix && widgetSuffix[0] != '\0')
+                        if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Widget '%s' not found in surface '%s' (file: %s, line %d)\n", widgetName.c_str(), zm->surface_->GetName(), GetRelativePath(filePath).c_str(), lineNumber);
                     continue;
                 }
 
                 if (hasHoldModifier && (!widget->GetIsTwoState() || widget->IsModifier())) {
-                    LogToConsole("[WARNING] Hold modifier will not work without normal button widget (mapping: '%s %s', file: %s, line %d)\n", tokens[0].c_str(), tokens[1].c_str(), GetRelativePath(filePath).c_str(), lineNumber);
+                    if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Hold modifier will not work without normal button widget (mapping: '%s %s', file: %s, line %d)\n", tokens[0].c_str(), tokens[1].c_str(), GetRelativePath(filePath).c_str(), lineNumber);
                     continue;
                 }
                 zone->AddWidget(widget);
@@ -105,7 +106,7 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
                 }
 
                 if (context == NULL) {
-                    LogToConsole("[WARNING] Action '%s' for widget '%s' returned NULL context (file: %s, line %d)\n", tokens[1].c_str(), widgetName.c_str(), GetRelativePath(filePath).c_str(), lineNumber);
+                    if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Action '%s' for widget '%s' returned NULL context (file: %s, line %d)\n", tokens[1].c_str(), widgetName.c_str(), GetRelativePath(filePath).c_str(), lineNumber);
                     continue;
                 }
 

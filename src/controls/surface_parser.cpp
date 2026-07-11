@@ -122,7 +122,7 @@ void SurfaceTemplateParser::ParseMidiWidget(int& lineNumber, ifstream& file, con
 
         const string& widgetType = tokenLines[i][0];
         if (!MidiWidgetRegistry::Dispatch(widgetType, ctx))
-            LogToConsole("[WARN] Unknown MIDI widget type '%s' in widget '%s'. Line %d\n", widgetType.c_str(), tokens[1].c_str(), lineNumber);
+            if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARN] Unknown MIDI widget type '%s' in widget '%s'. Line %d\n", widgetType.c_str(), tokens[1].c_str(), lineNumber);
     }
 }
 

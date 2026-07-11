@@ -584,8 +584,7 @@ public:
         } else {
             ZoneInfo& info = zoneInfo_[name];
             if (!IsSameRelativePath(zoneInfo.filePath.c_str(), zoneInfo_[name].filePath.c_str())) {
-                if (g_debugLevel >= DEBUG_LEVEL_WARNING)
-                    LogToConsole("[WARNING] Skipping file '%s': A zone named '%s' has already been loaded. Duplicate zones are not allowed.\n", GetRelativePath(zoneInfo_[name].filePath.c_str()).c_str(), name.c_str());
+                if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Skipping file '%s': A zone named '%s' has already been loaded. Duplicate zones are not allowed.\n", GetRelativePath(zoneInfo_[name].filePath.c_str()).c_str(), name.c_str());
                 return;
             }
             info.alias = zoneInfo.alias;

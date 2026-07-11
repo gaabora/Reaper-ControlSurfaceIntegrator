@@ -238,8 +238,7 @@ void ControlSurface::PublishOSKLabels() {
 void ControlSurface::InjectOSKPress(const string& widgetName) {
     Widget* widget = GetWidgetByName(widgetName);
     if (!widget) {
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] InjectOSKPress: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKPress: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
         return;
     }
     widget->LogInput(1.0);
@@ -252,8 +251,7 @@ void ControlSurface::InjectOSKPress(const string& widgetName) {
 void ControlSurface::InjectOSKScroll(const string& widgetName, bool isIncrease) {
     Widget* widget = GetWidgetByName(widgetName);
     if (!widget) {
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] InjectOSKScroll: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKScroll: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
         return;
     }
     double step = widget->GetStepSize();

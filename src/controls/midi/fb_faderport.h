@@ -45,8 +45,7 @@ public:
         SendMidiMessage(0x92, midiFeedbackMessage1_.midi_message[1], color.g);
         SendMidiMessage(0x93, midiFeedbackMessage1_.midi_message[1], color.b);
 
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
     }
 };
 
@@ -76,8 +75,7 @@ public:
         SendMidiMessage(0x91, midiFeedbackMessage1_.midi_message[1], color.r / 2);
         SendMidiMessage(0x92, midiFeedbackMessage1_.midi_message[1], color.g / 2);
         SendMidiMessage(0x93, midiFeedbackMessage1_.midi_message[1], color.b / 2);
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
     }
 };
 

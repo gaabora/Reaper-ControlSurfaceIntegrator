@@ -172,7 +172,7 @@ public:
                 return;
             }
             commandId = NamedCommandLookup(REASCRIPT_HASH__CSI_OSD);
-            LogToConsole("[NOTICE] ReaScript %s was loaded: %s (%d)\n", REASCRIPT_PATH__CSI_OSD, REASCRIPT_HASH__CSI_OSD, commandId);
+            if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ReaScript %s was loaded: %s (%d)\n", REASCRIPT_PATH__CSI_OSD, REASCRIPT_HASH__CSI_OSD, commandId);
         }
         int runningState;
         for (int attempt = 1; attempt <= 2; ++attempt) {
@@ -206,8 +206,7 @@ public:
                 return;
             }
         }
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
-            LogToConsole("[DEBUG] DispatchOSKWidgetPress: surface '%s' not found\n", surfName.c_str());
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetPress: surface '%s' not found\n", surfName.c_str());
     }
 
     void DispatchOSKWidgetScroll(const string& surfName, const string& widgetName, bool isIncrease) {
@@ -253,7 +252,7 @@ public:
                 LogToConsole("[ERROR] FAILED to OpenOSKPanel. AddRemoveReaScript failed for '%s'\n", REASCRIPT_PATH__CSI_OSK);
                 return;
             }
-            LogToConsole("[NOTICE] ReaScript %s was loaded: commandId=%d\n", REASCRIPT_PATH__CSI_OSK, oskCommandId_);
+            if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ReaScript %s was loaded: commandId=%d\n", REASCRIPT_PATH__CSI_OSK, oskCommandId_);
         }
         int runningState = GetToggleCommandState(oskCommandId_);
         if (runningState == 1) return;
