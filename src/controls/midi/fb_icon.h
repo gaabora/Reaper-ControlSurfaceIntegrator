@@ -38,25 +38,12 @@ public:
 
         if (IsSameString(text, "-150.00")) text = "";
 
-        struct {
-            MIDI_event_ex_t evt;
-            char data[256];
-        } midiSysExData;
-        midiSysExData.evt.frame_offset = 0;
-        midiSysExData.evt.size = 0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = sysExByte1_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = sysExByte2_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayType_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayRow_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = channel_ * 7 + offset_;
-
-        int cnt = 0;
-        while (cnt++ < 7)
-            midiSysExData.evt.midi_message[midiSysExData.evt.size++] = *text ? *text++ : ' ';
-
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF7;
-        SendMidiSysExMessage(&midiSysExData.evt);
+        SysExBuilder builder;
+        builder.begin()
+            .add(0x00).add(sysExByte1_).add(sysExByte2_).add(displayType_)
+            .add(displayRow_).add(channel_ * 7 + offset_)
+            .addText(text, 7)
+            .end();
+        SendMidiSysExMessage(builder.message());
     }
 };

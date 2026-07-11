@@ -231,34 +231,14 @@ public:
         int invert = lastStringSent_ == "" ? 0 : GetTextInvert(properties);
         int align = 0x0000000 + invert + GetTextAlign(properties);
 
-        struct {
-            MIDI_event_ex_t evt;
-            char data[256];
-        } midiSysExData;
-        midiSysExData.evt.frame_offset = 0;
-        midiSysExData.evt.size = 0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x01;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x06;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayType_;
-
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x12;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = channel_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayRow_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = align;
-
-        int length = (int) strlen(text);
-        if (length > 30) length = 30;
-        int count = 0;
-        while (count < length) {
-            midiSysExData.evt.midi_message[midiSysExData.evt.size++] = *text++;
-            count++;
-        }
-
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF7;
-
-        SendMidiSysExMessage(&midiSysExData.evt);
+        int length = std::min((int) strlen(text), 30);
+        SysExBuilder builder;
+        builder.begin()
+            .add(0x00).add(0x01).add(0x06).add(displayType_)
+            .add(0x12).add(channel_).add(displayRow_).add(align)
+            .addText(text, length)
+            .end();
+        SendMidiSysExMessage(builder.message());
     }
 };
 
@@ -299,23 +279,11 @@ public:
     virtual void ForceValue(const PropertyList& properties, double value) override {
         lastMode_ = GetMode(properties);
 
-        struct {
-            MIDI_event_ex_t evt;
-            char data[256];
-        } midiSysExData;
-
-        midiSysExData.evt.frame_offset = 0;
-        midiSysExData.evt.size = 0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x01;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x06;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayType_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x13;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = channel_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00 + lastMode_;
-
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF7;
-        SendMidiSysExMessage(&midiSysExData.evt);
+        SysExBuilder builder;
+        builder.begin()
+            .add(0x00).add(0x01).add(0x06).add(displayType_)
+            .add(0x13).add(channel_).add(0x00 + lastMode_)
+            .end();
+        SendMidiSysExMessage(builder.message());
     }
 };

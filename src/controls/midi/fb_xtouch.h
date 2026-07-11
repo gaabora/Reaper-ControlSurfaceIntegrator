@@ -63,29 +63,17 @@ public:
         vector<string> currentColors;
         GetTokens(currentColors, colors);
 
-        struct {
-            MIDI_event_ex_t evt;
-            char data[256];
-        } midiSysExData;
-        midiSysExData.evt.frame_offset = 0;
-        midiSysExData.evt.size = 0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x66;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayType_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x72;
-
+        SysExBuilder builder;
+        builder.begin().add(0x00).add(0x00).add(0x66).add(displayType_).add(0x72);
         for (int i = 0; i < surface_->GetNumChannels(); ++i) {
             XTouchColor msgColor = COLOR_WHITE;
             const char* curColorStr = currentColors.size() == 1 ? currentColors[0].c_str() : currentColors[i].c_str();
             XTouchColor curColor = colorFromString(curColorStr);
             if (curColor != COLOR_INVALID) msgColor = curColor;
-            midiSysExData.evt.midi_message[midiSysExData.evt.size++] = (int) msgColor;
+            builder.add((unsigned char) msgColor);
         }
-
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF7;
-        SendMidiSysExMessage(&midiSysExData.evt);
+        builder.end();
+        SendMidiSysExMessage(builder.message());
     }
 
     virtual void RestoreXTouchDisplayColors() override {
@@ -105,26 +93,13 @@ public:
 
         if (IsSameString(text, "-150.00")) text = "";
 
-        struct {
-            MIDI_event_ex_t evt;
-            char data[256];
-        } midiSysExData;
-        midiSysExData.evt.frame_offset = 0;
-        midiSysExData.evt.size = 0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x66;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayType_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayRow_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = channel_ * 7 + offset_;
-
-        int cnt = 0;
-        while (cnt++ < 7)
-            midiSysExData.evt.midi_message[midiSysExData.evt.size++] = *text ? *text++ : ' ';
-
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF7;
-        SendMidiSysExMessage(&midiSysExData.evt);
+        SysExBuilder builder;
+        builder.begin()
+            .add(0x00).add(0x00).add(0x66).add(displayType_)
+            .add(displayRow_).add(channel_ * 7 + offset_)
+            .addText(text, 7)
+            .end();
+        SendMidiSysExMessage(builder.message());
 
         ForceUpdateTrackColors();
     }
@@ -132,35 +107,22 @@ public:
     virtual void ForceUpdateTrackColors() override {
         if (preventUpdateTrackColors_) return;
 
-        struct {
-            MIDI_event_ex_t evt;
-            char data[256];
-        } midiSysExData;
-        midiSysExData.evt.frame_offset = 0;
-        midiSysExData.evt.size = 0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x66;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayType_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x72;
-
         vector<rgba_color> trackColors;
         for (int i = 0; i < surface_->GetNumChannels(); ++i)
             trackColors.push_back(surface_->GetTrackColorForChannel(i));
 
+        SysExBuilder builder;
+        builder.begin().add(0x00).add(0x00).add(0x66).add(displayType_).add(0x72);
         for (int i = 0; i < (int) trackColors.size(); ++i) {
             if (lastStringSent_ == "") {
-                midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x07; // White
+                builder.add(0x07); // White
             } else {
                 rgba_color color = trackColors[i];
                 currentTrackColors_[i] = color;
-                int surfaceColor = (int) rgbToColor(color.r, color.g, color.b);
-                midiSysExData.evt.midi_message[midiSysExData.evt.size++] = surfaceColor;
+                builder.add((unsigned char) rgbToColor(color.r, color.g, color.b));
             }
         }
-
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF7;
-        SendMidiSysExMessage(&midiSysExData.evt);
+        builder.end();
+        SendMidiSysExMessage(builder.message());
     }
 };

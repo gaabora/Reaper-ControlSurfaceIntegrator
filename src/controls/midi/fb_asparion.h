@@ -152,31 +152,15 @@ public:
 
         if (IsSameString(text, "-150.00")) text = ""; //FIXME: here and everywhere "-150.00" to const
 
-        struct {
-            MIDI_event_ex_t evt;
-            char data[256];
-        } midiSysExData;
-        midiSysExData.evt.frame_offset = 0;
-        midiSysExData.evt.size = 0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF0;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x00;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0x66;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayType_;
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayTextType_;
-
+        SysExBuilder builder;
+        builder.begin().add(0x00).add(0x00).add(0x66).add(displayType_).add(displayTextType_);
         if (displayRow_ != 3) {
-            midiSysExData.evt.midi_message[midiSysExData.evt.size++] = channel_ * 12;
-            midiSysExData.evt.midi_message[midiSysExData.evt.size++] = displayRow_;
-        } else
-            midiSysExData.evt.midi_message[midiSysExData.evt.size++] = channel_ * 8;
-
+            builder.add(channel_ * 12).add(displayRow_);
+        } else {
+            builder.add(channel_ * 8);
+        }
         const int linelen = displayRow_ == 3 ? 8 : 12;
-        int cnt = 0;
-        while (cnt++ < linelen)
-            midiSysExData.evt.midi_message[midiSysExData.evt.size++] = *text ? *text++ : ' ';
-
-        midiSysExData.evt.midi_message[midiSysExData.evt.size++] = 0xF7;
-        SendMidiSysExMessage(&midiSysExData.evt);
+        builder.addText(text, linelen).end();
+        SendMidiSysExMessage(builder.message());
     }
 };

@@ -2,6 +2,7 @@
 // midi_widgets.h includes all MIDI widget sub-headers.
 
 #include "../../shared/utils.h"
+#include "../../shared/sysex_builder.h"
 #include "midi_generators.h"
 #include "fb_generic.h"
 #include "fb_faderport.h"
