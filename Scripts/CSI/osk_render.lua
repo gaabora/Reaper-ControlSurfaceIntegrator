@@ -135,14 +135,86 @@ local function ShowDelayedTooltip(ctx, surfName, widgetName, text)
     end
 end
 
-local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
+local function PointInTriangle(px, py, ax, ay, bx, by, cx, cy)
+    local v0x, v0y = cx - ax, cy - ay
+    local v1x, v1y = bx - ax, by - ay
+    local v2x, v2y = px - ax, py - ay
+    local dot00 = v0x * v0x + v0y * v0y
+    local dot01 = v0x * v1x + v0y * v1y
+    local dot02 = v0x * v2x + v0y * v2y
+    local dot11 = v1x * v1x + v1y * v1y
+    local dot12 = v1x * v2x + v1y * v2y
+    local invDen = 1 / (dot00 * dot11 - dot01 * dot01 + 1e-9)
+    local u = (dot11 * dot02 - dot01 * dot12) * invDen
+    local v = (dot00 * dot12 - dot01 * dot02) * invDen
+    return u >= 0 and v >= 0 and (u + v) <= 1
+end
+
+local function PointInRoundedShape(px, py, x, y, w, h, inset)
+    inset = inset or 0
+    x, y = x + inset, y + inset
+    w, h = w - inset * 2, h - inset * 2
+    if w <= 0 or h <= 0 then return false end
+
+    local r = math.min(w, h) / 2
+    local cx, cy = x + w / 2, y + h / 2
+    if w >= h then
+        local left, right = x + r, x + w - r
+        if px >= left and px <= right and py >= y and py <= y + h then return true end
+        local dlx, dly = px - left, py - cy
+        local drx, dry = px - right, py - cy
+        return (dlx * dlx + dly * dly) <= r * r or (drx * drx + dry * dry) <= r * r
+    end
+
+    local top, bottom = y + r, y + h - r
+    if px >= x and px <= x + w and py >= top and py <= bottom then return true end
+    local dtx, dty = px - cx, py - top
+    local dbx, dby = px - cx, py - bottom
+    return (dtx * dtx + dty * dty) <= r * r or (dbx * dbx + dby * dby) <= r * r
+end
+
+local function PointInArrowShape(px, py, x, y, w, h, direction, pointDepth)
+    if direction == "left" then
+        local bodyL = x + pointDepth
+        local inBody = px >= bodyL and px <= x + w and py >= y and py <= y + h
+        return inBody or PointInTriangle(px, py, x, y + h / 2, bodyL, y, bodyL, y + h)
+    elseif direction == "right" then
+        local bodyR = x + w - pointDepth
+        local inBody = px >= x and px <= bodyR and py >= y and py <= y + h
+        return inBody or PointInTriangle(px, py, x + w, y + h / 2, bodyR, y, bodyR, y + h)
+    elseif direction == "up" then
+        local bodyT = y + pointDepth
+        local inBody = px >= x and px <= x + w and py >= bodyT and py <= y + h
+        return inBody or PointInTriangle(px, py, x + w / 2, y, x, bodyT, x + w, bodyT)
+    elseif direction == "down" then
+        local bodyB = y + h - pointDepth
+        local inBody = px >= x and px <= x + w and py >= y and py <= bodyB
+        return inBody or PointInTriangle(px, py, x + w / 2, y + h, x, bodyB, x + w, bodyB)
+    end
+    return false
+end
+
+local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTestFn)
     local id = "##btn_" .. (cell.name or "")
     imgui.InvisibleButton(ctx, id, bw, bh)
-    if imgui.IsItemHovered(ctx) then
+
+    local hovered = imgui.IsItemHovered(ctx)
+    local insideShape = hovered
+    if hovered and hitTestFn then
+        local mouseX, mouseY = imgui.GetMousePos(ctx)
+        insideShape = hitTestFn(mouseX, mouseY)
+    end
+
+    if insideShape then
         ShowDelayedTooltip(ctx, surfName, cell.name or "", label)
         HandleRotaryMouseWheel(ctx, surfName, cell)
+    elseif cell.name then
+        hoverStartTime[cell.name] = nil
     end
-    if imgui.IsItemClicked(ctx) then HandleButtonClick(surfName, cell) end
+
+    if insideShape and imgui.IsItemClicked(ctx) then
+        HandleButtonClick(surfName, cell)
+    end
 end
 
 local function RenderCenteredWrappedText(ctx, drawList, text, centerX, centerY, maxW, maxH)
@@ -238,8 +310,13 @@ local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW, y
     drawStadiumPath(0)
     imgui.DrawList_PathFillConvex(drawList, bgCol)
     RenderCenteredWrappedText(ctx, drawList, label, centerX, centerY, visualW - 12, bh)
+
+    local function roundHitTest(mouseX, mouseY)
+        return PointInRoundedShape(mouseX, mouseY, visualX, drawY, visualW, bh, 2)
+    end
+
     imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
-    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
+    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, roundHitTest)
 end
 
 local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction, yOffset)
@@ -319,8 +396,13 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction,
 
     local bodyW = (direction == "left" or direction == "right") and (bw - pointDepth) or bw
     RenderCenteredWrappedText(ctx, drawList, label, labelCX, labelCY, bodyW - 8, bh)
+
+    local function arrowHitTest(mouseX, mouseY)
+        return PointInArrowShape(mouseX, mouseY, cursorX, drawY, bw, bh, direction, pointDepth)
+    end
+
     imgui.SetCursorScreenPos(ctx, cursorX, cursorY)
-    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
+    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, arrowHitTest)
 end
 
 local function DrawFaderControl(ctx, drawList, surfName, cell, bw, bh, yOffset)
@@ -464,7 +546,9 @@ function M.RenderSurface(ctx, surfName)
             if not cell.isSpacer then
                 local _, heightFactor = getCellMetrics(cell)
                 local cellH = baseH * heightFactor
-                if cellH > rowMaxH then rowMaxH = cellH end
+                local topPad = math.max(0, (cell.top or 0.0) * baseH)
+                local cellExtentH = cellH + topPad
+                if cellExtentH > rowMaxH then rowMaxH = cellExtentH end
             end
         end
 

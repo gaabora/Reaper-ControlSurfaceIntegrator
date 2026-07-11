@@ -41,7 +41,6 @@ local function main()
     end
 
     osd_ui.PollOSD()
-    osd_ui.vars.osd_show_idle_hint = true
 
     local screenW, screenH = 1920, 1080
     local originX, originY = 0, 0
@@ -68,13 +67,7 @@ local function main()
         end
     end
 
-    local p_open = osd_ui.RenderOSDWindow(ctx, imgui, screenW, screenH, screenW, screenH, originX, originY)
-    
-    if p_open == false and osd_ui.state.text and osd_ui.state.text ~= "" then
-        osd_ui.SaveSettings()
-        SetToolbarButtonState(-1)
-        return
-    end
+    osd_ui.RenderOSDWindow(ctx, imgui, screenW, screenH, screenW, screenH, originX, originY)
     
     r.defer(main)
 end
