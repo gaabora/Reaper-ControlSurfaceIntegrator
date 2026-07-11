@@ -12,9 +12,9 @@ static bool IsNearNeutralColor(const rgba_color& color, int tolerancePercent) {
     if (tolerancePercent <= 0)
         return false;
 
-    const int maxChannel = std::max(color.r, std::max(color.g, color.b));
-    const int minChannel = std::min(color.r, std::min(color.g, color.b));
-    const int tolerance = std::max(2, (int) std::lround((float) maxChannel * ((float) tolerancePercent / 100.0f)));
+    const int maxChannel = (std::max)(color.r, (std::max)(color.g, color.b));
+    const int minChannel = (std::min)(color.r, (std::min)(color.g, color.b));
+    const int tolerance = (std::max)(2, (int) std::lround((float) maxChannel * ((float) tolerancePercent / 100.0f)));
     return maxChannel > 0 && (maxChannel - minChannel) <= tolerance;
 }
 

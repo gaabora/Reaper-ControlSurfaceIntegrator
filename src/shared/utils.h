@@ -254,12 +254,12 @@ inline int rgbToColor(int r, int g, int b) {
     float bf = (float) b / 255.0f;
 
     float h, s, v, colorMin, delta;
-    v = (float) std::max(std::max(rf, gf), bf);
+    v = (float) (std::max)((std::max)(rf, gf), bf);
 
     if (v <= 0.10f)
         return XTCOLOR_WHITE;
 
-    colorMin = (float) std::min(std::min(rf, gf), bf);
+    colorMin = (float) (std::min)((std::min)(rf, gf), bf);
     delta = v - colorMin;
     s = delta / v;
 

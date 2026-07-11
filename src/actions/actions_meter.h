@@ -112,7 +112,7 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            double lrVol = std::max(Track_GetPeakInfo(track, 0), Track_GetPeakInfo(track, 1));
+            double lrVol = (std::max)(Track_GetPeakInfo(track, 0), Track_GetPeakInfo(track, 1));
             UpdateMeterValue(context, track, lrVol);
         } else
             context->ClearWidget();
@@ -142,7 +142,7 @@ public:
                 context->ClearWidget();
         } else {
             if (MediaTrack* track = context->GetTrack()) {
-                double lrVol = std::max(Track_GetPeakInfo(track, 0), Track_GetPeakInfo(track, 1));
+                double lrVol = (std::max)(Track_GetPeakInfo(track, 0), Track_GetPeakInfo(track, 1));
                 UpdateMeterValue(context, track, lrVol);
             } else
                 context->ClearWidget();

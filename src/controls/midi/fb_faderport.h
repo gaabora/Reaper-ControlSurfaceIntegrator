@@ -223,7 +223,7 @@ public:
         int invert = lastStringSent_ == "" ? 0 : GetTextInvert(properties);
         int align = 0x0000000 + invert + GetTextAlign(properties);
 
-        int length = std::min((int) strlen(text), 30);
+        int length = (std::min)((int) strlen(text), 30);
         SysExBuilder builder;
         builder.begin()
             .add(0x00).add(0x01).add(0x06).add(displayType_)

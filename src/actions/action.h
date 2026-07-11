@@ -2,7 +2,7 @@
 //
 //  action.h — Action base class
 //
-#include "preamble.h"
+#include "../controls/preamble.h"
 
 //! @action (abstract base)
 //!

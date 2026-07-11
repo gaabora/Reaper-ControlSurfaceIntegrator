@@ -646,7 +646,7 @@ class RangeValidatedSettingsAction : public SettingsAction
 {
 protected:
     int min_ = 0;
-    int max_ = std::numeric_limits<int>::max();
+    int max_ = (std::numeric_limits<int>::max)();
     virtual void ApplyValue(ActionContext* context, int value) = 0;
 
 public:
