@@ -65,17 +65,9 @@ local function EnsureSurfaceWindow(surfName)
     local win = surfaceWindows[surfName]
     if win then return win end
 
-    local surfaceCtx = imgui.CreateContext('CSI OSK - ' .. surfName)
-    local surfaceFont = imgui.CreateFont('sans-serif', 13)
-    local surfaceFontSmall = imgui.CreateFont('sans-serif', 11)
-    imgui.Attach(surfaceCtx, surfaceFont)
-    imgui.Attach(surfaceCtx, surfaceFontSmall)
-
     win = {
-        ctx = surfaceCtx,
-        font = surfaceFont,
-        fontSmall = surfaceFontSmall,
         open = true,
+        posApplied = false,
     }
     surfaceWindows[surfName] = win
     return win
@@ -106,7 +98,10 @@ local function SetWindowMode(mode)
         EnsureSurfaceWindows()
         for _, surfName in ipairs(data.surfaces) do
             local win = surfaceWindows[surfName]
-            if win then win.open = true end
+            if win then
+                win.open = true
+                win.posApplied = false
+            end
         end
     end
 end
@@ -229,8 +224,8 @@ local function main_combined()
         config.RenderConfigEditor(ctx)
 
         imgui.PopFont(ctx)
-        imgui.End(ctx)
     end
+    imgui.End(ctx)
 
     if not p_open then
         -- Cleanup
@@ -264,23 +259,35 @@ main_separate = function()
     for _, surfName in ipairs(data.surfaces) do
         local win = surfaceWindows[surfName]
         if win and win.open then
-            render.SetFonts(win.font, win.fontSmall)
-            imgui.PushStyleColor(win.ctx, imgui.Col_WindowBg, data.COLORS.win_bg)
-            imgui.PushStyleColor(win.ctx, imgui.Col_TitleBgActive, data.COLORS.win_bg)
-            imgui.SetNextWindowBgAlpha(win.ctx, data.vars.transparency)
+            local pos = data.surfacePos[surfName]
+            if pos and not win.posApplied then
+                imgui.SetNextWindowPos(ctx, pos.x, pos.y, imgui.Cond_Always)
+                win.posApplied = true
+            end
 
-            local visible, p_open = imgui.Begin(win.ctx, 'CSI OSK - ' .. surfName, true, WINDOW_FLAGS_SEPARATE)
-            imgui.PopStyleColor(win.ctx, 2)
+            imgui.PushStyleColor(ctx, imgui.Col_WindowBg, data.COLORS.win_bg)
+            imgui.PushStyleColor(ctx, imgui.Col_TitleBgActive, data.COLORS.win_bg)
+            imgui.SetNextWindowBgAlpha(ctx, data.vars.transparency)
+
+            local visible, p_open = imgui.Begin(ctx, 'CSI OSK - ' .. surfName, true, WINDOW_FLAGS_SEPARATE)
+            imgui.PopStyleColor(ctx, 2)
+
+            local x, y = imgui.GetWindowPos(ctx)
+            local oldPos = data.surfacePos[surfName]
+            if not oldPos or math.abs(oldPos.x - x) > 0.5 or math.abs(oldPos.y - y) > 0.5 then
+                data.surfacePos[surfName] = { x = x, y = y }
+                data.SaveSettings()
+            end
 
             if visible then
-                imgui.PushFont(win.ctx, win.font)
-                RenderContextMenu(win.ctx, { popupId = "OSK_ContextMenu_" .. surfName, allowSurfaceSelection = false, allowCloseAll = true })
-                render.RenderSurface(win.ctx, surfName)
-                render.RenderOSDBar(win.ctx)
-                config.RenderConfigEditor(win.ctx)
-                imgui.PopFont(win.ctx)
-                imgui.End(win.ctx)
+                imgui.PushFont(ctx, FONT)
+                RenderContextMenu(ctx, { popupId = "OSK_ContextMenu_" .. surfName, allowSurfaceSelection = false, allowCloseAll = true })
+                render.RenderSurface(ctx, surfName)
+                render.RenderOSDBar(ctx)
+                config.RenderConfigEditor(ctx)
+                imgui.PopFont(ctx)
             end
+            imgui.End(ctx)
 
             win.open = p_open
         end

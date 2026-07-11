@@ -37,6 +37,7 @@ M.rawStates = {}
 M.rawLabels = {}
 M.rawLabelMaps = {}
 M.processedLabelCache = {}
+M.surfacePos = {}
 M.osd = {
     text = "",
     bgColor = 0x333333ff,
@@ -74,6 +75,7 @@ M.vars = {
     arrow_angle = 120,
     show_all_surfaces = true,
     window_mode = "combined",
+    surface_pos = "",
     label_replacements = "",
 }
 
@@ -90,6 +92,31 @@ local function replaceArray(dst, src)
     for index, value in ipairs(src) do
         dst[index] = value
     end
+end
+
+local function parseSurfacePosString(str)
+    local result = {}
+    if not str or str == "" then return result end
+    for entry in str:gmatch("[^;]+") do
+        local name, xStr, yStr = entry:match("^(.-):([%-%d%.]+),([%-%d%.]+)$")
+        local x = tonumber(xStr)
+        local y = tonumber(yStr)
+        if name and x and y then
+            result[name] = { x = x, y = y }
+        end
+    end
+    return result
+end
+
+local function surfacePosToString(surfacePos)
+    local entries = {}
+    for name, pos in pairs(surfacePos) do
+        if pos and type(pos.x) == "number" and type(pos.y) == "number" then
+            entries[#entries + 1] = string.format("%s:%.3f,%.3f", name, pos.x, pos.y)
+        end
+    end
+    table.sort(entries)
+    return table.concat(entries, ";")
 end
 
 function M.hexToImCol(hex)
@@ -357,10 +384,12 @@ function M.LoadSettings()
             end
         end
     end
+    M.surfacePos = parseSurfacePosString(M.vars.surface_pos)
     M.parseLabelReplacements(M.vars.label_replacements)
 end
 
 function M.SaveSettings()
+    M.vars.surface_pos = surfacePosToString(M.surfacePos)
     for key, value in pairs(M.vars) do
         r.SetExtState(M.EXT_SETTINGS, key, tostring(value), true)
     end
