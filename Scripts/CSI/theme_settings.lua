@@ -150,6 +150,7 @@ M.OSD = {
 
 M.osk = {}
 M.osd = {}
+local inactiveLedBoostCache = {}
 
 local OSK_SCHEMA = {
     zoom = { type = "number", default = 0.9, min = 0.5, max = 3.0 },
@@ -162,6 +163,7 @@ local OSK_SCHEMA = {
     pad_v = { type = "number", default = 6, min = 0, max = 20, integer = true },
     transparency = { type = "number", default = 0.6, min = 0.2, max = 1.0 },
     btn_transparency = { type = "number", default = 0.9, min = 0.2, max = 1.0 },
+    inactive_led_boost = { type = "number", default = 50, min = 0, max = 100, integer = true },
     arrow_angle = { type = "number", default = 120, min = 60, max = 150, integer = true },
     titlebar_enabled = { type = "boolean", default = true },
 }
@@ -196,6 +198,45 @@ end
 
 function M.SaveOsdSettings()
     settings_store.Save(M.OSD_SETTINGS_SECTION, OSD_SCHEMA, M.osd)
+end
+
+local function packColor(red, green, blue, alpha)
+    red = settings_store.Clamp(math.floor((tonumber(red) or 0) + 0.5), 0, 255)
+    green = settings_store.Clamp(math.floor((tonumber(green) or 0) + 0.5), 0, 255)
+    blue = settings_store.Clamp(math.floor((tonumber(blue) or 0) + 0.5), 0, 255)
+    alpha = settings_store.Clamp(math.floor((tonumber(alpha) or 255) + 0.5), 0, 255)
+    return (red << 24) | (green << 16) | (blue << 8) | alpha
+end
+
+function M.ClearInactiveLedBoostCache()
+    inactiveLedBoostCache = {}
+end
+
+function M.GetInactiveLedBoost()
+    return settings_store.Clamp(math.floor((tonumber(M.osk.inactive_led_boost) or 50) + 0.5), 0, 100)
+end
+
+function M.ApplyInactiveLedBoost(col, boostPercent)
+    local boost = settings_store.Clamp(math.floor((tonumber(boostPercent) or M.GetInactiveLedBoost()) + 0.5), 0, 100)
+    if boost <= 0 then return col end
+
+    col = tonumber(col) or M.OSK_COLORS.button_off
+    local cacheKey = tostring(col) .. ":" .. tostring(boost)
+    local cached = inactiveLedBoostCache[cacheKey]
+    if cached then return cached end
+
+    local alpha = col & 0xFF
+    local red = (col >> 24) & 0xFF
+    local green = (col >> 16) & 0xFF
+    local blue = (col >> 8) & 0xFF
+    local maxChannel = math.max(red, green, blue)
+    if maxChannel <= 0 then return col end
+
+    local boostedMax = math.min(255, maxChannel + boost * 2.55)
+    local scale = boostedMax / maxChannel
+    local boostedColor = packColor(red * scale, green * scale, blue * scale, alpha)
+    inactiveLedBoostCache[cacheKey] = boostedColor
+    return boostedColor
 end
 
 function M.HexToImCol(hex, fallbackColor)

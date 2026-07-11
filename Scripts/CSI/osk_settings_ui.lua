@@ -93,6 +93,12 @@ function M.RenderContextMenu(ctx, popupId, surfName, deps)
         theme.osk.btn_transparency = value
         saveTheme()
     end, 0.2, 1.0, "%.2f")
+    sliderSetting(ctx, "OSK RGB LED Boost", theme.osk.inactive_led_boost, function(value)
+        theme.osk.inactive_led_boost = math.floor(value + 0.5)
+        theme.ClearInactiveLedBoostCache()
+        saveTheme()
+    end, 0, 100, "%.0f")
+    ui.ItemTooltip(ctx, "Adds brightness to inactive RGB buttons on OSK and config table swatches so color looks closer to real LED. Does not change saved colors or device feedback.")
     sliderSetting(ctx, "Tooltip Delay", data.vars.tooltip_delay, function(value)
         data.vars.tooltip_delay = value
         saveBehavior(data)

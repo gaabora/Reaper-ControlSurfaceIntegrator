@@ -427,13 +427,14 @@ local function renderColorEditor(ctx, state, configState, binding, colorIndex, i
     end
 end
 
-function M.RenderBindingColorPicker(ctx, configState, binding, bindingIndex, colorIndex, label, currentColor, deps)
+function M.RenderBindingColorPicker(ctx, configState, binding, bindingIndex, colorIndex, label, currentColor, deps, displayColor)
     currentColor = normalizeColor(currentColor)
+    displayColor = normalizeColor(displayColor or currentColor)
     local popupId = "Color " .. label .. "##binding_color_" .. bindingIndex .. "_" .. colorIndex
     local idSuffix = tostring(bindingIndex) .. "_" .. tostring(colorIndex)
     local buttonId = "##color_button_" .. idSuffix
 
-    if imgui.ColorButton(ctx, buttonId, currentColor) then
+    if imgui.ColorButton(ctx, buttonId, displayColor) then
         configState.selectedBinding = bindingIndex
         loadSwatches()
         syncEditFields(getPopupState(popupId, currentColor), currentColor)

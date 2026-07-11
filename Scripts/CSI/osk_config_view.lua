@@ -10,13 +10,23 @@ local function selectBinding(state, bindingIndex)
     state.selectedBinding = bindingIndex
 end
 
+local function shouldBoostInactiveTableSwatch(state, colors, inactiveColor, deps)
+    if not colors or not colors[1] then return false end
+    if not theme.IsMeaningfulColor(inactiveColor) then return false end
+    return deps.data and deps.data.IsButtonWidget and deps.data.IsButtonWidget(state.surfaceName, state.widgetName)
+end
+
 local function renderBindingColors(ctx, state, binding, bindingIndex, deps)
     local parts = deps.action_line.Parse(binding.line)
     local colors = deps.action_line.ParseColors(parts)
     local inactiveColor = colors and colors[1] or theme.CONFIG.default_inactive_color
     local activeColor = colors and (colors[2] or colors[1]) or theme.CONFIG.default_active_color
+    local inactiveDisplayColor = inactiveColor
+    if shouldBoostInactiveTableSwatch(state, colors, inactiveColor, deps) then
+        inactiveDisplayColor = theme.ApplyInactiveLedBoost(inactiveColor, theme.osk.inactive_led_boost)
+    end
 
-    inactiveColor = osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 1, "Inactive", inactiveColor, deps)
+    inactiveColor = osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 1, "Inactive", inactiveColor, deps, inactiveDisplayColor)
     imgui.SameLine(ctx, 0, 3)
     osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 2, "Active", activeColor, deps)
 end
