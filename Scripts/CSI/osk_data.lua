@@ -1,4 +1,6 @@
 local r = reaper
+local layout_parser = require("layout_parser")
+local label_replacements = require("label_replacements")
 
 local M = {}
 
@@ -38,25 +40,7 @@ M.surfacePos = {}
 local dirtySurfacePositions = {}
 local surfacePositionSaveDue = 0
 
-M.BUILTIN_LABEL_REPLACEMENTS = {
-    ["toggle"] = "",
-    ["reaper"] = "",
-    ["toolbar"] = "",
-    ["move edit cursor to"] = "",
-    ["cycle"] = "",
-    ["previous"] = "prev",
-    ["current"] = "curr",
-    ["one"] = "1",
-    ["and"] = "&",
-    ["show"] = "",
-    ["track"] = "",
-    ["effects"] = "fx",
-    ["set"] = "",
-    ["blink"] = "",
-    ["go zone"] = "",
-    ["go to"] = "",
-    ["record"] = "rec",
-}
+M.BUILTIN_LABEL_REPLACEMENTS = label_replacements.BUILTIN_REPLACEMENTS
 M.USER_LABEL_REPLACEMENTS = {}
 M.LABEL_REPLACEMENTS = {}
 M.labelReplacementRules = {}
@@ -78,48 +62,14 @@ local function clearTable(tbl)
     end
 end
 
-local function trim(text)
-    return tostring(text or ""):match("^%s*(.-)%s*$")
-end
-
-local function unquote(text)
-    text = trim(text)
-    if #text >= 2 and text:sub(1, 1) == '"' and text:sub(-1) == '"' then
-        return text:sub(2, -2)
-    end
-    return text
-end
-
-local function sortReplacementRules(rules)
-    table.sort(rules, function(left, right)
-        if #left.word ~= #right.word then return #left.word > #right.word end
-        return left.word < right.word
-    end)
-end
-
 local function rebuildLabelReplacementRules()
+    local merged, orderedRules = label_replacements.BuildRuleSet(M.BUILTIN_LABEL_REPLACEMENTS, M.USER_LABEL_REPLACEMENTS)
     clearTable(M.LABEL_REPLACEMENTS)
     clearTable(M.labelReplacementRules)
-
-    local userRules = {}
-    local builtinRules = {}
-    for word, replacement in pairs(M.BUILTIN_LABEL_REPLACEMENTS) do
+    for word, replacement in pairs(merged) do
         M.LABEL_REPLACEMENTS[word] = replacement
-        if M.USER_LABEL_REPLACEMENTS[word] == nil then
-            builtinRules[#builtinRules + 1] = { word = word, replacement = replacement }
-        end
     end
-    for word, replacement in pairs(M.USER_LABEL_REPLACEMENTS) do
-        M.LABEL_REPLACEMENTS[word] = replacement
-        userRules[#userRules + 1] = { word = word, replacement = replacement }
-    end
-
-    sortReplacementRules(userRules)
-    sortReplacementRules(builtinRules)
-    for _, rule in ipairs(userRules) do
-        M.labelReplacementRules[#M.labelReplacementRules + 1] = rule
-    end
-    for _, rule in ipairs(builtinRules) do
+    for _, rule in ipairs(orderedRules) do
         M.labelReplacementRules[#M.labelReplacementRules + 1] = rule
     end
 end
@@ -175,76 +125,31 @@ function M.applyAlpha(col, alpha)
 end
 
 function M.stripLabelPrefix(text)
-    local after = text:match("^[^:]+:%s*(.+)$")
-    return after or text
+    return label_replacements.StripLabelPrefix(text)
 end
 
 function M.splitPascalCase(text)
-    local result = text:gsub("(%l)(%u)", "%1 %2")
-    result = result:gsub("(%u%u)(%u%l)", "%1 %2")
-    return result
-end
-
-local function caseInsensitivePattern(word)
-    local parts = {}
-    for index = 1, #word do
-        local char = word:sub(index, index)
-        if char:match("%a") then
-            parts[#parts + 1] = "[" .. char:upper() .. char:lower() .. "]"
-        elseif char:match("[%]%^%$%(%)%%%.%[%*%+%-%?]") then
-            parts[#parts + 1] = "%" .. char
-        else
-            parts[#parts + 1] = char
-        end
-    end
-    return table.concat(parts)
-end
-
-local function parseReplacementPair(entry)
-    local key, value = tostring(entry or ""):match("^(.-)=(.*)$")
-    if not key then return nil, nil end
-    key = unquote(key)
-    value = unquote(value)
-    if key == "" then return nil, nil end
-    return key, value
+    return label_replacements.SplitPascalCase(text)
 end
 
 function M.GetLabelReplacementHelp()
-    return 'Custom replacements use semicolon-separated key=value pairs. Example: "toggle"="switch";"toggle the"="whatever";effects=fx;reaper=. Quotes are optional, spaces are allowed in keys, and key= removes matched text. Built-in replacements always apply unless overridden here.'
+    return label_replacements.GetHelpText()
 end
 
 function M.GetBuiltInLabelReplacementText()
-    local entries = {}
-    for word, replacement in pairs(M.BUILTIN_LABEL_REPLACEMENTS) do
-        entries[#entries + 1] = word .. "=" .. replacement
-    end
-    table.sort(entries)
-    return table.concat(entries, ";")
+    return label_replacements.Serialize(M.BUILTIN_LABEL_REPLACEMENTS)
 end
 
 function M.GetActiveLabelReplacementText()
-    local entries = {}
-    for word, replacement in pairs(M.LABEL_REPLACEMENTS) do
-        entries[#entries + 1] = word .. "=" .. replacement
-    end
-    table.sort(entries)
-    return table.concat(entries, ";")
+    return label_replacements.Serialize(M.LABEL_REPLACEMENTS)
 end
 
 function M.applyLabelReplacements(text)
-    for _, rule in ipairs(M.labelReplacementRules) do
-        local pattern = caseInsensitivePattern(rule.word)
-        text = text:gsub("%f[%w]" .. pattern .. "%f[%W]", rule.replacement)
-    end
-    text = text:gsub("%s+", " "):match("^%s*(.-)%s*$")
-    return text
+    return label_replacements.Apply(text, M.labelReplacementRules)
 end
 
 function M.processLabel(text)
-    text = M.stripLabelPrefix(text)
-    text = M.splitPascalCase(text)
-    text = M.applyLabelReplacements(text)
-    return text
+    return label_replacements.ProcessLabel(text, M.labelReplacementRules)
 end
 
 function M.getProcessedLabel(text)
@@ -259,11 +164,9 @@ end
 function M.parseLabelReplacements(str)
     clearTable(M.USER_LABEL_REPLACEMENTS)
     clearTable(M.processedLabelCache)
-    for entry in tostring(str or ""):gmatch("[^;]+") do
-        local key, value = parseReplacementPair(entry)
-        if key then
-            M.USER_LABEL_REPLACEMENTS[key] = value
-        end
+    local parsed = label_replacements.ParseReplacementText(str)
+    for key, value in pairs(parsed) do
+        M.USER_LABEL_REPLACEMENTS[key] = value
     end
     rebuildLabelReplacementRules()
 end
@@ -304,64 +207,11 @@ function M.PollExtStateEntry(surfName, suffix, rawStore, parsedStore, parser)
 end
 
 function M.FilterGroupedDuplicates(row)
-    local filtered = {}
-    local seenGroups = {}
-
-    for _, cell in ipairs(row) do
-        if cell.isSpacer or not cell.group or cell.group == "" then
-            filtered[#filtered + 1] = cell
-        else
-            local groupKey = tostring(cell.group):lower()
-            if not seenGroups[groupKey] then
-                seenGroups[groupKey] = true
-                filtered[#filtered + 1] = cell
-            end
-        end
-    end
-
-    return filtered
-end
-
-local function parseLayoutCellProperties(cellStr)
-    local properties = {}
-    local metadata = cellStr:match("^[^:]+:(.*)$") or ""
-    for entry in metadata:gmatch("[^,]+") do
-        local key, value = entry:match("^([^=]+)=(.*)$")
-        if key then
-            properties[trim(key)] = unquote(value)
-        end
-    end
-    return properties
+    return layout_parser.FilterGroupedDuplicates(row)
 end
 
 function M.ParseLayout(layoutStr)
-    local result = {}
-    for rowStr in layoutStr:gmatch("[^\n]+") do
-        local row = {}
-        for cellStr in rowStr:gmatch("[^|]+") do
-            local cell = {}
-            if cellStr:match("^SPACER:") then
-                cell.isSpacer = true
-                cell.width = tonumber(cellStr:match("SPACER:([%d%.]+)")) or 0.5
-            else
-                local properties = parseLayoutCellProperties(cellStr)
-                cell.isSpacer = false
-                cell.name = cellStr:match("^([^:]+)")
-                cell.shape = tostring(properties.Shape or "rect"):lower()
-                cell.width = tonumber(properties.Width) or 1.0
-                cell.height = tonumber(properties.Height) or 1.0
-                cell.top = tonumber(properties.Top) or 0.0
-                if cell.shape == "fader" then cell.rowSpan = cell.height else cell.rowSpan = 1 end
-                cell.group = properties.Group or ""
-                cell.label = properties.Label or ""
-                local colorHex = tostring(properties.Color or ""):match("^#?%x+")
-                if colorHex then cell.color = M.hexToImCol(colorHex) end
-            end
-            row[#row + 1] = cell
-        end
-        result[#result + 1] = M.FilterGroupedDuplicates(row)
-    end
-    return result
+    return layout_parser.ParseLayout(layoutStr)
 end
 
 function M.GetCellInfo(surfName, widgetName)

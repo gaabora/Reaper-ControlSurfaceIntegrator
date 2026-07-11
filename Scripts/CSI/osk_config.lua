@@ -1,5 +1,6 @@
 local r = reaper
 local imgui = require "imgui" "0.9.3"
+local action_line = require("action_line")
 local data = require("osk_data")
 local ui = require("ui_components")
 
@@ -90,245 +91,25 @@ local function syncSearchIndexFromMode()
 	end
 end
 
-local function splitTokens(text)
-	local out = {}
-	for tok in tostring(text or ""):gmatch("%S+") do
-		out[#out + 1] = tok
-	end
-	return out
-end
-
-local function tokenizePreservingQuotes(text)
-	local tokens = {}
-	local source = tostring(text or "")
-	local current = ""
-	local inQuote = false
-	local idx = 1
-	while idx <= #source do
-		local ch = source:sub(idx, idx)
-		if inQuote and ch == "\\" and idx < #source then
-			current = current .. ch .. source:sub(idx + 1, idx + 1)
-			idx = idx + 1
-		elseif ch == '"' then
-			inQuote = not inQuote
-			current = current .. ch
-		elseif (ch == " " or ch == "\t") and not inQuote then
-			if current ~= "" then
-				tokens[#tokens + 1] = current
-				current = ""
-			end
-		else
-			current = current .. ch
-		end
-		idx = idx + 1
-	end
-	if current ~= "" then
-		tokens[#tokens + 1] = current
-	end
-	return tokens
-end
-
-local function unescapeQuotedText(text)
-	local out = {}
-	local idx = 1
-	while idx <= #text do
-		local ch = text:sub(idx, idx)
-		if ch == "\\" and idx < #text then
-			local nextCh = text:sub(idx + 1, idx + 1)
-			if nextCh == '"' or nextCh == "\\" then
-				out[#out + 1] = nextCh
-				idx = idx + 2
-			else
-				out[#out + 1] = ch
-				idx = idx + 1
-			end
-		else
-			out[#out + 1] = ch
-			idx = idx + 1
-		end
-	end
-	return table.concat(out)
-end
-
-local function unquoteValue(value)
-	local text = tostring(value or "")
-	if #text >= 2 and text:sub(1, 1) == '"' and text:sub(-1) == '"' then
-		return unescapeQuotedText(text:sub(2, -2))
-	end
-	return text
-end
-
-local function quoteIfNeeded(value)
-	local text = tostring(value or "")
-	if text == "" then return text end
-	if text:find("[%s\"]") or text:find("\\", 1, true) then
-		text = text:gsub("\\", "\\\\")
-		text = text:gsub('"', '\\"')
-		return '"' .. text .. '"'
-	end
-	return text
-end
-
-local function parseActionLine(line)
-	local tokens = tokenizePreservingQuotes(line)
-	local parts = {
-		actionName = tokens[1] or "",
-		params = {},
-		properties = {},
-		colorTokens = nil,
-	}
-
-	local tokenIdx = 2
-	while tokenIdx <= #tokens do
-		local token = tokens[tokenIdx]
-		if token == "{" then
-			local colorTokens = {}
-			tokenIdx = tokenIdx + 1
-			while tokenIdx <= #tokens and tokens[tokenIdx] ~= "}" do
-				colorTokens[#colorTokens + 1] = tokens[tokenIdx]
-				tokenIdx = tokenIdx + 1
-			end
-			if tokenIdx <= #tokens and tokens[tokenIdx] == "}" then
-				parts.colorTokens = colorTokens
-			else
-				parts.params[#parts.params + 1] = "{"
-				for _, colorToken in ipairs(colorTokens) do
-					parts.params[#parts.params + 1] = colorToken
-				end
-			end
-		else
-			local key, value = token:match("^(.-)=(.+)$")
-			if key and value then
-				parts.properties[key] = unquoteValue(value)
-			else
-				parts.params[#parts.params + 1] = unquoteValue(token)
-			end
-		end
-		tokenIdx = tokenIdx + 1
-	end
-
-	return parts
-end
-
-local function buildActionLine(parts)
-	local out = {}
-	out[#out + 1] = (parts.actionName and parts.actionName ~= "") and parts.actionName or "NoAction"
-
-	for _, param in ipairs(parts.params or {}) do
-		if param ~= "" then
-			out[#out + 1] = quoteIfNeeded(param)
-		end
-	end
-
-	if parts.colorTokens and #parts.colorTokens > 0 then
-		out[#out + 1] = "{"
-		for _, colorToken in ipairs(parts.colorTokens) do
-			out[#out + 1] = tostring(colorToken)
-		end
-		out[#out + 1] = "}"
-	end
-
-	local used = {}
-	local priorityKeys = { "Feedback", "HoldDelay", "HoldRepeatInterval", "RunCount", "OSD", "KeyLabel" }
-	for _, key in ipairs(priorityKeys) do
-		local value = parts.properties and parts.properties[key]
-		if value ~= nil and tostring(value) ~= "" then
-			out[#out + 1] = key .. "=" .. quoteIfNeeded(value)
-			used[key] = true
-		end
-	end
-
-	local remaining = {}
-	for key, value in pairs(parts.properties or {}) do
-		if not used[key] and value ~= nil and tostring(value) ~= "" then
-			remaining[#remaining + 1] = key
-		end
-	end
-	table.sort(remaining)
-	for _, key in ipairs(remaining) do
-		out[#out + 1] = key .. "=" .. quoteIfNeeded(parts.properties[key])
-	end
-
-	return table.concat(out, " ")
-end
-
-local function clampColorChannel(value)
-	return math.max(0, math.min(255, math.floor(tonumber(value) or 0)))
-end
-
-local function packRgb(red, green, blue)
-	return (clampColorChannel(red) << 24)
-		| (clampColorChannel(green) << 16)
-		| (clampColorChannel(blue) << 8)
-		| 0xff
-end
-
-local function unpackRgb(color)
-	return (color >> 24) & 0xff, (color >> 16) & 0xff, (color >> 8) & 0xff
-end
-
-local function parseHexColor(token)
-	local hex = tostring(token or ""):match("^#?(%x%x%x%x%x%x)")
-	if not hex then return nil end
-	return packRgb(
-		tonumber(hex:sub(1, 2), 16),
-		tonumber(hex:sub(3, 4), 16),
-		tonumber(hex:sub(5, 6), 16)
-	)
-end
-
-local function parseActionColors(parts)
-	local colorTokens = parts and parts.colorTokens
-	if not colorTokens or #colorTokens == 0 then return nil end
-
-	local colors = {}
-	if tostring(colorTokens[1]):sub(1, 1) == "#" then
-		for _, colorToken in ipairs(colorTokens) do
-			local color = parseHexColor(colorToken)
-			if color then colors[#colors + 1] = color end
-		end
-	else
-		local channels = {}
-		for _, colorToken in ipairs(colorTokens) do
-			local channel = tonumber(colorToken)
-			if channel == nil then return nil end
-			channels[#channels + 1] = clampColorChannel(channel)
-		end
-		if #channels % 3 ~= 0 then return nil end
-		for channelIdx = 1, #channels, 3 do
-			colors[#colors + 1] = packRgb(channels[channelIdx], channels[channelIdx + 1], channels[channelIdx + 2])
-		end
-	end
-
-	if #colors == 0 then return nil end
-	return colors
-end
-
 local function setActionColor(binding, colorIndex, color)
-	local parts = parseActionLine(binding.line)
-	local colors = parseActionColors(parts) or { 0x3a3a3aff, 0xffb029ff }
+	local parts = action_line.Parse(binding.line)
+	local colors = action_line.ParseColors(parts) or { 0x3a3a3aff, 0xffb029ff }
 	if #colors == 1 then colors[2] = colors[1] end
 	colors[colorIndex] = color
 
-	parts.colorTokens = {}
-	for idx = 1, 2 do
-		local red, green, blue = unpackRgb(colors[idx])
-		parts.colorTokens[#parts.colorTokens + 1] = tostring(red)
-		parts.colorTokens[#parts.colorTokens + 1] = tostring(green)
-		parts.colorTokens[#parts.colorTokens + 1] = tostring(blue)
-	end
-	binding.line = buildActionLine(parts)
+	action_line.SetColors(parts, { colors[1], colors[2] })
+	binding.line = action_line.Build(parts)
 end
 
 local function clearActionColors(binding)
-	local parts = parseActionLine(binding.line)
-	parts.colorTokens = nil
-	binding.line = buildActionLine(parts)
+	local parts = action_line.Parse(binding.line)
+	action_line.ClearColors(parts)
+	binding.line = action_line.Build(parts)
 end
 
 local function getReaperActionTitle(parts)
 	if tostring(parts.actionName or ""):lower() ~= "reaper" then return nil end
-	local commandToken = unquoteValue(parts.params[1] or "")
+	local commandToken = action_line.UnquoteValue(parts.params[1] or "")
 	local commandId = tonumber(commandToken)
 	if not commandId and commandToken ~= "" and type(r.NamedCommandLookup) == "function" then
 		commandId = r.NamedCommandLookup(commandToken)
@@ -340,7 +121,7 @@ local function getReaperActionTitle(parts)
 end
 
 local function getBindingTitle(binding)
-	local parts = parseActionLine(binding.line)
+	local parts = action_line.Parse(binding.line)
 	local explicitTitle = parts.properties.OSD
 	if explicitTitle == nil or explicitTitle == "" or explicitTitle == "?" or explicitTitle == "No" then
 		explicitTitle = parts.properties.KeyLabel
@@ -375,9 +156,9 @@ local function getOtherSummary(binding)
 	if binding.isValueInverted then labels[#labels + 1] = "Invert" end
 	if binding.isFeedbackInverted then labels[#labels + 1] = "InvertFB" end
 
-	local parts = parseActionLine(binding.line)
+	local parts = action_line.Parse(binding.line)
 	for _, param in ipairs(parts.params or {}) do
-		labels[#labels + 1] = unquoteValue(param)
+		labels[#labels + 1] = action_line.UnquoteValue(param)
 	end
 	for key, value in pairs(parts.properties or {}) do
 		if key ~= "OSD" and key ~= "KeyLabel" then
@@ -413,11 +194,11 @@ local function parseBindingString(raw)
 				elseif token == "__OSK_DECREASE" then metadata.isDecrease = true
 				end
 			end
-			local tokens = splitTokens(line)
+			local parts = action_line.Parse(line)
 			bindings[#bindings + 1] = {
 				mod = tonumber(modStr) or 0,
 				line = line,
-				actionName = tokens[1] or "",
+				actionName = parts.actionName or "",
 				hasHold = metadata.hasHold,
 				hasDoublePress = metadata.hasDoublePress,
 				isValueInverted = metadata.isValueInverted,
@@ -615,8 +396,7 @@ end
 
 local function refreshBindingDerivedFields(binding)
 	if not binding then return end
-	local tokens = splitTokens(binding.line)
-	binding.actionName = tokens[1] or ""
+	binding.actionName = action_line.Parse(binding.line).actionName or ""
 end
 
 local function getSelectedBinding()
@@ -748,8 +528,8 @@ local function renderColorPopup(ctx, binding, bindingIndex, colorIndex, label, c
 end
 
 local function renderBindingColors(ctx, binding, bindingIndex)
-	local parts = parseActionLine(binding.line)
-	local colors = parseActionColors(parts)
+	local parts = action_line.Parse(binding.line)
+	local colors = action_line.ParseColors(parts)
 	local inactiveColor = colors and colors[1] or 0x3a3a3aff
 	local activeColor = colors and (colors[2] or colors[1]) or 0xffb029ff
 
@@ -799,10 +579,10 @@ end
 local function setHoldEnabled(binding, enabled)
 	binding.hasHold = enabled
 	if not enabled then
-		local parts = parseActionLine(binding.line)
+		local parts = action_line.Parse(binding.line)
 		parts.properties.HoldDelay = nil
 		parts.properties.HoldRepeatInterval = nil
-		binding.line = buildActionLine(parts)
+		binding.line = action_line.Build(parts)
 	end
 	updateDirtyState()
 end
@@ -1058,25 +838,25 @@ function M.RenderConfigEditor(ctx)
 			local selected = getSelectedBinding()
 			if selected then
 				imgui.Separator(ctx)
-				local parts = parseActionLine(selected.line)
+				local parts = action_line.Parse(selected.line)
 
 				local actionChanged
 				actionChanged, parts.actionName = imgui.InputText(ctx, "Action", parts.actionName or "")
 				if actionChanged then
-					selected.line = buildActionLine(parts)
+					selected.line = action_line.Build(parts)
 					refreshBindingDerivedFields(selected)
 					updateDirtyState()
 				end
 
 				renderActionPicker(ctx, selected)
-				parts = parseActionLine(selected.line)
+				parts = action_line.Parse(selected.line)
 				local changedQuick = false
 
 			local paramsText = table.concat(parts.params or {}, " ")
 			local paramsChanged
 			paramsChanged, paramsText = imgui.InputText(ctx, "Parameters", paramsText)
 			if paramsChanged then
-				parts.params = tokenizePreservingQuotes(paramsText)
+				parts.params = action_line.TokenizePreservingQuotes(paramsText)
 				changedQuick = true
 			end
 
@@ -1108,7 +888,7 @@ function M.RenderConfigEditor(ctx)
 			local toggled, enabled = imgui.Checkbox(ctx, "Hold##pseudo_hold", selected.hasHold == true)
 			if toggled then
 				setHoldEnabled(selected, enabled)
-				parts = parseActionLine(selected.line)
+				parts = action_line.Parse(selected.line)
 			end
 			imgui.SameLine(ctx)
 			toggled, enabled = imgui.Checkbox(ctx, "DoublePress##pseudo_double", selected.hasDoublePress == true)
@@ -1202,7 +982,7 @@ function M.RenderConfigEditor(ctx)
 			end
 
 			if changedQuick then
-				selected.line = buildActionLine(parts)
+				selected.line = action_line.Build(parts)
 				refreshBindingDerivedFields(selected)
 				updateDirtyState()
 			end
