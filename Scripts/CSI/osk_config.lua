@@ -418,7 +418,7 @@ function M.RenderConfigEditor(ctx)
 
 	pollConfigResponses()
 
-	local title = "Widget Config: " .. state.widgetName .. "###osk_widget_config"
+	local title = "Widget config: [" .. state.widgetName .. "]  @" .. state.surfaceName .. "/" .. state.zoneName .. " ###osk_widget_config"
 	imgui.SetNextWindowSize(ctx, 520, 520, imgui.Cond_Appearing)
 	local visible, open = imgui.Begin(ctx, title, true, CONFIG_WINDOW_FLAGS)
 	if open == false then
@@ -428,18 +428,26 @@ function M.RenderConfigEditor(ctx)
 	end
 
 	if visible then
-		imgui.Text(ctx, "Surface: " .. state.surfaceName)
-		imgui.Text(ctx, "Zone: " .. (state.zoneName ~= "" and state.zoneName or "(unknown)"))
-		if state.zoneFilePath ~= "" then
-			imgui.TextWrapped(ctx, state.zoneFilePath)
-		end
 		if state.status ~= "" then
-			imgui.Separator(ctx)
 			imgui.Text(ctx, "Status: " .. state.status)
 		end
 
-		imgui.Separator(ctx)
-		imgui.Text(ctx, "Bindings")
+-- need to do next changes:
+
+-- bindings should be table like this:
+-- |modifier|action|colors|other|
+-- |--------|------|------|-----|
+-- | - | actionTitle*|[i][a]**| |
+-- | Shift| AnotherActionTitle|[i][a]| |
+-- | Hold*** | 
+-- ...
+
+-- * action title by default is talen from OSD, otherwise whatever we have after widget, but missing OSD text must be generated on edit, for example from csi/reaper action name like we do with some global garbage words replacing in osk lua script using label_replacements
+-- ** [i] - inactive color square that opens colorpicker with pallete, [a] - same for active ... . this colors should be somewhere in cpp since they can be defined in .zon files like this  WidgetName  ActionName { 10 0 0 120 0 0 } - 10 0 0 inactive R G B, 120 0 0 - active.
+-- *** need to add support of virtual modifiers like Hold, DoublePress, that are alreasy implemented in cpp
+
+-- need to plan add inactive/active color picker for RGB widgets 
+
 
 		local listHeight = 170
 		if imgui.BeginListBox(ctx, "##bindings", -1, listHeight) then
@@ -454,18 +462,22 @@ function M.RenderConfigEditor(ctx)
 		end
 
 		imgui.Spacing(ctx)
-		if imgui.Button(ctx, "+ Add binding") then
+		if imgui.Button(ctx, "+ Add") then
 			addBinding()
 		end
 		imgui.SameLine(ctx)
-		if imgui.Button(ctx, "- Remove selected") then
+		if imgui.Button(ctx, "- Remove") then
 			removeSelectedBinding()
 		end
 		imgui.SameLine(ctx)
-		if imgui.Button(ctx, "Duplicate") then
+		if imgui.Button(ctx, "Clone") then
 			duplicateSelectedBinding()
 		end
 
+		-- Horizontal spacer
+		imgui.SameLine(ctx)
+		imgui.Dummy(ctx, 15, 0)
+		imgui.SameLine(ctx)
 		if imgui.Button(ctx, "Move Up") then
 			moveSelectedBinding(-1)
 		end
@@ -473,95 +485,24 @@ function M.RenderConfigEditor(ctx)
 		if imgui.Button(ctx, "Move Down") then
 			moveSelectedBinding(1)
 		end
-
+        
+        -- Horizontal spacer
+		imgui.SameLine(ctx)
+		imgui.Dummy(ctx, 15, 0)
+		imgui.SameLine(ctx)
 		if imgui.Button(ctx, "Add preset: NoAction") then
 			addBindingPreset("no_action")
-		end
-		imgui.SameLine(ctx)
-		if imgui.Button(ctx, "Add preset: Reaper") then
-			addBindingPreset("reaper")
-		end
-		imgui.SameLine(ctx)
-		if imgui.Button(ctx, "Add preset: TrackVolume") then
-			addBindingPreset("track_volume")
 		end
 
 		local selected = getSelectedBinding()
 		if selected then
 			imgui.Text(ctx, "Selected action: " .. (selected.actionName ~= "" and selected.actionName or "(unknown)"))
 			local lineChanged
-			lineChanged, selected.line = imgui.InputText(ctx, "Binding line", selected.line or "")
+			lineChanged, selected.line = imgui.InputText(ctx, "Raw", selected.line or "")
 			if lineChanged then
 				refreshBindingDerivedFields(selected)
 			end
-
-			imgui.Separator(ctx)
-			imgui.Text(ctx, "Quick editor")
-			local parts = parseActionLine(selected.line)
-			local changedQuick = false
-
-			local actionChanged
-			actionChanged, parts.actionName = imgui.InputText(ctx, "Action", parts.actionName or "")
-			if actionChanged then changedQuick = true end
-
-			local paramsText = table.concat(parts.params or {}, " ")
-			local paramsChanged
-			paramsChanged, paramsText = imgui.InputText(ctx, "Params", paramsText)
-			if paramsChanged then
-				parts.params = splitTokens(paramsText)
-				changedQuick = true
-			end
-
-			local feedbackNo = tostring(parts.properties.Feedback or ""):lower() == "no"
-			local feedbackChanged
-			feedbackChanged, feedbackNo = imgui.Checkbox(ctx, "Feedback=No", feedbackNo)
-			if feedbackChanged then
-				if feedbackNo then parts.properties.Feedback = "No" else parts.properties.Feedback = nil end
-				changedQuick = true
-			end
-
-			local holdDelay = tostring(parts.properties.HoldDelay or "")
-			local holdDelayChanged
-			holdDelayChanged, holdDelay = imgui.InputText(ctx, "HoldDelay", holdDelay)
-			if holdDelayChanged then
-				parts.properties.HoldDelay = (holdDelay ~= "") and holdDelay or nil
-				changedQuick = true
-			end
-
-			local holdRepeat = tostring(parts.properties.HoldRepeatInterval or "")
-			local holdRepeatChanged
-			holdRepeatChanged, holdRepeat = imgui.InputText(ctx, "HoldRepeatInterval", holdRepeat)
-			if holdRepeatChanged then
-				parts.properties.HoldRepeatInterval = (holdRepeat ~= "") and holdRepeat or nil
-				changedQuick = true
-			end
-
-			local runCount = tostring(parts.properties.RunCount or "")
-			local runCountChanged
-			runCountChanged, runCount = imgui.InputText(ctx, "RunCount", runCount)
-			if runCountChanged then
-				parts.properties.RunCount = (runCount ~= "") and runCount or nil
-				changedQuick = true
-			end
-
-			local osdText = tostring(parts.properties.OSD or "")
-			local osdChanged
-			osdChanged, osdText = imgui.InputText(ctx, "OSD", osdText)
-			if osdChanged then
-				parts.properties.OSD = (osdText ~= "") and osdText or nil
-				changedQuick = true
-			end
-
-			if changedQuick then
-				selected.line = buildActionLine(parts)
-				refreshBindingDerivedFields(selected)
-			end
-
-			local modChanged
-			modChanged, selected.mod = imgui.InputInt(ctx, "Modifier bitmask", selected.mod or 0)
-			if modChanged and selected.mod < 0 then selected.mod = 0 end
-
-			imgui.Text(ctx, "Modifier flags")
+			
 			for idx, modifier in ipairs(MODIFIER_FLAGS) do
 				local hasFlag = ((selected.mod or 0) & modifier.bit) ~= 0
 				local toggled
@@ -573,8 +514,80 @@ function M.RenderConfigEditor(ctx)
 						selected.mod = (selected.mod or 0) & (~modifier.bit)
 					end
 				end
-				if idx % 3 ~= 0 then imgui.SameLine(ctx) end
+				if idx % 5 ~= 0 then imgui.SameLine(ctx) end
 			end
+
+			imgui.Text(ctx, "Quick editor")
+			local parts = parseActionLine(selected.line)
+			local changedQuick = false
+
+			local osdText = tostring(parts.properties.OSD or "")
+			local osdChanged
+			osdChanged, osdText = imgui.InputText(ctx, "OSD", osdText)
+			if osdChanged then
+				parts.properties.OSD = (osdText ~= "") and osdText or nil
+				changedQuick = true
+			end
+
+			-- local actionChanged
+			-- actionChanged, parts.actionName = imgui.InputText(ctx, "Action", parts.actionName or "")
+			-- if actionChanged then changedQuick = true end
+
+			-- local paramsText = table.concat(parts.params or {}, " ")
+			-- local paramsChanged
+			-- paramsChanged, paramsText = imgui.InputText(ctx, "Params", paramsText)
+			-- if paramsChanged then
+			-- 	parts.params = splitTokens(paramsText)
+			-- 	changedQuick = true
+			-- end
+
+			local feedbackNo = tostring(parts.properties.Feedback or ""):lower() == "no"
+			local feedbackChanged
+			feedbackChanged, feedbackNo = imgui.Checkbox(ctx, "No Feedback", feedbackNo)
+			if feedbackChanged then
+				if feedbackNo then parts.properties.Feedback = "No" else parts.properties.Feedback = nil end
+				changedQuick = true
+			end
+
+
+
+			local holdDelayVal = tonumber(parts.properties.HoldDelay) or 0
+			local holdDelayChanged
+			imgui.SetNextItemWidth(ctx, 120)
+			holdDelayChanged, holdDelayVal = imgui.DragInt(ctx, "##hold_delay", holdDelayVal, 100, 0, 10000, "HoldDelay = %d ms")
+			if holdDelayChanged then
+				parts.properties.HoldDelay = (holdDelayVal > 0) and tostring(holdDelayVal) or nil
+				changedQuick = true
+			end
+
+			imgui.SameLine(ctx, 0, 5)
+			local runCountVal = tonumber(parts.properties.RunCount) or 1
+			local runCountChanged
+			imgui.SetNextItemWidth(ctx, 120)
+			runCountChanged, runCountVal = imgui.DragInt(ctx, "##run_count", runCountVal, 1, 1, 10, "RunCount = %d")
+			if runCountChanged then
+				parts.properties.RunCount = (runCountVal > 1) and tostring(runCountVal) or nil
+				changedQuick = true
+			end
+
+			imgui.SameLine(ctx, 0, 5)
+			local holdRepeatVal = tonumber(parts.properties.HoldRepeatInterval) or 0
+			local holdRepeatChanged
+			imgui.SetNextItemWidth(ctx, 120)
+			holdRepeatChanged, holdRepeatVal = imgui.DragInt(ctx, "##hold_repeat", holdRepeatVal, 10, 0, 1000, "Interval = %d ms")
+			if holdRepeatChanged then
+				parts.properties.HoldRepeatInterval = (holdRepeatVal > 0) and tostring(holdRepeatVal) or nil
+				changedQuick = true
+			end
+			
+
+
+
+			if changedQuick then
+				selected.line = buildActionLine(parts)
+				refreshBindingDerivedFields(selected)
+			end
+
 		else
 			imgui.Text(ctx, "No binding for this widget in the active zone.")
 		end

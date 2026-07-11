@@ -44,3 +44,6 @@ WDL/
 lib/
 .vs/
 .vscode/settings.json
+
+# /CSI/
+tmp/
