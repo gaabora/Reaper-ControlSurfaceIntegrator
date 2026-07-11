@@ -31,14 +31,22 @@
 - Keep reusable ReaImGui widget helpers in `ui_components.lua` so entry scripts and feature modules do not re-implement the same UI patterns.
 - Keep shared script startup, context creation, toolbar state, and shutdown boilerplate in `script_host.lua` so the entry scripts stay thin orchestration layers.
 - Keep serialized action-line, layout, and label-replacement contracts in `action_line.lua`, `layout_parser.lua`, and `label_replacements.lua` so UI modules do not own those formats.
+- Keep OSD color, alpha, contrast, and centered text drawing in `osd_ui.lua` so standalone OSD and the embedded OSK bar share one renderer.
 - Avoid duplicating shared UI behavior in the entry scripts.
 - Keep action edits reversible until the user explicitly saves them.
 
 ## Verification
 
-- In REAPER, launch both entry scripts and verify the affected UI path.
-- For OSK changes, test press, release, scroll, live apply, save, and revert as relevant.
-- For OSD changes, test timeout, placement, styling, and settings persistence as relevant.
+- Build the plugin with `cmake --build build --config Debug` before runtime verification.
+- In REAPER with ReaImGui installed, launch both `CSI OSK on-screen keyboard.lua` and `CSI OSD on-screen display.lua`.
+- Open the OSK context menu and change settings, including the embedded OSD bar position.
+- Verify label replacements with empty user input, a user override, and a longer phrase override.
+- Open widget config, edit an action, search actions, apply live, save, and revert.
+- Test two surfaces with the same widget names to confirm surface-scoped OSK state.
+- Test OSK press, release, hold, double-press, and rotary wheel input.
+- Send repeated identical OSD messages and confirm the visible timeout refreshes.
+- Open OSD settings while no OSD message is visible.
+- Check standalone OSD top/bottom placement, left/center/right alignment, margins, size, font size, styling, Save, and Cancel.
 
 ## Child DOX Index
 

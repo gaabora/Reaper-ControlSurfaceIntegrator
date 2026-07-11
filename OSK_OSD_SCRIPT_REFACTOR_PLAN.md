@@ -4,6 +4,10 @@
 
 This plan covers cleanup of the Lua OSK/OSD scripts after the current configuration editor and label replacement work. The goal is to fix known correctness risks first, then extract reusable UI and parsing components so the scripts stay smaller, clearer, and easier to evolve.
 
+## Status
+
+Implemented through Phase 7. The refactor stayed within the existing `ReaCtrlSurf_*` ExtState payloads, so `LUA_CPP_EXTSTATE_INTERFACE.md` remains current. The durable manual REAPER verification checklist now lives in `Scripts/CSI/AGENTS.md`.
+
 ## Current Baseline
 
 Primary files:
@@ -12,17 +16,23 @@ Primary files:
 - `Scripts/CSI/CSI OSD on-screen display.lua`
 - `Scripts/CSI/osk_data.lua`
 - `Scripts/CSI/osk_render.lua`
+- `Scripts/CSI/osk_input.lua`
 - `Scripts/CSI/osk_config.lua`
 - `Scripts/CSI/osd_ui.lua`
+- `Scripts/CSI/ui_components.lua`
+- `Scripts/CSI/script_host.lua`
+- `Scripts/CSI/action_line.lua`
+- `Scripts/CSI/layout_parser.lua`
+- `Scripts/CSI/label_replacements.lua`
 
 Current strengths:
 
 - OSK entry point is already split from data, rendering, config editing, and OSD UI.
 - C++/Lua communication is mostly centralized through current `ReaCtrlSurf_*` ExtState sections.
 - OSK config editor has structured editing, dirty tracking, live apply, save, and revert.
-- OSD display logic is already shared between standalone OSD and OSK in part.
+- OSD display logic is shared between standalone OSD and the embedded OSK bar.
 
-Known review findings to address:
+Original review findings addressed by the refactor:
 
 - `osk_config.lua` calls `BeginChild` without guaranteed matching `EndChild` when the child is not visible.
 - `osk_data.lua` layout label parsing can consume trailing `,Color=...`.
