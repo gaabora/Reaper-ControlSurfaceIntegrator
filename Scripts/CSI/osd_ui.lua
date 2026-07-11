@@ -263,28 +263,44 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
         imgui.PushFont(ctx, FONT_SMALL)
         
         local drawList = imgui.GetWindowDrawList(ctx)
+        local winX, winY = imgui.GetWindowPos(ctx)
+        local winW, winH = imgui.GetWindowSize(ctx)
         
-        -- Background with border
+        -- Background
         local bgCol = M.state.bgColor
         if M.vars.osd_transparency then
             bgCol = (bgCol & 0xFFFFFF00) | math.floor((M.vars.osd_transparency / 100) * 255)
         end
         
-        imgui.DrawList_AddRectFilled(drawList, xPos, yPos, xPos + width, yPos + height, bgCol, 0)
+        imgui.DrawList_AddRectFilled(drawList, winX, winY, winX + winW, winY + winH, bgCol, 0)
         
         -- Text (centered)
         local textCol = M.getContrastTextColor(string.format("#%06X", (M.state.bgColor >> 8) & 0xFFFFFF))
-        if M.vars.osd_transparency then
-            textCol = (textCol & 0xFFFFFF00) | math.floor((M.vars.osd_transparency / 100) * 255)
-        end
+        textCol = (textCol & 0xFFFFFF00) | 0xFF
         
         local shownText = hasText and M.state.text or "OSD idle - right-click for settings"
         local textWidth = imgui.CalcTextSize(ctx, shownText)
         local _, lineHeight = imgui.CalcTextSize(ctx, "M")
-        local textX = xPos + (width - textWidth) / 2
-        local textY = yPos + (height - lineHeight) / 2
+        local textX = winX + (winW - textWidth) / 2
+        local textY = winY + (winH - lineHeight) / 2
         
         imgui.DrawList_AddText(drawList, textX, textY, textCol, shownText)
+
+        -- Right-click settings must be opened while this window is active.
+        if imgui.BeginPopupContextWindow(ctx, "OSD_ContextMenu") then
+            local isTop = M.vars.osd_position == "top"
+            if imgui.MenuItem(ctx, "Top", nil, isTop) then
+                M.vars.osd_position = "top"
+                M.SaveSettings()
+            end
+            if imgui.MenuItem(ctx, "Bottom", nil, not isTop) then
+                M.vars.osd_position = "bottom"
+                M.SaveSettings()
+            end
+
+            M.RenderSettingsPanel(ctx, imgui)
+            imgui.EndPopup(ctx)
+        end
         
         imgui.PopFont(ctx)
     end

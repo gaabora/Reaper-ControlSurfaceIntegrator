@@ -34,28 +34,6 @@ local function SetToolbarButtonState(set)
     r.RefreshToolbar2(sec, cmd)
 end
 
-local function RenderContextMenu()
-    if imgui.BeginPopupContextWindow(ctx, "OSD_ContextMenu") then
-        -- Position options
-        local isTop = osd_ui.vars.osd_position == "top"
-        if imgui.MenuItem(ctx, "Top", nil, isTop) then
-            osd_ui.vars.osd_position = "top"
-            osd_ui.SaveSettings()
-        end
-        if imgui.MenuItem(ctx, "Bottom", nil, not isTop) then
-            osd_ui.vars.osd_position = "bottom"
-            osd_ui.SaveSettings()
-        end
-        
-        imgui.Separator(ctx)
-        
-        -- Configurable settings
-        osd_ui.RenderSettingsPanel(ctx, imgui)
-        
-        imgui.EndPopup(ctx)
-    end
-end
-
 local function main()
     if r.ImGui_ValidatePtr and (not r.ImGui_ValidatePtr(ctx, "ImGui_Context*")) then
         SetToolbarButtonState(-1)
@@ -67,7 +45,20 @@ local function main()
 
     local screenW, screenH = 1920, 1080
     local originX, originY = 0, 0
-    if r.my_getViewport then
+
+    -- Prefer REAPER client rectangle to avoid covering app title bar.
+    if r.APIExists and r.APIExists("JS_Window_GetClientRect") and r.APIExists("JS_Window_ClientToScreen") then
+        local hwnd = r.GetMainHwnd()
+        local ok, cl, ct, cr, cb = r.JS_Window_GetClientRect(hwnd)
+        if ok and cr and cb and cr > cl and cb > ct then
+            local sx, sy = r.JS_Window_ClientToScreen(hwnd, 0, 0)
+            if sx and sy then
+                originX, originY = sx, sy
+                screenW = cr - cl
+                screenH = cb - ct
+            end
+        end
+    elseif r.my_getViewport then
         local left, top, right, bottom = r.my_getViewport(0, 0, 0, 0, 0, 0, 0, 0, true)
         if left and top and right and bottom and right > left and bottom > top then
             originX = left
@@ -78,8 +69,6 @@ local function main()
     end
 
     local p_open = osd_ui.RenderOSDWindow(ctx, imgui, screenW, screenH, screenW, screenH, originX, originY)
-    
-    RenderContextMenu()
     
     if p_open == false and osd_ui.state.text and osd_ui.state.text ~= "" then
         osd_ui.SaveSettings()
