@@ -261,6 +261,58 @@ Zone "Main"
 ZoneEnd
 ```
 
+## GoZone vs GoHome vs GoSubZone vs LeaveSubZone — the architecture
+
+| Action        | What it does                                                                 | Navigation scope                         |
+|---------------|------------------------------------------------------------------------------|-----|
+| **GoZone**     | Activates a goZone (top-level zone alongside Home). Deactivates other goZones. Toggle: if already active, deactivates it. | Global — works from any zone             |
+| **GoHome**     | Deactivates ALL goZones, re-activates Home                                  | Global — works from any zone             |
+| **GoSubZone**  | Activates a subZone nested inside the current zone                          | Local — within current zone only         |
+| **LeaveSubZone** | Deactivates the current zone (calls `zone->Deactivate()`)                 | Local — deactivates the zone this context lives in |
+
+---
+
+### Why both GoZone and GoSubZone exist
+
+- **GoZone** operates on the `goZones_` list — these are top-level zones that replace/overlay the Home zone.  
+  Example: `GoZone MasterTrack` from `Home.zon` loads `MasterTrack.zon` as a goZone, deactivating Home's widget mappings.
+
+- **GoSubZone** operates on a zone's `subZones_` list — these are zones declared as children of another zone via the `SubZones` directive.  
+  Example: `GoSubZone SomeMode` activates a nested sub-zone within the current zone.
+
+---
+
+### Why LeaveSubZone works from `GoZone MasterTrack`
+
+Because `LeaveSubZone` simply calls:
+
+```cpp
+context->GetZone()->Deactivate();
+
+```
+
+It deactivates whatever zone the context belongs to.
+Whether that zone is a goZone or a subZone doesn’t matter — it’s a generic "deactivate myself" action.
+
+### When to use what
+From Home.zon:
+```
+→ GoZone MasterTrack // to navigate to MasterTrack
+```
+From MasterTrack.zon:
+```
+→ GoHome // to deactivate MasterTrack and re-activate Home (recommended)
+```
+Use GoSubZone / LeaveSubZone for nested zones within the same zone file (e.g., a zone with multiple modes)
+
+*Important note:* 
+LeaveSubZone also appears to work because it deactivates the zone, but it does not explicitly re-activate Home.
+
+Home stays active in the background via ZoneManager::RequestUpdate, which always processes homeZone_ last, filling in unused widgets.
+
+
+//FIXME: need to rethink and force syntax for sub zones, or maybe even beter to rethink the entire format of files for clearer better , especially definition and navigation in/out, cause now sub zone file content defines exactly same way as zone file
+
 ---
 
 ## Variables & Context
