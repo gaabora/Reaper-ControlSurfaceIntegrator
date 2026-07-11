@@ -188,17 +188,25 @@ local function getEditedColor(state)
     return parseHexColor(state.hexValue) or packColor(state.red, state.green, state.blue)
 end
 
-local function applyColor(configState, binding, colorIndex, color, deps)
+local function requestPreviewApply(configState, deps)
+    if deps.protocol and deps.protocol.RequestPreviewApply then
+        deps.protocol.RequestPreviewApply(configState, deps.data, deps.model)
+    end
+end
+
+local function applyColor(configState, binding, colorIndex, color, deps, rememberRecent)
     color = normalizeColor(color)
     deps.model.SetActionColor(binding, colorIndex, color, deps.action_line, theme)
     deps.model.UpdateDirtyState(configState)
-    rememberRecentColor(color)
+    if rememberRecent ~= false then rememberRecentColor(color) end
+    requestPreviewApply(configState, deps)
     return color
 end
 
 local function resetColor(configState, binding, colorIndex, deps)
     local color = deps.model.ResetActionColor(binding, colorIndex, deps.action_line, theme)
     deps.model.UpdateDirtyState(configState)
+    requestPreviewApply(configState, deps)
     return color
 end
 
@@ -221,6 +229,7 @@ local function renderManualFields(ctx, state, idSuffix)
     edited = renderChannelField(ctx, state, idSuffix, "G", "green") or edited
     edited = renderChannelField(ctx, state, idSuffix, "B", "blue") or edited
     if edited then state.hexValue = colorToHex(packColor(state.red, state.green, state.blue)) end
+    return edited
 end
 
 local function renderHexField(ctx, state, idSuffix)
@@ -229,8 +238,12 @@ local function renderHexField(ctx, state, idSuffix)
     changedHex, state.hexValue = imgui.InputText(ctx, "##manual_color_hex_" .. idSuffix, state.hexValue or "#000000")
     if changedHex then
         local parsed = parseHexColor(state.hexValue)
-        if parsed then syncEditFields(state, parsed) end
+        if parsed then
+            syncEditFields(state, parsed)
+            return true, parsed
+        end
     end
+    return false, nil
 end
 
 local function renderColorSwatch(ctx, id, color, tooltip, flags)
@@ -258,7 +271,7 @@ local function renderRecentSwatches(ctx, state, configState, binding, colorIndex
         if color then
             local clicked = renderColorSwatch(ctx, "##recent_color_" .. idSuffix .. "_" .. idx, color, colorToHex(color) .. "\nLeft click: use this color")
             if clicked then
-                syncEditFields(state, applyColor(configState, binding, colorIndex, color, deps))
+                syncEditFields(state, applyColor(configState, binding, colorIndex, color, deps, true))
             end
         else
             renderEmptySwatch(ctx, "##recent_color_empty_" .. idSuffix .. "_" .. idx, string.format("Recent swatch %d is empty", idx))
@@ -275,7 +288,7 @@ local function renderUserSwatches(ctx, state, configState, binding, colorIndex, 
         if color then
             local clicked, rightClicked = renderColorSwatch(ctx, "##user_color_" .. idSuffix .. "_" .. slotIndex, color, string.format("Saved swatch %d\nLeft click: use this color\nRight click: replace with current picker color", slotIndex))
             if clicked then
-                syncEditFields(state, applyColor(configState, binding, colorIndex, color, deps))
+                syncEditFields(state, applyColor(configState, binding, colorIndex, color, deps, true))
             end
             if rightClicked then
                 storeUserSwatch(slotIndex, editedColor)
@@ -295,28 +308,34 @@ local function renderBuiltinSwatches(ctx, state, configState, binding, colorInde
     for paletteIndex, paletteColor in ipairs(theme.CONFIG.color_palette) do
         local clicked = renderColorSwatch(ctx, "##builtin_color_" .. idSuffix .. "_" .. paletteIndex, paletteColor.value, paletteColor.name .. "\nLeft click: use this color")
         if clicked then
-            syncEditFields(state, applyColor(configState, binding, colorIndex, paletteColor.value, deps))
+            syncEditFields(state, applyColor(configState, binding, colorIndex, paletteColor.value, deps, true))
         end
         if paletteIndex % theme.CONFIG.color_builtin_columns ~= 0 then imgui.SameLine(ctx, 0, 4) end
     end
 end
 
-local function renderColorEditor(ctx, state, idSuffix)
+local function renderColorEditor(ctx, state, configState, binding, colorIndex, idSuffix, deps)
     imgui.BeginGroup(ctx)
-    renderManualFields(ctx, state, "main_" .. idSuffix)
+    local manualChanged = renderManualFields(ctx, state, "main_" .. idSuffix)
+    if manualChanged then applyColor(configState, binding, colorIndex, getEditedColor(state), deps, false) end
     imgui.EndGroup(ctx)
 
     imgui.SameLine(ctx, 0, 12)
     imgui.BeginGroup(ctx)
     imgui.ColorButton(ctx, "##active_preview_" .. idSuffix, getEditedColor(state), previewFlags, theme.CONFIG.color_preview_width, theme.CONFIG.color_preview_height)
-    renderHexField(ctx, state, "main_" .. idSuffix)
+    local hexChanged, hexColor = renderHexField(ctx, state, "main_" .. idSuffix)
+    if hexChanged then applyColor(configState, binding, colorIndex, hexColor, deps, false) end
     imgui.EndGroup(ctx)
 
     imgui.SetNextItemWidth(ctx, theme.CONFIG.color_picker_width)
     if imgui.ColorPicker4 then
         local pickerColor = rgbaToArgb(getEditedColor(state))
         local changed, pickedColor = imgui.ColorPicker4(ctx, "##picker_" .. idSuffix, pickerColor, pickerFlags)
-        if changed then syncEditFields(state, argbToRgba(pickedColor)) end
+        if changed then
+            local color = argbToRgba(pickedColor)
+            syncEditFields(state, color)
+            applyColor(configState, binding, colorIndex, color, deps, false)
+        end
     end
 end
 
@@ -338,10 +357,10 @@ function M.RenderBindingColorPicker(ctx, configState, binding, bindingIndex, col
 
     local state = getPopupState(popupId, currentColor)
     renderSectionTitle(ctx, label .. " color")
-    renderColorEditor(ctx, state, idSuffix)
+    renderColorEditor(ctx, state, configState, binding, colorIndex, idSuffix, deps)
 
     if imgui.Button(ctx, "Apply##manual_color_" .. idSuffix) then
-        currentColor = applyColor(configState, binding, colorIndex, getEditedColor(state), deps)
+        currentColor = applyColor(configState, binding, colorIndex, getEditedColor(state), deps, true)
         syncEditFields(state, currentColor)
     end
     imgui.SameLine(ctx, 0, 6)

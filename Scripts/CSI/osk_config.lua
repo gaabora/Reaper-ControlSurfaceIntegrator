@@ -34,6 +34,9 @@ local state = {
     isDirty = false,
     pendingOperation = nil,
     pendingSerialized = nil,
+    previewApplyPending = false,
+    previewPendingSerialized = nil,
+    previewQueuedSerialized = nil,
     queryExpectedSerialized = nil,
     forceAcceptQuery = false,
     saveAfterApply = false,
@@ -94,7 +97,7 @@ local function saveWindowGeometry(ctx)
 end
 
 local function closeEditor()
-    if state.hasLiveChanges or state.pendingOperation == "ApplyLive" then
+    if state.hasLiveChanges or state.pendingOperation == "ApplyLive" or state.previewApplyPending then
         osk_config_protocol.RequestRevert(state, data)
     end
     state.isOpen = false
@@ -116,6 +119,9 @@ function M.OpenConfigEditor(surfName, widgetName)
     state.isDirty = false
     state.pendingOperation = nil
     state.pendingSerialized = nil
+    state.previewApplyPending = false
+    state.previewPendingSerialized = nil
+    state.previewQueuedSerialized = nil
     state.queryExpectedSerialized = nil
     state.forceAcceptQuery = false
     state.saveAfterApply = false
@@ -136,7 +142,7 @@ function M.OpenConfigEditor(surfName, widgetName)
 end
 
 function M.HandleShutdown()
-    if state.isOpen or state.hasLiveChanges or state.pendingOperation == "ApplyLive" then
+    if state.isOpen or state.hasLiveChanges or state.pendingOperation == "ApplyLive" or state.previewApplyPending then
         closeEditor()
     end
 end

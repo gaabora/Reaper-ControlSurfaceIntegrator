@@ -103,7 +103,7 @@ function M.RenderToolbar(ctx, state, deps)
     imgui.TableNextRow(ctx)
 
     imgui.TableSetColumnIndex(ctx, 0)
-    local operationReady = state.pendingOperation == nil
+    local operationReady = state.pendingOperation == nil and not state.previewApplyPending
     ui.DirtyActionButton(ctx, "Apply Live", operationReady and state.hasUnappliedEdits, function()
         state.saveAfterApply = false
         deps.protocol.SendApplyLive(state, deps.data, deps.model)
@@ -125,6 +125,9 @@ function M.RenderToolbar(ctx, state, deps)
     if state.pendingOperation then
         imgui.SameLine(ctx)
         imgui.TextDisabled(ctx, state.pendingOperation .. "...")
+    elseif state.previewApplyPending then
+        imgui.SameLine(ctx)
+        imgui.TextDisabled(ctx, "Preview...")
     elseif state.status:match("^ERR%s*|") then
         imgui.SameLine(ctx)
         imgui.Text(ctx, state.status)

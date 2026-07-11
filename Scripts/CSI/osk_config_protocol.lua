@@ -27,6 +27,25 @@ function M.ParseConfigStatus(rawStatus)
     }
 end
 
+local function validateApplyLivePayload(state, serialized, operation)
+    for _, binding in ipairs(state.bindings) do
+        if tostring(binding.line or ""):find(";", 1, true) then
+            M.SetLocalStatus(state, "ERR", operation, "Semicolons are not supported in binding lines")
+            return false
+        end
+    end
+    if serialized:find("[\r\n]") then
+        M.SetLocalStatus(state, "ERR", operation, "Line breaks are not supported in bindings")
+        return false
+    end
+    return true
+end
+
+local function sendApplyLivePayload(state, data, serialized)
+    local payload = state.surfaceName .. "|" .. state.widgetName .. "|" .. serialized
+    r.SetExtState(data.EXT_CMD_SECTION, "ConfigApplyLive", payload, false)
+end
+
 function M.SendConfigQuery(state, data, expectedSerialized, forceAccept)
     local payload = state.surfaceName .. "|" .. state.widgetName
     state.pendingOperation = "Query"
@@ -37,22 +56,40 @@ end
 
 function M.SendApplyLive(state, data, model)
     local serialized = model.SerializeBindings(state.bindings)
-    for _, binding in ipairs(state.bindings) do
-        if tostring(binding.line or ""):find(";", 1, true) then
-            M.SetLocalStatus(state, "ERR", "ApplyLive", "Semicolons are not supported in binding lines")
-            return false
-        end
-    end
-    if serialized:find("[\r\n]") then
-        M.SetLocalStatus(state, "ERR", "ApplyLive", "Line breaks are not supported in bindings")
-        return false
-    end
+    if not validateApplyLivePayload(state, serialized, "ApplyLive") then return false end
 
-    local payload = state.surfaceName .. "|" .. state.widgetName .. "|" .. serialized
     state.pendingOperation = "ApplyLive"
     state.pendingSerialized = serialized
-    r.SetExtState(data.EXT_CMD_SECTION, "ConfigApplyLive", payload, false)
+    sendApplyLivePayload(state, data, serialized)
     return true
+end
+
+function M.RequestPreviewApply(state, data, model)
+    local serialized = model.SerializeBindings(state.bindings)
+    if not validateApplyLivePayload(state, serialized, "Preview") then return false end
+
+    if state.previewApplyPending then
+        state.previewQueuedSerialized = serialized ~= state.previewPendingSerialized and serialized or nil
+        return true
+    end
+
+    if state.pendingOperation ~= nil then return false end
+
+    state.previewApplyPending = true
+    state.previewPendingSerialized = serialized
+    state.previewQueuedSerialized = nil
+    sendApplyLivePayload(state, data, serialized)
+    return true
+end
+
+local function sendQueuedPreviewApply(state, data)
+    local serialized = state.previewQueuedSerialized
+    if not serialized or state.pendingOperation ~= nil then return end
+
+    state.previewApplyPending = true
+    state.previewPendingSerialized = serialized
+    state.previewQueuedSerialized = nil
+    sendApplyLivePayload(state, data, serialized)
 end
 
 function M.SendSave(state, data, model)
@@ -66,6 +103,9 @@ function M.RequestRevert(state, data)
     if state.surfaceName == "" or state.widgetName == "" then return end
     state.pendingOperation = "Revert"
     state.pendingSerialized = nil
+    state.previewApplyPending = false
+    state.previewPendingSerialized = nil
+    state.previewQueuedSerialized = nil
     local payload = state.surfaceName .. "|" .. state.widgetName
     r.SetExtState(data.EXT_CMD_SECTION, "ConfigRevert", payload, false)
 end
@@ -104,31 +144,47 @@ function M.PollConfigResponses(state, data, model)
         local status = M.ParseConfigStatus(rawStatus)
         if status and status.surfaceName == state.surfaceName and status.widgetName == state.widgetName then
             M.SetLocalStatus(state, status.outcome, status.operation, status.message)
-            local completedSerialized = state.pendingSerialized
-            state.pendingOperation = nil
-            state.pendingSerialized = nil
 
-            if status.outcome == "OK" then
-                if status.operation == "ApplyLive" then
+            local manualOperation = state.pendingOperation
+            local completedSerialized = state.pendingSerialized
+            local previewStatus = status.operation == "ApplyLive" and state.previewApplyPending and manualOperation == nil
+
+            if previewStatus then
+                state.previewApplyPending = false
+                state.previewPendingSerialized = nil
+                if status.outcome == "OK" then
                     state.hasLiveChanges = true
                     model.UpdateDirtyState(state)
-                    if state.saveAfterApply then
-                        state.saveAfterApply = false
-                        M.SendSave(state, data, model)
-                    else
-                        M.SendConfigQuery(state, data, completedSerialized, false)
-                    end
-                elseif status.operation == "Save" then
-                    state.hasLiveChanges = false
-                    model.UpdateDirtyState(state)
-                    M.SendConfigQuery(state, data, completedSerialized, false)
-                elseif status.operation == "Revert" then
-                    state.hasLiveChanges = false
-                    model.UpdateDirtyState(state)
-                    if state.isOpen then M.SendConfigQuery(state, data, nil, true) end
+                    sendQueuedPreviewApply(state, data)
+                else
+                    state.previewQueuedSerialized = nil
                 end
-            elseif status.operation == "ApplyLive" then
-                state.saveAfterApply = false
+            elseif manualOperation == status.operation then
+                state.pendingOperation = nil
+                state.pendingSerialized = nil
+
+                if status.outcome == "OK" then
+                    if status.operation == "ApplyLive" then
+                        state.hasLiveChanges = true
+                        model.UpdateDirtyState(state)
+                        if state.saveAfterApply then
+                            state.saveAfterApply = false
+                            M.SendSave(state, data, model)
+                        else
+                            M.SendConfigQuery(state, data, completedSerialized, false)
+                        end
+                    elseif status.operation == "Save" then
+                        state.hasLiveChanges = false
+                        model.UpdateDirtyState(state)
+                        M.SendConfigQuery(state, data, completedSerialized, false)
+                    elseif status.operation == "Revert" then
+                        state.hasLiveChanges = false
+                        model.UpdateDirtyState(state)
+                        if state.isOpen then M.SendConfigQuery(state, data, nil, true) end
+                    end
+                elseif status.operation == "ApplyLive" then
+                    state.saveAfterApply = false
+                end
             end
         end
     end

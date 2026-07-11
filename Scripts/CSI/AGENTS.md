@@ -17,6 +17,7 @@
 - Track unapplied editor changes separately from live unsaved changes, and request C++ revert when an editor with live changes closes.
 - Keep the binding editor's structured columns, pseudo-modifiers, generated titles, and color controls backed by the same serialized raw action line used by `ConfigApplyLive`.
 - Keep config color-picker swatches compact: empty saved/recent slots use checker/transparent swatches, left-click uses a stored color, and right-clicking a saved slot overwrites it with the current picker color.
+- Keep config color live preview separate from toolbar Apply Live: preview uses `ConfigApplyLive`, coalesces in-flight color changes to the latest serialized binding state, and does not request a follow-up `ConfigQuery`.
 - Keep action search beside the Action field, apply clicked results directly, match all space-separated partial terms across titles plus numeric and named REAPER command IDs, and leave the raw action line visible at the end of the form.
 - Keep the config window undockable and its dirty-state Apply, Save, and Revert controls in the top toolbar so they remain visible.
 - Show direction pseudo-modifiers only for relative controls identified by layout metadata; normal buttons must not expose Increase or Decrease controls.
