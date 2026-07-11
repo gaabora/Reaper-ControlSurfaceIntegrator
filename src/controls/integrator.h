@@ -40,7 +40,7 @@ private:
 
     vector<unique_ptr<Page>> pages_;
 
-    int currentPageIndex_ = 0;
+    std::atomic<int> currentPageIndex_{ 0 }; // atomic: read safely from audio thread in GetTouchState() (Phase C)
 
     bool shouldRun_ = true;
 
@@ -276,7 +276,7 @@ public:
     void NextPage() {
         if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
             pages_[currentPageIndex_]->LeavePage();
-            currentPageIndex_ = currentPageIndex_ == pages_.size() - 1 ? 0 : (currentPageIndex_ + 1);
+            { int idx = currentPageIndex_.load(); currentPageIndex_.store(idx == (int)pages_.size() - 1 ? 0 : idx + 1); }
             if (pages_[currentPageIndex_])
                 pages_[currentPageIndex_]->EnterPage();
         }
@@ -298,11 +298,17 @@ public:
     }
 
     bool GetTouchState(MediaTrack* track, int touchedControl) override {
-        WDL_MutexLock lock(&csiMutex_);
-        if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
-            return pages_[currentPageIndex_]->GetTouchState(track, touchedControl);
-        else
-            return false;
+        // Phase C: csiMutex_ is deliberately NOT held here so the audio thread
+        // never blocks on the coarse 30 Hz run-loop lock.
+        // Safety instead comes from:
+        //   currentPageIndex_ — std::atomic<int>, safe to read without a lock.
+        //   pages_            — stable vector (never mutated after Init()).
+        //   GetIsControlTouched() inside — acquires shared tracksMutex_,
+        //                                  excluding concurrent Rebuild* writers.
+        const int idx = currentPageIndex_.load(std::memory_order_relaxed);
+        if (idx >= 0 && (size_t)idx < pages_.size() && pages_[idx])
+            return pages_[idx]->GetTouchState(track, touchedControl);
+        return false;
     }
 
     void TrackFXListChanged(MediaTrack* track) {

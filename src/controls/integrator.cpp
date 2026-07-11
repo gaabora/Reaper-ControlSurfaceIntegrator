@@ -2229,6 +2229,7 @@ void ModifierManager::SetLatchModifier(bool value, Modifiers modifier, int latch
 // TrackNavigationManager
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void TrackNavigationManager::RebuildTracks() {
+    WDL_MutexLockExclusive lock(&tracksMutex_);
     int oldTracksSize = (int) tracks_.size();
 
     tracks_.clear();
@@ -2305,6 +2306,7 @@ void TrackNavigationManager::RebuildTracks() {
 
 void TrackNavigationManager::RebuildSelectedTracks() {
     if (currentTrackVCAFolderMode_ == TrackVCAFolderMode::VCA || currentTrackVCAFolderMode_ == TrackVCAFolderMode::Folder) return;
+    WDL_MutexLockExclusive lock(&tracksMutex_);
 
     int oldTracksSize = (int) selectedTracks_.size();
 

@@ -13,6 +13,12 @@ enum class TrackVCAFolderMode {
 class TrackNavigationManager
 {
 protected:
+    // Phase C thread-safety: read-write lock over all navigator lists and track vectors.
+    //   Exclusive: all Rebuild* methods; lazy-creation paths in GetNavigatorForX().
+    //   Shared:    GetIsControlTouched() — called on the audio thread via GetTouchState()
+    //              without csiMutex_, so it must be independently safe to read concurrently.
+    mutable WDL_SharedMutex tracksMutex_;
+
     CSurfIntegrator* const csi_;
     IPageContext* const page_;
     bool followMCP_;
@@ -303,6 +309,14 @@ public:
     }
 
     Navigator* GetNavigatorForChannel(int channelNum) {
+        // Hot path: shared lock — concurrent with audio-thread GetIsControlTouched().
+        {
+            WDL_MutexLockShared rlock(&tracksMutex_);
+            for (auto& trackNavigator : trackNavigators_)
+                if (trackNavigator->GetChannelNum() == channelNum) return trackNavigator.get();
+        }
+        // Slow path (startup only): double-check under exclusive lock.
+        WDL_MutexLockExclusive wlock(&tracksMutex_);
         for (auto& trackNavigator : trackNavigators_)
             if (trackNavigator->GetChannelNum() == channelNum) return trackNavigator.get();
         trackNavigators_.push_back(make_unique<Navigator>(csi_, page_, NavigatorType::TrackNavigator
@@ -313,6 +327,14 @@ public:
     }
 
     Navigator* GetNavigatorForTrack(MediaTrack* track) {
+        // Hot path: shared lock.
+        {
+            WDL_MutexLockShared rlock(&tracksMutex_);
+            for (auto& fixedTrackNavigator : fixedTrackNavigators_)
+                if (fixedTrackNavigator->GetTrack() == track) return fixedTrackNavigator.get();
+        }
+        // Slow path (startup only): double-check under exclusive lock.
+        WDL_MutexLockExclusive wlock(&tracksMutex_);
         for (auto& fixedTrackNavigator : fixedTrackNavigators_)
             if (fixedTrackNavigator->GetTrack() == track) return fixedTrackNavigator.get();
         fixedTrackNavigators_.push_back(make_unique<Navigator>(csi_, page_, NavigatorType::FixedTrackNavigator
@@ -482,6 +504,10 @@ public:
     }
 
     bool GetIsControlTouched(MediaTrack* track, int touchedControl) {
+        // Shared lock: this method is called from the audio thread (via GetTouchState)
+        // without csiMutex_. Protects trackNavigators_ and selectedTracks_ from
+        // concurrent Rebuild* writers (Phase C).
+        WDL_MutexLockShared lock(&tracksMutex_);
         if (track == GetMasterTrackNavigator()->GetTrack())
             return GetIsNavigatorTouched(GetMasterTrackNavigator(), touchedControl);
 
@@ -513,6 +539,7 @@ public:
 
     void RebuildVCASpill() {
         if (currentTrackVCAFolderMode_ != TrackVCAFolderMode::VCA) return;
+        WDL_MutexLockExclusive lock(&tracksMutex_);
 
         vcaTopLeadTracks_.clear();
         vcaSpillTracks_.clear();
@@ -553,6 +580,7 @@ public:
 
     void RebuildFolderTracks() {
         if (currentTrackVCAFolderMode_ != TrackVCAFolderMode::Folder) return;
+        WDL_MutexLockExclusive lock(&tracksMutex_);
 
         folderTopParentTracks_.clear();
         folderDictionary_.clear();
