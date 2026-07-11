@@ -6,45 +6,6 @@
 #include "../feedback.h"
 class Midi_ControlSurfaceIO
 {
-private:
-    // -----------------------------------------------------------------------
-    // Background MIDI reader thread (Phase B thread-safety)
-    //
-    // Polls midiInput_ at ~1 kHz in a dedicated thread, placing raw event
-    // bytes into incomingMidiQueue_.  HandleExternalInput() on the Run()
-    // thread swaps the queue out under incomingMidiMutex_ and processes
-    // the messages — completely decoupling hardware I/O from the 30 Hz loop.
-    // -----------------------------------------------------------------------
-    std::queue<std::vector<unsigned char>> incomingMidiQueue_;
-    WDL_Mutex incomingMidiMutex_;
-    std::atomic<bool> midiReaderActive_{ false };
-    std::thread midiReaderThread_;
-
-    void MidiReaderLoop() {
-        while (midiReaderActive_.load(std::memory_order_relaxed)) {
-            if (midiInput_) {
-                midiInput_->SwapBufsPrecise(GetTickCount(), GetTickCount());
-                MIDI_eventlist* list = midiInput_->GetReadBuf();
-                int bpos = 0;
-                MIDI_event_t* evt;
-
-                // Collect outside the lock to minimise contention.
-                std::vector<std::vector<unsigned char>> batch;
-                while ((evt = list->EnumItems(&bpos))) {
-                    const int sz = evt->size;
-                    if (sz > 0 && sz <= 512)
-                        batch.emplace_back(evt->midi_message, evt->midi_message + sz);
-                }
-                if (!batch.empty()) {
-                    WDL_MutexLock lock(&incomingMidiMutex_);
-                    for (auto& msg : batch)
-                        incomingMidiQueue_.push(std::move(msg));
-                }
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-    }
-
 protected:
     CSurfIntegrator* const csi_;
     string const name_;
@@ -60,20 +21,9 @@ protected:
 
 public:
     Midi_ControlSurfaceIO(CSurfIntegrator* csi, const char* name, int channelCount, midi_Input* midiInput, midi_Output* midiOutput, int surfaceRefreshRate, int maxMesssagesPerRun)
-        : csi_(csi), name_(name), channelCount_(channelCount), midiInput_(midiInput), midiOutput_(midiOutput), surfaceRefreshRate_(surfaceRefreshRate), maxMesssagesPerRun_(maxMesssagesPerRun)
-    {
-        if (midiInput_) {
-            midiReaderActive_ = true;
-            midiReaderThread_ = std::thread(&Midi_ControlSurfaceIO::MidiReaderLoop, this);
-        }
-    }
+        : csi_(csi), name_(name), channelCount_(channelCount), midiInput_(midiInput), midiOutput_(midiOutput), surfaceRefreshRate_(surfaceRefreshRate), maxMesssagesPerRun_(maxMesssagesPerRun) {}
 
     ~Midi_ControlSurfaceIO() {
-        // Stop the reader thread before releasing the MIDI handle it accesses.
-        if (midiReaderThread_.joinable()) {
-            midiReaderActive_ = false;
-            midiReaderThread_.join();
-        }
         if (midiInput_) ReleaseMidiInput(midiInput_);
         if (midiOutput_) ReleaseMidiOutput(midiOutput_);
     }
