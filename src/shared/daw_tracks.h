@@ -92,15 +92,22 @@ namespace DAW {
         return "FAILED to GetLastTouchedFXParamDescription";
     }
 
-    // Track volume
-    inline double GetTrackVolumeValue(MediaTrack* track) {
-        double value = 0.0, pan = 0.0;
-        GetTrackUIVolPan(track, &value, &pan);
-        return volToNormalized(value);
+    // Track volume/pan
+    
+    inline double GetTrackPan(MediaTrack* track) {
+        double vol, pan = 0.0;
+        GetTrackUIVolPan(track, &vol, &pan);
+        return pan;
     }
 
-    inline void SetTrackVolumeValue(MediaTrack* track, double value) {
-        CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(value), false), NULL);
+    inline double GetTrackVolume(MediaTrack* track) {
+        double vol, pan = 0.0;
+        GetTrackUIVolPan(track, &vol, &pan);
+        return vol;
+    }
+
+    inline void SetTrackVolume(MediaTrack* track, double value) {
+        CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, value, false), NULL);
     }
 
     // Track automation
@@ -256,6 +263,13 @@ namespace DAW {
             }
         }
         Undo_EndBlock("Toggle tracks effects bypass", 0);
+    }
+
+    // Send bool-param toggle
+    // category: 0 = send, -1 = receive
+    inline void ToggleSendBoolParam(MediaTrack* track, int category, int idx, const char* key) {
+        bool val = !GetTrackSendInfo_Value(track, category, idx, key);
+        GetSetTrackSendInfo(track, category, idx, key, &val);
     }
 
 } // namespace DAW

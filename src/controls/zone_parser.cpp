@@ -69,6 +69,10 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
 
                 zm->GetWidgetNameAndModifiers(tokens[0].c_str(), widgetName, modifier, isValueInverted, isFeedbackInverted, hasHoldModifier, HasDoublePressPseudoModifier, isDecrease, isIncrease);
 
+                if (hasHoldModifier && (modifier & ~3) != 0) {
+                    LogToConsole("[WARNING] Hold should not be combined with other modifiers (mapping: '%s %s', file: %s, line %d)\n", tokens[0].c_str(), tokens[1].c_str(), GetRelativePath(filePath).c_str(), lineNumber);
+                }
+
                 Widget* widget = zm->surface_->GetWidgetByName(widgetName);
 
                 if (widget == NULL) {

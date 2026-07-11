@@ -1,34 +1,30 @@
-//
-//  actions_send_receive.h
-
-//
-//  Phase 2.1 — Unified send/receive action templates.
-//
-//  Before: 13 pairs of near-identical Send/Receive classes (~1010 lines).
-//  After:  13 template classes + using aliases            (~490 lines).
-//
-//  Each template is parameterized on SendDirection and the correct base
-//  class (TrackSendAction vs TrackReceiveAction, or shared VolumeAction /
-//  PanAction / TrackDisplayAction) is chosen at compile time.
-//
-//  Original names are preserved as `using` aliases so the rest of the
-//  codebase needs zero changes.
-//
+// actions_send_receive.h
+// Each template is parameterized on SendDirection and the correct base class (TrackSendAction vs TrackReceiveAction, or shared VolumeAction / PanAction / TrackDisplayAction) is chosen at compile time.
+//  Original names are preserved as `using` aliases
 
 #pragma once
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Direction tag and base-class helper
-// ─────────────────────────────────────────────────────────────────────────────
 enum class SendDirection { Send, Receive };
 
 // For classes that want TrackSendAction vs TrackReceiveAction based on Dir:
 template <SendDirection Dir>
 using SendReceiveBase = std::conditional_t<Dir == SendDirection::Send, TrackSendAction, TrackReceiveAction>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1.  Volume  (VolumeAction base — inherits IsVolumeRelated)
-// ─────────────────────────────────────────────────────────────────────────────
+template <SendDirection Dir>
+struct SendReceiveTraits;
+
+template <>
+struct SendReceiveTraits<SendDirection::Send> {
+    static constexpr int Category = 0;
+    static constexpr const char* TrackKey = "P_DESTTRACK";
+};
+
+template <>
+struct SendReceiveTraits<SendDirection::Receive> {
+    static constexpr int Category = -1;
+    static constexpr const char* TrackKey = "P_SRCTRACK";
+};
+
 //! @action TrackSendVolume / TrackReceiveVolume
 //!
 //! @brief Controls the volume of a track send or receive.
@@ -48,8 +44,7 @@ public:
         if (MediaTrack* track = context->GetTrack()) {
             double vol, pan = 0.0;
             if constexpr (Dir == SendDirection::Send) {
-                int numHW = GetTrackNumSends(track, 1);
-                GetTrackSendUIVolPan(track, context->GetSlotIndex() + numHW, &vol, &pan);
+                GetTrackSendUIVolPan(track, GetSendEffectiveIndex(track, context), &vol, &pan);
             } else {
                 GetTrackReceiveUIVolPan(track, context->GetSlotIndex(), &vol, &pan);
             }
@@ -68,8 +63,7 @@ public:
     virtual void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
             if constexpr (Dir == SendDirection::Send) {
-                int numHW = GetTrackNumSends(track, 1);
-                SetTrackSendUIVol(track, context->GetSlotIndex() + numHW, normalizedToVol(value), 0);
+                SetTrackSendUIVol(track, GetSendEffectiveIndex(track, context), normalizedToVol(value), 0);
             } else {
                 SetTrackSendUIVol(track, -(context->GetSlotIndex() + 1), normalizedToVol(value), 0);
             }
@@ -80,8 +74,7 @@ public:
         if (MediaTrack* track = context->GetTrack()) {
             double vol, pan = 0.0;
             if constexpr (Dir == SendDirection::Send) {
-                int numHW = GetTrackNumSends(track, 1);
-                int idx = context->GetSlotIndex() + numHW;
+                int idx = GetSendEffectiveIndex(track, context);
                 GetTrackSendUIVolPan(track, idx, &vol, &pan);
                 SetTrackSendUIVol(track, idx, vol, value == 0 ? 1 : 0);
             } else {
@@ -95,9 +88,6 @@ public:
 using TrackSendVolume = TrackSendReceiveVolume<SendDirection::Send>;
 using TrackReceiveVolume = TrackSendReceiveVolume<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2.  VolumeDB  (VolumeAction base)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendVolumeDB / TrackReceiveVolumeDB
 //!
 //! @brief Controls / displays send/receive volume in decibels.
@@ -156,9 +146,6 @@ public:
 using TrackSendVolumeDB = TrackSendReceiveVolumeDB<SendDirection::Send>;
 using TrackReceiveVolumeDB = TrackSendReceiveVolumeDB<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3.  Pan  (PanAction base — inherits IsPanRelated)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendPan / TrackReceivePan
 //!
 //! @brief Controls the pan of a track send or receive.
@@ -176,8 +163,7 @@ public:
         if (MediaTrack* track = context->GetTrack()) {
             double vol, pan = 0.0;
             if constexpr (Dir == SendDirection::Send) {
-                int numHW = GetTrackNumSends(track, 1);
-                GetTrackSendUIVolPan(track, context->GetSlotIndex() + numHW, &vol, &pan);
+                GetTrackSendUIVolPan(track, GetSendEffectiveIndex(track, context), &vol, &pan);
             } else {
                 GetTrackReceiveUIVolPan(track, context->GetSlotIndex(), &vol, &pan);
             }
@@ -196,8 +182,7 @@ public:
     virtual void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
             if constexpr (Dir == SendDirection::Send) {
-                int numHW = GetTrackNumSends(track, 1);
-                SetTrackSendUIPan(track, context->GetSlotIndex() + numHW, normalizedToPan(value), 0);
+                SetTrackSendUIPan(track, GetSendEffectiveIndex(track, context), normalizedToPan(value), 0);
             } else {
                 SetTrackSendUIPan(track, -(context->GetSlotIndex() + 1), normalizedToPan(value), 0);
             }
@@ -208,8 +193,7 @@ public:
         if (MediaTrack* track = context->GetTrack()) {
             double vol, pan = 0.0;
             if constexpr (Dir == SendDirection::Send) {
-                int numHW = GetTrackNumSends(track, 1);
-                int idx = context->GetSlotIndex() + numHW;
+                int idx = GetSendEffectiveIndex(track, context);
                 GetTrackSendUIVolPan(track, idx, &vol, &pan);
                 SetTrackSendUIPan(track, idx, pan, value == 0 ? 1 : 0);
             } else {
@@ -223,9 +207,6 @@ public:
 using TrackSendPan = TrackSendReceivePan<SendDirection::Send>;
 using TrackReceivePan = TrackSendReceivePan<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4.  PanPercent  (PanAction base)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendPanPercent / TrackReceivePanPercent
 //!
 //! @brief Controls send/receive pan as a percentage value (-100 to +100).
@@ -284,9 +265,6 @@ public:
 using TrackSendPanPercent = TrackSendReceivePanPercent<SendDirection::Send>;
 using TrackReceivePanPercent = TrackSendReceivePanPercent<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5.  Mute  (TrackSendAction / TrackReceiveAction base)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendMute / TrackReceiveMute
 //!
 //! @brief Toggles mute on/off for a track send or receive.
@@ -305,8 +283,7 @@ public:
         if (MediaTrack* track = context->GetTrack()) {
             bool mute = false;
             if constexpr (Dir == SendDirection::Send) {
-                int numHW = GetTrackNumSends(track, 1);
-                GetTrackSendUIMute(track, context->GetSlotIndex() + numHW, &mute);
+                GetTrackSendUIMute(track, GetSendEffectiveIndex(track, context), &mute);
             } else {
                 GetTrackReceiveUIMute(track, context->GetSlotIndex(), &mute);
             }
@@ -325,7 +302,7 @@ public:
     virtual void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
             if constexpr (Dir == SendDirection::Send) {
-                ToggleTrackSendUIMute(track, context->GetSlotIndex() + GetTrackNumSends(track, 1));
+                ToggleTrackSendUIMute(track, GetSendEffectiveIndex(track, context));
             } else {
                 bool isMuted = !GetTrackSendInfo_Value(track, -1, context->GetSlotIndex(), "B_MUTE");
                 GetSetTrackSendInfo(track, -1, context->GetSlotIndex(), "B_MUTE", &isMuted);
@@ -337,9 +314,6 @@ public:
 using TrackSendMute = TrackSendReceiveMute<SendDirection::Send>;
 using TrackReceiveMute = TrackSendReceiveMute<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 6.  InvertPolarity
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendInvertPolarity / TrackReceiveInvertPolarity
 //!
 //! @brief Toggles phase/polarity inversion for a track send or receive.
@@ -350,7 +324,7 @@ using TrackReceiveMute = TrackSendReceiveMute<SendDirection::Receive>;
 template <SendDirection Dir>
 class TrackSendReceiveInvertPolarity : public SendReceiveBase<Dir>
 {
-    static constexpr int Cat = Dir == (SendDirection::Send) ? 0 : -1;
+    static constexpr int category = SendReceiveTraits<Dir>::Category;
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendInvertPolarity : ActionType::TrackReceiveInvertPolarity; }
@@ -358,7 +332,7 @@ public:
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack())
-            return GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "B_PHASE");
+            return GetTrackSendInfo_Value(track, category, context->GetSlotIndex(), "B_PHASE");
         return 0.0;
     }
 
@@ -370,19 +344,14 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            bool reversed = !GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "B_PHASE");
-            GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), "B_PHASE", &reversed);
-        }
+        if (MediaTrack* track = context->GetTrack())
+            DAW::ToggleSendBoolParam(track, category, context->GetSlotIndex(), "B_PHASE");
     }
 };
 
 using TrackSendInvertPolarity = TrackSendReceiveInvertPolarity<SendDirection::Send>;
 using TrackReceiveInvertPolarity = TrackSendReceiveInvertPolarity<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 7.  StereoMonoToggle
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendStereoMonoToggle / TrackReceiveStereoMonoToggle
 //!
 //! @brief Toggles stereo/mono mode for a track send or receive.
@@ -393,7 +362,7 @@ using TrackReceiveInvertPolarity = TrackSendReceiveInvertPolarity<SendDirection:
 template <SendDirection Dir>
 class TrackSendReceiveStereoMonoToggle : public SendReceiveBase<Dir>
 {
-    static constexpr int Cat = Dir == (SendDirection::Send) ? 0 : -1;
+    static constexpr int category = SendReceiveTraits<Dir>::Category;
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendStereoMonoToggle : ActionType::TrackReceiveStereoMonoToggle; }
@@ -401,7 +370,7 @@ public:
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack())
-            return GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "B_MONO");
+            return GetTrackSendInfo_Value(track, category, context->GetSlotIndex(), "B_MONO");
         return 0.0;
     }
 
@@ -413,19 +382,14 @@ public:
     }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            bool mono = !GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "B_MONO");
-            GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), "B_MONO", &mono);
-        }
+        if (MediaTrack* track = context->GetTrack())
+            DAW::ToggleSendBoolParam(track, category, context->GetSlotIndex(), "B_MONO");
     }
 };
 
 using TrackSendStereoMonoToggle = TrackSendReceiveStereoMonoToggle<SendDirection::Send>;
 using TrackReceiveStereoMonoToggle = TrackSendReceiveStereoMonoToggle<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 8.  PrePost
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendPrePost / TrackReceivePrePost
 //!
 //! @brief Cycles the send/receive routing mode: Post-Pan → Pre-FX → Post-FX → Post-Pan.
@@ -438,7 +402,7 @@ using TrackReceiveStereoMonoToggle = TrackSendReceiveStereoMonoToggle<SendDirect
 template <SendDirection Dir>
 class TrackSendReceivePrePost : public SendReceiveBase<Dir>
 {
-    static constexpr int Cat = Dir == (SendDirection::Send) ? 0 : -1;
+    static constexpr int category = SendReceiveTraits<Dir>::Category;
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendPrePost : ActionType::TrackReceivePrePost; }
@@ -450,7 +414,7 @@ public:
 
     virtual void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
-            int mode = (int) GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "I_SENDMODE");
+            int mode = (int) GetTrackSendInfo_Value(track, category, context->GetSlotIndex(), "I_SENDMODE");
 
             if (mode == 0)
                 mode = 1; // switch to pre FX
@@ -459,7 +423,7 @@ public:
             else
                 mode = 0; // switch to post pan
 
-            GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), "I_SENDMODE", &mode);
+            GetSetTrackSendInfo(track, category, context->GetSlotIndex(), "I_SENDMODE", &mode);
         }
     }
 };
@@ -467,9 +431,6 @@ public:
 using TrackSendPrePost = TrackSendReceivePrePost<SendDirection::Send>;
 using TrackReceivePrePost = TrackSendReceivePrePost<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 9.  NameDisplay  (TrackDisplayAction base)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendNameDisplay / TrackReceiveNameDisplay
 //!
 //! @brief Displays the destination (send) or source (receive) track name.
@@ -480,15 +441,15 @@ using TrackReceivePrePost = TrackSendReceivePrePost<SendDirection::Receive>;
 template <SendDirection Dir>
 class TrackSendReceiveNameDisplay : public TrackDisplayAction
 {
-    static constexpr int Cat = Dir == (SendDirection::Send) ? 0 : -1;
-    static constexpr const char* TrackKey = (Dir == SendDirection::Send) ? "P_DESTTRACK" : "P_SRCTRACK";
+    static constexpr int category = SendReceiveTraits<Dir>::Category;
+    static constexpr const char* TrackKey = SendReceiveTraits<Dir>::TrackKey;
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendNameDisplay : ActionType::TrackReceiveNameDisplay; }
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), TrackKey, 0);
+            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, category, context->GetSlotIndex(), TrackKey, 0);
             if (linkedTrack) {
                 const char* name = (const char*) GetSetMediaTrackInfo(linkedTrack, "P_NAME", NULL);
                 context->UpdateWidgetValue(name ? name : "");
@@ -502,9 +463,6 @@ public:
 using TrackSendNameDisplay = TrackSendReceiveNameDisplay<SendDirection::Send>;
 using TrackReceiveNameDisplay = TrackSendReceiveNameDisplay<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 10.  VolumeDisplay  (TrackDisplayAction base)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendVolumeDisplay / TrackReceiveVolumeDisplay
 //!
 //! @brief Displays the send/receive volume in dB as formatted text.
@@ -515,7 +473,7 @@ using TrackReceiveNameDisplay = TrackSendReceiveNameDisplay<SendDirection::Recei
 template <SendDirection Dir>
 class TrackSendReceiveVolumeDisplay : public TrackDisplayAction
 {
-    static constexpr int Cat = Dir == (SendDirection::Send) ? 0 : -1;
+    static constexpr int category = SendReceiveTraits<Dir>::Category;
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendVolumeDisplay : ActionType::TrackReceiveVolumeDisplay; }
@@ -523,13 +481,12 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), Dir == (SendDirection::Send) ? "P_DESTTRACK" : "P_SRCTRACK", 0);
+            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, category, context->GetSlotIndex(), Dir == (SendDirection::Send) ? "P_DESTTRACK" : "P_SRCTRACK", 0);
             if (linkedTrack) {
                 char buf[128];
                 if constexpr (Dir == SendDirection::Send) {
-                    int numHW = GetTrackNumSends(track, 1);
                     double vol, pan = 0.0;
-                    GetTrackSendUIVolPan(track, context->GetSlotIndex() + numHW, &vol, &pan);
+                    GetTrackSendUIVolPan(track, GetSendEffectiveIndex(track, context), &vol, &pan);
                     snprintf(buf, sizeof(buf), "%7.2lf", VAL2DB(vol));
                 } else {
                     double vol = GetTrackSendInfo_Value(track, -1, context->GetSlotIndex(), "D_VOL");
@@ -546,9 +503,6 @@ public:
 using TrackSendVolumeDisplay = TrackSendReceiveVolumeDisplay<SendDirection::Send>;
 using TrackReceiveVolumeDisplay = TrackSendReceiveVolumeDisplay<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 11.  PanDisplay  (TrackDisplayAction base)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendPanDisplay / TrackReceivePanDisplay
 //!
 //! @brief Displays the send/receive pan position as formatted text.
@@ -559,7 +513,7 @@ using TrackReceiveVolumeDisplay = TrackSendReceiveVolumeDisplay<SendDirection::R
 template <SendDirection Dir>
 class TrackSendReceivePanDisplay : public TrackDisplayAction
 {
-    static constexpr int Cat = Dir == (SendDirection::Send) ? 0 : -1;
+    static constexpr int category = SendReceiveTraits<Dir>::Category;
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendPanDisplay : ActionType::TrackReceivePanDisplay; }
@@ -567,13 +521,12 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), Dir == (SendDirection::Send) ? "P_DESTTRACK" : "P_SRCTRACK", 0);
+            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, category, context->GetSlotIndex(), Dir == (SendDirection::Send) ? "P_DESTTRACK" : "P_SRCTRACK", 0);
             if (linkedTrack) {
                 double panVal = 0.0;
                 if constexpr (Dir == SendDirection::Send) {
-                    int numHW = GetTrackNumSends(track, 1);
                     double vol = 0.0;
-                    GetTrackSendUIVolPan(track, context->GetSlotIndex() + numHW, &vol, &panVal);
+                    GetTrackSendUIVolPan(track, GetSendEffectiveIndex(track, context), &vol, &panVal);
                 } else {
                     panVal = GetTrackSendInfo_Value(track, -1, context->GetSlotIndex(), "D_PAN");
                 }
@@ -589,9 +542,6 @@ public:
 using TrackSendPanDisplay = TrackSendReceivePanDisplay<SendDirection::Send>;
 using TrackReceivePanDisplay = TrackSendReceivePanDisplay<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 12.  StereoMonoDisplay  (TrackDisplayAction)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendStereoMonoDisplay / TrackReceiveStereoMonoDisplay
 //!
 //! @brief Displays the stereo/mono state of a send or receive.
@@ -602,17 +552,17 @@ using TrackReceivePanDisplay = TrackSendReceivePanDisplay<SendDirection::Receive
 template <SendDirection Dir>
 class TrackSendReceiveStereoMonoDisplay : public TrackDisplayAction
 {
-    static constexpr int Cat = Dir == (SendDirection::Send) ? 0 : -1;
-    static constexpr const char* TrackKey = (Dir == SendDirection::Send) ? "P_DESTTRACK" : "P_SRCTRACK";
+    static constexpr int category = SendReceiveTraits<Dir>::Category;
+    static constexpr const char* TrackKey = SendReceiveTraits<Dir>::TrackKey;
 
 public:
     ActionType GetType() const override { return Dir == (SendDirection::Send) ? ActionType::TrackSendStereoMonoDisplay : ActionType::TrackReceiveStereoMonoDisplay; }
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), TrackKey, 0);
+            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, category, context->GetSlotIndex(), TrackKey, 0);
             if (linkedTrack) {
-                context->UpdateWidgetValue((GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "B_MONO")) ? "mono" : "stereo");
+                context->UpdateWidgetValue((GetTrackSendInfo_Value(track, category, context->GetSlotIndex(), "B_MONO")) ? "mono" : "stereo");
             } else
                 context->ClearWidget();
         } else
@@ -623,9 +573,6 @@ public:
 using TrackSendStereoMonoDisplay = TrackSendReceiveStereoMonoDisplay<SendDirection::Send>;
 using TrackReceiveStereoMonoDisplay = TrackSendReceiveStereoMonoDisplay<SendDirection::Receive>;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 13.  PrePostDisplay  (TrackDisplayAction base)
-// ─────────────────────────────────────────────────────────────────────────────
 //! @action TrackSendPrePostDisplay / TrackReceivePrePostDisplay
 //!
 //! @brief Displays the send/receive routing mode as text.
@@ -636,18 +583,18 @@ using TrackReceiveStereoMonoDisplay = TrackSendReceiveStereoMonoDisplay<SendDire
 template <SendDirection Dir>
 class TrackSendReceivePrePostDisplay : public TrackDisplayAction
 {
-    static constexpr int Cat = Dir == (SendDirection::Send) ? 0 : -1;
-    static constexpr const char* TrackKey = (Dir == SendDirection::Send) ? "P_DESTTRACK" : "P_SRCTRACK";
+    static constexpr int category = SendReceiveTraits<Dir>::Category;
+    static constexpr const char* TrackKey = SendReceiveTraits<Dir>::TrackKey;
 
 public:
     ActionType GetType() const override { return (Dir == SendDirection::Send) ? ActionType::TrackSendPrePostDisplay : ActionType::TrackReceivePrePostDisplay; }
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, Cat, context->GetSlotIndex(), TrackKey, 0);
+            MediaTrack* linkedTrack = (MediaTrack*) GetSetTrackSendInfo(track, category, context->GetSlotIndex(), TrackKey, 0);
             if (linkedTrack) {
                 // I_SENDMODE: 0=post-fader, 1=pre-fx, 2=post-fx (deprecated), 3=post-fx
-                double prePostVal = GetTrackSendInfo_Value(track, Cat, context->GetSlotIndex(), "I_SENDMODE");
+                double prePostVal = GetTrackSendInfo_Value(track, category, context->GetSlotIndex(), "I_SENDMODE");
 
                 const char* str = "";
                 if (prePostVal == 0) str = "PostPan";

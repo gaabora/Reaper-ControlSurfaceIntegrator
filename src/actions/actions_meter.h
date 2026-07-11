@@ -16,12 +16,9 @@ public:
     ActionType GetType() const override { return ActionType::TrackOutputMeter; }
 
     virtual void RequestUpdate(ActionContext* context) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            if (AnyTrackSolo(NULL) && !GetMediaTrackInfo_Value(track, "I_SOLO"))
-                context->ClearWidget();
-            else
-                context->UpdateWidgetValue(volToNormalized(Track_GetPeakInfo(track, context->GetIntParam())));
-        } else
+        if (MediaTrack* track = context->GetTrack())
+            UpdateMeterValue(context, track, Track_GetPeakInfo(track, context->GetIntParam()));
+        else
             context->ClearWidget();
     }
 };
@@ -41,13 +38,32 @@ public:
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
             double lrVol = (Track_GetPeakInfo(track, 0) + Track_GetPeakInfo(track, 1)) / 2.0;
-
-            if (AnyTrackSolo(NULL) && !GetMediaTrackInfo_Value(track, "I_SOLO"))
-                context->ClearWidget();
-            else
-                context->UpdateWidgetValue(volToNormalized(lrVol));
+            UpdateMeterValue(context, track, lrVol);
         } else
             context->ClearWidget();
+    }
+};
+
+// Shared base for TrackVolumeWithMeterAverageLR and TrackVolumeWithMeterMaxPeakLR.
+// Provides GetCurrentNormalizedValue (fader position), Do (set volume), and Touch.
+class TrackVolumeWithMeterBase : public TrackMeterAction
+{
+public:
+    virtual double GetCurrentNormalizedValue(ActionContext* context) override {
+        if (MediaTrack* track = context->GetTrack())
+            return volToNormalized(DAW::GetTrackVolume(track));
+        return 0.0;
+    }
+
+    virtual void Do(ActionContext* context, double value) override {
+        if (MediaTrack* track = context->GetTrack())
+            CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(value), false), NULL);
+    }
+
+    virtual void Touch(ActionContext* context, double value) override {
+        context->GetZone()->GetNavigator()->SetIsVolumeTouched(value != 0);
+        if (MediaTrack* track = context->GetTrack())
+            CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(GetCurrentNormalizedValue(context)), false), NULL);
     }
 };
 
@@ -60,25 +76,14 @@ public:
 //! @feedback Continuous — normalized volume when stopped/paused, normalized average meter when playing.
 //!
 //! @notes Also supports Do/Touch for setting track volume. Combines fader position display with metering.
-class TrackVolumeWithMeterAverageLR : public TrackMeterAction
+class TrackVolumeWithMeterAverageLR : public TrackVolumeWithMeterBase
 {
 public:
     ActionType GetType() const override { return ActionType::TrackVolumeWithMeterAverageLR; }
 
-    virtual double GetCurrentNormalizedValue(ActionContext* context) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            double vol, pan = 0.0;
-            GetTrackUIVolPan(track, &vol, &pan);
-            return volToNormalized(vol);
-        } else
-            return 0.0;
-    }
-
     virtual void RequestUpdate(ActionContext* context) override {
         int stopState = GetPlayState();
-
-        if (stopState == PLAYSTATE_STOPPED || stopState == PLAYSTATE_PAUSED || stopState == PLAYSTATE_PAUSED_WHILE_RECORDING)
-        {
+        if (stopState == PLAYSTATE_STOPPED || stopState == PLAYSTATE_PAUSED || stopState == PLAYSTATE_PAUSED_WHILE_RECORDING) {
             if (context->GetTrack())
                 context->UpdateWidgetValue(GetCurrentNormalizedValue(context));
             else
@@ -86,25 +91,10 @@ public:
         } else {
             if (MediaTrack* track = context->GetTrack()) {
                 double lrVol = (Track_GetPeakInfo(track, 0) + Track_GetPeakInfo(track, 1)) / 2.0;
-
-                if (AnyTrackSolo(NULL) && !GetMediaTrackInfo_Value(track, "I_SOLO"))
-                    context->ClearWidget();
-                else
-                    context->UpdateWidgetValue(volToNormalized(lrVol));
+                UpdateMeterValue(context, track, lrVol);
             } else
                 context->ClearWidget();
         }
-    }
-
-    virtual void Do(ActionContext* context, double value) override {
-        if (MediaTrack* track = context->GetTrack())
-            CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(value), false), NULL);
-    }
-
-    virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsVolumeTouched(value != 0);
-        if (MediaTrack* track = context->GetTrack())
-            CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(GetCurrentNormalizedValue(context)), false), NULL);
     }
 };
 
@@ -122,15 +112,8 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            double lVol = Track_GetPeakInfo(track, 0);
-            double rVol = Track_GetPeakInfo(track, 1);
-
-            double lrVol = lVol > rVol ? lVol : rVol;
-
-            if (AnyTrackSolo(NULL) && !GetMediaTrackInfo_Value(track, "I_SOLO"))
-                context->ClearWidget();
-            else
-                context->UpdateWidgetValue(volToNormalized(lrVol));
+            double lrVol = std::max(Track_GetPeakInfo(track, 0), Track_GetPeakInfo(track, 1));
+            UpdateMeterValue(context, track, lrVol);
         } else
             context->ClearWidget();
     }
@@ -145,54 +128,25 @@ public:
 //! @feedback Continuous — normalized volume when stopped/paused, normalized max peak when playing.
 //!
 //! @notes Also supports Do/Touch for setting track volume. Combines fader position display with metering.
-class TrackVolumeWithMeterMaxPeakLR : public TrackMeterAction
+class TrackVolumeWithMeterMaxPeakLR : public TrackVolumeWithMeterBase
 {
 public:
     ActionType GetType() const override { return ActionType::TrackVolumeWithMeterMaxPeakLR; }
 
-    virtual double GetCurrentNormalizedValue(ActionContext* context) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            double vol, pan = 0.0;
-            GetTrackUIVolPan(track, &vol, &pan);
-            return volToNormalized(vol);
-        } else
-            return 0.0;
-    }
-
     virtual void RequestUpdate(ActionContext* context) override {
         int stopState = GetPlayState();
-
-        if (stopState == PLAYSTATE_STOPPED || stopState == PLAYSTATE_PAUSED || stopState == PLAYSTATE_PAUSED_WHILE_RECORDING)
-        {
+        if (stopState == PLAYSTATE_STOPPED || stopState == PLAYSTATE_PAUSED || stopState == PLAYSTATE_PAUSED_WHILE_RECORDING) {
             if (context->GetTrack())
                 context->UpdateWidgetValue(GetCurrentNormalizedValue(context));
             else
                 context->ClearWidget();
         } else {
             if (MediaTrack* track = context->GetTrack()) {
-                double lVol = Track_GetPeakInfo(track, 0);
-                double rVol = Track_GetPeakInfo(track, 1);
-
-                double lrVol = lVol > rVol ? lVol : rVol;
-
-                if (AnyTrackSolo(NULL) && !GetMediaTrackInfo_Value(track, "I_SOLO"))
-                    context->ClearWidget();
-                else
-                    context->UpdateWidgetValue(volToNormalized(lrVol));
+                double lrVol = std::max(Track_GetPeakInfo(track, 0), Track_GetPeakInfo(track, 1));
+                UpdateMeterValue(context, track, lrVol);
             } else
                 context->ClearWidget();
         }
-    }
-
-    virtual void Do(ActionContext* context, double value) override {
-        if (MediaTrack* track = context->GetTrack())
-            CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(value), false), NULL);
-    }
-
-    virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsVolumeTouched(value != 0);
-        if (MediaTrack* track = context->GetTrack())
-            CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(GetCurrentNormalizedValue(context)), false), NULL);
     }
 };
 

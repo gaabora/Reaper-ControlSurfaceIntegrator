@@ -202,18 +202,11 @@ public:
     ActionType GetType() const override { return ActionType::LastTouchedFXParamNameDisplay; }
 
     virtual void RequestUpdate(ActionContext* context) override {
-        int trackNum = 0;
-        int fxSlotNum = 0;
-        int fxParamNum = 0;
-
-        if (GetLastTouchedFX(&trackNum, &fxSlotNum, &fxParamNum)) {
-            if (MediaTrack* track = DAW::GetTrack(trackNum)) {
-                char tmp[MEDBUF];
-                TrackFX_GetParamName(track, fxSlotNum, fxParamNum, tmp, sizeof(tmp));
-                context->UpdateWidgetValue(tmp);
-            }
-        } else
-            context->ClearWidget();
+        WithLastTouchedFX(context, [&](MediaTrack* track, int fxSlotNum, int fxParamNum) {
+            char fxParamValue[MEDBUF];
+            TrackFX_GetParamName(track, fxSlotNum, fxParamNum, fxParamValue, sizeof(fxParamValue));
+            context->UpdateWidgetValue(fxParamValue);
+        });
     }
 };
 
@@ -230,18 +223,11 @@ public:
     ActionType GetType() const override { return ActionType::LastTouchedFXParamValueDisplay; }
 
     virtual void RequestUpdate(ActionContext* context) override {
-        int trackNum = 0;
-        int fxSlotNum = 0;
-        int fxParamNum = 0;
-
-        if (GetLastTouchedFX(&trackNum, &fxSlotNum, &fxParamNum)) {
-            if (MediaTrack* track = DAW::GetTrack(trackNum)) {
-                char fxParamValue[128];
-                TrackFX_GetFormattedParamValue(track, fxSlotNum, fxParamNum, fxParamValue, sizeof(fxParamValue));
-                context->UpdateWidgetValue(fxParamValue);
-            }
-        } else
-            context->ClearWidget();
+        WithLastTouchedFX(context, [&](MediaTrack* track, int fxSlotNum, int fxParamNum) {
+            char fxParamValue[MEDBUF];
+            TrackFX_GetFormattedParamValue(track, fxSlotNum, fxParamNum, fxParamValue, sizeof(fxParamValue));
+            context->UpdateWidgetValue(fxParamValue);
+        });
     }
 };
 
@@ -258,16 +244,7 @@ public:
     ActionType GetType() const override { return ActionType::SpeakTrackSendDestination; }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            MediaTrack* destTrack = (MediaTrack*) GetSetTrackSendInfo(track, 0, context->GetSlotIndex(), "P_DESTTRACK", 0);
-            if (destTrack) {
-                const char* sendTrackName = (const char*) GetSetMediaTrackInfo(destTrack, "P_NAME", NULL);
-                char tmp[MEDBUF];
-                snprintf(tmp, sizeof(tmp), "Track %d%s%s", context->GetTrackNavigationManager()->GetIdFromTrack(destTrack), sendTrackName && *sendTrackName ? " " : "", sendTrackName ? sendTrackName : "");
-                context->GetCSI()->Speak(tmp);
-            } else
-                context->GetCSI()->Speak("No Send Track");
-        }
+        SpeakLinkedTrack(context, 0, "P_DESTTRACK", "No Send Track");
     }
 };
 
@@ -284,16 +261,7 @@ public:
     ActionType GetType() const override { return ActionType::SpeakTrackReceiveSource; }
 
     virtual void Do(ActionContext* context, double value) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            MediaTrack* srcTrack = (MediaTrack*) GetSetTrackSendInfo(track, -1, context->GetSlotIndex(), "P_SRCTRACK", 0);
-            if (srcTrack) {
-                const char* receiveTrackName = (const char*) GetSetMediaTrackInfo(srcTrack, "P_NAME", NULL);
-                char tmp[MEDBUF];
-                snprintf(tmp, sizeof(tmp), "Track %d%s%s", context->GetTrackNavigationManager()->GetIdFromTrack(srcTrack), receiveTrackName && *receiveTrackName ? " " : "", receiveTrackName ? receiveTrackName : "");
-                context->GetCSI()->Speak(tmp);
-            } else
-                context->GetCSI()->Speak("No Receive Track");
-        }
+        SpeakLinkedTrack(context, -1, "P_SRCTRACK", "No Receive Track");
     }
 };
 
@@ -472,11 +440,8 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            double vol, pan = 0.0;
-            GetTrackUIVolPan(track, &vol, &pan);
-
             char trackVolume[128];
-            snprintf(trackVolume, sizeof(trackVolume), "%7.2lf", VAL2DB(vol));
+            snprintf(trackVolume, sizeof(trackVolume), "%7.2lf", VAL2DB(DAW::GetTrackVolume(track)));
             context->UpdateWidgetValue(trackVolume);
         } else
             context->ClearWidget();
@@ -498,11 +463,8 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            double vol, pan = 0.0;
-            GetTrackUIVolPan(track, &vol, &pan);
-
             char tmp[MEDBUF];
-            context->UpdateWidgetValue(context->GetPanValueString(pan, "", tmp, sizeof(tmp)));
+            context->UpdateWidgetValue(context->GetPanValueString(DAW::GetTrackPan(track), "", tmp, sizeof(tmp)));
         } else
             context->ClearWidget();
     }
@@ -602,9 +564,7 @@ public:
                 double panVal = GetMediaTrackInfo_Value(track, "D_DUALPANL");
                 context->UpdateWidgetValue(context->GetPanValueString(panVal, "L", tmp, sizeof(tmp)));
             } else {
-                double vol, pan = 0.0;
-                GetTrackUIVolPan(track, &vol, &pan);
-                context->UpdateWidgetValue(context->GetPanValueString(pan, "", tmp, sizeof(tmp)));
+                context->UpdateWidgetValue(context->GetPanValueString(DAW::GetTrackPan(track), "", tmp, sizeof(tmp)));
             }
         } else
             context->ClearWidget();

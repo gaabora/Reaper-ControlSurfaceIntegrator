@@ -9,7 +9,7 @@
 using std::string;
 
 namespace DAW {
-    void ShowOSD(const osd_data& osdData) {
+    void ShowOSD(const osd_data& osdData) { //FIXME: why this tiny thing have 2 dedicated files (.h + .cpp) and OSK related stuff is not here but together with many other stuff? maybe move OSK here?
         static string lastValue;
         static DWORD lastUpdateTs = 0;
         DWORD now = GetTickCount();

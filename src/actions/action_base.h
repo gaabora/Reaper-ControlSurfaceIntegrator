@@ -303,13 +303,13 @@ public:
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         if (!CheckCurrentContext(context))
             return 0.0;
-        return context->GetTrackVolumeValue();
+        return context->GetTrackVolumeNormalized();
     }
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (!CheckCurrentContext(context))
             return context->ClearWidget();
-        double value = context->GetTrackVolumeValue();
+        double value = context->GetTrackVolumeNormalized();
         context->UpdateWidgetValue(value);
         context->SetLastValue(value);
     }
@@ -319,7 +319,7 @@ public:
             return;
         if (!CheckCurrentContext(context))
             return;
-        context->SetTrackVolumeValue(value);
+        context->SetTrackVolumeNormalized(value);
         if (!context->GetProvideFeedback())
             context->SetLastValue(value);
     }

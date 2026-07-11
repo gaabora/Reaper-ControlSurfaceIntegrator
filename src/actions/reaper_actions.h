@@ -1,9 +1,10 @@
 ﻿// reaper_actions.h
-//FIXME: preserved for backward compatibility with existing #include sites.
+//FIXME: Legacy compatibility umbrella for existing include sites.
 
 #ifndef control_surface_Reaper_actions_h
 #define control_surface_Reaper_actions_h
 
+#include "action_helpers.h"
 #include "action_base.h"
 #include "actions_fx.h"
 #include "actions_track.h"

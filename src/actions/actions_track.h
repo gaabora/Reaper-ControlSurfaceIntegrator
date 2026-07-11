@@ -34,10 +34,7 @@ public:
 
     virtual void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
-            double trackVolume, trackPan = 0.0;
-            GetTrackUIVolPan(track, &trackVolume, &trackPan);
-            trackVolume = volToNormalized(trackVolume);
-
+            double trackVolume = volToNormalized(DAW::GetTrackVolume(track));
             if (fabs(value - trackVolume) < 0.025) // GAW -- Magic number -- ne touche pas
                 CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(value), false), NULL);
         }
@@ -64,10 +61,7 @@ public:
 
     virtual void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
-            double trackVolume, trackPan = 0.0;
-            GetTrackUIVolPan(track, &trackVolume, &trackPan);
-            trackVolume = volToNormalized(trackVolume);
-
+            double trackVolume = volToNormalized(DAW::GetTrackVolume(track));
             if (fabs(value - trackVolume) < TRACK_VOLUME_TOLERANCE)
                 CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(value), false), NULL);
         }
@@ -94,9 +88,7 @@ public:
 
     virtual double GetCurrentDBValue(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            double vol, pan = 0.0;
-            GetTrackUIVolPan(track, &vol, &pan);
-            return VAL2DB(vol);
+            return VAL2DB(DAW::GetTrackVolume(track));
         } else
             return 0.0;
     }
@@ -138,13 +130,9 @@ public:
 
     virtual double GetCurrentNormalizedValue(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            if (GetPanMode(track) != DAW::PANMODE_DUAL) {
-                double vol, pan = 0.0;
-                GetTrackUIVolPan(track, &vol, &pan);
-                return panToNormalized(pan);
-            }
+            if (GetPanMode(track) != DAW::PANMODE_DUAL)
+                return panToNormalized(DAW::GetTrackPan(track));
         }
-
         return 0.0;
     }
 
@@ -185,11 +173,8 @@ public:
 
     virtual void RequestUpdate(ActionContext* context) override {
         if (MediaTrack* track = context->GetTrack()) {
-            if (GetPanMode(track) != DAW::PANMODE_DUAL) {
-                double vol, pan = 0.0;
-                GetTrackUIVolPan(track, &vol, &pan);
-                context->UpdateWidgetValue(pan * 100.0);
-            }
+            if (GetPanMode(track) != DAW::PANMODE_DUAL)
+                context->UpdateWidgetValue(DAW::GetTrackPan(track) * 100.0);
         } else
             context->ClearWidget();
     }
@@ -203,11 +188,8 @@ public:
     virtual void Touch(ActionContext* context, double value) override {
         context->GetZone()->GetNavigator()->SetIsPanTouched(value != 0);
         if (MediaTrack* track = context->GetTrack()) {
-            if (GetPanMode(track) != DAW::PANMODE_DUAL) {
-                double vol, pan = 0.0;
-                GetTrackUIVolPan(track, &vol, &pan);
-                CSurf_SetSurfacePan(track, CSurf_OnPanChange(track, pan, false), NULL);
-            }
+            if (GetPanMode(track) != DAW::PANMODE_DUAL)
+                CSurf_SetSurfacePan(track, CSurf_OnPanChange(track, DAW::GetTrackPan(track), false), NULL);
         }
     }
 };
@@ -474,11 +456,8 @@ public:
         if (MediaTrack* track = context->GetTrack()) {
             if (GetPanMode(track) == DAW::PANMODE_DUAL)
                 return panToNormalized(GetMediaTrackInfo_Value(track, "D_DUALPANL"));
-            else {
-                double vol, pan = 0.0;
-                GetTrackUIVolPan(track, &vol, &pan);
-                return panToNormalized(pan);
-            }
+            else
+                return panToNormalized(DAW::GetTrackPan(track));
         } else
             return 0.0;
     }
@@ -704,6 +683,25 @@ public:
     }
 };
 
+// Shared base for TrackSelect, TrackUniqueSelect, and TrackRangeSelect:
+// all three report the same "I_SELECTED" state and share identical RequestUpdate logic.
+class TrackSelectBase : public PressOnlyAction
+{
+public:
+    virtual double GetCurrentNormalizedValue(ActionContext* context) override {
+        if (MediaTrack* track = context->GetTrack())
+            return GetMediaTrackInfo_Value(track, "I_SELECTED");
+        return 0.0;
+    }
+
+    virtual void RequestUpdate(ActionContext* context) override {
+        if (context->GetTrack())
+            context->UpdateWidgetValue(GetCurrentNormalizedValue(context));
+        else
+            context->ClearWidget();
+    }
+};
+
 //! @action TrackSelect
 //!
 //! @brief Toggles track selection on/off. Allows multi-selection (adds/removes from current selection).
@@ -713,24 +711,10 @@ public:
 //! @feedback Toggle — 1.0 when selected, 0.0 when not.
 //!
 //! @see TrackUniqueSelect, TrackRangeSelect
-class TrackSelect : public PressOnlyAction
+class TrackSelect : public TrackSelectBase
 {
 public:
     ActionType GetType() const override { return ActionType::TrackSelect; }
-
-    virtual double GetCurrentNormalizedValue(ActionContext* context) override {
-        if (MediaTrack* track = context->GetTrack())
-            return GetMediaTrackInfo_Value(track, "I_SELECTED");
-        else
-            return 0.0;
-    }
-
-    virtual void RequestUpdate(ActionContext* context) override {
-        if (context->GetTrack())
-            context->UpdateWidgetValue(GetCurrentNormalizedValue(context));
-        else
-            context->ClearWidget();
-    }
 
     virtual void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
@@ -749,24 +733,10 @@ public:
 //! @feedback Toggle — 1.0 when selected, 0.0 when not.
 //!
 //! @see TrackSelect, TrackRangeSelect
-class TrackUniqueSelect : public PressOnlyAction // TrackAction?
+class TrackUniqueSelect : public TrackSelectBase
 {
 public:
     ActionType GetType() const override { return ActionType::TrackUniqueSelect; }
-
-    virtual double GetCurrentNormalizedValue(ActionContext* context) override {
-        if (MediaTrack* track = context->GetTrack())
-            return GetMediaTrackInfo_Value(track, "I_SELECTED");
-        else
-            return 0.0;
-    }
-
-    virtual void RequestUpdate(ActionContext* context) override {
-        if (context->GetTrack())
-            context->UpdateWidgetValue(GetCurrentNormalizedValue(context));
-        else
-            context->ClearWidget();
-    }
 
     virtual void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
@@ -787,24 +757,10 @@ public:
 //! @notes Only works when exactly one track is currently selected. Selects all visible tracks between the two.
 //!
 //! @see TrackSelect, TrackUniqueSelect
-class TrackRangeSelect : public PressOnlyAction // TrackAction?
+class TrackRangeSelect : public TrackSelectBase
 {
 public:
     ActionType GetType() const override { return ActionType::TrackRangeSelect; }
-
-    virtual double GetCurrentNormalizedValue(ActionContext* context) override {
-        if (MediaTrack* track = context->GetTrack())
-            return GetMediaTrackInfo_Value(track, "I_SELECTED");
-        else
-            return 0.0;
-    }
-
-    virtual void RequestUpdate(ActionContext* context) override {
-        if (context->GetTrack())
-            context->UpdateWidgetValue(GetCurrentNormalizedValue(context));
-        else
-            context->ClearWidget();
-    }
 
     virtual void Do(ActionContext* context, double value) override {
         int currentlySelectedCount = 0;

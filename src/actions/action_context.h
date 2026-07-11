@@ -282,11 +282,11 @@ public:
         return DAW::GetFxParamValue(track_, fxSlotNum_, fxParamNum_);
     }
 
-    double GetTrackVolumeValue() {
-        return DAW::GetTrackVolumeValue(track_);
+    double GetTrackVolumeNormalized() {
+        return volToNormalized(DAW::GetTrackVolume(track_));
     }
-    void SetTrackVolumeValue(double value) {
-        DAW::SetTrackVolumeValue(track_, value);
+    void SetTrackVolumeNormalized(double value) {
+        DAW::SetTrackVolume(track_, normalizedToVol(value));
     }
 
     bool CheckCurrentTrackContext() {

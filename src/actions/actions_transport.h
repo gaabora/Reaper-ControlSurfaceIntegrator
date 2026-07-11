@@ -109,7 +109,7 @@ public:
         else
             playState = PLAYSTATE_STOPPED;
 
-        if (context->GetSurface()->GetIsRewinding() || context->GetSurface()->GetIsFastForwarding())
+        if (IsScrubbing(context))
             playState = PLAYSTATE_STOPPED;
 
         return playState;
@@ -143,7 +143,7 @@ public:
         else
             stopState = PLAYSTATE_STOPPED;
 
-        if (context->GetSurface()->GetIsRewinding() || context->GetSurface()->GetIsFastForwarding())
+        if (IsScrubbing(context))
             stopState = PLAYSTATE_STOPPED;
 
         return stopState;
@@ -177,7 +177,7 @@ public:
         else
             recordState = PLAYSTATE_STOPPED;
 
-        if (context->GetSurface()->GetIsRewinding() || context->GetSurface()->GetIsFastForwarding())
+        if (IsScrubbing(context))
             recordState = PLAYSTATE_STOPPED;
         return recordState;
     }

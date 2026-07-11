@@ -147,16 +147,9 @@ public:
     ActionType GetType() const override { return ActionType::ToggleFXOffline; }
 
     virtual void RequestUpdate(ActionContext* context) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            if (TrackFX_GetCount(track) > context->GetSlotIndex()) {
-                if (TrackFX_GetOffline(track, context->GetSlotIndex()))
-                    context->UpdateWidgetValue(0.0);
-                else
-                    context->UpdateWidgetValue(1.0);
-            } else
-                context->ClearWidget();
-        } else
-            context->ClearWidget();
+        WithFXSlot(context, [&](MediaTrack* track) {
+            context->UpdateWidgetValue(TrackFX_GetOffline(track, context->GetSlotIndex()) ? 0.0 : 1.0);
+        });
     }
 
     virtual void Do(ActionContext* context, double value) override {
@@ -178,15 +171,8 @@ public:
     ActionType GetType() const override { return ActionType::FXOfflineDisplay; }
 
     virtual void RequestUpdate(ActionContext* context) override {
-        if (MediaTrack* track = context->GetTrack()) {
-            if (TrackFX_GetCount(track) > context->GetSlotIndex()) {
-                if (TrackFX_GetOffline(track, context->GetSlotIndex()))
-                    context->UpdateWidgetValue("Offline");
-                else
-                    context->UpdateWidgetValue("Online");
-            } else
-                context->ClearWidget();
-        } else
-            context->ClearWidget();
+        WithFXSlot(context, [&](MediaTrack* track) {
+            context->UpdateWidgetValue(TrackFX_GetOffline(track, context->GetSlotIndex()) ? "Offline" : "Online");
+        });
     }
 };
