@@ -243,6 +243,13 @@ public:
     void SetBlinkTime(int value) { blinkTimeMs_ = value; }
     int GetBlinkTime() { return blinkTimeMs_; }
 
+    // Global blink phase: deterministic, all buttons with the same interval blink in sync.
+    // Returns true during the "lit" half of the cycle, false during the "dim" half.
+    bool IsBlinkLit(int intervalMs) {
+        if (intervalMs <= 0) intervalMs = blinkTimeMs_;
+        return (GetTickCount() / static_cast<DWORD>(intervalMs)) % 2 == 0;
+    }
+
     void SetOSDTime(int value) { osdTimeMs_ = value; }
     int GetOSDTime() { return osdTimeMs_; }
 

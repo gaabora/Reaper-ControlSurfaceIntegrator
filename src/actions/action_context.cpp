@@ -224,7 +224,7 @@ void ActionContext::UpdateWidgetValue(double value) {
         value = 1.0 - value;
     } else if (blink_.blinkSet) {
         bool shouldBlink = (value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE);
-        if (shouldBlink && blink_.Update(GetBlinkInterval())) {
+        if (shouldBlink && !GetSurface()->IsBlinkLit(GetBlinkInterval())) {
             value = 1.0 - value;
         }
     }
