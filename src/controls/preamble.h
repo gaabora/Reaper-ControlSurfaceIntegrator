@@ -38,6 +38,14 @@ using std::unique_ptr;
 using std::shared_ptr;
 using std::make_unique;
 using std::make_shared;
+using std::ifstream;
+using std::ofstream;
+using std::ostringstream;
+using std::istringstream;
+using std::function;
+using std::min;
+using std::max;
+namespace filesystem = std::filesystem;
 
 // oscpkt/udp must be included BEFORE windows.h (winsock2 must precede winsock.h).
 // WDL's win32_utf8.h pulls in windows.h, so include these first.

@@ -28,7 +28,9 @@
 // Forward-declare REAPER types needed by MIDI_event_ex_t
 #include "reaper_plugin_functions.h"
 
-using namespace std;
+using std::string;
+using std::vector;
+using std::to_string;
 
 // -------------------------------------------------------------------------
 // Buffer size constants
