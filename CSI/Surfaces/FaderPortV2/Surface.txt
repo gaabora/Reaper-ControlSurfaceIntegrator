@@ -94,7 +94,7 @@ Widget Prev # Shape=LeftArrow Color=55bbff Top=0.25
   FB_TwoState     90 2e 7f 90 2e 00
 WidgetEnd
 
-Widget RotaryBig RotaryWidgetClass # Shape=Round Height=1.5 Width=1.5 Group=RotaryGroup
+Widget RotaryBig RotaryWidgetClass # Shape=Round Height=1.5 Width=1.5 Group=RotaryGroup Color=737983 
   Encoder         b0 10 7f [ > 01-3f < 41-7f ]
 WidgetEnd
 
