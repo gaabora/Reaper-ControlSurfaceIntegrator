@@ -88,9 +88,8 @@ using TrackReceiveVolume = TrackSendReceiveVolume<SendDirection::Receive>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2.  VolumeDB  (VolumeAction base)
-//     Note: the Send version uses GetParamIndex() for both get and set;
-//           the Receive version uses GetParamIndex() for get but
-//           GetSlotIndex() for set — original behaviour is preserved.
+//     Both Send and Receive now use GetSlotIndex() for reads on the Receive
+//     path, consistent with the non-DB TrackReceiveVolume.
 // ─────────────────────────────────────────────────────────────────────────────
 template <SendDirection Dir>
 class TrackSendReceiveVolumeDB : public VolumeAction
@@ -105,7 +104,7 @@ public:
                 int numHW = GetTrackNumSends(track, 1);
                 GetTrackSendUIVolPan(track, context->GetParamIndex() + numHW, &vol, &pan);
             } else {
-                GetTrackReceiveUIVolPan(track, context->GetParamIndex(), &vol, &pan);
+                GetTrackReceiveUIVolPan(track, context->GetSlotIndex(), &vol, &pan);
             }
             context->UpdateWidgetValue(VAL2DB(vol));
         } else {
@@ -133,7 +132,7 @@ public:
                 GetTrackSendUIVolPan(track, idx, &vol, &pan);
                 SetTrackSendUIVol(track, idx, vol, value == 0 ? 1 : 0);
             } else {
-                GetTrackReceiveUIVolPan(track, context->GetParamIndex(), &vol, &pan);
+                GetTrackReceiveUIVolPan(track, context->GetSlotIndex(), &vol, &pan);
                 SetTrackSendUIVol(track, -(context->GetSlotIndex() + 1), vol, value == 0 ? 1 : 0);
             }
         }
