@@ -64,6 +64,8 @@ local rawStates   = {}
 local rawLabels   = {}
 local rawLabelMaps = {}
 
+local processedLabelCache = {}
+
 local BUTTON_SIZE = 64
 local BUTTON_PAD_H = 8  -- horizontal padding between buttons (pixels before zoom)
 local BUTTON_PAD_V = 0  -- vertical padding between rows (pixels before zoom)
@@ -116,6 +118,7 @@ local vars = {
     btn_transparency = 0.9,  -- button alpha (0.2 = very transparent, 1.0 = opaque)
     tooltip_delay = 1.0,     -- seconds before tooltip shows
     arrow_angle = 120,       -- arrow apex angle in degrees
+    show_all_surfaces = true,-- render all detected surfaces in one OSK window
     -- Label replacements: semicolon-separated key=value pairs. Empty value = remove the word
     label_replacements = "",
 }
@@ -226,6 +229,15 @@ local function processLabel(text)
     return text
 end
 
+local function getProcessedLabel(text)
+    if not text or text == "" then return "" end
+    local cached = processedLabelCache[text]
+    if cached then return cached end
+    cached = processLabel(text)
+    processedLabelCache[text] = cached
+    return cached
+end
+
 --- Parse label replacements string "key1=val1;key2=val2" into LABEL_REPLACEMENTS table
 local function parseLabelReplacements(str)
     LABEL_REPLACEMENTS = {}
@@ -274,10 +286,8 @@ local function PollOSD()
 end
 
 --- Render the OSD status bar below the surface buttons.
---- Calls PollOSD() itself; shows nothing when osd_text is empty.
 local function RenderOSDBar(ctx)
     PollOSD()
-    if osd_text == "" then return end
 
     imgui.Separator(ctx)
     local drawList = imgui.GetWindowDrawList(ctx)
@@ -313,7 +323,7 @@ end
 --- Show tooltip with delay: only display after hovering for TOOLTIP_DELAY seconds.
 --- When a LabelMap is available for the widget, the tooltip shows all modifier bindings
 --- (e.g. "Touch\nShift -> Latch\nHold -> Trim") instead of just the default text.
-local function ShowDelayedTooltip(ctx, widgetName, text)
+local function ShowDelayedTooltip(ctx, surfName, widgetName, text)
     if imgui.IsItemHovered(ctx) then
         local now = os.clock()
         if not hoverStartTime[widgetName] then
@@ -321,14 +331,13 @@ local function ShowDelayedTooltip(ctx, widgetName, text)
         end
         if now - hoverStartTime[widgetName] >= TOOLTIP_DELAY then
             -- Build tooltip from LabelMap if available
-            local surfName = surfaces[currentSurface]
             local modMap = surfName and labelMaps[surfName] and labelMaps[surfName][widgetName]
             local tooltipText = text
             if modMap and next(modMap) then
                 local lines = {}
                 -- NoMod first (primary binding)
                 if modMap["NoMod"] then
-                    lines[#lines + 1] = processLabel(modMap["NoMod"])
+                    lines[#lines + 1] = getProcessedLabel(modMap["NoMod"])
                 end
                 -- All other modifiers sorted alphabetically
                 local sortedMods = {}
@@ -337,7 +346,7 @@ local function ShowDelayedTooltip(ctx, widgetName, text)
                 end
                 table.sort(sortedMods)
                 for _, modName in ipairs(sortedMods) do
-                    lines[#lines + 1] = modName .. " -> " .. processLabel(modMap[modName])
+                    lines[#lines + 1] = modName .. " -> " .. getProcessedLabel(modMap[modName])
                 end
                 if #lines > 0 then
                     tooltipText = table.concat(lines, "\n")
@@ -374,6 +383,15 @@ local function wrapText(ctx, text, maxW)
     return lines
 end
 
+local function PollExtStateEntry(surfName, suffix, rawStore, parsedStore, parser)
+    local key = suffix .. "_" .. surfName
+    local raw = r.GetExtState(EXT_SECTION, key)
+    if raw and raw ~= rawStore[surfName] then
+        rawStore[surfName] = raw
+        parsedStore[surfName] = parser(raw)
+    end
+end
+
 -- ================================================================
 -- Parsing
 -- ================================================================
@@ -406,54 +424,49 @@ local function ParseLayout(layoutStr)
     return result
 end
 
-local function ParseState(stateStr)
+local function ParseKeyValueList(str, entryParser)
     local result = {}
-    if not stateStr or stateStr == "" then return result end
-    for entry in stateStr:gmatch("[^;]+") do
-        local name, rest = entry:match("^(.-)=(.+)$")
-        if name and rest then
-            local value = tonumber(rest:match("V:([%d%.%-]+)")) or 0
-            local colorHex = rest:match("C:(#%x+)") or "#333333"
-            result[name] = {
-                value = value,
-                color = hexToImCol(colorHex),
-            }
+    if not str or str == "" then return result end
+    for entry in str:gmatch("[^;]+") do
+        local key, value = entry:match("^(.-)=(.*)$")
+        if key then
+            entryParser(result, key, value)
         end
     end
     return result
 end
 
+local function ParseState(stateStr)
+    return ParseKeyValueList(stateStr, function(result, name, rest)
+        local value = tonumber(rest:match("V:([%d%.%-]+)")) or 0
+        local colorHex = rest:match("C:(#%x+)") or "#333333"
+        result[name] = {
+            value = value,
+            color = hexToImCol(colorHex),
+        }
+    end)
+end
+
 local function ParseLabels(labelsStr)
-    local result = {}
-    if not labelsStr or labelsStr == "" then return result end
-    for entry in labelsStr:gmatch("[^;]+") do
-        local name, label = entry:match("^(.-)=(.+)$")
-        if name then
-            result[name] = label
-        end
-    end
-    return result
+    return ParseKeyValueList(labelsStr, function(result, name, label)
+        result[name] = label
+    end)
 end
 
 --- Parse LabelMap string from C++: "Touch=NoMod:Touch|Shift:Latch|Hold:Trim;..."
 --- Returns widgetName -> {modifierName -> rawLabel} table.
 local function ParseLabelMap(str)
-    local result = {}
-    if not str or str == "" then return result end
-    for entry in str:gmatch("[^;]+") do
-        local name, modPairs = entry:match("^(.-)=(.+)$")
-        if name and modPairs then
-            local mods = {}
-            for modEntry in modPairs:gmatch("[^|]+") do
-                local modName, label = modEntry:match("^([^:]+):(.+)$")
-                if modName and label then
-                    mods[modName] = label
-                end
+    return ParseKeyValueList(str, function(result, name, modPairs)
+        if not modPairs or modPairs == "" then return end
+        local mods = {}
+        for modEntry in modPairs:gmatch("[^|]+") do
+            local modName, label = modEntry:match("^([^:]+):(.+)$")
+            if modName and label then
+                mods[modName] = label
             end
-            result[name] = mods
         end
-    end
-    return result
+        result[name] = mods
+    end)
 end
 
 -- ================================================================
@@ -494,7 +507,7 @@ local function SetToolbarButtonState(set)
 end
 
 -- ================================================================
--- Poll data from C++
+-- Poll data from C++ via ExtState and update internal state tables.
 -- ================================================================
 local function PollData()
     -- Check for close command
@@ -522,40 +535,55 @@ local function PollData()
 
     -- For each surface, poll layout/state/labels
     for _, surfName in ipairs(surfaces) do
-        -- Layout (only parse when changed)
-        local layoutKey = "Layout_" .. surfName
-        local raw = r.GetExtState(EXT_SECTION, layoutKey)
-        if raw and raw ~= "" and raw ~= rawLayouts[surfName] then
-            rawLayouts[surfName] = raw
-            layouts[surfName] = ParseLayout(raw)
-        end
-
-        -- State
-        local stateKey = "State_" .. surfName
-        local rawS = r.GetExtState(EXT_SECTION, stateKey)
-        if rawS and rawS ~= rawStates[surfName] then
-            rawStates[surfName] = rawS
-            states[surfName] = ParseState(rawS)
-        end
-
-        -- Labels (current modifier)
-        local labelKey = "Labels_" .. surfName
-        local rawL = r.GetExtState(EXT_SECTION, labelKey)
-        if rawL and rawL ~= rawLabels[surfName] then
-            rawLabels[surfName] = rawL
-            labels[surfName] = ParseLabels(rawL)
-        end
-
-        -- LabelMap (all modifier bindings, for hover tooltip)
-        local labelMapKey = "LabelMap_" .. surfName
-        local rawLM = r.GetExtState(EXT_SECTION, labelMapKey)
-        if rawLM and rawLM ~= rawLabelMaps[surfName] then
-            rawLabelMaps[surfName] = rawLM
-            labelMaps[surfName] = ParseLabelMap(rawLM)
-        end
+        PollExtStateEntry(surfName, "Layout", rawLayouts, layouts, function(raw)
+            if raw and raw ~= "" then return ParseLayout(raw) end
+            return layouts[surfName]
+        end)
+        PollExtStateEntry(surfName, "State", rawStates, states, ParseState)
+        PollExtStateEntry(surfName, "Labels", rawLabels, labels, ParseLabels)
+        PollExtStateEntry(surfName, "LabelMap", rawLabelMaps, labelMaps, ParseLabelMap)
     end
 
     return true -- keep running
+end
+
+-- ================================================================
+-- Interaction helpers
+-- ================================================================
+
+local function GetWheelDirection(ctx)
+    local v = imgui.GetMouseWheel(ctx)
+    if v > 0 then return 1 end
+    if v < 0 then return -1 end
+    return 0
+end
+
+local function HandleButtonClick(surfName, cell)
+    if not vars.clickable or not cell.name then return end
+    if not surfName then return end
+    local msg = surfName .. "|" .. cell.name
+    r.SetExtState(EXT_CMD_SECTION, "WidgetPress", msg, false)
+end
+
+local function HandleRotaryMouseWheel(ctx, surfName, cell)
+    if not cell or not cell.name then return end
+
+    local name = tostring(cell.name):lower()
+    local group = tostring(cell.group or ""):lower()
+    local isRotary = name:find("rotary") or group:find("rotary")
+    if not isRotary then return end
+
+    if not imgui.IsItemHovered(ctx) then return end
+    if not vars.clickable then return end
+
+    local dir = GetWheelDirection(ctx)
+    if dir == 0 then return end
+
+    if not surfName then return end
+
+    local action = (dir > 0) and "Inc" or "Dec"
+    local msg = surfName .. "|" .. cell.name .. "|" .. action
+    r.SetExtState(EXT_CMD_SECTION, "WidgetScroll", msg, false)
 end
 
 -- ================================================================
@@ -579,19 +607,18 @@ end
 ---       Those colours are hardware-mapped and may need a display gamma / gamut
 ---       correction curve before being used as button backgrounds.  Add a
 ---       configurable correction pass for buttons that have no Color= in Surface.txt.
-local function GetButtonColor(surfName, widgetName)
-    -- Helper: find cell info in parsed layout
-    local function GetCellInfo(sn, wn)
-        local layout = layouts[sn]
-        if not layout then return nil end
-        for _, row in ipairs(layout) do
-            for _, cell in ipairs(row) do
-                if not cell.isSpacer and cell.name == wn then return cell end
-            end
+local function GetCellInfo(surfName, widgetName)
+    local layout = layouts[surfName]
+    if not layout then return nil end
+    for _, row in ipairs(layout) do
+        for _, cell in ipairs(row) do
+            if not cell.isSpacer and cell.name == widgetName then return cell end
         end
-        return nil
     end
+    return nil
+end
 
+local function GetButtonColor(surfName, widgetName)
     local st   = states[surfName] and states[surfName][widgetName]
     local cell = GetCellInfo(surfName, widgetName)
 
@@ -638,71 +665,43 @@ local function GetButtonLabel(surfName, cell)
     return cell.name or "?"
 end
 
--- Helper to handle mouse-wheel for rotary widgets (sends WidgetScroll ExtState)
-local function HandleRotaryMouseWheel(ctx, cell)
-    -- if not cell or not cell.name then return end
-    -- local isRotary = false
-    -- if cell.group and type(cell.group) == "string" and cell.group:lower():find("rotary") then isRotary = true end
-    -- if not isRotary and cell.name and type(cell.name) == "string" and cell.name:lower():find("rotary") then isRotary = true end
-    -- if not isRotary then return end
-    -- if not imgui.IsItemHovered(ctx) or not vars.clickable then return end
-    -- local io = imgui.GetIO()
-    -- local wheel = 0
-    -- if io then
-    --     wheel = io.MouseWheel or io.MouseWheelH or 0
-    -- end
-    -- if wheel and wheel ~= 0 then
-    --     local surfName2 = surfaces[currentSurface]
-    --     if surfName2 then
-    --         local dir = (wheel > 0) and "Inc" or "Dec"
-    --         local msg = surfName2 .. "|" .. cell.name .. "|" .. dir
-    --         r.SetExtState(EXT_CMD_SECTION, "WidgetScroll", msg, false)
-    --         r.ShowConsoleMsg("[CSI OSK] Scroll: " .. msg .. "\n")
-    --     end
-    -- end
+
+local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
+    local id = "##btn_" .. (cell.name or "")
+    imgui.InvisibleButton(ctx, id, bw, bh)
+    if imgui.IsItemHovered(ctx) then
+        ShowDelayedTooltip(ctx, surfName, cell.name or "", label)
+        HandleRotaryMouseWheel(ctx, surfName, cell)
+    end
+    if imgui.IsItemClicked(ctx) then HandleButtonClick(surfName, cell) end
 end
 
-local function DrawRectButton(ctx, drawList, surfName, cell, bw, bh)
-    local label = processLabel(GetButtonLabel(surfName, cell))
-    local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
-    local value = GetButtonValue(surfName, cell.name)
-
-    local cx, cy = imgui.GetCursorScreenPos(ctx)
-
-    -- Background
-    imgui.DrawList_AddRectFilled(drawList, cx, cy, cx + bw, cy + bh, bgCol, 4)
-
-    -- Label text (multi-line word-wrap)
+local function RenderCenteredWrappedText(ctx, drawList, text, centerX, centerY, maxW, maxH)
     imgui.PushFont(ctx, FONT_SMALL)
-    local pad = 4
-    local lines = wrapText(ctx, label, bw - pad * 2)
+    local lines = wrapText(ctx, text, maxW)
     local _, lineH = imgui.CalcTextSize(ctx, "M")
     local totalH = #lines * lineH
-    local startY = cy + (bh - totalH) / 2
+    local startY = centerY - totalH / 2
     local textCol = applyAlpha(COLORS.text_normal, vars.btn_transparency)
     for li, ln in ipairs(lines) do
         local tw = imgui.CalcTextSize(ctx, ln)
-        local tx = cx + (bw - tw) / 2
+        local tx = centerX - tw / 2
         local ty = startY + (li - 1) * lineH
-        if ty + lineH > cy + bh then break end  -- clip overflow
+        if maxH and ty + lineH > centerY + maxH / 2 then break end
         imgui.DrawList_AddText(drawList, tx, ty, textCol, ln)
     end
     imgui.PopFont(ctx)
+end
 
-    -- Invisible button for interaction
-    local clicked = imgui.InvisibleButton(ctx, "##btn_" .. (cell.name or ""), bw, bh)
-    if clicked and vars.clickable and cell.name then
-        local surfName2 = surfaces[currentSurface]
-        if surfName2 then
-            local msg = surfName2 .. "|" .. cell.name
-            local col = GetButtonColor(surfName2, cell.name)
-            r.SetExtState(EXT_CMD_SECTION, "WidgetPress", msg, false)
-            r.ShowConsoleMsg(string.format("[CSI OSK] Click: %s  color=#%06X\n", msg, (col >> 8) & 0xFFFFFF))
-        end
-    end
-    ShowDelayedTooltip(ctx, cell.name or "", label)
-    -- Mouse-wheel for rotary widgets
-    HandleRotaryMouseWheel(ctx, cell)
+
+local function DrawRectButton(ctx, drawList, surfName, cell, bw, bh)
+    local label = getProcessedLabel(GetButtonLabel(surfName, cell))
+    local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
+    local cx, cy = imgui.GetCursorScreenPos(ctx)
+
+    imgui.DrawList_AddRectFilled(drawList, cx, cy, cx + bw, cy + bh, bgCol, 4)
+    RenderCenteredWrappedText(ctx, drawList, label, cx + bw / 2, cy + bh / 2, bw - 8, bh)
+    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
 end
 
 --- Draw a stadium ("discorectangle") or circle shape for round buttons.
@@ -710,27 +709,23 @@ end
 --- full grid cell (bw x bh) for layout alignment. The circle/stadium is drawn
 --- centered within the cell using the aspect-free dimensions (visualW x bh).
 local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW)
-    local label = processLabel(GetButtonLabel(surfName, cell))
+    local label = getProcessedLabel(GetButtonLabel(surfName, cell))
     local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
-    local value = GetButtonValue(surfName, cell.name)
-
     local cx, cy = imgui.GetCursorScreenPos(ctx)
-    -- Center the visual shape within the grid cell
+
     local offsetX = (bw - visualW) / 2
-    local vx = cx + offsetX  -- visual left edge
-    local pad2 = 2  -- inset from edges
+    local vx = cx + offsetX
+    local pad2 = 2
     local centerX = vx + visualW / 2
     local centerY = cy + bh / 2
-    local segments = 18 -- segments per half-circle
+    local segments = 18
 
-    -- Determine if we need a stadium or a circle
     local innerW = visualW - pad2 * 2
     local innerH = bh - pad2 * 2
     local isCircle = math.abs(innerW - innerH) < 2
 
     local function drawStadiumPath(inset)
         if isCircle then
-            -- Simple circle
             local radius = math.min(innerW, innerH) / 2 - inset
             for i = 0, segments * 2 - 1 do
                 local angle = (i / (segments * 2)) * math.pi * 2
@@ -739,7 +734,6 @@ local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW)
                     centerY + radius * math.sin(angle))
             end
         elseif innerW > innerH then
-            -- Horizontal stadium: left half-circle + rect + right half-circle
             local radius = innerH / 2 - inset
             local bodyLeft = vx + pad2 + radius + inset
             local bodyRight = vx + visualW - pad2 - radius - inset
@@ -756,7 +750,6 @@ local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW)
                     centerY + radius * math.sin(angle))
             end
         else
-            -- Vertical stadium: top half-circle + rect + bottom half-circle
             local radius = innerW / 2 - inset
             local bodyTop  = cy + pad2 + radius + inset
             local bodyBot  = cy + bh - pad2 - radius - inset
@@ -775,41 +768,10 @@ local function DrawRoundButton(ctx, drawList, surfName, cell, bw, bh, visualW)
         end
     end
 
-    -- Fill background
     drawStadiumPath(0)
     imgui.DrawList_PathFillConvex(drawList, bgCol)
-
-    -- Label (multi-line word-wrap)
-    imgui.PushFont(ctx, FONT_SMALL)
-    local textPad = 6
-    local lines = wrapText(ctx, label, visualW - textPad * 2)
-    local _, lineH = imgui.CalcTextSize(ctx, "M")
-    local totalH = #lines * lineH
-    local startY = centerY - totalH / 2
-    local textCol = applyAlpha(COLORS.text_normal, vars.btn_transparency)
-    for li, ln in ipairs(lines) do
-        local tw = imgui.CalcTextSize(ctx, ln)
-        local tx = centerX - tw / 2
-        local ty = startY + (li - 1) * lineH
-        if ty + lineH > cy + bh then break end
-        imgui.DrawList_AddText(drawList, tx, ty, textCol, ln)
-    end
-    imgui.PopFont(ctx)
-
-    -- Invisible button (uses full cell width bw for grid alignment)
-    local clicked = imgui.InvisibleButton(ctx, "##btn_" .. (cell.name or ""), bw, bh)
-    if clicked and vars.clickable and cell.name then
-        local surfName2 = surfaces[currentSurface]
-        if surfName2 then
-            local msg = surfName2 .. "|" .. cell.name
-            local col = GetButtonColor(surfName2, cell.name)
-            r.SetExtState(EXT_CMD_SECTION, "WidgetPress", msg, false)
-            r.ShowConsoleMsg(string.format("[CSI OSK] Click: %s  color=#%06X\n", msg, (col >> 8) & 0xFFFFFF))
-        end
-    end
-    ShowDelayedTooltip(ctx, cell.name or "", label)
-    -- Mouse-wheel for rotary widgets
-    HandleRotaryMouseWheel(ctx, cell)
+    RenderCenteredWrappedText(ctx, drawList, label, centerX, centerY, visualW - 12, bh)
+    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
 end
 
 --- Draw an arrow-shaped button: rectangular body with a triangular "point" glued
@@ -818,19 +780,13 @@ end
 --- creating a wider, shallower point. Point depth = (dim/2) / tan(angle/2).
 --- Supports left, right, up, down directions.
 local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction)
-    local label = processLabel(GetButtonLabel(surfName, cell))
+    local label = getProcessedLabel(GetButtonLabel(surfName, cell))
     local bgCol = applyAlpha(GetButtonColor(surfName, cell.name), vars.btn_transparency)
     local value = GetButtonValue(surfName, cell.name)
 
     if value > 0 then bgCol = applyAlpha(COLORS.arrow_on, vars.btn_transparency) end
 
     local cx, cy = imgui.GetCursorScreenPos(ctx)
-
-    -- Compute triangle point depth from the configurable apex angle.
-    -- For a triangle with base = dimension and apex angle = ARROW_ANGLE:
-    --   pointDepth = (base/2) / tan(apex_angle/2)
-    -- At 90° this gives depth = base/2 (isoceles right triangle).
-    -- At 120° (obtuse) this gives a shallower point.
     local halfAngleRad = math.rad(ARROW_ANGLE / 2)
     local pointDepth
     if direction == "left" or direction == "right" then
@@ -838,14 +794,12 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction)
     else
         pointDepth = (bw / 2) / math.tan(halfAngleRad)
     end
-    -- Clamp pointDepth so the body part doesn't disappear
     if direction == "left" or direction == "right" then
         pointDepth = math.min(pointDepth, bw * 0.45)
     else
         pointDepth = math.min(pointDepth, bh * 0.45)
     end
 
-    -- Helper to draw the 5-vertex pentagon path
     local function drawArrowPath()
         if direction == "left" then
             local bodyL = cx + pointDepth
@@ -886,8 +840,6 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction)
     drawArrowPath()
     imgui.DrawList_PathFillConvex(drawList, bgCol)
 
-    -- Label centered in the body area (excluding triangle)
-    imgui.PushFont(ctx, FONT_SMALL)
     local labelCX, labelCY
     if direction == "left" then
         labelCX = cx + pointDepth + (bw - pointDepth) / 2
@@ -907,33 +859,8 @@ local function DrawArrowButton(ctx, drawList, surfName, cell, bw, bh, direction)
     end
 
     local bodyW = (direction == "left" or direction == "right") and (bw - pointDepth) or bw
-    local lines = wrapText(ctx, label, bodyW - 8)
-    local _, lineH = imgui.CalcTextSize(ctx, "M")
-    local totalH = #lines * lineH
-    local startY = labelCY - totalH / 2
-    local textCol = applyAlpha(COLORS.text_normal, vars.btn_transparency)
-    for li, ln in ipairs(lines) do
-        local tw = imgui.CalcTextSize(ctx, ln)
-        local tx = labelCX - tw / 2
-        local ty = startY + (li - 1) * lineH
-        if ty + lineH > cy + bh then break end
-        imgui.DrawList_AddText(drawList, tx, ty, textCol, ln)
-    end
-    imgui.PopFont(ctx)
-
-    local clicked = imgui.InvisibleButton(ctx, "##btn_" .. (cell.name or ""), bw, bh)
-    if clicked and vars.clickable and cell.name then
-        local surfName2 = surfaces[currentSurface]
-        if surfName2 then
-            local msg = surfName2 .. "|" .. cell.name
-            local col = GetButtonColor(surfName2, cell.name)
-            r.SetExtState(EXT_CMD_SECTION, "WidgetPress", msg, false)
-            r.ShowConsoleMsg(string.format("[CSI OSK] Click: %s  color=#%06X\n", msg, (col >> 8) & 0xFFFFFF))
-        end
-    end
-    ShowDelayedTooltip(ctx, cell.name or "", label)
-    -- Mouse-wheel for rotary widgets
-    HandleRotaryMouseWheel(ctx, cell)
+    RenderCenteredWrappedText(ctx, drawList, label, labelCX, labelCY, bodyW - 8, bh)
+    DrawButtonInteraction(ctx, surfName, cell, bw, bh, label)
 end
 
 -- ================================================================
@@ -1001,6 +928,28 @@ local function RenderSurface(ctx, surfName)
     end
 end
 
+local function RenderAllSurfaces(ctx)
+    if #surfaces == 0 then return end
+    for i, surfName in ipairs(surfaces) do
+        imgui.PushFont(ctx, FONT_SMALL)
+        imgui.Text(ctx, surfName)
+        imgui.PopFont(ctx)
+        RenderSurface(ctx, surfName)
+        if i < #surfaces then
+            imgui.Separator(ctx)
+        end
+    end
+end
+
+local function SliderSetting(ctx, label, currentValue, storeKey, min, max, fmt)
+    local rv, value = imgui.SliderDouble(ctx, label, currentValue, min, max, fmt)
+    if rv then
+        vars[storeKey] = value
+        SaveSettings()
+    end
+    return rv, value
+end
+
 local function RenderContextMenu(ctx)
     if imgui.BeginPopupContextWindow(ctx, "OSK_ContextMenu") then
         -- Extra toolbar action buttons at the top
@@ -1022,10 +971,17 @@ local function RenderContextMenu(ctx)
 
         -- Surface tabs (if multiple surfaces)
         if #surfaces > 1 then
-            for i, name in ipairs(surfaces) do
-                local isSelected = (i == currentSurface)
-                if imgui.MenuItem(ctx, name, nil, isSelected) then
-                    currentSurface = i
+            local toggled
+            toggled, vars.show_all_surfaces = imgui.Checkbox(ctx, "Show all surfaces", vars.show_all_surfaces)
+            if toggled then SaveSettings() end
+
+            if not vars.show_all_surfaces then
+                imgui.Separator(ctx)
+                for i, name in ipairs(surfaces) do
+                    local isSelected = (i == currentSurface)
+                    if imgui.MenuItem(ctx, name, nil, isSelected) then
+                        currentSurface = i
+                    end
                 end
             end
             imgui.Separator(ctx)
@@ -1034,47 +990,14 @@ local function RenderContextMenu(ctx)
         -- Settings
         local rv
 
-        rv, ZOOM = imgui.SliderDouble(ctx, "Zoom", ZOOM, 0.5, 3.0, "%.1f")
-        if rv then
-            vars.zoom = ZOOM
-            SaveSettings()
-        end
-
-        rv, BUTTON_ASPECT = imgui.SliderDouble(ctx, "Aspect (W/H)", BUTTON_ASPECT, 0.5, 2.0, "%.2f")
-        if rv then
-            vars.aspect = BUTTON_ASPECT
-            SaveSettings()
-        end
-
-        rv, BUTTON_PAD_H = imgui.SliderDouble(ctx, "H Padding", BUTTON_PAD_H, 0, 20, "%.0f")
-        if rv then
-            vars.pad_h = BUTTON_PAD_H
-            SaveSettings()
-        end
-
-        rv, BUTTON_PAD_V = imgui.SliderDouble(ctx, "V Padding", BUTTON_PAD_V, 0, 20, "%.0f")
-        if rv then
-            vars.pad_v = BUTTON_PAD_V
-            SaveSettings()
-        end
-
-        rv, ARROW_ANGLE = imgui.SliderDouble(ctx, "Arrow Angle", ARROW_ANGLE, 60, 150, "%.0f")
-        if rv then
-            vars.arrow_angle = ARROW_ANGLE
-            SaveSettings()
-        end
-
-        rv, vars.transparency = imgui.SliderDouble(ctx, "Window Alpha", vars.transparency, 0.2, 1.0, "%.2f")
-        if rv then SaveSettings() end
-
-        rv, vars.btn_transparency = imgui.SliderDouble(ctx, "Button Alpha", vars.btn_transparency, 0.2, 1.0, "%.2f")
-        if rv then SaveSettings() end
-
-        rv, TOOLTIP_DELAY = imgui.SliderDouble(ctx, "Tooltip Delay", TOOLTIP_DELAY, 0.0, 5.0, "%.1fs")
-        if rv then
-            vars.tooltip_delay = TOOLTIP_DELAY
-            SaveSettings()
-        end
+        rv, ZOOM = SliderSetting(ctx, "Zoom", ZOOM, "zoom", 0.5, 3.0, "%.1f")
+        rv, BUTTON_ASPECT = SliderSetting(ctx, "Aspect (W/H)", BUTTON_ASPECT, "aspect", 0.5, 2.0, "%.2f")
+        rv, BUTTON_PAD_H = SliderSetting(ctx, "H Padding", BUTTON_PAD_H, "pad_h", 0, 20, "%.0f")
+        rv, BUTTON_PAD_V = SliderSetting(ctx, "V Padding", BUTTON_PAD_V, "pad_v", 0, 20, "%.0f")
+        rv, ARROW_ANGLE = SliderSetting(ctx, "Arrow Angle", ARROW_ANGLE, "arrow_angle", 60, 150, "%.0f")
+        rv, vars.transparency = SliderSetting(ctx, "Window Alpha", vars.transparency, "transparency", 0.2, 1.0, "%.2f")
+        rv, vars.btn_transparency = SliderSetting(ctx, "Button Alpha", vars.btn_transparency, "btn_transparency", 0.2, 1.0, "%.2f")
+        rv, TOOLTIP_DELAY = SliderSetting(ctx, "Tooltip Delay", TOOLTIP_DELAY, "tooltip_delay", 0.0, 5.0, "%.1fs")
 
         rv, vars.clickable = imgui.Checkbox(ctx, "Clickable buttons", vars.clickable)
         if rv then SaveSettings() end
@@ -1093,7 +1016,6 @@ local function RenderContextMenu(ctx)
 end
 
 local function main()
-    -- Poll data
     if not PollData() then
         return -- Close requested
     end
@@ -1105,8 +1027,6 @@ local function main()
 
     imgui.PushStyleColor(ctx, imgui.Col_WindowBg, COLORS.win_bg)
     imgui.PushStyleColor(ctx, imgui.Col_TitleBgActive, COLORS.win_bg)
-
-    -- Apply window transparency
     imgui.SetNextWindowBgAlpha(ctx, vars.transparency)
 
     local visible, p_open = imgui.Begin(ctx, 'CSI On-Screen Keyboard', true,
@@ -1119,16 +1039,16 @@ local function main()
     if visible then
         imgui.PushFont(ctx, FONT)
 
-        -- Right-click context menu (replaces top bar)
         RenderContextMenu(ctx)
 
-        -- Render current surface directly (no BeginChild — allows AlwaysAutoResize to work)
-        local surfName = surfaces[currentSurface]
-        if surfName then
-            RenderSurface(ctx, surfName)
+        -- Render surface(s) directly (no BeginChild — allows AlwaysAutoResize to work)
+        if vars.show_all_surfaces and #surfaces > 1 then
+            RenderAllSurfaces(ctx)
+        else
+            local surfName = surfaces[currentSurface]
+            if surfName then RenderSurface(ctx, surfName) end
         end
 
-        -- OSD status bar (shows CSI_TMP/OSD messages; hidden when empty)
         RenderOSDBar(ctx)
 
         imgui.PopFont(ctx)

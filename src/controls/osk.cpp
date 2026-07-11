@@ -224,6 +224,37 @@ void ControlSurface::PublishOSKLabels() {
     PublishOSKLabelMap();
 }
 
+// ---------------------------------------------------------------------------
+// OSK input simulation
+// ---------------------------------------------------------------------------
+
+void ControlSurface::InjectOSKPress(const string& widgetName) {
+    Widget* widget = GetWidgetByName(widgetName);
+    if (!widget) {
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
+            LogToConsole("[DEBUG] InjectOSKPress: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
+        return;
+    }
+    widget->LogInput(1.0);
+    zoneManager_->DoAction(widget, 1.0);
+    // Simulate release for two-state buttons so they don't stay "held".
+    if (widget->GetIsTwoState())
+        zoneManager_->DoAction(widget, 0.0);
+}
+
+void ControlSurface::InjectOSKScroll(const string& widgetName, bool isIncrease) {
+    Widget* widget = GetWidgetByName(widgetName);
+    if (!widget) {
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
+            LogToConsole("[DEBUG] InjectOSKScroll: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
+        return;
+    }
+    double step = widget->GetStepSize();
+    if (step <= 0.0) step = 0.01;   // sensible default: 1 % of normalized range per tick
+    widget->LogInput(isIncrease ? step : -step);
+    zoneManager_->DoRelativeAction(widget, isIncrease ? step : -step);
+}
+
 void ControlSurface::PublishOSKLabelMap() {
     if (!isOskEnabled_) return;
     if (!zoneManager_) return;

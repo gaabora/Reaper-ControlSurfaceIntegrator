@@ -194,6 +194,56 @@ public:
         LogToConsole("[ERROR] FAILED to OpenOSDPanel. ReaScript: '%s' command ID: %s (%d) state: %d\n", REASCRIPT_PATH__CSI_OSD, REASCRIPT_HASH__CSI_OSD, commandId, runningState);
     }
 
+    // -----------------------------------------------------------------------
+    // OSK command bridge — poll Lua-written ExtState commands and dispatch to
+    // the surface that owns the named widget.  Called from Run().
+    // -----------------------------------------------------------------------
+    void DispatchOSKWidgetPress(const string& surfName, const string& widgetName) {
+        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
+        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->InjectOSKPress(widgetName);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG)
+            LogToConsole("[DEBUG] DispatchOSKWidgetPress: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void DispatchOSKWidgetScroll(const string& surfName, const string& widgetName, bool isIncrease) {
+        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
+        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+            if (surfName == surface->GetName()) {
+                surface->InjectOSKScroll(widgetName, isIncrease);
+                return;
+            }
+        }
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetScroll: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void PollAndHandleOSKCommands() {
+        if (::HasExtState("CSI_OSK_CMD", "WidgetPress")) {
+            string payload = ::GetExtState("CSI_OSK_CMD", "WidgetPress");
+            ::DeleteExtState("CSI_OSK_CMD", "WidgetPress", false);
+            auto sep = payload.find('|');
+            if (sep != string::npos)
+                DispatchOSKWidgetPress(payload.substr(0, sep), payload.substr(sep + 1));
+        }
+        if (::HasExtState("CSI_OSK_CMD", "WidgetScroll")) {
+            string payload = ::GetExtState("CSI_OSK_CMD", "WidgetScroll");
+            ::DeleteExtState("CSI_OSK_CMD", "WidgetScroll", false);
+            // Format: surfaceName|widgetName|Inc  or  surfaceName|widgetName|Dec
+            auto sep1 = payload.find('|');
+            if (sep1 != string::npos) {
+                auto sep2 = payload.find('|', sep1 + 1);
+                if (sep2 != string::npos) {
+                    bool isInc = (payload.substr(sep2 + 1) == "Inc");
+                    DispatchOSKWidgetScroll(payload.substr(0, sep1), payload.substr(sep1 + 1, sep2 - sep1 - 1), isInc);
+                }
+            }
+        }
+    }
+
     int oskCommandId_ = 0;
     void OpenOSKPanel() {
         string scriptsPath = string(GetResourcePath()) + REASCRIPT_PATH__CSI_OSK;
@@ -390,6 +440,7 @@ public:
                 DAW::ShowOSD(QueuedOSD);
                 QueuedOSD = osd_data();
             }
+            PollAndHandleOSKCommands();
             try {
                 pages_[currentPageIndex_]->Run();
             } catch (const ReloadPluginException& e) {
