@@ -1,5 +1,39 @@
 #include "integrator.h"
 
+static float ClampPositiveScale(float value) {
+    return value > 0.0f ? value : 1.0f;
+}
+
+static float ClampNonNegativeScale(float value) {
+    return value >= 0.0f ? value : 0.0f;
+}
+
+static bool IsNearNeutralColor(const rgba_color& color, int tolerancePercent) {
+    if (tolerancePercent <= 0)
+        return false;
+
+    const int maxChannel = std::max(color.r, std::max(color.g, color.b));
+    const int minChannel = std::min(color.r, std::min(color.g, color.b));
+    const int tolerance = std::max(2, (int) std::lround((float) maxChannel * ((float) tolerancePercent / 100.0f)));
+    return maxChannel > 0 && (maxChannel - minChannel) <= tolerance;
+}
+
+static int MapColorChannelToDeviceLevel(int channel, int inputMax, int outputMax, float brightnessScale, float channelScale, float neutralScale, float neutralCurve, bool applyNeutralScale) {
+    if (inputMax <= 0) inputMax = 255;
+    if (outputMax < 0) outputMax = 0;
+
+    float normalized = (float) wdl_clamp(channel, 0, inputMax) / (float) inputMax;
+    float effectiveScale = ClampPositiveScale(channelScale);
+
+    if (applyNeutralScale) {
+        const float clampedNeutralScale = ClampPositiveScale(neutralScale);
+        const float clampedNeutralCurve = ClampPositiveScale(neutralCurve);
+        effectiveScale *= clampedNeutralScale + (1.0f - clampedNeutralScale) * std::pow(normalized, clampedNeutralCurve);
+    }
+
+    return wdl_clamp((int) std::lround(normalized * ClampNonNegativeScale(brightnessScale) * effectiveScale * (float) outputMax), 0, outputMax);
+}
+
 // ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 static string GetOskSurfaceEnabledSettingsKey(const string& surfaceName) {
@@ -73,6 +107,19 @@ rgba_color ControlSurface::GetTrackColorForChannel(int channel) {
         return DAW::GetTrackColor(track);
     else
         return white;
+}
+
+rgba_color ControlSurface::GetDeviceFeedbackColor(const rgba_color& color, int defaultOutputMax, float brightnessScale) const {
+    const int inputMax = this->colorCalibration_.enabled && this->colorCalibration_.inputMax > 0 ? this->colorCalibration_.inputMax : 255;
+    const int outputMax = this->colorCalibration_.enabled && this->colorCalibration_.outputMax > 0 ? this->colorCalibration_.outputMax : defaultOutputMax;
+    const bool applyNeutralScale = this->colorCalibration_.enabled && IsNearNeutralColor(color, this->colorCalibration_.neutralTolerancePercent);
+
+    rgba_color deviceColor;
+    deviceColor.r = MapColorChannelToDeviceLevel(color.r, inputMax, outputMax, brightnessScale, this->colorCalibration_.redScale, this->colorCalibration_.neutralRedScale, this->colorCalibration_.neutralCurve, applyNeutralScale);
+    deviceColor.g = MapColorChannelToDeviceLevel(color.g, inputMax, outputMax, brightnessScale, this->colorCalibration_.greenScale, this->colorCalibration_.neutralGreenScale, this->colorCalibration_.neutralCurve, applyNeutralScale);
+    deviceColor.b = MapColorChannelToDeviceLevel(color.b, inputMax, outputMax, brightnessScale, this->colorCalibration_.blueScale, this->colorCalibration_.neutralBlueScale, this->colorCalibration_.neutralCurve, applyNeutralScale);
+    deviceColor.a = color.a;
+    return deviceColor;
 }
 
 void ControlSurface::RequestUpdate() {
@@ -218,6 +265,7 @@ void ControlSurface::ClearModifiers() {
 void ControlSurface::ProcessValues(const vector<vector<string>>& lines) {
     bool inStepSizes = false;
     bool inAccelerationValues = false;
+    bool inColorCalibration = false;
 
     for (int i = 0; i < (int) lines.size(); ++i) {
         if (lines[i].size() > 0) {
@@ -225,6 +273,33 @@ void ControlSurface::ProcessValues(const vector<vector<string>>& lines) {
             else if (lines[i][0] == "StepSizeEnd") { inStepSizes = false; continue; }
             else if (lines[i][0] == "AccelerationValues") { inAccelerationValues = true; continue; }
             else if (lines[i][0] == "AccelerationValuesEnd") { inAccelerationValues = false; continue; }
+            else if (lines[i][0] == "ColorCalibration") {
+                inColorCalibration = true;
+                this->colorCalibration_ = ColorCalibrationConfig{};
+                this->colorCalibration_.enabled = true;
+                continue;
+            } else if (lines[i][0] == "ColorCalibrationEnd") {
+                inColorCalibration = false;
+                continue;
+            }
+
+            if (inColorCalibration && lines[i].size() > 1) {
+                const string& key = lines[i][0];
+                const char* value = lines[i][1].c_str();
+
+                if (key == "Enabled") this->colorCalibration_.enabled = !IsSameString(value, "No");
+                else if (key == "InputMax") this->colorCalibration_.inputMax = atoi(value);
+                else if (key == "OutputMax") this->colorCalibration_.outputMax = atoi(value);
+                else if (key == "NeutralTolerancePercent") this->colorCalibration_.neutralTolerancePercent = atoi(value);
+                else if (key == "RedScale") this->colorCalibration_.redScale = (float) atof(value);
+                else if (key == "GreenScale") this->colorCalibration_.greenScale = (float) atof(value);
+                else if (key == "BlueScale") this->colorCalibration_.blueScale = (float) atof(value);
+                else if (key == "NeutralRedScale") this->colorCalibration_.neutralRedScale = (float) atof(value);
+                else if (key == "NeutralGreenScale") this->colorCalibration_.neutralGreenScale = (float) atof(value);
+                else if (key == "NeutralBlueScale") this->colorCalibration_.neutralBlueScale = (float) atof(value);
+                else if (key == "NeutralCurve") this->colorCalibration_.neutralCurve = (float) atof(value);
+                continue;
+            }
 
             if (lines[i].size() > 1) {
                 const string& widgetClass = lines[i][0];

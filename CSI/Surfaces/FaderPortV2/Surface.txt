@@ -1,0 +1,200 @@
+// ===========================================
+// Surface file for the PreSonius FADERPORT V2 (2018) 
+// MUST be in Studio One mode (hold Next when power on, then press Solo)
+//
+// these buttons can be any color:
+//   Touch, Write, Read
+//   Link, Pan, Channel, Scroll
+// ===========================================
+
+StepSize
+  RotaryWidgetClass 0.003
+StepSizeEnd
+
+AccelerationValues
+  RotaryWidgetClass Dec 41    42   43   44   45   46   47
+  RotaryWidgetClass Inc 01    02   03   04   05   06   07
+  RotaryWidgetClass Val 0.005 0.01 0.02 0.04 0.08 0.16 0.32
+AccelerationValuesEnd
+
+ColorCalibration
+  OutputMax 127
+  NeutralTolerancePercent 5
+  NeutralRedScale 0.80
+  NeutralCurve 2.0
+ColorCalibrationEnd
+
+// ===========================================
+// FADER
+// ===========================================
+
+Widget Fader # Shape=Fader Height=7.5
+  Fader14Bit      e0 7f 7f
+  FB_Fader14Bit   e0 7f 7f
+  Touch           90 68 7f 90 68 00
+WidgetEnd
+
+// ===========================================
+// BUTTONS ROW 1
+// ===========================================
+
+Widget Solo # Color=ff9900
+  Press           90 08 7f 90 08 00
+  FB_TwoState     90 08 7f 90 08 00
+WidgetEnd
+
+Widget Mute # Color=ff2222
+  Press           90 10 7f 90 10 00
+  FB_TwoState     90 10 7f 90 10 00
+WidgetEnd
+
+Widget Arm # Color=ff2222
+  Press           90 00 7f 90 00 00
+  FB_TwoState     90 00 7f 90 00 00
+WidgetEnd
+
+Widget Shift # Color=ff9900
+  Press           90 46 7f 90 46 00
+  FB_TwoState     90 46 7f 90 46 00
+WidgetEnd
+
+// ===========================================
+// BUTTONS ROW 2
+// ===========================================
+
+# OSKRow
+Widget Bypass # Color=55bbff
+  Press           90 03 7f 90 03 00
+  FB_TwoState     90 03 7f 90 03 00
+WidgetEnd
+
+Widget Touch
+  Press           90 4d 7f 90 4d 00
+  FB_FaderportRGB 90 4d 7f
+WidgetEnd
+
+Widget Write
+  Press           90 4b 7f 90 4b 00
+  FB_FaderportRGB 90 4b 7f
+WidgetEnd
+
+Widget Read
+  Press           90 4a 7f 90 4a 00
+  FB_FaderportRGB 90 4a 7f
+WidgetEnd
+
+// ===========================================
+// NAV + WHEEL
+// ===========================================
+
+# OSKRow
+# OSKSpacer Width=0.25
+Widget Prev # Shape=LeftArrow Color=55bbff Top=0.25
+  Press           90 2e 7f 90 2e 00
+  FB_TwoState     90 2e 7f 90 2e 00
+WidgetEnd
+
+Widget RotaryBig RotaryWidgetClass # Shape=Round Height=1.5 Width=1.5 Group=RotaryGroup
+  Encoder         b0 10 7f [ > 01-3f < 41-7f ]
+WidgetEnd
+
+Widget RotaryBigPush # Group=RotaryGroup OSKHidden
+  Press           90 20 7f 90 20 00
+WidgetEnd
+
+Widget Next # Shape=RightArrow Color=55bbff Top=0.25
+  Press           90 2f 7f 90 2f 00
+  FB_TwoState     90 2f 7f 90 2f 00
+WidgetEnd
+# OSKSpacer Width=0.25
+
+// ===========================================
+// BUTTONS ROW 3
+// ===========================================
+
+# OSKRow
+Widget Link
+  Press           90 05 7f 90 05 00
+  FB_FaderportRGB 90 05 7f
+WidgetEnd
+
+Widget Pan
+  Press           90 2a 7f 90 2a 00
+  FB_FaderportRGB 90 2a 7f
+WidgetEnd
+
+Widget Channel
+  Press           90 36 7f 90 36 00
+  FB_FaderportRGB 90 36 7f
+WidgetEnd
+
+Widget Scroll
+  Press           90 38 7f 90 38 00
+  FB_FaderportRGB 90 38 7f
+WidgetEnd
+
+// ===========================================
+// BUTTONS ROW 4
+// ===========================================
+
+# OSKRow
+Widget Master # Color=ff9900
+  Press           90 3a 7f 90 3a 00
+  FB_TwoState     90 3a 7f 90 3a 00
+WidgetEnd
+
+Widget Click # Color=55ff55
+  Press           90 3b 7f 90 3b 00
+  FB_TwoState     90 3b 7f 90 3b 00
+WidgetEnd
+
+Widget Section # Color=55bbff
+  Press           90 3c 7f 90 3c 00
+  FB_TwoState     90 3c 7f 90 3c 00
+WidgetEnd
+
+Widget Marker # Color=55bbff
+  Press           90 3d 7f 90 3d 00
+  FB_TwoState     90 3d 7f 90 3d 00
+WidgetEnd
+
+// ===========================================
+// TRANSPORT
+// ===========================================
+
+# OSKRow
+# OSKSpacer Width=0.5
+Widget Loop # Shape=Round Color=55bbff
+  Press           90 56 7f 90 56 00
+  FB_TwoState     90 56 7f 90 56 00
+WidgetEnd
+
+Widget Rewind # Shape=Round Color=55ff55
+  Press           90 5b 7f 90 5b 00
+  FB_TwoState     90 5b 7f 90 5b 00
+WidgetEnd
+
+Widget FastForward # Shape=Round Color=55ff55
+  Press           90 5c 7f 90 5c 00
+  FB_TwoState     90 5c 7f 90 5c 00
+WidgetEnd
+# OSKSpacer Width=0.5
+
+# OSKRow
+Widget Stop # Shape=Round Color=ff9900
+  Press           90 5d 7f 90 5d 00
+  FB_TwoState     90 5d 7f 90 5d 00
+WidgetEnd
+
+# OSKSpacer Width=0.25
+Widget Play # Shape=Round  Height=1.5 Width=1.5 Color=55ff55 Top=0.25
+  Press           90 5e 7f 90 5e 00
+  FB_TwoState     90 5e 7f 90 5e 00
+WidgetEnd
+# OSKSpacer Width=0.25
+
+Widget Record # Shape=Round Color=ff2222
+  Press           90 5f 7f 90 5f 00
+  FB_TwoState     90 5f 7f 90 5f 00
+WidgetEnd
+

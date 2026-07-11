@@ -60,6 +60,20 @@ Describes the physical capabilities:
 - What messages the hardware sends (MIDI/OSC)
 - What messages control the hardware (how to light LEDs, update displays)
 
+`surface.txt` can also contain optional global blocks that affect the whole surface, such as `StepSize`, `AccelerationValues`, and `ColorCalibration`.
+
+Example:
+```
+ColorCalibration
+  OutputMax 127
+  NeutralTolerancePercent 5
+  NeutralRedScale 0.80
+  NeutralCurve 2.0
+ColorCalibrationEnd
+```
+
+This lets a surface template tune RGB feedback without hardcoding device-specific color compensation in C++.
+
 Example: "This X-Touch has 8 faders, each with a button above it, a display, and RGB LEDs"
 
 #### B) **Zone Files** (.zon) - Control Mapping

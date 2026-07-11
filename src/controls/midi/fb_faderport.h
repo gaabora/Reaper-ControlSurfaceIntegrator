@@ -25,27 +25,20 @@ public:
     virtual void SetValue(const PropertyList& properties, double active) override { active_ = active != 0; }
 
     virtual void SetColorValue(const rgba_color& color) override {
-        int RGBIndexDivider = 1 * 2;
-
-        if (active_ == false) RGBIndexDivider = 9 * 2;
-
-        rgba_color c;
-        c.r = color.r / RGBIndexDivider;
-        c.g = color.g / RGBIndexDivider;
-        c.b = color.b / RGBIndexDivider;
-        c.a = color.a;
-        if (c != lastColor_)
-            ForceColorValue(c);
+        const float brightnessScale = active_ ? 1.0f : (1.0f / 9.0f);
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color, 127, brightnessScale);
+        if (deviceColor != this->lastColor_)
+            ForceColorValue(deviceColor);
     }
 
     virtual void ForceColorValue(const rgba_color& color) override {
-        lastColor_ = color;
+        this->lastColor_ = color;
         SendMidiMessage(0x90, midiFeedbackMessage1_.midi_message[1], 0x7f);
         SendMidiMessage(0x91, midiFeedbackMessage1_.midi_message[1], color.r);
         SendMidiMessage(0x92, midiFeedbackMessage1_.midi_message[1], color.g);
         SendMidiMessage(0x93, midiFeedbackMessage1_.midi_message[1], color.b);
 
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", this->widget_->GetName(), color.r, color.g, color.b);
     }
 };
 
@@ -64,18 +57,19 @@ public:
     }
 
     virtual void SetColorValue(const rgba_color& color) override {
-        if (color != lastColor_) 
-            ForceColorValue(color);
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color, 127);
+        if (deviceColor != this->lastColor_)
+            ForceColorValue(deviceColor);
     }
 
     virtual void ForceColorValue(const rgba_color& color) override {
-        lastColor_ = color;
+        this->lastColor_ = color;
 
         SendMidiMessage(0x90, midiFeedbackMessage1_.midi_message[1], 0x7f);
-        SendMidiMessage(0x91, midiFeedbackMessage1_.midi_message[1], color.r / 2);
-        SendMidiMessage(0x92, midiFeedbackMessage1_.midi_message[1], color.g / 2);
-        SendMidiMessage(0x93, midiFeedbackMessage1_.midi_message[1], color.b / 2);
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
+        SendMidiMessage(0x91, midiFeedbackMessage1_.midi_message[1], color.r);
+        SendMidiMessage(0x92, midiFeedbackMessage1_.midi_message[1], color.g);
+        SendMidiMessage(0x93, midiFeedbackMessage1_.midi_message[1], color.b);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", this->widget_->GetName(), color.r, color.g, color.b);
     }
 };
 

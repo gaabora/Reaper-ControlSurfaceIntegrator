@@ -21,21 +21,22 @@ public:
     }
 
     virtual void SetColorValue(const rgba_color& color) override {
-        if (color != lastColor_)
-            ForceColorValue(color);
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color, 127);
+        if (deviceColor != this->lastColor_)
+            ForceColorValue(deviceColor);
     }
 
     virtual void ForceColorValue(const rgba_color& color) override {
-        lastColor_ = color;
-        SendMidiMessage(0x91, midiFeedbackMessage1_.midi_message[1], color.r / 2);
-        SendMidiMessage(0x92, midiFeedbackMessage1_.midi_message[1], color.g / 2);
-        SendMidiMessage(0x93, midiFeedbackMessage1_.midi_message[1], color.b / 2);
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
+        this->lastColor_ = color;
+        SendMidiMessage(0x91, midiFeedbackMessage1_.midi_message[1], color.r);
+        SendMidiMessage(0x92, midiFeedbackMessage1_.midi_message[1], color.g);
+        SendMidiMessage(0x93, midiFeedbackMessage1_.midi_message[1], color.b);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", this->widget_->GetName(), color.r, color.g, color.b);
     }
 
     virtual void ForceUpdateTrackColors() override {
         if (preventUpdateTrackColors_) return;
-        ForceColorValue(surface_->GetTrackColorForChannel(widget_->GetChannelNumber() - 1));
+        SetColorValue(this->surface_->GetTrackColorForChannel(this->widget_->GetChannelNumber() - 1));
     }
 };
 

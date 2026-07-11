@@ -63,12 +63,27 @@ private:
         vector<OskCell> cells;
     };
 
+    struct ColorCalibrationConfig {
+        bool enabled = false;
+        int inputMax = 0;
+        int outputMax = 0;
+        int neutralTolerancePercent = 0;
+        float redScale = 1.0f;
+        float greenScale = 1.0f;
+        float blueScale = 1.0f;
+        float neutralRedScale = 1.0f;
+        float neutralGreenScale = 1.0f;
+        float neutralBlueScale = 1.0f;
+        float neutralCurve = 1.0f;
+    };
+
     vector<OskRow> oskLayout_;
     string cachedOskLayoutString_;
     string cachedOskStateString_;
     string cachedOskLabelsString_;
     string cachedOskLabelMapString_;
     string surfaceFilePath_;
+    ColorCalibrationConfig colorCalibration_;
     map<string, string> oskConfigZoneNamesByWidget_;
     map<string, string> oskConfigZonePathsByWidget_;
     int oskRunCounter_ = 0;
@@ -238,6 +253,7 @@ public:
     int GetNumChannels() { return numChannels_; }
     int GetChannelOffset() { return channelOffset_; }
     rgba_color GetTrackColorForChannel(int channel);
+    rgba_color GetDeviceFeedbackColor(const rgba_color& color, int defaultOutputMax = 255, float brightnessScale = 1.0f) const;
 
     bool GetIsRewinding() { return isRewinding_; }
     bool GetIsFastForwarding() { return isFastForwarding_; }

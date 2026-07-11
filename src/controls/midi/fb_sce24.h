@@ -91,11 +91,13 @@ public:
         else if (value == 1 && properties.get_prop(PropertyType_OnColor))
             GetColorValue(properties.get_prop(PropertyType_OnColor), color);
 
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color, 127);
+
         SysExBuilder builder;
         builder.begin()
             .add(0x00).add(0x02).add(0x38).add(0x01)
             .add(midiFeedbackMessage1_.midi_message[1])
-            .add(color.r / 2).add(color.g / 2).add(color.b / 2)
+            .add(deviceColor.r).add(deviceColor.g).add(deviceColor.b)
             .end();
         SendMidiSysExMessage(builder.message());
     }
@@ -165,13 +167,16 @@ public:
         const char* displayText = properties.get_prop(PropertyType_DisplayText);
         if (!displayText) displayText = "";
 
+        const rgba_color backgroundDeviceColor = this->surface_->GetDeviceFeedbackColor(backgroundColor, 127);
+        const rgba_color textDeviceColor = this->surface_->GetDeviceFeedbackColor(textColor, 127);
+
         SysExBuilder builder;
         builder.begin()
             .add(0x00).add(0x02).add(0x38).add(0x01)
             .add(midiFeedbackMessage1_.midi_message[1])
             .add(topMargin_).add(bottomMargin_).add(font_)
-            .add(backgroundColor.r / 2).add(backgroundColor.g / 2).add(backgroundColor.b / 2)
-            .add(textColor.r / 2).add(textColor.g / 2).add(textColor.b / 2)
+            .add(backgroundDeviceColor.r).add(backgroundDeviceColor.g).add(backgroundDeviceColor.b)
+            .add(textDeviceColor.r).add(textDeviceColor.g).add(textDeviceColor.b)
             .addText(displayText)
             .end();
         SendMidiSysExMessage(builder.message());
@@ -235,13 +240,16 @@ public:
         col = properties.get_prop(PropertyType_TextColor);
         if (col) GetColorValue(col, textColor);
 
+        const rgba_color backgroundDeviceColor = this->surface_->GetDeviceFeedbackColor(backgroundColor, 127);
+        const rgba_color textDeviceColor = this->surface_->GetDeviceFeedbackColor(textColor, 127);
+
         SysExBuilder builder;
         builder.begin()
             .add(0x00).add(0x02).add(0x38).add(0x01)
             .add(midiFeedbackMessage1_.midi_message[1])
             .add(topMargin_).add(bottomMargin_).add(font_)
-            .add(backgroundColor.r / 2).add(backgroundColor.g / 2).add(backgroundColor.b / 2)
-            .add(textColor.r / 2).add(textColor.g / 2).add(textColor.b / 2)
+            .add(backgroundDeviceColor.r).add(backgroundDeviceColor.g).add(backgroundDeviceColor.b)
+            .add(textDeviceColor.r).add(textDeviceColor.g).add(textDeviceColor.b)
             .addText(displayText)
             .end();
         SendMidiSysExMessage(builder.message());
@@ -351,15 +359,16 @@ public:
 
         SysExBuilder builder;
         for (int i = 0; i < (int) colors.size(); ++i) {
+            const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(colors[i].ringColor, 127);
             builder.begin()
                 .add(0x00).add(0x02).add(0x38).add(0x01)
                 .add(midiFeedbackMessage1_.midi_message[1])
                 .add(colors[i].ringRangeLow)
                 .add(colors[i].ringRangeMedium)
                 .add(colors[i].ringRangeHigh)
-                .add(colors[i].ringColor.r / 2)
-                .add(colors[i].ringColor.g / 2)
-                .add(colors[i].ringColor.b / 2)
+                .add(deviceColor.r)
+                .add(deviceColor.g)
+                .add(deviceColor.b)
                 .end();
             SendMidiSysExMessage(builder.message());
         }

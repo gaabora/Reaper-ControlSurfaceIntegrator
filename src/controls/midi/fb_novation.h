@@ -16,21 +16,22 @@ public:
     }
 
     virtual void SetColorValue(const rgba_color& color) override {
-        if (color != lastColor_)
-            ForceColorValue(color);
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color, 127);
+        if (deviceColor != this->lastColor_)
+            ForceColorValue(deviceColor);
     }
 
     virtual void ForceColorValue(const rgba_color& color) override {
-        lastColor_ = color;
+        this->lastColor_ = color;
 
         SysExBuilder builder;
         builder.begin()
             .add(0x00).add(0x20).add(0x29).add(0x02).add(0x0d)
             .add(0x03).add(0x03)
             .add(midiFeedbackMessage1_.midi_message[1])
-            .add(color.r / 2).add(color.g / 2).add(color.b / 2)
+            .add(color.r).add(color.g).add(color.b)
             .end();
         SendMidiSysExMessage(builder.message());
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", widget_->GetName(), color.r, color.g, color.b);
+        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] [%s] ForceColorValue %d %d %d\n", this->widget_->GetName(), color.r, color.g, color.b);
     }
 };
