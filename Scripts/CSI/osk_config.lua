@@ -1,6 +1,7 @@
 local r = reaper
 local imgui = require "imgui" "0.9.3"
 local data = require("osk_data")
+local ui = require("ui_components")
 
 local M = {}
 
@@ -713,10 +714,7 @@ local function renderColorPopup(ctx, binding, bindingIndex, colorIndex, label, c
 		selectBinding(bindingIndex)
 		imgui.OpenPopup(ctx, popupId)
 	end
-	if imgui.IsItemHovered(ctx) and imgui.BeginTooltip(ctx) then
-		imgui.Text(ctx, label .. " color")
-		imgui.EndTooltip(ctx)
-	end
+	ui.ItemTooltip(ctx, label .. " color")
 
 	if imgui.BeginPopup(ctx, popupId) then
 		imgui.Text(ctx, label .. " color")
@@ -734,12 +732,7 @@ local function renderColorPopup(ctx, binding, bindingIndex, colorIndex, label, c
 				updateDirtyState()
 				currentColor = paletteColor.value
 			end
-			if imgui.IsItemHovered(ctx) then
-				if imgui.BeginTooltip(ctx) then
-					imgui.Text(ctx, paletteColor.name)
-					imgui.EndTooltip(ctx)
-				end
-			end
+			ui.ItemTooltip(ctx, paletteColor.name)
 			if paletteIdx % 5 ~= 0 then imgui.SameLine(ctx) end
 		end
 
@@ -787,12 +780,7 @@ local function renderBindingTable(ctx)
 		if imgui.Selectable(ctx, getBindingTitle(binding) .. "##action_" .. bindingIndex, selected) then
 			selectBinding(bindingIndex)
 		end
-		if imgui.IsItemHovered(ctx) then
-			if imgui.BeginTooltip(ctx) then
-				imgui.Text(ctx, binding.line)
-				imgui.EndTooltip(ctx)
-			end
-		end
+		ui.ItemTooltip(ctx, binding.line)
 
 		imgui.TableSetColumnIndex(ctx, 2)
 		renderBindingColors(ctx, binding, bindingIndex)
@@ -843,10 +831,7 @@ local function renderActionPicker(ctx, binding)
 		state.searchResults = {}
 		state.searchSelected = 0
 	end
-	if imgui.IsItemHovered(ctx) and imgui.BeginTooltip(ctx) then
-		imgui.Text(ctx, "Clear action search")
-		imgui.EndTooltip(ctx)
-	end
+	ui.ItemTooltip(ctx, "Clear action search")
 
 	if state.searchQuery:match("%S") and imgui.BeginListBox(ctx, "##action_search_results", -1, 105) then
 		for idx, row in ipairs(state.searchResults) do
@@ -997,14 +982,7 @@ function M.ShouldSuppressContextMenu()
 end
 
 local function renderDirtyActionButton(ctx, label, enabled, handler)
-	if imgui.BeginDisabled then imgui.BeginDisabled(ctx, not enabled) end
-	imgui.PushStyleColor(ctx, imgui.Col_Button, 0x8f2424ff)
-	imgui.PushStyleColor(ctx, imgui.Col_ButtonHovered, 0xb83232ff)
-	imgui.PushStyleColor(ctx, imgui.Col_ButtonActive, 0x701b1bff)
-	local clicked = imgui.Button(ctx, label)
-	imgui.PopStyleColor(ctx, 3)
-	if imgui.EndDisabled then imgui.EndDisabled(ctx) end
-	if clicked and enabled then handler() end
+	ui.DirtyActionButton(ctx, label, enabled, handler)
 end
 
 local function renderConfigToolbar(ctx)
@@ -1047,16 +1025,10 @@ local function renderConfigToolbar(ctx)
 	if imgui.Button(ctx, "Clone") then duplicateSelectedBinding() end
 	imgui.SameLine(ctx)
 	if imgui.ArrowButton(ctx, "##move_binding_up", imgui.Dir_Up) then moveSelectedBinding(-1) end
-	if imgui.IsItemHovered(ctx) and imgui.BeginTooltip(ctx) then
-		imgui.Text(ctx, "Move binding up")
-		imgui.EndTooltip(ctx)
-	end
+	ui.ItemTooltip(ctx, "Move binding up")
 	imgui.SameLine(ctx)
 	if imgui.ArrowButton(ctx, "##move_binding_down", imgui.Dir_Down) then moveSelectedBinding(1) end
-	if imgui.IsItemHovered(ctx) and imgui.BeginTooltip(ctx) then
-		imgui.Text(ctx, "Move binding down")
-		imgui.EndTooltip(ctx)
-	end
+	ui.ItemTooltip(ctx, "Move binding down")
 
 	imgui.EndTable(ctx)
 end

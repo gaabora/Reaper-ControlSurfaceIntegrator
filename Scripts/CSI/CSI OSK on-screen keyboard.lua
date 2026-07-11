@@ -23,6 +23,7 @@ local data = require("osk_data")
 local render = require("osk_render")
 local config = require("osk_config")
 local osd_ui = require("osd_ui")
+local ui = require("ui_components")
 
 local ctx = nil
 local FONT = nil
@@ -107,10 +108,7 @@ local function RenderContextMenu(activeCtx, popupId)
             r.Main_OnCommand(action.action, 0)
             r.ShowConsoleMsg("[CSI OSK] Action: " .. action.action .. " (" .. action.tooltip .. ")\n")
         end
-        if imgui.IsItemHovered(activeCtx) and imgui.BeginTooltip(activeCtx) then
-            imgui.Text(activeCtx, action.tooltip)
-            imgui.EndTooltip(activeCtx)
-        end
+        ui.ItemTooltip(activeCtx, action.tooltip)
     end
 
     imgui.Separator(activeCtx)
@@ -133,16 +131,13 @@ local function RenderContextMenu(activeCtx, popupId)
     if changed then data.SaveSettings() end
 
     imgui.Separator(activeCtx)
-    imgui.Text(activeCtx, "Label replacements")
-    if imgui.IsItemHovered(activeCtx) and imgui.BeginTooltip(activeCtx) then
-        imgui.TextWrapped(activeCtx, data.GetLabelReplacementHelp())
-        imgui.EndTooltip(activeCtx)
-    end
-    changed, data.vars.label_replacements = imgui.InputText(activeCtx, "##replacements", data.vars.label_replacements)
-    if imgui.IsItemHovered(activeCtx) and imgui.BeginTooltip(activeCtx) then
-        imgui.TextWrapped(activeCtx, data.GetLabelReplacementHelp())
-        imgui.EndTooltip(activeCtx)
-    end
+    changed, data.vars.label_replacements = ui.LabelReplacementEditor(
+        activeCtx,
+        "Label replacements",
+        data.vars.label_replacements,
+        data.GetLabelReplacementHelp(),
+        { inputId = "##replacements" }
+    )
     if changed then
         data.parseLabelReplacements(data.vars.label_replacements)
         data.SaveSettings()

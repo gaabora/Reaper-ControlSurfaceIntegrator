@@ -4,6 +4,7 @@
 ]]
 
 local r = reaper
+local ui = require("ui_components")
 local M = {}
 
 -- OSD state and settings
@@ -216,54 +217,6 @@ function M.SaveSettings()
     end
 end
 
----Slider with optional manual input field
----Slider and input both update the same value; no step rounding on input
----@param useInput boolean if true, show small input field after slider
----@return changed boolean, newValue number
-local function SliderWithInput(ctx, imgui, label, currentVal, minVal, maxVal, step, useInput)
-    local changed = false
-    local newVal = currentVal
-    
-    -- Slider (no label, no value display)
-    local rv
-    rv, newVal = imgui.SliderInt(ctx, "##" .. label, newVal, minVal, maxVal)
-    if rv then
-        if step and step > 0 then
-            newVal = math.floor((newVal + step / 2) / step) * step
-        end
-        newVal = clamp(newVal, minVal, maxVal)
-        changed = true
-    end
-    
-    -- Optional input field
-    if useInput then
-        imgui.SameLine(ctx)
-        imgui.SetNextItemWidth(ctx, 50)
-        local inputVal = tostring(math.floor(newVal))
-        rv, inputVal = imgui.InputText(ctx, "##" .. label .. "_input", inputVal, 5)
-        if rv then
-            local numVal = tonumber(inputVal)
-            if numVal then
-                newVal = clamp(numVal, minVal, maxVal)
-                changed = true
-            end
-        end
-    end
-    
-    -- Label
-    imgui.SameLine(ctx)
-    imgui.Text(ctx, label)
-    
-    return changed, newVal
-end
-
----Combo control component (manages tempSettings)
----@return changed boolean, newIndex number
-local function ComboControl(ctx, imgui, label, currentIndex, options)
-    local rv, idx = imgui.Combo(ctx, label, currentIndex, options)
-    return rv, idx
-end
-
 local function RenderIdleSettingsLauncher(ctx, imgui, screenWidth, originX, originY)
     if not FONT_SMALL then return false end
 
@@ -288,10 +241,7 @@ local function RenderIdleSettingsLauncher(ctx, imgui, screenWidth, originX, orig
         if imgui.Button(ctx, "OSD") then
             imgui.OpenPopup(ctx, IDLE_SETTINGS_POPUP_ID)
         end
-        if imgui.IsItemHovered(ctx) and imgui.BeginTooltip(ctx) then
-            imgui.Text(ctx, "Open OSD settings")
-            imgui.EndTooltip(ctx)
-        end
+        ui.ItemTooltip(ctx, "Open OSD settings")
         if imgui.BeginPopup(ctx, IDLE_SETTINGS_POPUP_ID) then
             popupOpen = true
             M.RenderSettingsPanel(ctx, imgui)
@@ -447,7 +397,7 @@ function M.RenderSettingsPanel(ctx, imgui)
 
     -- Position
     local posIdx = M.vars.osd_position == "bottom" and 1 or 0
-    rv, posIdx = ComboControl(ctx, imgui, "Position##osd_pos", posIdx, "Top\0Bottom\0")
+    rv, posIdx = ui.ComboEnum(ctx, "Position##osd_pos", posIdx, "Top\0Bottom\0")
     if rv then
         M.vars.osd_position = (posIdx == 1) and "bottom" or "top"
     end
@@ -456,7 +406,7 @@ function M.RenderSettingsPanel(ctx, imgui)
     local alignIdx = 1
     if M.vars.osd_alignment == "left" then alignIdx = 0 end
     if M.vars.osd_alignment == "right" then alignIdx = 2 end
-    rv, alignIdx = ComboControl(ctx, imgui, "Alignment##osd_align", alignIdx, "Left\0Center\0Right\0")
+    rv, alignIdx = ui.ComboEnum(ctx, "Alignment##osd_align", alignIdx, "Left\0Center\0Right\0")
     if rv then
         if alignIdx == 0 then
             M.vars.osd_alignment = "left"
@@ -468,13 +418,13 @@ function M.RenderSettingsPanel(ctx, imgui)
     end
 
 
-    rv, M.vars.osd_width_percent = SliderWithInput(ctx, imgui, "Width %", M.vars.osd_width_percent, 10, 100, 1, true)
-    rv, M.vars.osd_height_px = SliderWithInput(ctx, imgui, "Height px", M.vars.osd_height_px, 20, 400, 10, true)
+    rv, M.vars.osd_width_percent = ui.SliderWithInput(ctx, "Width %", M.vars.osd_width_percent, 10, 100, 1)
+    rv, M.vars.osd_height_px = ui.SliderWithInput(ctx, "Height px", M.vars.osd_height_px, 20, 400, 10)
 
-    rv, M.vars.osd_h_margin_px = SliderWithInput(ctx, imgui, "H margin px", M.vars.osd_h_margin_px, 0, 400, 10, true)
-    rv, M.vars.osd_v_margin_px = SliderWithInput(ctx, imgui, "V margin px", M.vars.osd_v_margin_px, 0, 400, 10, true)
-    rv, M.vars.osd_font_px = SliderWithInput(ctx, imgui, "Font px", M.vars.osd_font_px, 8, 200, 1, true)
-    rv, M.vars.osd_transparency = SliderWithInput(ctx, imgui, "Transparency %", M.vars.osd_transparency, 0, 100, 5, true)
+    rv, M.vars.osd_h_margin_px = ui.SliderWithInput(ctx, "H margin px", M.vars.osd_h_margin_px, 0, 400, 10)
+    rv, M.vars.osd_v_margin_px = ui.SliderWithInput(ctx, "V margin px", M.vars.osd_v_margin_px, 0, 400, 10)
+    rv, M.vars.osd_font_px = ui.SliderWithInput(ctx, "Font px", M.vars.osd_font_px, 8, 200, 1)
+    rv, M.vars.osd_transparency = ui.SliderWithInput(ctx, "Transparency %", M.vars.osd_transparency, 0, 100, 5)
 end
 
 ---Render OSD position toggle for OSK (simple on/off/top/bottom)
@@ -491,7 +441,7 @@ function M.RenderOSKPositionToggle(ctx, imgui)
     end
     
     local rv
-    rv, posIdx = imgui.Combo(ctx, "OSK OSD Position##osk_osd_pos", posIdx, "Off\0Top\0Bottom\0")
+    rv, posIdx = ui.ComboEnum(ctx, "OSK OSD Position##osk_osd_pos", posIdx, "Off\0Top\0Bottom\0")
     if rv then
         if posIdx == 0 then
             M.vars.osk_bar_position = "off"

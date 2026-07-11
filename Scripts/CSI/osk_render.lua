@@ -3,6 +3,7 @@ local imgui = require "imgui" "0.9.3"
 
 local data = require("osk_data")
 local osd_ui = require("osd_ui")
+local ui = require("ui_components")
 
 local M = {}
 
@@ -208,10 +209,7 @@ local function ShowDelayedTooltip(ctx, surfName, widgetName, text)
                     tooltipText = table.concat(lines, "\n")
                 end
             end
-            if imgui.BeginTooltip(ctx) then
-                imgui.Text(ctx, tooltipText)
-                imgui.EndTooltip(ctx)
-            end
+            ui.Tooltip(ctx, tooltipText)
         end
     else
         hoverStartTime[stateKey] = nil
