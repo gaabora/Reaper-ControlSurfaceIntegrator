@@ -24,6 +24,8 @@ protected:
     bool isVirtual_ = false;
     bool isTwoState_ = false;
     bool hasDoublePressActions_ = false;
+    bool hasHoldActions_ = false;
+    bool holdFired_ = false;
 
 public:
     // all Widgets are owned by their ControlSurface!
@@ -90,6 +92,12 @@ public:
 
     void SetHasDoublePressActions() { hasDoublePressActions_ = true; };
     bool HasDoublePressActions() { return hasDoublePressActions_; };
+
+    void SetHasHoldActions() { hasHoldActions_ = true; };
+    bool HasHoldActions() { return hasHoldActions_; };
+    void SetHoldFired() { holdFired_ = true; };
+    bool GetHoldFired() { return holdFired_; };
+    void ClearHoldFired() { holdFired_ = false; };
 
     double GetLastFeedbackValue() const {
         if (!feedbackProcessors_.empty()) return feedbackProcessors_[0]->GetLastDoubleValue();

@@ -112,7 +112,10 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
 
                 if (isFeedbackInverted) context->SetIsFeedbackInverted();
 
-                if (hasHoldModifier && context->GetHoldDelay() == 0) context->SetHoldDelay(ActionContext::INHERIT_VALUE);
+                if (hasHoldModifier) {
+                    if (context->GetHoldDelay() == 0) context->SetHoldDelay(ActionContext::INHERIT_VALUE);
+                    widget->SetHasHoldActions();
+                }
 
                 if (HasDoublePressPseudoModifier) {
                     context->SetDoublePress();

@@ -199,7 +199,7 @@ int ActionContext::GetSlotIndex() { return zone_->GetSlotIndex(); }
 
 const char* ActionContext::GetName() { return zone_->GetAlias(); }
 void ActionContext::RequestUpdate() {
-    if (provideFeedback_) 
+    if (provideFeedback_ && !timing_.isDoublePress) 
         action_->RequestUpdate(this);
 }
 
@@ -302,12 +302,37 @@ int ActionContext::GetHoldDelay() { return timing_.holdDelayMs == INHERIT_VALUE 
 
 // runs once button pressed/released
 void ActionContext::DoAction(double value) {
+    int holdDelayMs = this->GetHoldDelay();
+
+    // --- Hold/repeat timing cleanup on release (must happen before IgnoresRelease) ---
+    if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
+        timing_.holdActive = false;
+        timing_.holdRepeatActive = false;
+    }
+
+    // --- Normal action deferred by hold buddy ---
+    // When a Hold+ context exists on the same widget, the normal context
+    // (holdDelay=0) must defer: fire on release only if the hold didn't fire.
+    if (holdDelayMs == 0 && GetWidget()->HasHoldActions()) {
+        if (value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
+            GetWidget()->ClearHoldFired();
+            timing_.deferredValue = value;
+            return;
+        } else {
+            if (!GetWidget()->GetHoldFired()) {
+                PerformAction(timing_.deferredValue);
+            }
+            return;
+        }
+    }
+
     if (action_->IgnoresRelease() && value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) 
         return;
+
     DWORD nowTs = GetTickCount();
-    int holdDelayMs = this->GetHoldDelay();
     timing_.deferredValue = value;
 
+    // --- DoublePress detection ---
     if ((timing_.isDoublePress || GetWidget()->HasDoublePressActions()) && value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
         if (timing_.doublePressStartTs == 0 || nowTs > timing_.doublePressStartTs + GetSurface()->GetDoublePressTime()) {
             timing_.doublePressStartTs = nowTs;
@@ -318,9 +343,10 @@ void ActionContext::DoAction(double value) {
         }
     }
 
+    // --- Hold repeat setup ---
     if (timing_.holdRepeatIntervalMs > 0) {
         if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
-            timing_.holdRepeatActive = false;
+            // already cleaned up above
         } else {
             if (holdDelayMs == 0) {
                 timing_.holdRepeatActive = true;
@@ -328,13 +354,14 @@ void ActionContext::DoAction(double value) {
             }
         }
     }
+
+    // --- Hold delay: defer action until held long enough ---
     if (holdDelayMs > 0) {
-        if (value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
-            timing_.holdActive = false;
-        } else {
+        if (value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE) {
             timing_.holdActive = true;
             timing_.lastHoldStartTs = nowTs;
         }
+        // Release already handled above
     } else {
         PerformAction(value);
     }
@@ -350,6 +377,7 @@ void ActionContext::RunDeferredActions() {
         && GetTickCount() > (timing_.lastHoldStartTs + holdDelayMs)
     ) {
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] HOLD [%s] %d ms\n", GetWidget()->GetName(), GetTickCount() - timing_.lastHoldStartTs);
+        GetWidget()->SetHoldFired(); // Signal to normal context: hold action fired, suppress normal on release
         PerformAction(timing_.deferredValue);
         timing_.holdActive = false; // to mark that this action with it's defined hold delay was performed and separate it from repeated action trigger
         if (timing_.holdRepeatIntervalMs > 0) {
