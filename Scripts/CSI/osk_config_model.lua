@@ -35,6 +35,12 @@ function M.SetActionColor(binding, colorIndex, color, action_line, theme)
     binding.line = action_line.Build(parts)
 end
 
+function M.ResetActionColor(binding, colorIndex, action_line, theme)
+    local defaultColor = colorIndex == 2 and theme.CONFIG.default_active_color or theme.CONFIG.default_inactive_color
+    M.SetActionColor(binding, colorIndex, defaultColor, action_line, theme)
+    return defaultColor
+end
+
 function M.ClearActionColors(binding, action_line)
     local parts = action_line.Parse(binding.line)
     action_line.ClearColors(parts)

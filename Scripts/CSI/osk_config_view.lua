@@ -1,5 +1,6 @@
 local imgui = require "imgui" "0.9.3"
 
+local osk_color_picker = require("osk_color_picker")
 local theme = require("theme_settings")
 local ui = require("ui_components")
 
@@ -9,54 +10,15 @@ local function selectBinding(state, bindingIndex)
     state.selectedBinding = bindingIndex
 end
 
-local function renderColorPopup(ctx, state, binding, bindingIndex, colorIndex, label, currentColor, deps)
-    local popupId = "Color " .. label .. "##binding_color_" .. bindingIndex .. "_" .. colorIndex
-    if imgui.ColorButton(ctx, "##color_button_" .. bindingIndex .. "_" .. colorIndex, currentColor) then
-        selectBinding(state, bindingIndex)
-        imgui.OpenPopup(ctx, popupId)
-    end
-    ui.ItemTooltip(ctx, label .. " color")
-
-    if imgui.BeginPopup(ctx, popupId) then
-        imgui.Text(ctx, label .. " color")
-        local changed, editedColor = imgui.ColorEdit3(ctx, "##picker_" .. bindingIndex .. "_" .. colorIndex, currentColor, imgui.ColorEditFlags_NoInputs)
-        if changed then
-            deps.model.SetActionColor(binding, colorIndex, editedColor, deps.action_line, theme)
-            deps.model.UpdateDirtyState(state)
-            currentColor = editedColor
-        end
-
-        imgui.Separator(ctx)
-        for paletteIndex, paletteColor in ipairs(theme.CONFIG.color_palette) do
-            if imgui.ColorButton(ctx, "##palette_" .. bindingIndex .. "_" .. colorIndex .. "_" .. paletteIndex, paletteColor.value) then
-                deps.model.SetActionColor(binding, colorIndex, paletteColor.value, deps.action_line, theme)
-                deps.model.UpdateDirtyState(state)
-                currentColor = paletteColor.value
-            end
-            ui.ItemTooltip(ctx, paletteColor.name)
-            if paletteIndex % theme.CONFIG.palette_columns ~= 0 then imgui.SameLine(ctx) end
-        end
-
-        if imgui.Button(ctx, "Clear / default##colors_" .. bindingIndex .. "_" .. colorIndex) then
-            deps.model.ClearActionColors(binding, deps.action_line)
-            deps.model.UpdateDirtyState(state)
-            imgui.CloseCurrentPopup(ctx)
-        end
-        imgui.EndPopup(ctx)
-    end
-
-    return currentColor
-end
-
 local function renderBindingColors(ctx, state, binding, bindingIndex, deps)
     local parts = deps.action_line.Parse(binding.line)
     local colors = deps.action_line.ParseColors(parts)
     local inactiveColor = colors and colors[1] or theme.CONFIG.default_inactive_color
     local activeColor = colors and (colors[2] or colors[1]) or theme.CONFIG.default_active_color
 
-    inactiveColor = renderColorPopup(ctx, state, binding, bindingIndex, 1, "Inactive", inactiveColor, deps)
+    inactiveColor = osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 1, "Inactive", inactiveColor, deps)
     imgui.SameLine(ctx, 0, 3)
-    renderColorPopup(ctx, state, binding, bindingIndex, 2, "Active", activeColor, deps)
+    osk_color_picker.RenderBindingColorPicker(ctx, state, binding, bindingIndex, 2, "Active", activeColor, deps)
 end
 
 local function renderBindingTable(ctx, state, deps)

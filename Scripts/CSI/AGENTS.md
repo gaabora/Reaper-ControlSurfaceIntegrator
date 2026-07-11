@@ -7,7 +7,7 @@
 ## Ownership
 
 - `CSI OSK on-screen keyboard.lua` and `CSI OSD on-screen display.lua` entry scripts.
-- `osk_data.lua`, `osk_render.lua`, `osk_input.lua`, `osk_config.lua`, `osd_ui.lua`, `ui_components.lua`, `script_host.lua`, `action_line.lua`, `layout_parser.lua`, `label_replacements.lua`, `self_checks.lua`, `theme_settings.lua`, `font_cache.lua`, `settings_store.lua`, `osk_settings_ui.lua`, `osk_widget_math.lua`, `osk_draw_primitives.lua`, `osk_widget_drawers.lua`, `osk_config_model.lua`, `osk_config_protocol.lua`, and `osk_config_view.lua` shared modules.
+- `osk_data.lua`, `osk_render.lua`, `osk_input.lua`, `osk_config.lua`, `osd_ui.lua`, `ui_components.lua`, `script_host.lua`, `action_line.lua`, `layout_parser.lua`, `label_replacements.lua`, `self_checks.lua`, `theme_settings.lua`, `font_cache.lua`, `settings_store.lua`, `osk_settings_ui.lua`, `osk_widget_math.lua`, `osk_draw_primitives.lua`, `osk_widget_drawers.lua`, `osk_config_model.lua`, `osk_config_protocol.lua`, `osk_config_view.lua`, and `osk_color_picker.lua` shared modules.
 
 ## Local Contracts
 
@@ -43,7 +43,7 @@
 - Keep OSD color, alpha, contrast, and centered text drawing in `osd_ui.lua` so standalone OSD and the embedded OSK bar share one renderer.
 - Keep visual defaults, reusable style tokens, and color/font helpers in `theme_settings.lua`; keep per-context font attachment/caching in `font_cache.lua`; keep typed ExtState setting coercion in `settings_store.lua`.
 - Keep OSK context-menu settings UI in `osk_settings_ui.lua`, low-level widget math in `osk_widget_math.lua`, reusable draw primitives in `osk_draw_primitives.lua`, and widget shape drawing/interaction plumbing in `osk_widget_drawers.lua`.
-- Keep config binding parsing/state helpers in `osk_config_model.lua`, ExtState request/response handling in `osk_config_protocol.lua`, and config-window rendering in `osk_config_view.lua`.
+- Keep config binding parsing/state helpers in `osk_config_model.lua`, ExtState request/response handling in `osk_config_protocol.lua`, config-window rendering in `osk_config_view.lua`, and config color-picker behavior in `osk_color_picker.lua`.
 - Avoid duplicating shared UI behavior in the entry scripts.
 - Keep action edits reversible until the user explicitly saves them.
 
