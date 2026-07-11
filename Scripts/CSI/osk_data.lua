@@ -2,12 +2,12 @@ local r = reaper
 
 local M = {}
 
-M.EXT_SECTION = "CSI_OSK"
-M.EXT_CMD_SECTION = "CSI_OSK_CMD"
-M.EXT_SETTINGS = "CSI_OSK_SETTINGS"
+M.EXT_SECTION = "ReaCtrlSurf_OSK"
+M.EXT_CMD_SECTION = "ReaCtrlSurf_OSK_CMD"
+M.EXT_SETTINGS = "ReaCtrlSurf_OSK_SETTINGS"
 
-local EXT_OSD_SECTION = "CSI_TMP"
-local EXT_OSD_KEY = "OSD"
+local SURFACE_POSITION_PREFIX = "SurfacePosition_"
+local POSITION_SAVE_DELAY_SECONDS = 0.25
 
 M.COLORS = {
     win_bg = 0x1e1e1eff,
@@ -16,8 +16,6 @@ M.COLORS = {
     button_hover = 0x4a6a9aff,
     text_normal = 0x000000ff,
     text_dim = 0x444444ff,
-    tab_bg = 0x2a2a2aff,
-    tab_active = 0x3c6191ff,
     round_off = 0x444444ff,
     round_on_play = 0x40a040ff,
     round_on_stop = 0x808080ff,
@@ -27,7 +25,6 @@ M.COLORS = {
 }
 
 M.surfaces = {}
-M.currentSurface = 1
 M.layouts = {}
 M.states = {}
 M.labels = {}
@@ -38,12 +35,8 @@ M.rawLabels = {}
 M.rawLabelMaps = {}
 M.processedLabelCache = {}
 M.surfacePos = {}
-M.osd = {
-    text = "",
-    bgColor = 0x333333ff,
-    showUntil = 0,
-    lastMsg = nil,
-}
+local dirtySurfacePositions = {}
+local surfacePositionSaveDue = 0
 
 M.LABEL_REPLACEMENTS = {
     ["toggle"] = "",
@@ -66,21 +59,15 @@ M.LABEL_REPLACEMENTS = {
 }
 
 M.vars = {
-    wlen = 500, hlen = 500, xpos = 200, ypos = 200, docked = 0,
-    zoom = 0.9, clickable = true, aspect = 1.4,
+    zoom = 0.9, interactive = true, aspect = 1.4,
     pad_h = 6, pad_v = 6,
     transparency = 0.6,
     btn_transparency = 0.9,
     tooltip_delay = 1.0,
     arrow_angle = 120,
-    show_all_surfaces = true,
-    window_mode = "combined",
     titlebar_enabled = true,
-    surface_pos = "",
     label_replacements = "",
 }
-
-local lastActiveSurface = ""
 
 local function clearTable(tbl)
     for key in pairs(tbl) do
@@ -93,31 +80,6 @@ local function replaceArray(dst, src)
     for index, value in ipairs(src) do
         dst[index] = value
     end
-end
-
-local function parseSurfacePosString(str)
-    local result = {}
-    if not str or str == "" then return result end
-    for entry in str:gmatch("[^;]+") do
-        local name, xStr, yStr = entry:match("^(.-):([%-%d%.]+),([%-%d%.]+)$")
-        local x = tonumber(xStr)
-        local y = tonumber(yStr)
-        if name and x and y then
-            result[name] = { x = x, y = y }
-        end
-    end
-    return result
-end
-
-local function surfacePosToString(surfacePos)
-    local entries = {}
-    for name, pos in pairs(surfacePos) do
-        if pos and type(pos.x) == "number" and type(pos.y) == "number" then
-            entries[#entries + 1] = string.format("%s:%.3f,%.3f", name, pos.x, pos.y)
-        end
-    end
-    table.sort(entries)
-    return table.concat(entries, ";")
 end
 
 function M.hexToImCol(hex)
@@ -241,37 +203,6 @@ function M.wrapText(ctx, text, maxW, imgui)
     return lines
 end
 
-function M.PollOSD()
-    local msg = r.GetExtState(EXT_OSD_SECTION, EXT_OSD_KEY)
-    if msg ~= M.osd.lastMsg then
-        M.osd.lastMsg = msg
-        if not msg or msg == "" then
-            M.osd.text = ""
-            M.osd.showUntil = 0
-            M.osd.bgColor = 0x333333ff
-            return
-        end
-
-        local text, bgStr, timeoutStr = msg:match("([^;]*);?([^;]*);?([^;]*)")
-        text = text and text:match("^%s*(.-)%s*$") or ""
-        local timeoutMs = tonumber(timeoutStr) or 3000
-        if bgStr == "1" then
-            M.osd.bgColor = 0xA4A4A4ff
-        elseif bgStr == "" or bgStr == "0" then
-            M.osd.bgColor = 0x333333ff
-        else
-            M.osd.bgColor = M.hexToImCol(bgStr)
-        end
-        M.osd.text = text
-        M.osd.showUntil = (timeoutMs > 0) and (r.time_precise() + timeoutMs / 1000) or 0
-    end
-
-    if M.osd.showUntil > 0 and r.time_precise() > M.osd.showUntil then
-        M.osd.text = ""
-        M.osd.showUntil = 0
-    end
-end
-
 function M.PollExtStateEntry(surfName, suffix, rawStore, parsedStore, parser)
     local key = suffix .. "_" .. surfName
     local raw = r.GetExtState(M.EXT_SECTION, key)
@@ -385,15 +316,44 @@ function M.LoadSettings()
             end
         end
     end
-    M.surfacePos = parseSurfacePosString(M.vars.surface_pos)
     M.parseLabelReplacements(M.vars.label_replacements)
 end
 
 function M.SaveSettings()
-    M.vars.surface_pos = surfacePosToString(M.surfacePos)
     for key, value in pairs(M.vars) do
         r.SetExtState(M.EXT_SETTINGS, key, tostring(value), true)
     end
+end
+
+function M.LoadSurfacePosition(surfName)
+    if M.surfacePos[surfName] then return M.surfacePos[surfName] end
+    local rawPosition = r.GetExtState(M.EXT_SETTINGS, SURFACE_POSITION_PREFIX .. surfName)
+    local xText, yText = rawPosition:match("^([%-%d%.]+),([%-%d%.]+)$")
+    local x = tonumber(xText)
+    local y = tonumber(yText)
+    if x and y then
+        M.surfacePos[surfName] = { x = x, y = y }
+    end
+    return M.surfacePos[surfName]
+end
+
+function M.SetSurfacePosition(surfName, x, y)
+    M.surfacePos[surfName] = { x = x, y = y }
+    dirtySurfacePositions[surfName] = true
+    surfacePositionSaveDue = r.time_precise() + POSITION_SAVE_DELAY_SECONDS
+end
+
+function M.FlushSurfacePositions(force)
+    if not force and (surfacePositionSaveDue == 0 or r.time_precise() < surfacePositionSaveDue) then return end
+    for surfName in pairs(dirtySurfacePositions) do
+        local position = M.surfacePos[surfName]
+        if position then
+            local serialized = string.format("%.3f,%.3f", position.x, position.y)
+            r.SetExtState(M.EXT_SETTINGS, SURFACE_POSITION_PREFIX .. surfName, serialized, true)
+        end
+        dirtySurfacePositions[surfName] = nil
+    end
+    surfacePositionSaveDue = 0
 end
 
 function M.PollData()
@@ -414,7 +374,9 @@ function M.PollData()
         end
         if #newSurfaces > 0 then
             replaceArray(M.surfaces, newSurfaces)
-            if M.currentSurface > #M.surfaces then M.currentSurface = 1 end
+            for _, surfName in ipairs(M.surfaces) do
+                M.LoadSurfacePosition(surfName)
+            end
         end
     end
 
@@ -429,21 +391,6 @@ function M.PollData()
     end
 
     return true
-end
-
-function M.PollActiveSurface()
-    local active = r.GetExtState(M.EXT_SECTION, "ActiveSurface")
-    if active == lastActiveSurface then return end
-    lastActiveSurface = active
-    if active == "" then return end
-    if not M.vars.show_all_surfaces then
-        for index, name in ipairs(M.surfaces) do
-            if name == active then
-                M.currentSurface = index
-                break
-            end
-        end
-    end
 end
 
 return M

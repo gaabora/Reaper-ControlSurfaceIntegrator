@@ -30,9 +30,9 @@ M.vars = {
     osd_bg_off = "#333333",        -- background when state=0
 }
 
-M.EXT_SECTION = "CSI_TMP"
+M.EXT_SECTION = "ReaCtrlSurf_OSD"
 M.EXT_KEY = "OSD"
-M.EXT_SETTINGS_SECTION = "CSI_OSD_SETTINGS"
+M.EXT_SETTINGS_SECTION = "ReaCtrlSurf_OSD_SETTINGS"
 
 M.settingsBackup = nil  -- Backup of settings when menu opens (for Cancel revert)
 

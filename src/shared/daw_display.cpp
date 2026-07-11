@@ -19,6 +19,6 @@ namespace DAW {
         }
         lastValue = osdData.toString();
         lastUpdateTs = now;
-        ::SetExtState("CSI_TMP", "OSD", lastValue.c_str(), false);
+        ::SetExtState("ReaCtrlSurf_OSD", "OSD", lastValue.c_str(), false);
     }
 } // namespace DAW

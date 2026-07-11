@@ -66,7 +66,7 @@ end
 local pressedWidgets = {}  -- widgetName -> surfName, tracks buttons currently held down
 
 local function HandleButtonPressDown(surfName, cell)
-    if not data.vars.clickable or not cell.name then return end
+    if not data.vars.interactive or not cell.name then return end
     if not surfName then return end
     local msg = surfName .. "|" .. cell.name
     r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressDown", msg, false)
@@ -90,7 +90,7 @@ local function HandleRotaryMouseWheel(ctx, surfName, cell)
     local isRotary = name:find("rotary") or group:find("rotary")
     if not isRotary then return end
     if not imgui.IsItemHovered(ctx) then return end
-    if not data.vars.clickable then return end
+    if not data.vars.interactive then return end
 
     if not surfName then return end
 
@@ -712,19 +712,6 @@ function M.RenderSurface(ctx, surfName)
     end
 
     imgui.PopStyleVar(ctx)
-end
-
-function M.RenderAllSurfaces(ctx)
-    if #data.surfaces == 0 then return end
-    for index, surfName in ipairs(data.surfaces) do
-        imgui.PushFont(ctx, FONT_SMALL)
-        imgui.Text(ctx, surfName)
-        imgui.PopFont(ctx)
-        M.RenderSurface(ctx, surfName)
-        if index < #data.surfaces then
-            imgui.Separator(ctx)
-        end
-    end
 end
 
 return M

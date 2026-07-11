@@ -234,17 +234,6 @@ public:
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetPressUp: surface '%s' not found\n", surfName.c_str());
     }
 
-    void DispatchOSKWidgetPress(const string& surfName, const string& widgetName) {
-        if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
-        for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
-            if (surfName == surface->GetName()) {
-                surface->InjectOSKPress(widgetName);
-                return;
-            }
-        }
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKWidgetPress: surface '%s' not found\n", surfName.c_str());
-    }
-
     void DispatchOSKWidgetScroll(const string& surfName, const string& widgetName, int accelerationIndex, double delta, int eventCount) {
         if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
         for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
@@ -307,34 +296,27 @@ public:
             if (!csv.empty()) csv += ",";
             csv += name;
         }
-        ::SetExtState("CSI_OSK", "ActionList", csv.c_str(), false);
+        ::SetExtState("ReaCtrlSurf_OSK", "ActionList", csv.c_str(), false);
     }
 
     void PollAndHandleOSKCommands() {
-        if (::HasExtState("CSI_OSK_CMD", "WidgetPress")) {
-            string payload = ::GetExtState("CSI_OSK_CMD", "WidgetPress");
-            ::DeleteExtState("CSI_OSK_CMD", "WidgetPress", false);
-            auto sep = payload.find('|');
-            if (sep != string::npos)
-                DispatchOSKWidgetPress(payload.substr(0, sep), payload.substr(sep + 1));
-        }
-        if (::HasExtState("CSI_OSK_CMD", "WidgetPressDown")) {
-            string payload = ::GetExtState("CSI_OSK_CMD", "WidgetPressDown");
-            ::DeleteExtState("CSI_OSK_CMD", "WidgetPressDown", false);
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressDown")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressDown");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressDown", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKWidgetPressDown(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("CSI_OSK_CMD", "WidgetPressUp")) {
-            string payload = ::GetExtState("CSI_OSK_CMD", "WidgetPressUp");
-            ::DeleteExtState("CSI_OSK_CMD", "WidgetPressUp", false);
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressUp")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressUp");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressUp", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKWidgetPressUp(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("CSI_OSK_CMD", "WidgetScroll")) {
-            string payload = ::GetExtState("CSI_OSK_CMD", "WidgetScroll");
-            ::DeleteExtState("CSI_OSK_CMD", "WidgetScroll", false);
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetScroll")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetScroll");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetScroll", false);
             auto sep1 = payload.find('|');
             if (sep1 != string::npos) {
                 auto sep2 = payload.find('|', sep1 + 1);
@@ -343,12 +325,7 @@ public:
                     const string widgetName = payload.substr(sep1 + 1, sep2 - sep1 - 1);
                     const string scrollData = payload.substr(sep2 + 1);
                     const auto sep3 = scrollData.find('|');
-                    if (sep3 == string::npos) {
-                        if (scrollData == "Inc" || scrollData == "Dec") {
-                            const double legacyDelta = scrollData == "Dec" ? -1.0 : 1.0;
-                            DispatchOSKWidgetScroll(surfaceName, widgetName, 0, legacyDelta, 1);
-                        } else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid legacy WidgetScroll payload: '%s'\n", payload.c_str());
-                    } else {
+                    if (sep3 != string::npos) {
                         const string accelerationText = scrollData.substr(0, sep3);
                         const string eventCountText = scrollData.substr(sep3 + 1);
                         char* accelerationEnd = nullptr;
@@ -361,20 +338,20 @@ public:
                             const int accelerationIndex = (int) (std::max)(0L, (std::min)(parsedAccelerationIndex, 64L));
                             DispatchOSKWidgetScroll(surfaceName, widgetName, accelerationIndex, delta, eventCount);
                         } else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid WidgetScroll payload: '%s'\n", payload.c_str());
-                    }
+                    } else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid WidgetScroll payload: '%s'\n", payload.c_str());
                 }
             }
         }
-        if (::HasExtState("CSI_OSK_CMD", "ConfigQuery")) {
-            string payload = ::GetExtState("CSI_OSK_CMD", "ConfigQuery");
-            ::DeleteExtState("CSI_OSK_CMD", "ConfigQuery", false);
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigQuery")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigQuery");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ConfigQuery", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKConfigQuery(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("CSI_OSK_CMD", "ConfigApplyLive")) {
-            string payload = ::GetExtState("CSI_OSK_CMD", "ConfigApplyLive");
-            ::DeleteExtState("CSI_OSK_CMD", "ConfigApplyLive", false);
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigApplyLive")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigApplyLive");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ConfigApplyLive", false);
             auto sep1 = payload.find('|');
             if (sep1 != string::npos) {
                 auto sep2 = payload.find('|', sep1 + 1);
@@ -387,22 +364,22 @@ public:
                 }
             }
         }
-        if (::HasExtState("CSI_OSK_CMD", "ConfigSave")) {
-            string payload = ::GetExtState("CSI_OSK_CMD", "ConfigSave");
-            ::DeleteExtState("CSI_OSK_CMD", "ConfigSave", false);
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigSave")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigSave");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ConfigSave", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKConfigSave(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("CSI_OSK_CMD", "ConfigRevert")) {
-            string payload = ::GetExtState("CSI_OSK_CMD", "ConfigRevert");
-            ::DeleteExtState("CSI_OSK_CMD", "ConfigRevert", false);
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigRevert")) {
+            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigRevert");
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ConfigRevert", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKConfigRevert(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("CSI_OSK_CMD", "ActionListQuery")) {
-            ::DeleteExtState("CSI_OSK_CMD", "ActionListQuery", false);
+        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ActionListQuery")) {
+            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ActionListQuery", false);
             PublishOSKActionList();
         }
     }
@@ -424,7 +401,7 @@ public:
     }
 
     void CloseOSKPanel() {
-        ::SetExtState("CSI_OSK", "Command", "Close", false);
+        ::SetExtState("ReaCtrlSurf_OSK", "Command", "Close", false);
     }
 
     void PublishOSKSurfacesList() {
@@ -438,7 +415,7 @@ public:
                 }
             }
         }
-        ::SetExtState("CSI_OSK", "Surfaces", surfaces.c_str(), false);
+        ::SetExtState("ReaCtrlSurf_OSK", "Surfaces", surfaces.c_str(), false);
     }
 
     bool HasAnyOSKEnabled() const {
@@ -449,11 +426,6 @@ public:
             }
         }
         return false;
-    }
-
-    /// Publish the surface name that most recently triggered ToggleOSK ON.
-    void PublishOSKActiveSurface(const string& surfaceName) {
-        ::SetExtState("CSI_OSK", "ActiveSurface", surfaceName.c_str(), false);
     }
 
     Action* GetFXParamAction(char* FXName) {

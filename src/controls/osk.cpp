@@ -31,8 +31,7 @@ static void PublishConfigStatus(const string& outcome, const string& operation, 
         + "|" + SanitizeConfigStatusField(zoneName)
         + "|" + SanitizeConfigStatusField(message);
     const string scopedKey = "ConfigStatus_" + surfaceName + "_" + widgetName;
-    ::SetExtState("CSI_OSK", scopedKey.c_str(), status.c_str(), false);
-    ::SetExtState("CSI_OSK", "ConfigStatus", status.c_str(), false);
+    ::SetExtState("ReaCtrlSurf_OSK", scopedKey.c_str(), status.c_str(), false);
 }
 
 static string QuoteZoneToken(const string& token) {
@@ -550,7 +549,7 @@ void ControlSurface::PublishOSKLayout() {
     if (!isOskEnabled_) return;
 
     string key = string("Layout_") + name_;
-    ::SetExtState("CSI_OSK", key.c_str(), cachedOskLayoutString_.c_str(), false);
+    ::SetExtState("ReaCtrlSurf_OSK", key.c_str(), cachedOskLayoutString_.c_str(), false);
 }
 
 void ControlSurface::PublishOSKState() {
@@ -575,7 +574,7 @@ void ControlSurface::PublishOSKState() {
     if (state != cachedOskStateString_) {
         cachedOskStateString_ = state;
         string key = string("State_") + name_;
-        ::SetExtState("CSI_OSK", key.c_str(), state.c_str(), false);
+        ::SetExtState("ReaCtrlSurf_OSK", key.c_str(), state.c_str(), false);
     }
 }
 
@@ -633,7 +632,7 @@ void ControlSurface::PublishOSKLabels() {
     if (labels != cachedOskLabelsString_) {
         cachedOskLabelsString_ = labels;
         string key = string("Labels_") + name_;
-        ::SetExtState("CSI_OSK", key.c_str(), labels.c_str(), false);
+        ::SetExtState("ReaCtrlSurf_OSK", key.c_str(), labels.c_str(), false);
     }
     PublishOSKLabelMap();
 }
@@ -641,19 +640,6 @@ void ControlSurface::PublishOSKLabels() {
 // ---------------------------------------------------------------------------
 // OSK input simulation
 // ---------------------------------------------------------------------------
-
-void ControlSurface::InjectOSKPress(const string& widgetName) {
-    Widget* widget = GetWidgetByName(widgetName);
-    if (!widget) {
-        if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] InjectOSKPress: widget '%s' not found on '%s'\n", widgetName.c_str(), name_.c_str());
-        return;
-    }
-    widget->LogInput(1.0);
-    zoneManager_->DoAction(widget, 1.0);
-    // Simulate release for two-state buttons so they don't stay "held".
-    if (widget->GetIsTwoState())
-        zoneManager_->DoAction(widget, 0.0);
-}
 
 void ControlSurface::InjectOSKPressDown(const string& widgetName) {
     Widget* widget = GetWidgetByName(widgetName);
@@ -737,13 +723,13 @@ void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {
     }
 
     const string keyResult = string("ConfigResult_") + this->name_ + "_" + widgetName;
-    ::SetExtState("CSI_OSK", keyResult.c_str(), result.c_str(), false);
+    ::SetExtState("ReaCtrlSurf_OSK", keyResult.c_str(), result.c_str(), false);
 
     const string keyZoneName = string("ConfigZoneName_") + this->name_ + "_" + widgetName;
-    ::SetExtState("CSI_OSK", keyZoneName.c_str(), zoneName.c_str(), false);
+    ::SetExtState("ReaCtrlSurf_OSK", keyZoneName.c_str(), zoneName.c_str(), false);
 
     const string keyZonePath = string("ConfigZonePath_") + this->name_ + "_" + widgetName;
-    ::SetExtState("CSI_OSK", keyZonePath.c_str(), zonePath.c_str(), false);
+    ::SetExtState("ReaCtrlSurf_OSK", keyZonePath.c_str(), zonePath.c_str(), false);
 
     PublishConfigStatus("OK", "Query", this->name_, widgetName, zoneName, "Config query completed");
 }
@@ -1003,6 +989,6 @@ void ControlSurface::PublishOSKLabelMap() {
     if (labelMap != cachedOskLabelMapString_) {
         cachedOskLabelMapString_ = labelMap;
         string key = string("LabelMap_") + name_;
-        ::SetExtState("CSI_OSK", key.c_str(), labelMap.c_str(), false);
+        ::SetExtState("ReaCtrlSurf_OSK", key.c_str(), labelMap.c_str(), false);
     }
 }

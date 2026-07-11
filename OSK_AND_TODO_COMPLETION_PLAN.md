@@ -111,31 +111,32 @@ Goal: make mouse interaction behave consistently with physical controls.
 
 ## Phase 4: Windows, Settings, and ExtState Cleanup
 
-Goal: simplify the runtime model without breaking existing user settings.
+Goal: simplify the pre-release runtime model and publish one current protocol.
+
+**Status:** Implemented on June 15, 2026. Debug build passes; manual REAPER acceptance testing remains.
 
 ### Work
 
-1. Measure and fix separate-window movement lag before removing combined mode.
-2. If separate-only mode is selected:
-   - migrate existing `window_mode`, `surface_pos`, and `show_all_surfaces` settings
-   - store each surface position independently
-   - remove dead combined/tab code after one compatibility release
-3. Rename the UI setting `clickable` to `interactive`, while reading the old key as a
-   migration fallback.
-4. Document the implemented Feature 3 keys in `LUA_CPP_EXTSTATE_INTERFACE.md`:
+1. [x] Fix separate-window movement lag by delaying persistent position writes.
+2. [x] Use separate windows only, store each surface position independently, and remove
+   combined-window and tab-selection code. No settings migration is required because
+   the Lua plugin has not been published.
+3. [x] Rename the UI setting `clickable` to `interactive` without a legacy fallback.
+4. [x] Document the implemented keys in `LUA_CPP_EXTSTATE_INTERFACE.md`:
    `ConfigQuery`, `ConfigApplyLive`, `ConfigSave`, `ConfigRevert`, response keys,
-   `ConfigStatus`, and `ActionList`.
-5. Remove obsolete proposed keys such as `ZoneInfo_*`, `ReloadZones`, and
-   `ActiveZone_*` unless they gain a real consumer.
-6. Move OSD from `CSI_TMP` only as a versioned protocol change.
-7. Treat a `CSI_` to `ReaCtrlSurf_` prefix rename as a migration project, not a simple
-   search-and-replace. Read old keys during a compatibility period.
+   scoped `ConfigStatus`, and `ActionList`.
+5. [x] Keep obsolete proposed keys such as `ZoneInfo_*`, `ReloadZones`, and
+   `ActiveZone_*` out of the implementation; remove unused `ActiveSurface`, global
+   `ConfigStatus`, and `WidgetPress`.
+6. [x] Move OSD from `CSI_TMP` to `ReaCtrlSurf_OSD` atomically.
+7. [x] Rename the unpublished Lua protocol and settings sections from `CSI_*` to
+   `ReaCtrlSurf_*` atomically without compatibility reads.
 
 ### Acceptance
 
-- Existing users retain window positions and interaction settings after migration.
+- Each surface retains its independently stored window position.
 - The interface document matches every key currently produced or consumed.
-- No protocol rename causes an OSK/OSD version mismatch to fail silently.
+- OSK and OSD use only the documented `ReaCtrlSurf_*` sections.
 
 ## Phase 5: Outstanding Core Correctness Work
 

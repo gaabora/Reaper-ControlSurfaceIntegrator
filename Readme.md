@@ -19,6 +19,9 @@ need to plan way to implement, maybe not thru extState buttons in lua on click s
 there was tries to implement, but currently it gives errors like
 "attempt to access a nil value (field 'GetIO')"
 
+The OSK opens one independently positioned window per enabled surface. Its current
+Lua/C++ protocol is documented in `LUA_CPP_EXTSTATE_INTERFACE.md`.
+
 
 
 

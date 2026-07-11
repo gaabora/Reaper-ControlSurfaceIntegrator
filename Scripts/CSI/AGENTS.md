@@ -17,6 +17,8 @@
 - Track unapplied editor changes separately from live unsaved changes, and request C++ revert when an editor with live changes closes.
 - Keep the binding editor's structured columns, pseudo-modifiers, generated titles, and color controls backed by the same serialized raw action line used by `ConfigApplyLive`.
 - Send OSK wheel input as rate-limited semantic acceleration packets; do not generate MIDI messages or expose device IDs from Lua.
+- Treat the OSK/OSD Lua interface as pre-release: use only current `ReaCtrlSurf_*` sections and settings, with no legacy aliases unless publication changes that requirement.
+- Keep one OSK window per surface and persist each surface position independently without writing persistent ExtState on every movement frame.
 
 ## Work Guidance
 

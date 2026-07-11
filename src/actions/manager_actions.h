@@ -1309,7 +1309,6 @@ public:
             surface->PublishOSKLabels();
             surface->PublishOSKState();
             context->GetCSI()->PublishOSKSurfacesList();
-            context->GetCSI()->PublishOSKActiveSurface(surface->GetName());
             context->GetCSI()->OpenOSKPanel();
         } else {
             context->GetCSI()->PublishOSKSurfacesList();

@@ -410,9 +410,9 @@ local function parseCsv(text)
 end
 
 local function pollResponse(key)
-	if not r.HasExtState("CSI_OSK", key) then return nil end
-	local value = r.GetExtState("CSI_OSK", key)
-	r.DeleteExtState("CSI_OSK", key, false)
+	if not r.HasExtState(data.EXT_SECTION, key) then return nil end
+	local value = r.GetExtState(data.EXT_SECTION, key)
+	r.DeleteExtState(data.EXT_SECTION, key, false)
 	return value
 end
 
@@ -519,7 +519,7 @@ local function sendConfigQuery(expectedSerialized, forceAccept)
 	state.pendingOperation = "Query"
 	state.queryExpectedSerialized = expectedSerialized
 	state.forceAcceptQuery = forceAccept == true
-	r.SetExtState("CSI_OSK_CMD", "ConfigQuery", payload, false)
+	r.SetExtState(data.EXT_CMD_SECTION, "ConfigQuery", payload, false)
 end
 
 local function sendApplyLive()
@@ -538,7 +538,7 @@ local function sendApplyLive()
 	local payload = state.surfaceName .. "|" .. state.widgetName .. "|" .. serialized
 	state.pendingOperation = "ApplyLive"
 	state.pendingSerialized = serialized
-	r.SetExtState("CSI_OSK_CMD", "ConfigApplyLive", payload, false)
+	r.SetExtState(data.EXT_CMD_SECTION, "ConfigApplyLive", payload, false)
 	return true
 end
 
@@ -546,7 +546,7 @@ local function sendSave()
 	local payload = state.surfaceName .. "|" .. state.widgetName
 	state.pendingOperation = "Save"
 	state.pendingSerialized = serializeBindings(state.bindings)
-	r.SetExtState("CSI_OSK_CMD", "ConfigSave", payload, false)
+	r.SetExtState(data.EXT_CMD_SECTION, "ConfigSave", payload, false)
 end
 
 local function requestRevert()
@@ -554,7 +554,7 @@ local function requestRevert()
 	state.pendingOperation = "Revert"
 	state.pendingSerialized = nil
 	local payload = state.surfaceName .. "|" .. state.widgetName
-	r.SetExtState("CSI_OSK_CMD", "ConfigRevert", payload, false)
+	r.SetExtState(data.EXT_CMD_SECTION, "ConfigRevert", payload, false)
 end
 
 local function closeEditor()
@@ -821,8 +821,6 @@ local function pollConfigResponses()
 
 	local scopedStatusKey = "ConfigStatus_" .. surf .. "_" .. widget
 	local rawStatus = pollResponse(scopedStatusKey)
-	local legacyStatus = pollResponse("ConfigStatus")
-	if rawStatus == nil then rawStatus = legacyStatus end
 	if rawStatus ~= nil then
 		local status = parseConfigStatus(rawStatus)
 		if status
@@ -894,7 +892,7 @@ function M.OpenConfigEditor(surfName, widgetName)
 
 	sendConfigQuery("", true)
 	if #state.csiActions == 0 then
-		r.SetExtState("CSI_OSK_CMD", "ActionListQuery", "", false)
+		r.SetExtState(data.EXT_CMD_SECTION, "ActionListQuery", "", false)
 	else
 		refreshSearchResults()
 	end
