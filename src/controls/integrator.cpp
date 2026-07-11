@@ -3033,8 +3033,7 @@ CSurfIntegrator::~CSurfIntegrator() {
 const char* CSurfIntegrator::GetDescString() { return Control_Surface_Integrator; }
 
 const char* CSurfIntegrator::GetConfigString() {
-    snprintf(configtmp, sizeof(configtmp), "0 0");
-    return configtmp;
+    return "0 0";
 }
 
 int CSurfIntegrator::Extended(int call, void* parm1, void* parm2, void* parm3) {

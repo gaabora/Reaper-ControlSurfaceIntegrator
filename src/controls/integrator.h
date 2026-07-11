@@ -28,8 +28,6 @@ static const int s_tickCounts_[] = { 250, 235, 220, 205, 190, 175, 160, 145, 130
 class CSurfIntegrator : public IReaperControlSurface
 {
 private:
-    char configtmp[1024];
-
     vector<unique_ptr<Midi_ControlSurfaceIO>> midiSurfacesIO_;
     vector<unique_ptr<OSC_ControlSurfaceIO>> oscSurfacesIO_;
 
