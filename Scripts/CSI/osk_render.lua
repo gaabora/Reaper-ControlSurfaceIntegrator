@@ -16,6 +16,11 @@ local wheelStates = {}
 local WHEEL_SEND_INTERVAL_SECONDS = 0.040
 local WHEEL_MAX_EVENTS_PER_COMMAND = 8
 
+local function GetInteractionStateKey(surfName, widgetName)
+    if not surfName or surfName == "" or not widgetName or widgetName == "" then return nil end
+    return surfName .. "|" .. widgetName
+end
+
 function M.SetFonts(font, fontSmall)
     FONT = font
     FONT_SMALL = fontSmall
@@ -63,21 +68,21 @@ local function FlushPendingWheelCommands()
     end
 end
 
-local pressedWidgets = {}  -- widgetName -> surfName, tracks buttons currently held down
+local pressedWidgets = {}  -- surface|widget -> true, tracks buttons currently held down
 
 local function HandleButtonPressDown(surfName, cell)
     if not data.vars.interactive or not cell.name then return end
-    if not surfName then return end
+    local stateKey = GetInteractionStateKey(surfName, cell.name)
+    if not stateKey then return end
     local msg = surfName .. "|" .. cell.name
     r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressDown", msg, false)
-    pressedWidgets[cell.name] = surfName
+    pressedWidgets[stateKey] = true
 end
 
-local function HandleButtonPressUp(cell)
-    if not cell.name then return end
-    if not pressedWidgets[cell.name] then return end
-    local surfName = pressedWidgets[cell.name]
-    pressedWidgets[cell.name] = nil
+local function HandleButtonPressUp(surfName, cell)
+    local stateKey = GetInteractionStateKey(surfName, cell and cell.name)
+    if not stateKey or not pressedWidgets[stateKey] then return end
+    pressedWidgets[stateKey] = nil
     local msg = surfName .. "|" .. cell.name
     r.SetExtState(data.EXT_CMD_SECTION, "WidgetPressUp", msg, false)
 end
@@ -88,9 +93,8 @@ local function HandleRotaryMouseWheel(ctx, surfName, cell)
     if not imgui.IsItemHovered(ctx) then return end
     if not data.vars.interactive then return end
 
-    if not surfName then return end
-
-    local stateKey = surfName .. "|" .. cell.name
+    local stateKey = GetInteractionStateKey(surfName, cell.name)
+    if not stateKey then return end
     local wheelState = wheelStates[stateKey]
     if not wheelState then
         wheelState = {
@@ -177,12 +181,14 @@ local function GetButtonLabel(surfName, cell)
 end
 
 local function ShowDelayedTooltip(ctx, surfName, widgetName, text)
+    local stateKey = GetInteractionStateKey(surfName, widgetName)
+    if not stateKey then return end
     if imgui.IsItemHovered(ctx) then
         local now = os.clock()
-        if not hoverStartTime[widgetName] then
-            hoverStartTime[widgetName] = now
+        if not hoverStartTime[stateKey] then
+            hoverStartTime[stateKey] = now
         end
-        if now - hoverStartTime[widgetName] >= data.vars.tooltip_delay then
+        if now - hoverStartTime[stateKey] >= data.vars.tooltip_delay then
             local modMap = surfName and data.labelMaps[surfName] and data.labelMaps[surfName][widgetName]
             local tooltipText = text
             if modMap and next(modMap) then
@@ -208,7 +214,7 @@ local function ShowDelayedTooltip(ctx, surfName, widgetName, text)
             end
         end
     else
-        hoverStartTime[widgetName] = nil
+        hoverStartTime[stateKey] = nil
     end
 end
 
@@ -286,7 +292,8 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
         ShowDelayedTooltip(ctx, surfName, cell.name or "", label)
         HandleRotaryMouseWheel(ctx, surfName, cell)
     elseif cell.name then
-        hoverStartTime[cell.name] = nil
+        local stateKey = GetInteractionStateKey(surfName, cell.name)
+        if stateKey then hoverStartTime[stateKey] = nil end
     end
 
     local mouseButtonRight = imgui.MouseButton_Right or 1
@@ -299,7 +306,7 @@ local function DrawButtonInteraction(ctx, surfName, cell, bw, bh, label, hitTest
     end
     -- Always check deactivated so a press-up is never missed even if cursor drifted outside shape
     if imgui.IsItemDeactivated(ctx) then
-        HandleButtonPressUp(cell)
+        HandleButtonPressUp(surfName, cell)
     end
 end
 

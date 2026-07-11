@@ -90,7 +90,8 @@ editor state:
 | `OSD` | `text;background;timeoutMs` |
 
 `background` is `0`, `1`, or `#RRGGBB`. The OSK embedded bar and standalone OSD
-consume the same message.
+consume the same message. Lua treats each write as an event and deletes the key after
+consuming it so identical payloads can refresh the visible timeout.
 
 ## Settings
 

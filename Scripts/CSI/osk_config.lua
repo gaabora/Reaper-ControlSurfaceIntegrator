@@ -105,7 +105,10 @@ local function tokenizePreservingQuotes(text)
 	local idx = 1
 	while idx <= #source do
 		local ch = source:sub(idx, idx)
-		if ch == '"' then
+		if inQuote and ch == "\\" and idx < #source then
+			current = current .. ch .. source:sub(idx + 1, idx + 1)
+			idx = idx + 1
+		elseif ch == '"' then
 			inQuote = not inQuote
 			current = current .. ch
 		elseif (ch == " " or ch == "\t") and not inQuote then
@@ -124,10 +127,32 @@ local function tokenizePreservingQuotes(text)
 	return tokens
 end
 
+local function unescapeQuotedText(text)
+	local out = {}
+	local idx = 1
+	while idx <= #text do
+		local ch = text:sub(idx, idx)
+		if ch == "\\" and idx < #text then
+			local nextCh = text:sub(idx + 1, idx + 1)
+			if nextCh == '"' or nextCh == "\\" then
+				out[#out + 1] = nextCh
+				idx = idx + 2
+			else
+				out[#out + 1] = ch
+				idx = idx + 1
+			end
+		else
+			out[#out + 1] = ch
+			idx = idx + 1
+		end
+	end
+	return table.concat(out)
+end
+
 local function unquoteValue(value)
 	local text = tostring(value or "")
 	if #text >= 2 and text:sub(1, 1) == '"' and text:sub(-1) == '"' then
-		return text:sub(2, -2)
+		return unescapeQuotedText(text:sub(2, -2))
 	end
 	return text
 end
@@ -135,7 +160,8 @@ end
 local function quoteIfNeeded(value)
 	local text = tostring(value or "")
 	if text == "" then return text end
-	if text:find("%s") then
+	if text:find("[%s\"]") or text:find("\\", 1, true) then
+		text = text:gsub("\\", "\\\\")
 		text = text:gsub('"', '\\"')
 		return '"' .. text .. '"'
 	end
@@ -174,7 +200,7 @@ local function parseActionLine(line)
 			if key and value then
 				parts.properties[key] = unquoteValue(value)
 			else
-				parts.params[#parts.params + 1] = token
+				parts.params[#parts.params + 1] = unquoteValue(token)
 			end
 		end
 		tokenIdx = tokenIdx + 1
@@ -189,7 +215,7 @@ local function buildActionLine(parts)
 
 	for _, param in ipairs(parts.params or {}) do
 		if param ~= "" then
-			out[#out + 1] = tostring(param)
+			out[#out + 1] = quoteIfNeeded(param)
 		end
 	end
 
@@ -1219,8 +1245,8 @@ function M.RenderConfigEditor(ctx)
 			else
 				imgui.Text(ctx, "No binding for this widget in the active zone.")
 			end
-			imgui.EndChild(ctx)
 		end
+		imgui.EndChild(ctx)
 	end
 
 	imgui.End(ctx)

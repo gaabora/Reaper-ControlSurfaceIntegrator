@@ -322,6 +322,18 @@ function M.FilterGroupedDuplicates(row)
     return filtered
 end
 
+local function parseLayoutCellProperties(cellStr)
+    local properties = {}
+    local metadata = cellStr:match("^[^:]+:(.*)$") or ""
+    for entry in metadata:gmatch("[^,]+") do
+        local key, value = entry:match("^([^=]+)=(.*)$")
+        if key then
+            properties[trim(key)] = unquote(value)
+        end
+    end
+    return properties
+end
+
 function M.ParseLayout(layoutStr)
     local result = {}
     for rowStr in layoutStr:gmatch("[^\n]+") do
@@ -332,16 +344,17 @@ function M.ParseLayout(layoutStr)
                 cell.isSpacer = true
                 cell.width = tonumber(cellStr:match("SPACER:([%d%.]+)")) or 0.5
             else
+                local properties = parseLayoutCellProperties(cellStr)
                 cell.isSpacer = false
                 cell.name = cellStr:match("^([^:]+)")
-                cell.shape = (cellStr:match("Shape=([^,]+)") or "rect"):lower()
-                cell.width = tonumber(cellStr:match("Width=([%d%.]+)")) or 1.0
-                cell.height = tonumber(cellStr:match("Height=([%d%.]+)")) or 1.0
-                cell.top = tonumber(cellStr:match("Top=([%d%.]+)")) or 0.0
+                cell.shape = tostring(properties.Shape or "rect"):lower()
+                cell.width = tonumber(properties.Width) or 1.0
+                cell.height = tonumber(properties.Height) or 1.0
+                cell.top = tonumber(properties.Top) or 0.0
                 if cell.shape == "fader" then cell.rowSpan = cell.height else cell.rowSpan = 1 end
-                cell.group = cellStr:match("Group=([^,]+)") or ""
-                cell.label = cellStr:match("Label=(.+)$") or ""
-                local colorHex = cellStr:match("Color=(#?%x+)")
+                cell.group = properties.Group or ""
+                cell.label = properties.Label or ""
+                local colorHex = tostring(properties.Color or ""):match("^#?%x+")
                 if colorHex then cell.color = M.hexToImCol(colorHex) end
             end
             row[#row + 1] = cell

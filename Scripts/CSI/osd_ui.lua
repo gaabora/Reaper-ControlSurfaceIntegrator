@@ -11,7 +11,6 @@ M.state = {
     text = "",
     bgColor = 0x333333ff,
     showUntil = 0,
-    lastMsg = nil,
     menuOpen = false,
 }
 
@@ -39,6 +38,7 @@ M.settingsBackup = nil  -- Backup of settings when menu opens (for Cancel revert
 local FONT_SMALL = nil
 local FONT_CACHE = {}
 local DEBUG_OSD = false
+local IDLE_SETTINGS_POPUP_ID = "OSD_IdleSettings"
 
 local function clamp(value, minVal, maxVal)
     return math.max(minVal, math.min(maxVal, value))
@@ -57,6 +57,22 @@ local function resetHiddenState()
     M.state.text = ""
     M.state.showUntil = 0
     M.state.bgColor = M.hexToImCol(M.vars.osd_bg_off)
+end
+
+local function restoreSettingsBackup()
+    if not M.settingsBackup then return end
+    for key, val in pairs(M.settingsBackup) do
+        M.vars[key] = val
+    end
+    M.settingsBackup = nil
+end
+
+local function finalizeSettingsPopupState(popupOpen)
+    local wasMenuOpen = M.state.menuOpen
+    M.state.menuOpen = popupOpen
+    if wasMenuOpen and not popupOpen and M.settingsBackup then
+        restoreSettingsBackup()
+    end
 end
 
 function M.SetFont(font)
@@ -122,18 +138,18 @@ end
 
 ---Poll OSD message from ExtState
 function M.PollOSD()
-    local msg = r.GetExtState(M.EXT_SECTION, M.EXT_KEY)
-    if msg ~= M.state.lastMsg then
-        M.state.lastMsg = msg
+    if r.HasExtState(M.EXT_SECTION, M.EXT_KEY) then
+        local msg = r.GetExtState(M.EXT_SECTION, M.EXT_KEY)
+        r.DeleteExtState(M.EXT_SECTION, M.EXT_KEY, false)
         if not msg or msg == "" then
             resetHiddenState()
             return
         end
-        
+
         -- Parse message format: "text;bgState;timeoutMs"
         local text, bgState, timeoutStr = msg:match("([^;]*);?([^;]*);?([^;]*)")
         text = text and text:match("^%s*(.-)%s*$") or ""
-        
+
         local timeout = tonumber(timeoutStr) or 3000  -- default 3 seconds
         if bgState and bgState:sub(1, 1) == "#" then
             M.state.bgColor = M.hexToImCol(bgState)
@@ -142,13 +158,13 @@ function M.PollOSD()
         else
             M.state.bgColor = M.hexToImCol(M.vars.osd_bg_off)
         end
-        
+
         M.state.text = text
         local now = r.time_precise()
         M.state.showUntil = now + (timeout / 1000)
         DebugLog("msg=", msg, "timeoutMs=", timeout, "showUntil=", string.format("%.3f", M.state.showUntil))
     end
-    
+
     -- Check if OSD should still be visible
     local now = r.time_precise()
     if M.state.showUntil > 0 and now > M.state.showUntil then
@@ -200,49 +216,6 @@ function M.SaveSettings()
     end
 end
 
----Render OSD bar (used by OSK as embedded bar)
----@param ctx ImGui context
----@param imgui ImGui module
----@param containerWidth number
----@param containerHeight number
-function M.RenderOSDBar(ctx, imgui, containerWidth, containerHeight)
-    if not M.state.text or M.state.text == "" then
-        return
-    end
-    
-    if not FONT_SMALL then return end
-    
-    containerWidth = containerWidth or imgui.GetWindowSize(ctx)
-    local width = containerWidth
-    local height = math.max(20, containerHeight * 0.10)
-    
-    imgui.PushFont(ctx, FONT_SMALL)
-    
-    -- Background
-    local drawList = imgui.GetWindowDrawList(ctx)
-    local startX = 0
-    local startY = 0
-    
-    local bgCol = M.state.bgColor
-    if M.vars.osd_transparency then
-        bgCol = toAlpha(bgCol, M.vars.osd_transparency)
-    end
-    
-    imgui.DrawList_AddRectFilled(drawList, startX, startY, startX + width, startY + height, bgCol, 4)
-    
-    -- Text (centered)
-    local textCol = M.getContrastTextColorFromCol(M.state.bgColor)
-    textCol = (textCol & 0xFFFFFF00) | 0xFF
-    
-    local textWidth = imgui.CalcTextSize(ctx, M.state.text)
-    local textX = startX + (width - textWidth) / 2
-    local textY = startY + (height - imgui.CalcTextSize(ctx, "M")) / 2
-    
-    imgui.DrawList_AddText(drawList, textX, textY, textCol, M.state.text)
-    
-    imgui.PopFont(ctx)
-end
-
 ---Slider with optional manual input field
 ---Slider and input both update the same value; no step rounding on input
 ---@param useInput boolean if true, show small input field after slider
@@ -291,6 +264,46 @@ local function ComboControl(ctx, imgui, label, currentIndex, options)
     return rv, idx
 end
 
+local function RenderIdleSettingsLauncher(ctx, imgui, screenWidth, originX, originY)
+    if not FONT_SMALL then return false end
+
+    local launcherFlags = imgui.WindowFlags_NoTitleBar
+        | imgui.WindowFlags_NoScrollbar
+        | imgui.WindowFlags_NoMove
+        | imgui.WindowFlags_NoResize
+        | imgui.WindowFlags_NoCollapse
+        | imgui.WindowFlags_AlwaysAutoResize
+    if imgui.WindowFlags_NoSavedSettings then
+        launcherFlags = launcherFlags | imgui.WindowFlags_NoSavedSettings
+    end
+
+    local baseX = originX or 0
+    local baseY = originY or 0
+    imgui.SetNextWindowPos(ctx, baseX + screenWidth - 66, baseY + 12, imgui.Cond_Always)
+    imgui.SetNextWindowBgAlpha(ctx, 0.72)
+    local visible = imgui.Begin(ctx, "##OSD_idle_launcher", true, launcherFlags)
+    local popupOpen = false
+    if visible then
+        imgui.PushFont(ctx, FONT_SMALL)
+        if imgui.Button(ctx, "OSD") then
+            imgui.OpenPopup(ctx, IDLE_SETTINGS_POPUP_ID)
+        end
+        if imgui.IsItemHovered(ctx) and imgui.BeginTooltip(ctx) then
+            imgui.Text(ctx, "Open OSD settings")
+            imgui.EndTooltip(ctx)
+        end
+        if imgui.BeginPopup(ctx, IDLE_SETTINGS_POPUP_ID) then
+            popupOpen = true
+            M.RenderSettingsPanel(ctx, imgui)
+            imgui.EndPopup(ctx)
+        end
+        imgui.PopFont(ctx)
+    end
+    imgui.End(ctx)
+    finalizeSettingsPopupState(popupOpen)
+    return true
+end
+
 ---Render OSD window (for standalone OSD script)
 ---@param ctx ImGui context
 ---@param imgui ImGui module
@@ -307,8 +320,8 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
     end
 
     local hasText = M.state.text and M.state.text ~= ""
-    if (not hasText and not M.state.menuOpen) then
-        return false
+    if not hasText then
+        return RenderIdleSettingsLauncher(ctx, imgui, screenWidth, originX, originY)
     end
     
     if not FONT_SMALL then return false end
@@ -376,7 +389,6 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
         if renderFont then imgui.PopFont(ctx) end
 
         -- Right-click settings must be opened while this window is active.
-        local wasMenuOpen = M.state.menuOpen
         local popupOpen = false
         if FONT_SMALL then imgui.PushFont(ctx, FONT_SMALL) end
         if imgui.BeginPopupContextWindow(ctx, "OSD_ContextMenu") then
@@ -384,18 +396,15 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
             M.RenderSettingsPanel(ctx, imgui)
             imgui.EndPopup(ctx)
         end
-        if FONT_SMALL then imgui.PopFont(ctx) end
-        M.state.menuOpen = popupOpen
-        
-        -- Clear settings backup when menu closes (user cancelled by closing without saving)
-        if wasMenuOpen and not popupOpen and M.settingsBackup then
-            for key, val in pairs(M.settingsBackup) do
-                M.vars[key] = val
-            end
-            M.settingsBackup = nil
+        if imgui.BeginPopup(ctx, IDLE_SETTINGS_POPUP_ID) then
+            popupOpen = true
+            M.RenderSettingsPanel(ctx, imgui)
+            imgui.EndPopup(ctx)
         end
+        if FONT_SMALL then imgui.PopFont(ctx) end
+        finalizeSettingsPopupState(popupOpen)
     else
-        M.state.menuOpen = false
+        finalizeSettingsPopupState(false)
     end
     
     imgui.End(ctx)
@@ -422,15 +431,14 @@ function M.RenderSettingsPanel(ctx, imgui)
     if imgui.Button(ctx, "Save##osd_save", 50, 0) then
         M.SaveSettings()
         M.settingsBackup = nil
+        if imgui.CloseCurrentPopup then imgui.CloseCurrentPopup(ctx) end
         return
     end
     imgui.SameLine(ctx)
     if imgui.Button(ctx, "Cancel##osd_cancel", 50, 0) then
         -- Restore from backup
-        for key, val in pairs(M.settingsBackup) do
-            M.vars[key] = val
-        end
-        M.settingsBackup = nil
+        restoreSettingsBackup()
+        if imgui.CloseCurrentPopup then imgui.CloseCurrentPopup(ctx) end
         return
     end
     
