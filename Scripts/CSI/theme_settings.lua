@@ -239,9 +239,9 @@ end
 
 function M.IsMeaningfulColor(col)
     local threshold = M.WIDGET.color_meaningful_threshold
-    return ((col >> 24) & 0xFF) > threshold
-        or ((col >> 16) & 0xFF) > threshold
-        or ((col >> 8) & 0xFF) > threshold
+    return ((col >> 24) & 0xFF) >= threshold
+        or ((col >> 16) & 0xFF) >= threshold
+        or ((col >> 8) & 0xFF) >= threshold
 end
 
 function M.GetContrastTextColorFromCol(bgCol)

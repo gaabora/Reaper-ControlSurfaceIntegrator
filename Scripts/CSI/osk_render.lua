@@ -25,24 +25,33 @@ function M.SetConfigModule(module)
     osk_widget_drawers.SetConfigModule(module)
 end
 
-local function getButtonColor(surfName, widgetName, cellOverride)
+local function getStateAndCellColors(surfName, widgetName, cellOverride)
     local widgetState = data.states[surfName] and data.states[surfName][widgetName]
     local cell = cellOverride or data.GetCellInfo(surfName, widgetName)
+    local stateColor = widgetState and theme.IsMeaningfulColor(widgetState.color) and widgetState.color or nil
+    local cellColor = cell and cell.color or nil
+    return widgetState, stateColor, cellColor
+end
+
+local function getButtonColor(surfName, widgetName, cellOverride)
+    local widgetState, stateColor, cellColor = getStateAndCellColors(surfName, widgetName, cellOverride)
 
     if widgetState and widgetState.value > 0 then
-        if theme.IsMeaningfulColor(widgetState.color) then return widgetState.color end
-        if cell and cell.color then return cell.color end
+        if stateColor then return stateColor end
+        if cellColor then return cellColor end
         return theme.OSK_COLORS.button_on
     end
 
-    local color = cell and cell.color and theme.DimColor(cell.color, 0.40) or theme.OSK_COLORS.button_off
+    if stateColor then return stateColor end
+
+    local color = cellColor and theme.DimColor(cellColor, 0.40) or theme.OSK_COLORS.button_off
     return theme.EnsureMinLuminance(color, theme.WIDGET.min_button_luminance)
 end
 
 local function getFaderColor(surfName, widgetName, cell)
-    local widgetState = data.states[surfName] and data.states[surfName][widgetName]
-    if widgetState and theme.IsMeaningfulColor(widgetState.color) then return widgetState.color end
-    if cell and cell.color then return cell.color end
+    local _, stateColor, cellColor = getStateAndCellColors(surfName, widgetName, cell)
+    if stateColor then return stateColor end
+    if cellColor then return cellColor end
     return theme.EnsureMinLuminance(theme.OSK_COLORS.button_off, theme.WIDGET.min_fader_luminance)
 end
 
