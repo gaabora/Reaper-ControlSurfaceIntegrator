@@ -8,6 +8,6 @@
 namespace DAW {
     // Show an on-screen display message as an ExtState.
     // Rate-limited: repeated identical values are suppressed within timeoutMs.
-    void ShowOSD(const osd_data osdData);
+    void ShowOSD(const osd_data& osdData);
 
 } // namespace DAW

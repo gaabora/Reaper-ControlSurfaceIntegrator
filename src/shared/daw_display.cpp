@@ -9,7 +9,7 @@
 using std::string;
 
 namespace DAW {
-    void ShowOSD(const osd_data osdData) {
+    void ShowOSD(const osd_data& osdData) {
         static string lastValue;
         static DWORD lastUpdateTs = 0;
         DWORD now = GetTickCount();
