@@ -1,12 +1,6 @@
 // osk.cpp — ControlSurface OSK (On-Screen Keyboard) member implementations.
-// Extracted from integrator.cpp for clarity.
-// These remain ControlSurface member functions; only the translation unit changed.
 
 #include "integrator.h"
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ControlSurface - OSK (On-Screen Keyboard) Implementation
-////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& info) {
     if (propsPart.empty()) return;
@@ -226,5 +220,77 @@ void ControlSurface::PublishOSKLabels() {
         cachedOskLabelsString_ = labels;
         string key = string("Labels_") + name_;
         ::SetExtState("CSI_OSK", key.c_str(), labels.c_str(), false);
+    }
+    PublishOSKLabelMap();
+}
+
+void ControlSurface::PublishOSKLabelMap() {
+    if (!isOskEnabled_) return;
+    if (!zoneManager_) return;
+
+    // Helper: extract the best display label from an ActionContext, falling back to cell defaults.
+    auto getLabel = [](ActionContext* ctx, const OskWidgetInfo& wi) -> string {
+        if (const char* kl = ctx->GetWidgetProperties().get_prop(PropertyType_KeyLabel))
+            if (kl[0] != '\0') return kl;
+        if (const char* title = ctx->GetActionTitle())
+            if (title[0] != '\0') return title;
+        return wi.label.empty() ? wi.name : wi.label;
+    };
+
+    string labelMap;
+
+    for (const auto& row : oskLayout_) {
+        for (const auto& cell : row.cells) {
+            if (cell.isSpacer) continue;
+
+            Widget* w = GetWidgetByName(cell.widget.name);
+            if (!w) continue;
+
+            // Collect all modifier -> context-vector pairs from the first active zone
+            // that defines this widget (mirrors the priority order of GetCurrentActionContextsForWidget).
+            map<int, const vector<unique_ptr<ActionContext>>*> modContexts;
+            zoneManager_->CollectAllModifierContextsForWidget(w, modContexts);
+            if (modContexts.empty()) continue;
+
+            // Build per-widget portion: "widgetName=modName:label|modName:label|..."
+            string entries;
+            for (const auto& [mod, ctxs] : modContexts) {
+                for (const auto& ctx : *ctxs) {
+                    // Name this modifier slot.
+                    // At modifier=0, contexts with HoldDelay>0 are "Hold" pseudo-bindings.
+                    string modName;
+                    if (mod == 0) {
+                        modName = (ctx->GetHoldDelay() > 0) ? "Hold" : "NoMod";
+                    } else {
+                        char buf[64];
+                        ModifierManager::GetModifierString(mod, buf, sizeof(buf));
+                        // GetModifierString appends '+' after each name; strip trailing '+'.
+                        string s(buf);
+                        while (!s.empty() && s.back() == '+') s.pop_back();
+                        modName = s;
+                    }
+
+                    string label = getLabel(ctx.get(), cell.widget);
+
+                    // Skip pure feedback (Feedback=No) NoAction contexts — they add noise.
+                    const ActionType at = ctx->GetAction()->GetType();
+                    if (at == ActionType::NoAction) continue;
+
+                    if (!entries.empty()) entries += "|";
+                    entries += modName + ":" + label;
+                }
+            }
+
+            if (!entries.empty()) {
+                if (!labelMap.empty()) labelMap += ";";
+                labelMap += cell.widget.name + "=" + entries;
+            }
+        }
+    }
+
+    if (labelMap != cachedOskLabelMapString_) {
+        cachedOskLabelMapString_ = labelMap;
+        string key = string("LabelMap_") + name_;
+        ::SetExtState("CSI_OSK", key.c_str(), labelMap.c_str(), false);
     }
 }

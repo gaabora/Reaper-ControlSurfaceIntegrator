@@ -347,6 +347,8 @@ void ZoneManager::UpdateCurrentActionContextModifiers() {
 
     for (int i = 0; i < goZones_.size(); ++i)
         goZones_[i]->UpdateCurrentActionContextModifiers();
+    // Re-publish OSK labels so the on-screen keyboard reflects the new modifier state.
+    surface_->PublishOSKLabels();
 }
 
 void ZoneManager::PreProcessZones() {

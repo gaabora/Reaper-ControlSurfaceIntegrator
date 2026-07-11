@@ -81,6 +81,21 @@ public:
             return emptyContexts_;
     }
 
+    // Fills out with all (modifier → &contexts) entries defined for this widget in this zone.
+    // Returns true if the widget was found with at least one non-empty modifier entry.
+    bool GetAllModifierContexts(Widget* widget, map<int, const vector<unique_ptr<ActionContext>>*>& out) {
+        auto it = actionContextDictionary_.find(widget);
+        if (it == actionContextDictionary_.end()) return false;
+        bool found = false;
+        for (auto& [mod, ctxs] : it->second) {
+            if (!ctxs.empty()) {
+                out[mod] = &ctxs;
+                found = true;
+            }
+        }
+        return found;
+    }
+
     void OnTrackDeselection() {
         isActive_ = true;
         for (auto& includedZone : includedZones_)

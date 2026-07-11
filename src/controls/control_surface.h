@@ -57,6 +57,7 @@ private:
     string cachedOskLayoutString_;
     string cachedOskStateString_;
     string cachedOskLabelsString_;
+    string cachedOskLabelMapString_;
     string surfaceFilePath_;
     int oskRunCounter_ = 0;
 
@@ -432,5 +433,6 @@ public:
     void PublishOSKLayout();
     void PublishOSKState();
     void PublishOSKLabels();
+    void PublishOSKLabelMap();
     const string& GetSurfaceFilePath() const { return surfaceFilePath_; }
 };

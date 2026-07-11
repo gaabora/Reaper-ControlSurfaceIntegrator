@@ -57,10 +57,12 @@ local currentSurface = 1     -- selected tab index
 -- per-surface data: layouts[surfName], states[surfName], labels[surfName]
 local layouts     = {}       -- parsed layout: array of rows, each row = array of cells
 local states      = {}       -- parsed state: widgetName -> {value=number, color=0xRRGGBBff}
-local labels      = {}       -- parsed labels: widgetName -> string
+local labels      = {}       -- parsed labels: widgetName -> string (current modifier)
+local labelMaps   = {}       -- all modifier bindings: widgetName -> {NoMod="Touch", Shift="Latch", Hold="Trim"}
 local rawLayouts  = {}
 local rawStates   = {}
 local rawLabels   = {}
+local rawLabelMaps = {}
 
 local BUTTON_SIZE = 64
 local BUTTON_PAD_H = 8  -- horizontal padding between buttons (pixels before zoom)
@@ -308,7 +310,9 @@ local function RenderOSDBar(ctx)
     imgui.PopFont(ctx)
 end
 
---- Show tooltip with delay: only display after hovering for TOOLTIP_DELAY seconds
+--- Show tooltip with delay: only display after hovering for TOOLTIP_DELAY seconds.
+--- When a LabelMap is available for the widget, the tooltip shows all modifier bindings
+--- (e.g. "Touch\nShift -> Latch\nHold -> Trim") instead of just the default text.
 local function ShowDelayedTooltip(ctx, widgetName, text)
     if imgui.IsItemHovered(ctx) then
         local now = os.clock()
@@ -316,8 +320,31 @@ local function ShowDelayedTooltip(ctx, widgetName, text)
             hoverStartTime[widgetName] = now
         end
         if now - hoverStartTime[widgetName] >= TOOLTIP_DELAY then
+            -- Build tooltip from LabelMap if available
+            local surfName = surfaces[currentSurface]
+            local modMap = surfName and labelMaps[surfName] and labelMaps[surfName][widgetName]
+            local tooltipText = text
+            if modMap and next(modMap) then
+                local lines = {}
+                -- NoMod first (primary binding)
+                if modMap["NoMod"] then
+                    lines[#lines + 1] = processLabel(modMap["NoMod"])
+                end
+                -- All other modifiers sorted alphabetically
+                local sortedMods = {}
+                for k in pairs(modMap) do
+                    if k ~= "NoMod" then sortedMods[#sortedMods + 1] = k end
+                end
+                table.sort(sortedMods)
+                for _, modName in ipairs(sortedMods) do
+                    lines[#lines + 1] = modName .. " -> " .. processLabel(modMap[modName])
+                end
+                if #lines > 0 then
+                    tooltipText = table.concat(lines, "\n")
+                end
+            end
             if imgui.BeginTooltip(ctx) then
-                imgui.Text(ctx, text)
+                imgui.Text(ctx, tooltipText)
                 imgui.EndTooltip(ctx)
             end
         end
@@ -408,6 +435,27 @@ local function ParseLabels(labelsStr)
     return result
 end
 
+--- Parse LabelMap string from C++: "Touch=NoMod:Touch|Shift:Latch|Hold:Trim;..."
+--- Returns widgetName -> {modifierName -> rawLabel} table.
+local function ParseLabelMap(str)
+    local result = {}
+    if not str or str == "" then return result end
+    for entry in str:gmatch("[^;]+") do
+        local name, modPairs = entry:match("^(.-)=(.+)$")
+        if name and modPairs then
+            local mods = {}
+            for modEntry in modPairs:gmatch("[^|]+") do
+                local modName, label = modEntry:match("^([^:]+):(.+)$")
+                if modName and label then
+                    mods[modName] = label
+                end
+            end
+            result[name] = mods
+        end
+    end
+    return result
+end
+
 -- ================================================================
 -- ExtState I/O
 -- ================================================================
@@ -490,12 +538,20 @@ local function PollData()
             states[surfName] = ParseState(rawS)
         end
 
-        -- Labels
+        -- Labels (current modifier)
         local labelKey = "Labels_" .. surfName
         local rawL = r.GetExtState(EXT_SECTION, labelKey)
         if rawL and rawL ~= rawLabels[surfName] then
             rawLabels[surfName] = rawL
             labels[surfName] = ParseLabels(rawL)
+        end
+
+        -- LabelMap (all modifier bindings, for hover tooltip)
+        local labelMapKey = "LabelMap_" .. surfName
+        local rawLM = r.GetExtState(EXT_SECTION, labelMapKey)
+        if rawLM and rawLM ~= rawLabelMaps[surfName] then
+            rawLabelMaps[surfName] = rawLM
+            labelMaps[surfName] = ParseLabelMap(rawLM)
         end
     end
 

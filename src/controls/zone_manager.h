@@ -272,6 +272,20 @@ public:
     CSurfIntegrator* GetCSI() { return csi_; }
     ControlSurface* GetSurface() { return surface_; }
 
+    // Collect all (modifier → &contexts) for widget from the first active zone that defines it.
+    // Used by PublishOSKLabelMap() to enumerate all possible bindings per widget for tooltip display.
+    void CollectAllModifierContextsForWidget(Widget* widget, map<int, const vector<unique_ptr<ActionContext>>*>& out) {
+        auto tryZone = [&](Zone* z) -> bool {
+            if (z->GetAllModifierContexts(widget, out)) return true;
+            for (auto& inc : z->GetIncludedZones())
+                if (inc->GetAllModifierContexts(widget, out)) return true;
+            return false;
+        };
+        for (auto& goZone : goZones_)
+            if (goZone->GetIsActive() && tryZone(goZone.get())) return;
+        if (homeZone_ && tryZone(homeZone_.get())) return;
+    }
+
     const vector<unique_ptr<ActionContext>>& GetCurrentActionContextsForWidget(Widget* widget) {
         // Check active goZones first
         for (auto& goZone : goZones_) {
