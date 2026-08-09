@@ -19,5 +19,5 @@ These are the architectural problem areas that still appear open in the current 
 
 ## Protocol And Contract Pressure
 
-- The ExtState protocol is now centralized in [../docs/LUA_CPP_EXTSTATE_INTERFACE.md](../docs/LUA_CPP_EXTSTATE_INTERFACE.md), but any future changes still require coordinated edits across `src/controls/`, `src/shared/`, and `Scripts/CSI/`.
+- The ExtState protocol is now centralized in [../docs/LUA_CPP_EXTSTATE_INTERFACE.md](../docs/LUA_CPP_EXTSTATE_INTERFACE.md), but any future changes still require coordinated edits across `src/controls/`, `src/shared/`, and `Scripts/`.
 - User-facing action names and config syntax remain public contracts, so structural refactors have to preserve documentation and migration behavior.

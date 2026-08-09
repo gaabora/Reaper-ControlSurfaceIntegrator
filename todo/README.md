@@ -17,4 +17,4 @@ This folder keeps the work that is still open.
 Historical plan snapshots that described already-implemented OSK/OSD work were removed during this reorganization. Their durable contracts now live in:
 
 - [../docs/LUA_CPP_EXTSTATE_INTERFACE.md](../docs/LUA_CPP_EXTSTATE_INTERFACE.md)
-- [../Scripts/CSI/AGENTS.md](../Scripts/CSI/AGENTS.md)
+- [../Scripts/AGENTS.md](../Scripts/AGENTS.md)

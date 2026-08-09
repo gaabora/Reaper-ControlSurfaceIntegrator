@@ -1,0 +1,77 @@
+Zone Metronome
+  OnZoneActivation          SendMIDIMessage "90 3b 01"  // Click button light BLINK
+  OnZoneActivation          SetOSD "METROOOOOO yeah"
+  OnZoneDeactivation        SendMIDIMessage "90 3b 00"  // Click button light OFF
+
+  Touch                     Reaper 41819           {  7 20 10   0 240 120 } // Pre-roll: Toggle pre-roll on record
+  Write                     Reaper _SWS_AWMRECTOG  { 20 10  0 200 100   0 } // SWS/AW: Toggle metronome during recording
+  Read                      Reaper _SWS_AWMPLAYTOG { 10 20  0 100 200   0 } // SWS/AW: Toggle metronome during playback
+
+  Shift+Touch               NoAction     {  0  0  0   0   0   0 }
+  Shift+Write               NoAction     {  0  0  0   0   0   0 }
+  Shift+Read                NoAction     {  0  0  0   0   0   0 }
+
+  RotaryBigPush             Reaper 40363 // Options: Show metronome/pre-roll settings
+
+  Link                      Reaper 40364 {  0 10  0   0 200   0 } // Toggle metronome
+  Pan                       Reaper 42456 {  7 10 10  60  60  60 } // Options: Set metronome speed to 1x
+  Channel                   Reaper 42457 { 14 20 20 100 100 100 } // Options: Set metronome speed to 2x
+  Scroll                    Reaper 42458 { 21 30 30 200 200 200 } // Options: Set metronome speed to 4x
+
+  Shift+Link                NoAction     {  0  0  0   0   0   0 }
+  Shift+Pan                 NoAction     {  0  0  0   0   0   0 }
+  Shift+Channel             NoAction     {  0  0  0   0   0   0 }
+  Shift+Scroll              NoAction     {  0  0  0   0   0   0 }
+
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN" // SWS/S&M: Decrease metronome volume x20
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN"
+  Shift+Decrease+RotaryBig  Reaper "_S&M_METRO_VOL_DOWN" // SWS/S&M: Decrease metronome volume x4
+  Shift+Decrease+RotaryBig  Reaper "_S&M_METRO_VOL_DOWN"
+  Shift+Decrease+RotaryBig  Reaper "_S&M_METRO_VOL_DOWN"
+  Shift+Decrease+RotaryBig  Reaper "_S&M_METRO_VOL_DOWN"
+
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP" // SWS/S&M: Increase metronome volume x20
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Increase+RotaryBig        Reaper "_S&M_METRO_VOL_UP"
+  Shift+Increase+RotaryBig  Reaper "_S&M_METRO_VOL_UP" // SWS/S&M: Increase metronome volume x4
+  Shift+Increase+RotaryBig  Reaper "_S&M_METRO_VOL_UP"
+  Shift+Increase+RotaryBig  Reaper "_S&M_METRO_VOL_UP"
+  Shift+Increase+RotaryBig  Reaper "_S&M_METRO_VOL_UP"
+
+  Click                     LeaveSubZone
+ZoneEnd

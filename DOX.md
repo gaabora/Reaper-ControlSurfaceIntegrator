@@ -81,6 +81,6 @@ When the user requests a durable behavior change, record it here or in the relev
 ## Child DOX Index
 
 - `AGENTS.md` - Repository-wide project, build, coding, verification, and exclusion contracts.
-- `Scripts/AGENTS.md` - REAPER Lua tooling, with a child contract for installed CSI scripts.
+- `Scripts/AGENTS.md` - REAPER Lua tooling and runtime contracts.
 - `src/AGENTS.md` - C++ plugin source, with child contracts for actions, controls, shared integration code, and native UI.
 - `Wiki/AGENTS.md` - User-facing wiki content and navigation.

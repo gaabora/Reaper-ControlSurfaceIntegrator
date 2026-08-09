@@ -1,13 +1,13 @@
 
 --[[
- * ReaScript Name: @PRODUCT_DISPLAY_NAME@ OSD on-screen display
- * About: Show OSD text box with data from @PRODUCT_DISPLAY_NAME@ control surfaces using ImGui.
+ * ReaScript Name: OSD on-screen display
+ * About: Show OSD text from linked control surfaces using ImGui.
  *        Displays at top or bottom of screen, with configurable size and transparency.
- * Author: @PRODUCT_DISPLAY_NAME@ Contributors
+ * Author: Contributors
  * Licence: GPL v3
  * REAPER: 7.0
  * Version: 2.0.0
- * Notes: Requires ReaImGui. Shares OSD UI logic with @PRODUCT_DISPLAY_NAME@ OSK via osd_ui module.
+ * Notes: Requires ReaImGui. Shares OSD UI logic with OSK via osd_ui module.
 --]]
 
 local r = reaper
@@ -59,7 +59,7 @@ local function main()
     end
 
     osd_ui.RenderOSDWindow(ctx, imgui, screenW, screenH, screenW, screenH, originX, originY)
-    
+
     r.defer(main)
 end
 

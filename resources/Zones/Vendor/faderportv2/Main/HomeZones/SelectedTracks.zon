@@ -1,0 +1,17 @@
+Zone SelectedTracks
+
+  /  Fader             TrackVolume
+  /  Flip+Shift+Fader  TrackVolume
+  /  Flip+Fader        TrackPan
+
+  /  Solo              TrackSolo
+  /  Mute              TrackMute
+  /  Arm               TrackRecordArm
+  /  Shift+Mute        Reaper _SWS_MUTETOGGLE
+  /  Shift+Solo        Reaper _SWS_SOLOTOGGLE
+  /  Shift+Arm         Reaper _SWS_ARMTOGGLE
+  /  Hold+Mute         NoAction      Feedback=No HoldDelay=400 
+  /  Hold+Solo         Reaper 40745  Feedback=No HoldDelay=400 // Options: Solo in front
+  /  Hold+Arm          Reaper 40736  Feedback=No HoldDelay=400 // Track: Toggle automatic record-arm when track selected
+
+ZoneEnd

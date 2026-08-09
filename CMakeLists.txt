@@ -251,17 +251,11 @@ endif()
 # ------------------------------------------------------------------------------
 
 set(PRODUCT_GENERATED_DIRECTORY "${PROJECT_BINARY_DIR}/generated")
-set(PRODUCT_GENERATED_SCRIPT_DIRECTORY "${PRODUCT_GENERATED_DIRECTORY}/Scripts/${PRODUCT_SCRIPT_DIRECTORY}")
-file(MAKE_DIRECTORY "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}")
 
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.h.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.h" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.lua.in" "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/product_identity.lua" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.ts.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.ts" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.env.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.env" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/Scripts/CSI/CSI OSK on-screen keyboard.lua" "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSK_SCRIPT_FILENAME}" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/Scripts/CSI/CSI OSD on-screen display.lua" "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSD_SCRIPT_FILENAME}" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/Scripts/CSI/CSI OSK state debug.lua" "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSK_DEBUG_SCRIPT_FILENAME}" @ONLY)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${PRODUCT_GENERATED_DIRECTORY}")
 
@@ -410,22 +404,11 @@ install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION "${PRODUCT_PLUGIN_INSTALL_DIRECTORY}" # Linux .so/macOS .dylib
 )
 
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/Scripts/CSI/"
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/Scripts/"
   DESTINATION "${PRODUCT_SCRIPT_INSTALL_DIRECTORY}"
   COMPONENT ${PROJECT_NAME}
   FILES_MATCHING PATTERN "*.lua"
-  PATTERN "CSI OSK on-screen keyboard.lua" EXCLUDE
-  PATTERN "CSI OSD on-screen display.lua" EXCLUDE
-  PATTERN "CSI OSK state debug.lua" EXCLUDE
-)
-
-install(FILES
-  "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/product_identity.lua"
-  "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSK_SCRIPT_FILENAME}"
-  "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSD_SCRIPT_FILENAME}"
-  "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSK_DEBUG_SCRIPT_FILENAME}"
-  COMPONENT ${PROJECT_NAME}
-  DESTINATION "${PRODUCT_SCRIPT_INSTALL_DIRECTORY}"
+  PATTERN "product_identity.conf"
 )
 
 # Install PDB files on Windows

@@ -1,0 +1,50 @@
+Zone MasterTrack NavType=MasterTrack
+  /OnZoneActivation          SendMIDIMessage  "90 3A 01" // Master button light BLINK
+  /OnZoneDeactivation        SendMIDIMessage  "90 3A 00" // Master button light Off
+
+  /  Solo                      Reaper 15     // Track: Toggle solo for master track
+  /  Mute                      Reaper 14     // Track: Toggle mute for master track
+  Solo                      TrackSolo
+  Mute                      TrackMute
+  Arm                       NoAction
+  
+  Shift+Mute        Reaper _SWS_MUTETOGGLE
+  Shift+Solo        Reaper _SWS_SOLOTOGGLE
+  Shift+Arm         Reaper _SWS_ARMTOGGLE       
+
+  Hold+Arm                  Reaper 40740  // Track: Set/clear all tracks automatic record-arm
+
+  Bypass                    Reaper 40917  // Master track: Toggle stereo/mono (L+R)
+
+  Fader                     TrackVolume
+
+  Link                      Reaper 41050 // Toggle show master track and tempo envelope
+
+
+  Flip+Fader                TrackPan
+  Flip+RotaryBig            TrackPan
+  Flip+RotaryBigPush        TrackPan [ 0.5 ]
+  Flip+Shift+Fader          TrackVolume
+  Flip+Shift+RotaryBig      TrackVolume
+  Flip+Shift+RotaryBigPush  TrackVolume [ 0.716 ] // 0dB
+
+// TODO FIX: this does not work, also selecting master in daw does not go in this zone
+   Touch             TrackAutoMode 2 { 20 20  0 255 255   0 }  // Touch
+   Write             TrackAutoMode 3 { 20  0  0 255   0   0 }  // Write
+   Read              TrackAutoMode 1 {  0 20  0   0 255   0 }  // Read
+   Shift+Touch       TrackAutoMode 4 {  5  0 20  53   0 255 }  // Latch
+   Shift+Write       TrackAutoMode 0 { 14 20 20 255 255 255 }  // Trim
+   Shift+Read        TrackAutoMode 5 {  0  5 20   0  55 255 }  // Latch Preview
+   Touch        TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+   Write        TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+   Read         TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+   Shift+Touch  TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+   Shift+Write  TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+   Shift+Read   TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+
+  /  Pan                       Flip {  7  0 10 120   0 120 }
+
+  /Master                    GoHome Feedback=No // light, no blink
+  Master                    GoHome Blink=2000 // dimmed, no blink
+  /Master                    LeaveSubZone Blink=2000 //works
+ZoneEnd

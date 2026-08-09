@@ -1,0 +1,10 @@
+Zone TrackFXMenu
+        /  DisplayUpper|         FXMenuNameDisplay
+        /  DisplayLower|         FXBypassDisplay
+        RotaryBig               NoAction
+        RotaryBigPush           ShowFXSlot
+        RotaryBigPush           GoFXSlot
+        Mute                 ToggleFXBypass
+        /Prev                  TrackFXMenuBank -1
+        /Next                 TrackFXMenuBank 1
+ZoneEnd

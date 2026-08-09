@@ -1,0 +1,22 @@
+Zone Paning NavType=SelectedTrack
+  OnZoneActivation      SendMIDIMessage "90 2a 01"  // Pan button light BLINK
+  OnZoneDeactivation    SendMIDIMessage "90 2a 00"  // Pan button light OFF
+
+  Loop                  TrackInvertPolarity // Reaper 40282 // Track: Invert track polarity/phase
+
+  Touch                 Reaper _SWS_AWPANBALANCENEW  {  0   90  30 }  // SWS/AW: Set selected tracks pan mode to stereo balance
+  Write                 Reaper _SWS_AWPANSTEREOPAN   {  0   90  30 }  // SWS/AW: Set selected tracks pan mode to stereo pan
+  Read                  NoAction  {  0  0  0 }
+  // Read                  Reaper _SWS_AWPANDUALPAN     {  0   90  30 }  // SWS/AW: Set selected tracks pan mode to dual pan // TODO: no idea how to even control this
+
+  Fader                 TrackPan
+  RotaryBig             TrackPan
+  RotaryBigPush         TrackPan [ 0.5 ]
+
+  Shift+Fader           TrackPanWidth
+  Shift+RotaryBig       TrackPanWidth
+  Shift+RotaryBig       Reaper _SWS_AWPANSTEREOPAN // SWS/AW: Set selected tracks pan mode to stereo pan
+  Shift+RotaryBigPush   TrackPanWidth [ 1.0 ]
+
+  /Pan                   LeaveSubZone
+ZoneEnd

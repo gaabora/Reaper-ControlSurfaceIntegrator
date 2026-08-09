@@ -4,7 +4,7 @@
 
 The Reaper Control Surface Integrator (CSI) is a sophisticated plugin system that enables deep integration of hardware control surfaces with the REAPER digital audio workstation. It implements a modular, event-driven architecture that allows hardware controllers to be mapped to REAPER functions through configuration files.
 
-The current fork is registered as `ReaControlSurface`. Public names and runtime paths are generated from [`../cmake/ProductIdentity.cmake`](../cmake/ProductIdentity.cmake) and documented in [`PRODUCT_IDENTITY.md`](PRODUCT_IDENTITY.md). Internal `CSI` and `CSurfIntegrator` type names remain implementation details.
+The current fork is registered as `ReaControlSurface`. Public names and runtime paths come from [`../Scripts/product_identity.conf`](../Scripts/product_identity.conf) and are documented in [`PRODUCT_IDENTITY.md`](PRODUCT_IDENTITY.md). Internal `CSI` and `CSurfIntegrator` type names remain implementation details.
 
 **Version**: 7.0 (based on CSI fork)
 **Type**: REAPER Plugin Extension (Control Surface API)

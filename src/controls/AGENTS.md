@@ -16,7 +16,7 @@
 - `preamble.h` is the stable include hub and project precompiled header.
 - The integrator run loop and REAPER callbacks share `csiMutex_`; preserve reentrant callback safety.
 - Zone and surface parser changes affect user configuration formats and require documentation review.
-- ExtState sections, keys, and serialized payloads shared with `Scripts/CSI` must change atomically.
+- ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
 - Load configuration, surfaces, zones, logs, backups, snippets, and generated files through the generated product identity and `ProductPaths`; do not add runtime fallback to legacy CSI paths.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.
 - Vendor zone profiles are read-only. Resolve `Zones/User` before `Zones/Vendor`; OSK and FX Learn writes require confirmation and an atomic full-profile clone into `Zones/User`. OSK reloads from the user copy after saving.

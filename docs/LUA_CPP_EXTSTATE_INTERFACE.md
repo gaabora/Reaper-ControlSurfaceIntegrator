@@ -6,7 +6,7 @@ This document defines the current private interface between the ReaControlSurfac
 the bundled OSK/OSD Lua scripts. The scripts have not been published, so this contract
 has no legacy aliases or migration fallbacks.
 
-The current `ReaCtrlSurf` prefix comes from [`../cmake/ProductIdentity.cmake`](../cmake/ProductIdentity.cmake). C++ and Lua use generated constants for the full section names shown below.
+The current `ReaCtrlSurf` prefix comes from [`../Scripts/product_identity.conf`](../Scripts/product_identity.conf). CMake generates the C++ constants from it, and Lua reads it directly through `product_identity.lua`.
 
 All command and response entries are session-only unless a settings section is named.
 Lua-to-C++ commands are consumed once and deleted by C++.

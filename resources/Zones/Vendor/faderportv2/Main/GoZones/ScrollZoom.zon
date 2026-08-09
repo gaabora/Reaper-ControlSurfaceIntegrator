@@ -1,0 +1,87 @@
+Zone ScrollZoom
+/ /Zoom                    FixedRGBColorDisplay {   0   0 200 }
+/
+/  OnZoneActivation          SendMIDIMessage "90 38 01"  // Zoom button light BLINK
+/  OnZoneDeactivation        SendMIDIMessage "90 38 00"  // Zoom button light OFF
+/
+/ // TODO: make a lua script that will save previous zoom settings and temporary set them to _WOL_SETVZOOMC_TRACKCVIEW + _WOL_SETHZOOMC_EDITPLAYCUR, on second run revert
+/ /  OnZoneActivation       Reaper _WOL_SETVZOOMC_LASTSELTRACK
+/ OnZoneActivation          Reaper _WOL_SETVZOOMC_TRACKCVIEW
+/ OnZoneActivation          Reaper _WOL_SETHZOOMC_EDITPLAYCUR
+/
+/ OnZoneDeactivation        Reaper _WOL_SETVZOOMC_TRACKMOUSECUR
+/ OnZoneDeactivation        Reaper _WOL_SETHZOOMC_MOUSECUR
+/
+/ / OnZoneActivation          ToggleUseLocalModifiers
+/ / OnZoneDeactivation        ToggleUseLocalModifiers
+/
+/ / OnZoneActivation          SendMIDIMessage "90 10 7f"  // Mute button light ON
+/ / OnZoneDeactivation        SendMIDIMessage "90 10 00"  // Mute button light OFF
+/
+
+
+
+  /OnZoneActivation      SendMIDIMessage "90 38 01"  // Zoom button light BLINK
+  /OnZoneDeactivation    SendMIDIMessage "90 38 7f"  // Zoom button light ON
+
+
+  Prev                      Reaper 40286 // Track: Go to previous track
+  Next                      Reaper 40285 // Track: Go to next track
+  Play                      Play
+  Record                    Record
+  
+RotaryBigPush NoAction
+
+
+  Solo                      Reaper _SWS_TOGZOOMHORIZ  // SWS: Toggle horizontal zoom to selected items or time selection
+  /Solo                      Reaper _SWS_TOGZOOMTTMIN  // SWS: Toggle zoom to selected tracks and time selection, minimize others
+
+  Mute                      Reaper 40295                // View: Zoom out project
+  Mute                      Reaper 40295                // View: Zoom out project
+
+  Bypass                    Reaper _SWS_HSCROLLPLAY50   // SWS: Horizontal scroll to put play cursor at 50%
+  Shift+Bypass                    Reaper 40913                // Track: Vertical scroll selected tracks into view
+
+
+
+  // Arrows
+  / Shift+Arm                 Reaper 40138 Feedback=No  // View: Scroll view up
+  / Shift+Write               Reaper 40139 Feedback=No  // View: Scroll view down
+  / Shift+Read                Reaper 40141 Feedback=No  // View: Scroll view right
+  / Shift+Touch               Reaper 40140 Feedback=No  // View: Scroll view left
+  Shift+Arm                 Reaper _XENAKIOS_TVPAGEHOME { 20  0  0 20  0  0 } HoldDelay=1000  // Xenakios/SWS: Scroll track view to home
+  Shift+Write               Reaper _XENAKIOS_TVPAGEEND  { 20  0  0 20  0  0 } HoldDelay=1000  // Xenakios/SWS: Scroll track view to end
+  Shift+Arm                 Reaper _XENAKIOS_TVPAGEUP   { 20  0  0 20  0  0 }  // Xenakios/SWS: Scroll track view up (page)
+  Shift+Write               Reaper _XENAKIOS_TVPAGEDOWN { 20  0  0 20  0  0 }  // Xenakios/SWS: Scroll track view down (page)
+  Read  Reaper 1012 { 20 0 0 255 0 0 } OSD="Zoom in H" // SWS: Scroll right 10%
+  Hold+Read  Reaper 1012 { 20 0 0 255 0 0 } HoldDelay=500 HoldRepeatInterval=100 // SWS: Scroll right 10%
+  Shift+Read  Reaper _SWS_SCROLL_R10 { 20 0 0 255 0 0 } // Zoom in horizontal
+  Hold+Shift+Read  Reaper _SWS_SCROLL_R10 { 20 0 0 255 0 0 } HoldDelay=500 HoldRepeatInterval=100 // Zoom in horizontal
+  Shift+Touch               Reaper _SWS_SCROLL_L10      { 20  0  0 20  0  0 } // SWS: Scroll left 10%
+  Shift+Touch               Reaper _SWS_SCROLL_L10      { 20  0  0 20  0  0 } HoldDelay=500 HoldRepeatInterval=100 // SWS: Scroll left 10%
+  Arm                       Reaper 40111  { 20  0  0 20  0  0 }  // Zoom in vertical
+  Write                     Reaper 40112  { 20  0  0 20  0  0 }  // Zoom out vertical
+  Touch                     Reaper 1011   { 20  0  0 20  0  0 }  // Zoom out horizontal
+  Arm                       Reaper 40111  { 20  0  0 20  0  0 } HoldDelay=500 HoldRepeatInterval=100 // Zoom in vertical
+  Write                     Reaper 40112  { 20  0  0 20  0  0 } HoldDelay=500 HoldRepeatInterval=100 // Zoom out vertical
+  Touch                     Reaper 1011   { 20  0  0 20  0  0 } HoldDelay=500 HoldRepeatInterval=100 // Zoom out horizontal
+
+  Shift+RotaryBigPush          Reaper _XENAKIOS_SELITEMSUNDEDCURSELTX  // Xenakios/SWS: Select items under edit cursor on selected tracks
+  Shift+Prev                Reaper _XENAKIOS_SELPREVTRACKKEEP       // Xenakios/SWS: Select previous tracks, keeping current selection
+  Shift+Next                Reaper _XENAKIOS_SELNEXTTRACKKEEP       // Xenakios/SWS: Select next tracks, keeping current selection
+
+  Shift+Play                Reaper 40036                            // View: Toggle auto-view-scroll during playback
+  Shift+Record              Reaper 40262                            // View: Toggle auto-view-scroll while recording
+
+
+ / Reaper 40113            {  7  0  0  255   0 255 }  // View: Toggle track zoom to maximum height
+ / Reaper 40110            {  7  0  0  255   0 255 }  // View: Toggle track zoom to minimum height
+ / Reaper 40295            {  7  0  0  255   0 255 }  // View: Zoom out project
+ / Reaper 40031            {  7 20 10  120 240 120 }  // View: Zoom time selection
+ / Reaper _SWS_VZOOMIITEMS {  7 20 10  120 240 120 }  // SWS: Vertical zoom to selected items
+ / Reaper _SWS_HZOOMITEMS  {  7 20 10  120 240 120 }  // SWS: Horizontal zoom to selected items
+
+
+  /Zoom                     LeaveSubZone
+  Scroll  GoHome { 58 58 58 200 200 200 }
+ZoneEnd

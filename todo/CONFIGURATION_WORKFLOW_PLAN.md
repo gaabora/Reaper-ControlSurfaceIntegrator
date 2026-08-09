@@ -9,7 +9,7 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 ## Fixed Decisions
 
 - Use `<ProductName>` and `<ProductRoot>` until the fork has its final product identity.
-- Generate runtime names, paths, ExtState sections, script paths, and package names from one build-time product identity source.
+- Keep runtime names, paths, ExtState sections, script paths, and package names in one product identity manifest that Lua reads directly and CMake consumes.
 - Keep OSK layout data in a formal block inside the `<surface-id>.txt` file.
 - Support OSK layouts for MIDI surfaces only. Do not add OSK mirroring for OSC surfaces in this plan.
 - Use the Bun editor for full surface, zone, snippet, import, export, and batch workflows.
@@ -48,14 +48,14 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 - A user surface or zone profile with the same ID overrides its vendor source at runtime.
 - ReaPack updates must never write to user-owned directories.
 - Users own `Generated`; ReaPack must never write to it.
-- Local development may link `Surfaces`, `Zones`, and `Snippets` from the product root to the repository resource tree. Installers and ReaPack packages must contain normal files and directories.
+- Local development may link `Surfaces`, `Zones`, and `Snippets` from the product root to the repository resource tree. It may also link the repository `Scripts/` directory to `REAPER/Scripts/<ProductScriptDirectory>`. Installers and ReaPack packages must contain normal files and directories.
 
 ## Shared Contracts
 
 ### Product identity
 
-- Keep the canonical product identity in one build-time source.
-- Generate matching C++, Lua, TypeScript, CMake/CPack, CI, archive, and ReaPack values from it.
+- Keep the canonical product identity in one manifest that does not require a C++ build.
+- Read the manifest directly from Lua and generate matching C++, TypeScript, CMake/CPack, CI, archive, and ReaPack values from it.
 - Include the display name, stable product ID, resource directory, config filename, ExtState prefix, REAPER registration ID, plugin filename, script directory, and package prefix.
 - Do not require internal C++ class names to change when the user-facing product name changes.
 - Keep explicit legacy CSI names only in the Bun importer.
@@ -123,11 +123,11 @@ OSKLayoutEnd
 
 ### ✅ Phase 1. Product identity and path resolver
 
-- Add the canonical product identity source and generate language-specific constants.
+- Add the canonical product identity manifest, read it directly from Lua, and generate other language-specific constants.
 - Replace hardcoded runtime, script, installer, CPack, CI, release archive, and ReaPack names and paths.
 - Add typed path resolution for vendor surfaces, user surfaces, zone profiles, snippets, backups, and legacy import roots.
 - Resolve user zone profiles before vendor profiles, keep vendor profiles read-only, and clone a full vendor profile before an OSK or FX Learn write.
-- Document manual development resource links in the main README. Do not create these links during build or install.
+- Document manual development resource and Lua runtime links in the main README. Do not create these links during build or install.
 - Keep `<ProductRoot>` usable before the final product name is selected.
 
 Ready when a future rename requires one identity change and generated output updates, with no manual runtime path search.

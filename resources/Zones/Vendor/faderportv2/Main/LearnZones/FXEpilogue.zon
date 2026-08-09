@@ -1,0 +1,5 @@
+Zone FXEpilogue
+     OnZoneDeactivation  HideFXSlot
+       Bypass  ClearFXSlot
+  Solo NoAction
+ZoneEnd

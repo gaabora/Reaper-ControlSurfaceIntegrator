@@ -1,0 +1,267 @@
+Zone Home
+    OnInitialization     ToggleEnableFocusedFXMapping
+    OnInitialization          SetBlinkTime 300
+
+    OnInitialization          EnableOSD
+    // OnInitialization SetOSDTime 3000         // set global OSD timeout.           (3000) miliseconds by default
+    // OnInitialization SetLatchTime 100        // set global latch modifier timeout (100)  miliseconds by default
+    // OnInitialization SetHoldTime 1000        // set global Hold timeout           (1000) miliseconds by default
+    OnInitialization SetDoublePressTime 400  // set global DoublePress timeout    (400)  miliseconds by default
+
+    // OnInitialization          ToggleEnableFocusedFXMapping
+    // OnInitialization          DisableFocusedFXMapping
+    // OnTrackSelection          Reaper _S&M_WNCLS4                      // Closes All(!) FX chain windows
+    // OnTrackSelection          Reaper _S&M_WNCLS3                      // Closes All(!) Floating FX windows
+//  OnPlayStart TrackMute
+//  OnPlayStop TrackMute
+
+
+  IncludedZones
+    
+  IncludedZonesEnd
+
+  SubZones
+    Paning
+    LinkLock
+  SubZonesEnd
+
+  
+//  GoZones
+//       MasterTrack MasterTrackNavigator
+//       //  Metronome
+//       //  ScrollZoom
+//       //  Master
+//       //  SelectedTrackReceive
+//       //  SelectedTrackSend
+//       //  LastTouchedFXParam
+//       //  LinkLock // SelectedTrackNavigator
+//       Pan SelectedTrackNavigator
+//       //  Marker
+//       //  Scroll
+//       //  Section
+//       //  Zoom\
+//  GoZonesEnd
+
+  Fader             TrackVolume
+  Flip+Shift+Fader  TrackVolume
+  Flip+Fader        TrackPan
+
+  Solo              TrackSolo
+  Mute              TrackMute
+  Arm  TrackRecordArm
+  Hold+Arm  Reaper 40736 Feedback=No HoldDelay=400
+  Shift+Arm  Reaper _SWS_ARMTOGGLE // Track: Toggle automatic record-arm when track selected
+  Shift+Mute        Reaper _SWS_MUTETOGGLE
+  Shift+Solo        Reaper _SWS_SOLOTOGGLE
+  Hold+Mute         NoAction      Feedback=No HoldDelay=400 
+  Hold+Solo         Reaper 40745  Feedback=No HoldDelay=400 // Options: Solo in front
+
+// ===========================================
+// WHEEL + NAV
+// ===========================================
+
+  Shift             Shift Blink
+  DoublePress+Shift         ToggleOSK
+
+  Prev                      Reaper 40286 // Track: Go to previous track
+  Next                      Reaper 40285 // Track: Go to next track
+  Prev                      Reaper 40286 HoldDelay=500 HoldRepeatInterval=100 // Track: Go to previous track
+  Next                      Reaper 40285 HoldDelay=500 HoldRepeatInterval=100 // Track: Go to next track
+
+  Shift+Prev                Reaper 40029 // Edit: Undo
+  Shift+Next                Reaper 40030 // Edit: Redo
+
+  RotaryBigPush             Reaper 40434 // View: Move edit cursor to play cursor
+  Shift+RotaryBigPush       NoAction
+
+   // Decrease+JogWheel           MoveEditCursor Bar
+   // Increase+JogWheel           MoveEditCustor Bar
+
+   // Marker+Decrease+JogWheel    MoveEditCursor Marker
+   // Marker+Increase+JogWheel    MoveEditCusror Marker
+
+  Shift+Decrease+RotaryBig  Reaper 40838 // Move edit cursor to start of current measure (no seek)
+  Decrease+RotaryBig        Reaper 40838 // Move edit cursor to start of current measure (no seek)
+  Decrease+RotaryBig        Reaper 40840 RunCount=3 OSD="Move edit cursor prev measure" // Move edit cursor back one measure (no seek)
+
+  Shift+Increase+RotaryBig  Reaper 40837 // Move edit cursor to start of next measure (no seek)
+  Increase+RotaryBig        Reaper 40837 // Move edit cursor to start of next measure (no seek)
+  Increase+RotaryBig        Reaper 40839 RunCount=3 OSD="Move edit cursor next measure" // Move edit cursor forward one measure (no seek)
+
+  Flip+RotaryBig            TrackPan
+  Flip+RotaryBigPush        TrackPan [ 0.5 ]
+  Flip+Shift+RotaryBig      TrackVolume
+  Flip+Shift+RotaryBigPush  TrackVolume [ 0.716 ] // 0dB
+
+
+
+
+
+  Control+Fader             TCPFXParam 0
+  Control+RotaryBig            TCPFXParam 0
+
+
+// ===========================================
+// BUTTONS ROW 2
+// ===========================================
+
+  Bypass            TrackEffectsBypass //Reaper 8      // Track: Toggle FX bypass for selected tracks
+  Shift+Bypass      Reaper 40344  // Track: Toggle FX bypass on all tracks
+
+  //  Touch             CycleTrackAutoMode
+  Touch             TrackAutoMode 2 { 20 20  0 255 255   0 }  // Touch
+  Write             TrackAutoMode 3 { 20  0  0 255   0   0 }  // Write
+  Read              TrackAutoMode 1 {  0 20  0   0 255   0 }  // Read
+  Shift+Touch       TrackAutoMode 4 {  5  0 20  53   0 255 }  // Latch
+  Shift+Write       TrackAutoMode 0 { 14 20 20 255 255 255 }  // Trim
+  Shift+Read        TrackAutoMode 5 {  0  5 20   0  55 255 }  // Latch Preview
+  Touch        TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+  Write        TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+  Read         TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+  Shift+Touch  TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+  Shift+Write  TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+  Shift+Read   TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
+
+// ===========================================
+// BUTTONS ROW 3
+// ===========================================
+
+  // TODO    search on how this  ToggleEnableFocusedFXParamMapping made in fp8
+ Shift+Link LearnFocusedFX {  40 0 0 120  0 0 }
+//   Link SelectedTrackFXMenu
+  Link                     Control Blink {  40 20 0 120  120 0 } 
+  Control+Fader            LastTouchedFXParam
+  Control+RotaryBig        LastTouchedFXParam 
+  Control+RotaryBigPush    Reaper 973 OSD="Reset" // Adjust last touched FX parameter (MIDI CC/OSC only)
+  
+  /Hold+Control             ClearLastTouchedFXParam
+  
+  //  Control+Loop               LearnFocusedFX {  40 0 0 120  0 0 }
+   // 
+   // DisableFocusedFXMapping
+   // DisableLastTouchedFXParamMapping
+   // ToggleEnableLastTouchedFXParamMapping
+   // ToggleUseLocalFXSlot
+
+
+
+  //  Shift+Link                      GoZone FocusedFXParam         {  7 10 10 } //TODO
+  //  Hold+Link                GoSubZone LinkLock
+      // send 255 229 3
+      // recv 0 158 253
+
+  Pan  Flip { 26 0 26 255 0 255 }
+  //HoldDelay=1000
+  
+      // Flip                      SendMIDIMessage "90 2a 01" // Pan button light BLINK
+      // Pan                       SendMIDIMessage "90 2a 01" // Pan button light BLINK
+      // Pan                    GoSubZone PanControls                //  { 0 1 8 10 10 255 }
+      // Pan                 GoZone Pan                     {  0  7 10   0 120 120 }
+      //Pan                        GoSubZone Paning   HoldDelay=1000 Feedback=Yes {  0 120 0  0 120 0 }
+      /Shift+Pan                  GoSubZone Paning  { 0 0 20   0 0 120 }
+
+       Channel                   GoZone SelectedTrackSend      {  7 10 10   0 240 120 }
+      // Channel                   GoZone SelectedTrackSend      {  7 10 10 }
+      // Shift+Channel             GoZone SelectedTrackFXMenu    {  7 10 20 }
+      // Channel // Button1 _S&M_FXBYPLAST     // Bypasses last touched FX on the selected track
+
+
+  Scroll  GoZone ScrollZoom { 10 10 10 200 200 200 }
+
+
+// Flip: Cyan (to indicate a state shift or toggle, contrasting with blue)                 RGB: (0, 255, 255)
+// Scroll: Light Green (suggesting movement, distinct from other functions)                RGB: (0, 200, 100)
+// Create (Add): Light Orange (soft and inviting without looking like solo or mute)        RGB: (255, 180, 0)
+// Delete: Darker Red (keeping it in the red family but distinct from rec/arm and mute)    RGB: (180, 0, 0)
+// Close: Dark Purple (indicates end or exit without the alert level of red)               RGB: (120, 0, 120)
+// FX: Light Purple (a little brighter than close to suggest effects or extras)            RGB: (160, 0, 160)
+// Sends: Bright Green (stands out but differs from the blue used for navigation)          RGB: (0, 255, 0)
+
+// ===========================================
+// BUTTONS ROW 4
+// ===========================================
+
+  Master                     Reaper 41050 // Toggle show master track and tempo envelope
+
+  Hold+Master                Reaper _SWS_SHOWMASTER  Feedback=No HoldDelay=900
+  Hold+Master                GoZone MasterTrack      Feedback=No HoldDelay=1000
+  // Shift+Master               TODO F1
+
+// -----------------------------------------
+
+  Click                      Reaper 40364 // Toggle metronome
+  Hold+Click                 Reaper 41745      Feedback=No HoldDelay=900 // Options: Enable metronome //FIXME: delay is 100ms less to avoid wrong order of updates bug that cause hold button light to became force ON after GoSubZone if button was hold when it's state was ON
+  Hold+Click                 GoZone Metronome  Feedback=No HoldDelay=1000
+  Shift+Click                Reaper 41819 // Pre-roll: Toggle pre-roll on record
+  /Shift+Click                Reaper _SWS_AWCOUNTRECTOG // Toggle count-in before recording
+
+// -------------------------------------------
+
+  Section                           Nudge Blink
+  Nudge                             SendMIDIMessage "90 3c 7f"  // Section button light ON
+  Nudge+RotaryBigPush               Reaper 41228     // Item edit: Toggle open/close nudge/set dialog
+  Nudge+Decrease+RotaryBig          Reaper 41250     // Item edit: Nudge left by last nudge dialog settings
+  Nudge+Increase+RotaryBig          Reaper 41249     // Item edit: Nudge right by last nudge dialog settings
+  Nudge+Touch                       Reaper _XENAKIOS_SELITEMSUNDEDCURSELTX  {  7 10 20 120 120 240 } // Xenakios/SWS: Select items under edit cursor on selected tracks
+  Nudge+Write                       NoAction     {  0  0  0   0   0   0 }
+  Nudge+Read                        Reaper 41228 { 20 20  0 255 255   0 } // Item edit: Toggle open/close nudge/set dialog
+
+  Nudge+Shift+Touch                 NoAction     {  0  0  0   0   0   0 }
+  Nudge+Shift+Write                 NoAction     {  0  0  0   0   0   0 }
+  Nudge+Shift+Read                  NoAction     {  0  0  0   0   0   0 }
+
+// -------------------------------------------
+
+  Marker                     Marker Blink
+  Marker                     SendMIDIMessage "90 3d 7f"  // Marker button light ON
+
+  Marker+Touch               Reaper 40157 { 30 80 20    0 120   0 } // Markers: Insert marker at current position
+  Marker+Write               Reaper 40613 { 80  0  0  255   0   0 } // Markers: Delete marker near cursor
+  Marker+Read                NoAction     {  0  0  0    0   0   0 } 
+
+  Marker+Shift+Touch         Reaper 40174 { 20 80 20    0 120   0 } // Markers: Insert region from time selection
+  Marker+Shift+Write         Reaper 40615 { 80  0  0  255   0   0 } // Markers: Delete region near cursor
+  Marker+Shift+Read          Reaper 40635 {  7 10 20  120 120 240 } // Time selection: Remove (unselect) time selection
+
+  Marker+Shift+Prev          Reaper 40625 // Time selection: Set start point
+  Marker+Shift+Next          Reaper 40626 // Time selection: Set end point
+
+  Marker+Prev                Reaper _SWS_SELPREVMORR  // SWS: Go to/time-select previous marker/region
+  Marker+Next                Reaper _SWS_SELNEXTMORR  // SWS: Go to/time-select next marker/region
+  // Marker+Prev                Reaper 40172  // Markers: Go to previous marker/project start
+  // Marker+Next                Reaper 40173  // Markers: Go to next marker/project end
+
+  Marker+RotaryBigPush       Reaper _SWSMARKERLIST13  // SWS: Convert markers to regions
+  Marker+Shift+RotaryBigPush Reaper _SWSMARKERLIST14  // SWS: Convert regions to markers
+  Marker+Hold+RotaryBigPush  Reaper 40171 Feedback=No HoldDelay=1000 // Markers: Insert and/or edit marker at current position
+
+// ===========================================
+// TRANSPORT BUTTONS
+// ===========================================
+
+  Loop                      CycleTimeline
+  Shift+Loop                Reaper 40527 // View: Clear all peak indicators
+  Shift+Loop                Reaper 40345 // Send all-notes-off and all-sounds-off to all MIDI outputs/plug-ins
+  Shift+Hold+Loop           Reaper 42348 // Reset all MIDI control surface devices
+  Shift+Hold+Loop           Reaper 41743 // Control surface: Refresh all surfaces
+
+  Rewind                    Reaper 41041  // Move edit cursor to start of current measure
+  Shift+Rewind              Reaper 41045  // Move edit cursor back one beat
+  Hold+Rewind               Reaper 40042  Feedback=No HoldDelay=1000 // Go to the project start
+  Shift+Hold+Rewind         Reaper 40042  Feedback=No HoldDelay=1000 // Go to the project start
+
+  FastForward               Reaper 41040  // Move edit cursor to start of next measure
+  Shift+FastForward         Reaper 41044  // Move edit cursor forward one beat
+  Hold+FastForward          Reaper 40043  Feedback=No HoldDelay=1000 // Go to the project end
+  Shift+Hold+FastForward    Reaper 40043  Feedback=No HoldDelay=1000 // Go to the project end
+
+  Stop                      Stop
+  DoublePress+Stop          Reaper 40042  Feedback=No // Go to the project start
+  Hold+Stop                 Reaper 40042  Feedback=No HoldDelay=1000 // Go to the project start
+  Play  Play
+  Record  Record Blink
+  Shift+Record  CycleDebugLevel
+
+ZoneEndo the project start
+
+ZoneEnd

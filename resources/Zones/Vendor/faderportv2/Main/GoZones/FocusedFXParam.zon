@@ -1,0 +1,15 @@
+Zone FocusedFXParam
+  / OnZoneActivation      ToggleUseLocalModifiers // FIXME: WILL CRASH REAPER if in FocusedFXParam
+  / OnZoneDeactivation    ToggleUseLocalModifiers // FIXME: WILL CRASH REAPER if in FocusedFXParam
+  Link     FixedRGBColorDisplay  { 120   0 240 }
+
+  / Write        RemapAutoZone
+  / Shift+Write   AutoMapFX
+  
+  Prev      FXParam -1
+  Next      FXParam 1
+
+  /  Fader     FocusedFXParam
+
+  Link    GoHome
+ZoneEnd

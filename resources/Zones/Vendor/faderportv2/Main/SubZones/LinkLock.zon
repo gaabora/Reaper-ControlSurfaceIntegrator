@@ -1,0 +1,42 @@
+Zone "LinkLock"
+  / OnZoneActivation      Speak "ass"
+  /OnZoneActivation      ToggleUseLocalModifiers
+  /OnZoneDeactivation    ToggleUseLocalModifiers
+
+  / Link      FixedRGBColorDisplay { 255 255 128 }
+
+
+
+  RotaryBigPush                 GoFXSlot
+  RotaryBigPush                 Reaper "_S&M_WNCLS3"
+
+
+	Bypass 			      ToggleFXBypass
+	Shift+Bypass 			ToggleFXOffline
+  /Touch     RemapAutoZone  //     {  7  10  10 255 255 255 } 
+  /Write     AutoMapFX      //     {  7  10  10 255 255 255 } 
+
+  Read                       Reaper "_S&M_TOGLFLOATFXEL" // SWS/S&M: Toggle float selected FX for selected tracks
+
+  Prev                          Bank SelectedTrackFXMenu -1
+  Prev                          Reaper "_S&M_WNCLS3"    // SWS/S&M: Close all floating FX windows
+  Prev                          Reaper "_S&M_SELFXPREV" // SWS/S&M: Select previous FX (cycling) for selected tracks
+  Prev                          Reaper "_S&M_FLOATFXEL" // SWS/S&M: Float selected FX for selected tracks
+  Prev                          GoFXSlot -1
+
+  Next                          Bank SelectedTrackFXMenu 1
+  Next                          Reaper "_S&M_WNCLS3"    // SWS/S&M: Close all floating FX windows
+  Next                          Reaper "_S&M_SELFXNEXT" // SWS/S&M: Select next FX (cycling) for selected tracks
+  Next                          Reaper "_S&M_FLOATFXEL" // SWS/S&M: Float selected FX for selected tracks
+  Next                          GoFXSlot 1
+
+
+  / Left	      TrackFXMenuBank -1
+  / Right	      TrackFXMenuBank 1
+  / Prev      FXParam -1
+  / Next      FXParam 1
+
+  /Fader      FocusedFXParam
+
+  Link          LeaveSubZone
+ZoneEnd

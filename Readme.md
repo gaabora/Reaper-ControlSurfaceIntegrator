@@ -36,6 +36,48 @@ Windows debug build:
 cmake --build build --config Debug
 ```
 
+## Link configuration resources and Lua scripts for development
+
+The plugin reads surface, zone, and snippet configuration from the product root in the REAPER resource directory. The Lua runtime is installed below the REAPER `Scripts` directory. For local development, link these paths to the repository so edits are available in REAPER immediately. Set `REAPER_RESOURCE_PATH` to the REAPER resource directory before you run the commands.
+
+The commands read the current product directories from `Scripts/product_identity.conf`. CMake configure is not required. They do not replace existing paths. Move or remove existing `Surfaces`, `Zones`, `Snippets`, and `Scripts/<ProductScriptDirectory>` paths first.
+
+macOS and Linux:
+
+```sh
+repository_root="$(pwd)"
+identity_file="$repository_root/Scripts/product_identity.conf"
+product_resource_directory="$(sed -n 's/^PRODUCT_RESOURCE_DIRECTORY=//p' "$identity_file")"
+product_script_directory="$(sed -n 's/^PRODUCT_SCRIPT_DIRECTORY=//p' "$identity_file")"
+development_product_root="$REAPER_RESOURCE_PATH/$product_resource_directory"
+development_scripts_root="$REAPER_RESOURCE_PATH/Scripts"
+
+mkdir -p "$development_product_root"
+mkdir -p "$development_scripts_root"
+ln -s "$repository_root/resources/Surfaces" "$development_product_root/Surfaces"
+ln -s "$repository_root/resources/Zones" "$development_product_root/Zones"
+ln -s "$repository_root/resources/Snippets" "$development_product_root/Snippets"
+ln -s "$repository_root/Scripts" "$development_scripts_root/$product_script_directory"
+```
+
+Windows PowerShell with Developer Mode enabled:
+
+```powershell
+$repositoryRoot = (Get-Location).Path
+$identityFile = Join-Path $repositoryRoot "Scripts\product_identity.conf"
+$productResourceDirectory = ((Get-Content $identityFile | Select-String "^PRODUCT_RESOURCE_DIRECTORY=").Line -split "=", 2)[1]
+$productScriptDirectory = ((Get-Content $identityFile | Select-String "^PRODUCT_SCRIPT_DIRECTORY=").Line -split "=", 2)[1]
+$developmentProductRoot = Join-Path $env:REAPER_RESOURCE_PATH $productResourceDirectory
+$developmentScriptsRoot = Join-Path $env:REAPER_RESOURCE_PATH "Scripts"
+
+New-Item -ItemType Directory -Force -Path $developmentProductRoot
+New-Item -ItemType Directory -Force -Path $developmentScriptsRoot
+New-Item -ItemType SymbolicLink -Path (Join-Path $developmentProductRoot "Surfaces") -Target (Join-Path $repositoryRoot "resources\Surfaces")
+New-Item -ItemType SymbolicLink -Path (Join-Path $developmentProductRoot "Zones") -Target (Join-Path $repositoryRoot "resources\Zones")
+New-Item -ItemType SymbolicLink -Path (Join-Path $developmentProductRoot "Snippets") -Target (Join-Path $repositoryRoot "resources\Snippets")
+New-Item -ItemType SymbolicLink -Path (Join-Path $developmentScriptsRoot $productScriptDirectory) -Target (Join-Path $repositoryRoot "Scripts")
+```
+
 ## macOS note
 
 macOS builds are not code-signed. If REAPER blocks or can not see the plugin, remove the quarantine flag by next command running in terminal:

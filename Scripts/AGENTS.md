@@ -1,32 +1,77 @@
-# Scripts Guide
+# ReaScript Runtime Guide
 
 ## Purpose
 
-- Provide REAPER ReaScripts that expose CSI on-screen display and on-screen keyboard workflows.
+- Implement the linked and installed on-screen keyboard and on-screen display tools for REAPER.
 
 ## Ownership
 
-- Standalone Lua script prototypes and entry points directly under `Scripts/`.
-- Installation/runtime assumptions shared by the scripts in this subtree.
+- `OSK on-screen keyboard.lua`, `OSD on-screen display.lua`, and `OSK state debug.lua` entry scripts.
+- `product_identity.conf` canonical public identity and `product_identity.lua` runtime loader.
+- Shared Lua modules for data parsing, configuration editing, input, rendering, settings, and UI behavior directly under `Scripts/`.
+- Installation and linked-development assumptions for the Lua runtime.
 
 ## Local Contracts
 
 - Scripts execute inside REAPER and depend on the `reaper` API and ReaImGui.
-- Keep ExtState section names, keys, payload delimiters, and command lifecycles compatible with the C++ bridge in `src/controls`.
+- `Scripts/` is the source runtime directory. Developers may link it to `REAPER/Scripts/<ProductScriptDirectory>`; CMake install copies normal files for packages and must not create the link.
+- Load public display names, paths, and ExtState sections through `product_identity.lua`, which reads `product_identity.conf`; do not duplicate identity values in Lua modules.
+- Keep ExtState payloads compatible with `CSurfIntegrator` and `ControlSurface` command handling.
+- The OSK layout, state, label, binding, and action-list formats are serialized contracts; change both ends together.
+- Module loading must work from the linked or copied REAPER Scripts path without a CMake configure step.
 - Do not silently persist settings that are intended to remain session-only.
-- Installed script names, directories, and ExtState sections come from the generated `product_identity.lua`; source files under `Scripts/CSI` are installation inputs, not the installed product path contract.
+- Track unapplied editor changes separately from live unsaved changes, and request C++ revert when an editor with live changes closes.
+- Keep the binding editor's structured columns, pseudo-modifiers, generated titles, and color controls backed by the same serialized raw action line used by `ConfigApplyLive`.
+- Keep config color-picker swatches compact: empty saved/recent slots use checker/transparent swatches, left-click uses a stored color, and right-clicking a saved slot overwrites it with the current picker color.
+- Keep config color live preview separate from toolbar Apply Live: preview uses `ConfigApplyLive`, coalesces in-flight color changes to the latest serialized binding state, and does not request a follow-up `ConfigQuery`.
+- Keep OSK Inactive LED Boost display-only: apply it only to inactive state/action colors for OSK button widgets that do not have a fixed layout color; fixed layout colors are read-only in the config table, render active at full layout color and inactive at HSV/value -50, and must never alter serialized action-line colors, CSI state payloads, OSD, faders, or rotaries.
+- Keep action search beside the Action field, apply clicked results directly, match all space-separated partial terms across titles plus numeric and named REAPER command IDs, and leave the raw action line visible at the end of the form.
+- Keep the config window undockable and its dirty-state Apply, Save, and Revert controls in the top toolbar so they remain visible.
+- Show direction pseudo-modifiers only for relative controls identified by layout metadata; normal buttons must not expose Increase or Decrease controls.
+- Show the resolved binding title as the editable OSD default, and when KeyLabel is empty present OSD as its effective default without serializing duplicate properties until the user edits them.
+- Always apply built-in OSK label replacements; merge user replacements on top with user rules taking priority and longer phrases evaluated before shorter phrases.
+- Send OSK wheel input as rate-limited semantic acceleration packets; do not generate MIDI messages or expose device IDs from Lua.
+- Send OSK fader drag and wheel input as absolute normalized `WidgetValue` packets; when fader feedback is dB-valued, convert it for display and send matching dB command values for DB actions.
+- Prefer OSK layout `Role`, `Input`, `Feedback`, and semantic target metadata over `Shape`, widget name, or group heuristics when choosing widget behavior.
+- Treat the OSK/OSD Lua interface as pre-release: use only current `ReaCtrlSurf_*` sections and settings, with no legacy aliases unless publication changes that requirement.
+- Keep one OSK window per surface and persist each surface position independently without writing persistent ExtState on every movement frame.
+- Keep OSK surface enabled/hidden state persisted per surface and mirrored to C++ through `SurfaceEnabled` when a window closes.
+- Keep OSK widget config window geometry persistent, keep its font independent from OSK button font settings, and keep embedded OSD bar position scoped per surface.
+- Keep standalone OSD settings reachable by right-clicking a visible OSD overlay; do not add an idle launcher window.
+- Keep OSK font size, font family, wrapped-label line-height, and label-case controls in the OSK context menu near zoom.
+- Keep OSK wheel inversion in the context menu with interactive-control settings; ReaImGui exposes wheel delta but not reliable mouse-wheel versus trackpad source.
+- Show OSK hover tooltips with the default binding first and `+ `-prefixed alternate bindings for modifiers, Hold, DoublePress, and combined pseudo-modifier entries.
 
 ## Work Guidance
 
-- Keep Lua modules small enough to separate data parsing, configuration editing, and rendering responsibilities.
-- Preserve REAPER defer-loop cleanup and ImGui context lifetime behavior.
-- When changing shared protocol data, update the C++ producer/consumer and relevant documentation in the same task.
+- Keep data acquisition/parsing in `osk_data.lua`, drawing coordination in `osk_render.lua`, input dispatch state in `osk_input.lua`, binding editing coordination in `osk_config.lua`, and OSD behavior in `osd_ui.lua`.
+- Keep reusable ReaImGui widget helpers in `ui_components.lua` so entry scripts and feature modules do not re-implement the same UI patterns.
+- Keep shared script startup, context creation, toolbar state, and shutdown boilerplate in `script_host.lua` so the entry scripts stay thin orchestration layers.
+- Keep serialized action-line, layout, and label-replacement contracts in `action_line.lua`, `layout_parser.lua`, and `label_replacements.lua` so UI modules do not own those formats.
+- Keep pure Lua parser checks registered through `self_checks.lua` when adding or changing parser module self-checks.
+- Keep OSD color, alpha, contrast, and centered text drawing in `osd_ui.lua` so standalone OSD and the embedded OSK bar share one renderer.
+- Keep visual defaults, reusable style tokens, and color/font helpers in `theme_settings.lua`; keep per-context font attachment/caching in `font_cache.lua`; keep typed ExtState setting coercion in `settings_store.lua`.
+- Keep OSK context-menu settings UI in `osk_settings_ui.lua`, low-level widget math in `osk_widget_math.lua`, reusable draw primitives in `osk_draw_primitives.lua`, and widget shape drawing/interaction plumbing in `osk_widget_drawers.lua`.
+- Keep config binding parsing/state helpers in `osk_config_model.lua`, ExtState request/response handling in `osk_config_protocol.lua`, config-window rendering in `osk_config_view.lua`, and persistent color-picker/swatches behavior in `osk_color_picker.lua`.
+- Avoid duplicating shared UI behavior in the entry scripts.
+- Keep action edits reversible until the user explicitly saves them.
 
 ## Verification
 
-- Load the affected script in REAPER with ReaImGui available.
-- Exercise opening, closing, settings persistence, and the affected ExtState command path.
+- Build the plugin with `cmake --build build --config Debug` before runtime verification.
+- Run parser self-checks with `dofile("Scripts/self_checks.lua").RunAndReport()` from REAPER, or equivalent Lua with `Scripts/` on `package.path`.
+- In REAPER with ReaImGui installed, launch both `OSK on-screen keyboard.lua` and `OSD on-screen display.lua`.
+- Open the OSK context menu and change settings, including the embedded OSD bar position.
+- Verify label replacements with empty user input, a user override, and a longer phrase override.
+- Open widget config, edit an action, search actions, apply live, save, and revert.
+- Test two surfaces with the same widget names to confirm surface-scoped OSK state.
+- Test OSK press, release, hold, double-press, and rotary wheel input.
+- Test OSK fader drag, wheel scroll, value feedback, and touch/release behavior on touch-aware actions.
+- Send repeated identical OSD messages and confirm the visible timeout refreshes.
+- Open OSD settings while no OSD message is visible.
+- Check standalone OSD top/bottom placement, left/center/right alignment, margins, size, font size, styling, Save, and Cancel.
+- Verify standalone OSD settings stay open after the message timeout when opened by right-clicking the visible overlay.
 
 ## Child DOX Index
 
-- `CSI/AGENTS.md` - Installed CSI OSK/OSD scripts and shared Lua modules.
+- None.

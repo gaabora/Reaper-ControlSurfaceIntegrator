@@ -1,9 +1,9 @@
 --[[
- * ReaScript Name: @PRODUCT_DISPLAY_NAME@ OSK on-screen keyboard
- * About: On-screen keyboard display for @PRODUCT_DISPLAY_NAME@ control surfaces.
+ * ReaScript Name: OSK on-screen keyboard
+ * About: On-screen keyboard display for linked control surfaces.
  *        Shows one interactive window per surface, with labels reflecting
  *        current zone and modifier bindings.
- * Author: @PRODUCT_DISPLAY_NAME@ Contributors
+ * Author: Contributors
  * Licence: GPL v3
  * REAPER: 7.0
  * Version: 1.0.0
