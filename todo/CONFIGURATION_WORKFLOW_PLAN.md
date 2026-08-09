@@ -10,7 +10,7 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 
 - Use `<ProductName>` and `<ProductRoot>` until the fork has its final product identity.
 - Generate runtime names, paths, ExtState sections, script paths, and package names from one build-time product identity source.
-- Keep OSK layout data in a formal block inside `Surface.txt`.
+- Keep OSK layout data in a formal block inside the `<surface-id>.txt` file.
 - Support OSK layouts for MIDI surfaces only. Do not add OSK mirroring for OSC surfaces in this plan.
 - Use the Bun editor for full surface, zone, snippet, import, export, and batch workflows.
 - Keep Lua OSK focused on live behavior editing and small zone-file creation.
@@ -23,22 +23,32 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 <ProductRoot>/
   <ProductConfigFile>
   Surfaces/
-    Vendor/<surface-id>/Surface.txt
-    User/<surface-id>/Surface.txt
-  Zones/<profile-id>/
-    Main/*.zon
-    FX/*.zon
+    Vendor/<surface-id>.txt
+    User/<surface-id>.txt
+  Zones/
+    Vendor/<profile-id>/
+      Main/*.zon
+      FX/*.zon
+    User/<profile-id>/
+      Main/*.zon
+      FX/*.zon
   Snippets/
     BuiltIn/*.snippet
     User/*.snippet
   Backups/<operation-id>/
     manifest.json
+  Generated/
+    ZoneRawFXFiles/*.txt
 ```
 
-- ReaPack owns `Surfaces/Vendor` and `Snippets/BuiltIn`.
-- Users own `Surfaces/User`, all zone profiles, and `Snippets/User`.
-- The editor must clone a vendor surface into `Surfaces/User` before allowing user changes.
+- ReaPack owns `Surfaces/Vendor`, `Zones/Vendor`, and `Snippets/BuiltIn`.
+- Users own `Surfaces/User`, `Zones/User`, and `Snippets/User`.
+- The editor must clone a vendor surface or zone profile into its matching `User` root before allowing user changes.
+- OSK and FX Learn must request confirmation and clone a complete vendor zone profile before writing zone files.
+- A user surface or zone profile with the same ID overrides its vendor source at runtime.
 - ReaPack updates must never write to user-owned directories.
+- Users own `Generated`; ReaPack must never write to it.
+- Local development may link `Surfaces`, `Zones`, and `Snippets` from the product root to the repository resource tree. Installers and ReaPack packages must contain normal files and directories.
 
 ## Shared Contracts
 
@@ -56,7 +66,7 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 - Store user-facing display names separately and allow spaces and Unicode in them.
 - Give each public config, surface, zone, and snippet format an explicit version contract.
 - Resolve and canonicalize every target path before access. Reject absolute child paths, `..`, symlink escapes, and paths outside the selected product or import root.
-- Check duplicate IDs and filenames case-insensitively so the same data works on Windows, macOS, and Linux.
+- Check duplicate IDs and filenames case-insensitively so the same data works on Windows, macOS, and Linux. Intentional `User` overrides of vendor surface and zone-profile IDs are the only cross-owner exceptions.
 
 ### Lossless document editing
 
@@ -92,7 +102,7 @@ Warnings may preserve unknown data. Errors must prevent apply or save.
 
 ### Surface OSK layout
 
-Keep the layout in a formal `Surface.txt` block instead of functional comments:
+Keep the layout in a formal block inside the `<surface-id>.txt` file instead of functional comments:
 
 ```text
 OSKLayout Version=1
@@ -111,11 +121,13 @@ OSKLayoutEnd
 
 ## Work Plan
 
-### Phase 1. Product identity and path resolver
+### ✅ Phase 1. Product identity and path resolver
 
 - Add the canonical product identity source and generate language-specific constants.
 - Replace hardcoded runtime, script, installer, CPack, CI, release archive, and ReaPack names and paths.
 - Add typed path resolution for vendor surfaces, user surfaces, zone profiles, snippets, backups, and legacy import roots.
+- Resolve user zone profiles before vendor profiles, keep vendor profiles read-only, and clone a full vendor profile before an OSK or FX Learn write.
+- Document manual development resource links in the main README. Do not create these links during build or install.
 - Keep `<ProductRoot>` usable before the final product name is selected.
 
 Ready when a future rename requires one identity change and generated output updates, with no manual runtime path search.
@@ -126,10 +138,10 @@ Ready when a future rename requires one identity change and generated output upd
 - Run index validation in CI and prevent publication when package metadata, source URLs, checksums, or target paths are invalid.
 - Start with a preview ReaPack repository or preview index. Publish the stable repository URL only after installation checks pass.
 - Define one versioned core package with shared Lua scripts and a platform-selected C++ extension payload for Windows, macOS, and Linux.
-- Define platform-independent package groups for vendor surfaces and built-in snippets.
+- Define platform-independent package groups for vendor surfaces, vendor zone profiles, and built-in snippets.
 - Generate package names, target paths, archive names, and release asset names from the canonical product identity.
-- Install only into product-owned runtime, script, vendor surface, and built-in snippet paths.
-- Never install package content into `Surfaces/User`, `Zones`, `Snippets/User`, or `Backups`.
+- Install only into product-owned runtime, script, vendor surface, vendor zone-profile, and built-in snippet paths.
+- Never install package content into `Surfaces/User`, `Zones/User`, `Snippets/User`, or `Backups`.
 - Document package ownership so update and uninstall behavior is explicit before publishing user content.
 - Check install, update, downgrade, and uninstall in a clean portable REAPER resource directory for every supported platform.
 
@@ -163,19 +175,20 @@ Ready when a user can safely inspect and edit the new configuration structure fr
 - Show `GoZone`, `SubZones`, `IncludedZones`, and other discovered dependencies before import.
 - Select dependencies by default but allow the user to exclude them.
 - Import legacy surfaces into `Surfaces/User` unless a curated vendor package is selected separately.
+- Import legacy zone profiles into `Zones/User` unless a curated vendor package is selected separately.
 - Use semantic widget dropdowns for incompatible or missing target widgets.
 - Show a full preview and require `Rename`, `Replace`, or `Skip` for every conflict.
 - Validate and commit the resolved import as one transaction.
 
 Ready when legacy content can be imported repeatedly without runtime legacy support or changes to the source installation.
 
-### Phase 6. Vendor surfaces and ReaPack content
+### Phase 6. Vendor surfaces, zone profiles, and ReaPack content
 
 - Start with surfaces that this project owns or has verified permission to redistribute.
-- Add a validated `OSKLayout` block to every curated MIDI `Surface.txt`.
-- Publish one versioned package per surface through the ReaPack foundation from Phase 2.
-- Verify that package install and update touch only `Surfaces/Vendor`.
-- Require the editor to clone a vendor surface before customization.
+- Add a validated `OSKLayout` block to every curated MIDI surface file.
+- Publish versioned surface and matching zone-profile packages through the ReaPack foundation from Phase 2.
+- Verify that package install and update touch only `Surfaces/Vendor` and `Zones/Vendor`.
+- Require the editor to clone a vendor surface or zone profile before customization.
 - Keep vendor inventory, compatibility, provenance, and redistribution status visible in package metadata.
 
 Ready when every curated MIDI surface has an installable layout and ReaPack cannot overwrite user content.
@@ -215,7 +228,7 @@ Ready when OSK can safely create any supported one-file zone scaffold without be
 - Validate the generated ReaPack index in CI before publication.
 - Install, update, downgrade, and uninstall the core package in a clean portable REAPER resource directory for each supported platform.
 - Confirm every core package installs the correct C++ extension and shared Lua scripts without changing user-owned files.
-- Install and update a ReaPack surface package without changes under `Surfaces/User`, `Zones`, or `Snippets/User`.
+- Install and update a ReaPack surface or zone-profile package without changes under `Surfaces/User`, `Zones/User`, or `Snippets/User`.
 - Create each supported one-file zone scaffold from OSK and verify the returned path and reload status.
 - Confirm OSC runtime behavior is unchanged.
 

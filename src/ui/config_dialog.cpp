@@ -243,13 +243,11 @@ static WDL_DLGRET dlgProcPageSurface(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
             WDL_UTF8_HookComboBox(GetDlgItem(hwndDlg, IDC_COMBO_PageSurface));
 
             s_surfaceFolders.clear();
-
-            filesystem::path path { string(GetResourcePath()) + "/CSI/Surfaces" };
-
-            if (filesystem::exists(path) && filesystem::is_directory(path))
-                for (auto& file : filesystem::directory_iterator(path))
-                    if (filesystem::is_directory(file.path()))
-                        s_surfaceFolders.push_back(file.path().filename().string());
+            try {
+                s_surfaceFolders = ProductPaths::FromReaperResourcePath().ListSurfaceIds();
+            } catch (const std::exception& error) {
+                LogToConsole("[ERROR] Failed to list product surfaces: %s\n", error.what());
+            }
 
             for (auto surfaceFolder : s_surfaceFolders)
                 AddComboEntry(hwndDlg, 0, surfaceFolder.c_str(), IDC_COMBO_PageSurfaceFolder);
@@ -287,9 +285,19 @@ static WDL_DLGRET dlgProcPageSurface(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 
                         GetDlgItemText(hwndDlg, IDC_COMBO_PageSurface, buf, sizeof(buf));
                         s_pageSurface = buf;
+                        if (s_pageSurface.empty()) {
+                            MessageBox(hwndDlg, "Select a configured MIDI or OSC surface first.", ProductIdentity::DisplayName, MB_OK);
+                            break;
+                        }
 
                         GetDlgItemText(hwndDlg, IDC_COMBO_PageSurfaceFolder, buf, sizeof(buf));
                         s_pageSurfaceFolder = buf;
+                        if (s_pageSurfaceFolder.empty()) {
+                            const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
+                            const string message = "No surface configuration is available. Add <surface-id>.txt under " + productPaths.UserSurfacesRoot().string() + " or install a vendor surface under " + productPaths.VendorSurfacesRoot().string() + ".";
+                            MessageBox(hwndDlg, message.c_str(), ProductIdentity::DisplayName, MB_OK);
+                            break;
+                        }
                         s_pageSurfaceZoneFolder = buf;
                         s_pageSurfaceFXZoneFolder = buf;
 
@@ -1161,7 +1169,7 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
         case WM_INITDIALOG: {
             s_hwndMainDlg = hwndDlg;
 
-            string iniFilePath = string(GetResourcePath()) + "/CSI/CSI.ini";
+            const string iniFilePath = ProductPaths::FromReaperResourcePath().ConfigFile().string();
 
             ifstream iniFile(iniFilePath);
 
@@ -1181,7 +1189,7 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
                     const char* versionProp = pList.get_prop(PropertyType_Version);
                     if (versionProp) {
                         if (!IsSameString(versionProp, s_MajorVersionToken)) {
-                            LogToConsole("[ERROR] CSI.ini version mismatch. -- Your CSI.ini file is not %s.\n", s_MajorVersionToken);
+                            LogToConsole("[ERROR] %s version mismatch. The configuration version is not %s.\n", ProductIdentity::ConfigFilename, s_MajorVersionToken);
                             //FIXME: so what? make backup and generate new, or at least prompt to confirm
                             iniFile.close();
                             break;
@@ -1301,12 +1309,12 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
                                 surface->pageSurfaceFolder = surfaceFolderProp;
 
                                 if (const char* surfaceZoneFolderProp = pList.get_prop(PropertyType_ZoneFolder))
-                                    surface->pageSurfaceZoneFolder = surfaceZoneFolderProp;
+                                    surface->pageSurfaceZoneFolder = surfaceZoneFolderProp[0] == '\0' ? surfaceFolderProp : surfaceZoneFolderProp;
                                 else
                                     surface->pageSurfaceZoneFolder = surfaceFolderProp;
 
                                 if (const char* surfaceFXZoneFolderProp = pList.get_prop(PropertyType_FXZoneFolder))
-                                    surface->pageSurfaceFXZoneFolder = surfaceFXZoneFolderProp;
+                                    surface->pageSurfaceFXZoneFolder = surfaceFXZoneFolderProp[0] == '\0' ? surfaceFolderProp : surfaceFXZoneFolderProp;
                                 else
                                     surface->pageSurfaceFXZoneFolder = surfaceFolderProp;
 
@@ -1362,7 +1370,14 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
         } break;
 
         case WM_USER + 1024: {
-            FILE* iniFile = fopenUTF8((string(GetResourcePath()) + "/CSI/CSI.ini").c_str(), "wb");
+            const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
+            try {
+                productPaths.EnsureUserDirectories();
+            } catch (const std::exception& error) {
+                LogToConsole("[ERROR] Failed to create product configuration directories: %s\n", error.what());
+                break;
+            }
+            FILE* iniFile = fopenUTF8(productPaths.ConfigFile().string().c_str(), "wb");
 
             if (iniFile) {
                 PropertyList plist;

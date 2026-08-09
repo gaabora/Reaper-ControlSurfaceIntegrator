@@ -1,9 +1,9 @@
 --[[
- * ReaScript Name: CSI OSK on-screen keyboard
- * About: On-screen keyboard display for CSI control surfaces.
+ * ReaScript Name: @PRODUCT_DISPLAY_NAME@ OSK on-screen keyboard
+ * About: On-screen keyboard display for @PRODUCT_DISPLAY_NAME@ control surfaces.
  *        Shows one interactive window per surface, with labels reflecting
  *        current zone and modifier bindings.
- * Author: CSI Contributors
+ * Author: @PRODUCT_DISPLAY_NAME@ Contributors
  * Licence: GPL v3
  * REAPER: 7.0
  * Version: 1.0.0
@@ -17,6 +17,7 @@ local host = dofile(scriptDir .. "script_host.lua")
 local imgui = host.RequireImGui(scriptDir)
 if not imgui then return end
 
+local identity = require("product_identity")
 local data = require("osk_data")
 local font_cache = require("font_cache")
 local render = require("osk_render")
@@ -117,7 +118,7 @@ local function main()
             imgui.PushStyleColor(ctx, imgui.Col_WindowBg, theme.OSK_COLORS.win_bg)
             imgui.PushStyleColor(ctx, imgui.Col_TitleBgActive, theme.OSK_COLORS.win_bg)
             imgui.SetNextWindowBgAlpha(ctx, theme.osk.transparency)
-            local visible, open = imgui.Begin(ctx, "CSI OSK - " .. surfName, true, GetWindowFlags())
+            local visible, open = imgui.Begin(ctx, identity.displayName .. " OSK - " .. surfName, true, GetWindowFlags())
             imgui.PopStyleColor(ctx, 2)
 
             local x, y = imgui.GetWindowPos(ctx)
@@ -163,7 +164,7 @@ local function Init()
     theme.LoadOskSettings()
     osd_ui.LoadSettings()
 
-    ctx = host.CreateContext("CSI OSK")
+    ctx = host.CreateContext(identity.displayName .. " OSK")
     fontCache = font_cache.New(imgui, ctx)
     osd_ui.SetFontCache(fontCache)
     local fonts = fontCache:Build(theme.DEFAULT_FONT_DEFINITIONS)

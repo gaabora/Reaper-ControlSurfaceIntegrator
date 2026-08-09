@@ -87,12 +87,12 @@ namespace DAW {
 
     // Sets an FX parameter from a normalized [0,1] value, handling volume-curve params.
     inline void SetTrackFxParamValue(MediaTrack* track, int fxSlotNum, int fxParamNum, double value) {
-        double newValue = value, rawValue = 0.0, min = 0.0, max = 0.0, mid = 0.0, stepSize = 0.0;
+        double rawValue = 0.0, min = 0.0, max = 0.0, mid = 0.0, stepSize = 0.0;
         if (CheckTrackFxParamHasVolumeCurve(track, fxSlotNum, fxParamNum, &rawValue, &min, &max, &mid, &stepSize)) {
             TrackFX_SetParam(track, fxSlotNum, fxParamNum, normalizedToVol(value));
         } else {
 #if defined(REAPERAPI_WANT_TrackFX_SetParamNormalized)
-            TrackFX_SetParamNormalized(track, fxSlotNum, fxParamNum, newValue);
+            TrackFX_SetParamNormalized(track, fxSlotNum, fxParamNum, value);
 #else
             TrackFX_SetParam(track, fxSlotNum, fxParamNum, min + value * (max - min));
 #endif

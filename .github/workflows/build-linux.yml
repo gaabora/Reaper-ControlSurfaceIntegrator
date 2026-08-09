@@ -24,6 +24,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: cat "${{ github.workspace }}/build/generated/product_identity.env" >> "$GITHUB_ENV"
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -31,15 +34,11 @@ jobs:
         run: find . -name '*.so'
 
       - name: Prepare Package folder
-        run: |
-          mkdir -p Package/UserPlugins
-          cp ./build/reaper_csurf_integrator.so Package/UserPlugins/
-          cp -r Scripts Package/
-          cp -r CSI Package/
+        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
         shell: bash
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CSI_linux
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_linux
           path: Package

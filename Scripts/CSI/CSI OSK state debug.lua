@@ -1,5 +1,7 @@
-local section = "ReaCtrlSurf_OSK"
-local settingsSection = "ReaCtrlSurf_OSK_SETTINGS"
+local scriptDir = debug.getinfo(1, "S").source:match("@(.+[\\/])") or ""
+local identity = dofile(scriptDir .. "product_identity.lua")
+local section = identity.extState.osk
+local settingsSection = identity.extState.oskSettings
 
 local PRINT_RAW_PAYLOADS = false
 local PRINT_ONLY_WATCHED_WIDGETS = true
@@ -272,7 +274,7 @@ local function readExtState(label, key)
 end
 
 -- reaper.ClearConsole()
-msg("CSI OSK state debug")
+msg(identity.displayName .. " OSK state debug")
 msg("===================")
 local surfaces = reaper.GetExtState(section, "Surfaces")
 local boost = reaper.GetExtState(settingsSection, "inactive_led_boost")

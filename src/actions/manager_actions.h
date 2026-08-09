@@ -317,7 +317,7 @@ public:
 //!
 //! @zone_usage  DisplayWidget    CSINameDisplay
 //!
-//! @feedback Text — always sends "CSI".
+//! @feedback Text - always sends the generated product display name.
 class CSINameDisplay : public DisplayAction
 {
 public:

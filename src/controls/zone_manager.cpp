@@ -11,6 +11,16 @@ static void collectFilesOfType(const string& type, const string& searchPath, vec
                 results.push_back(file.path().string());
 }
 
+static bool RemapZoneFolderPath(string& configuredPath, const filesystem::path& vendorProfileRoot, const filesystem::path& userProfileRoot) {
+    const filesystem::path canonicalConfiguredPath = filesystem::weakly_canonical(filesystem::absolute(configuredPath));
+    const filesystem::path canonicalVendorRoot = filesystem::weakly_canonical(filesystem::absolute(vendorProfileRoot));
+    const filesystem::path relativePath = canonicalConfiguredPath.lexically_relative(canonicalVendorRoot);
+    if (relativePath.empty() || relativePath.is_absolute()) return false;
+    for (const filesystem::path& pathPart : relativePath) if (pathPart == "..") return false;
+    configuredPath = (filesystem::weakly_canonical(filesystem::absolute(userProfileRoot)) / relativePath).string();
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ZoneManager
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -74,6 +84,55 @@ void ZoneManager::Initialize() {
     }
 
     homeZone_->Activate();
+}
+
+void ZoneManager::ReloadFromDisk() {
+    this->learnFocusedFXZone_.reset();
+    this->lastTouchedFXParamZone_.reset();
+    this->focusedFXZone_.reset();
+    this->selectedTrackFXZones_.clear();
+    this->fxSlotZone_.reset();
+    this->homeZone_.reset();
+    this->goZones_.clear();
+    this->zonesToBeDeleted_.clear();
+    this->zoneInfo_.clear();
+    this->Initialize();
+}
+
+void ZoneManager::ReplaceZoneProfileRoot(const filesystem::path& vendorProfileRoot, const filesystem::path& userProfileRoot) {
+    RemapZoneFolderPath(this->zoneFolder_, vendorProfileRoot, userProfileRoot);
+    RemapZoneFolderPath(this->fxZoneFolder_, vendorProfileRoot, userProfileRoot);
+}
+
+bool ZoneManager::PrepareZonePathForWrite(const string& sourcePath, string& editablePath, bool& activatedUserProfile, string& errorMessage) {
+    editablePath = sourcePath;
+    activatedUserProfile = false;
+    errorMessage.clear();
+
+    try {
+        const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
+        const std::optional<string> vendorProfileId = productPaths.VendorZoneProfileIdForPath(sourcePath);
+        if (!vendorProfileId) return true;
+
+        const filesystem::path vendorProfileRoot = productPaths.ZoneProfileDirectory(ZoneSource::Vendor, *vendorProfileId);
+        const filesystem::path userProfileRoot = productPaths.ZoneProfileDirectory(ZoneSource::User, *vendorProfileId);
+        if (!filesystem::is_directory(userProfileRoot)) {
+            const string prompt = "Zone profile '" + *vendorProfileId + "' is provided by the vendor and is read-only. Create an editable user copy?";
+            if (MessageBox(g_hwnd, prompt.c_str(), ProductIdentity::DisplayName, MB_YESNO) != IDYES) {
+                errorMessage = "Operation cancelled. Vendor zone profile was not changed";
+                return false;
+            }
+            productPaths.CloneVendorZoneProfileToUser(*vendorProfileId);
+        }
+
+        editablePath = productPaths.UserZonePathForVendorPath(*vendorProfileId, sourcePath).string();
+        this->ReplaceZoneProfileRoot(vendorProfileRoot, userProfileRoot);
+        activatedUserProfile = true;
+        return true;
+    } catch (const std::exception& error) {
+        errorMessage = string("Unable to prepare editable zone profile: ") + error.what();
+        return false;
+    }
 }
 
 void ZoneManager::PreProcessZoneFile(const string& filePath) {
@@ -353,7 +412,7 @@ void ZoneManager::UpdateCurrentActionContextModifiers() {
 
 void ZoneManager::PreProcessZones() {
     if (zoneFolder_[0] == 0)
-        return LogToConsole("[ERROR] Please check your CSI.ini, cannot find Zone folder for %s in: %s/CSI/Zones/", GetSurface()->GetName(), GetResourcePath());
+        return LogToConsole("[ERROR] Please check %s. Cannot find the Zone folder for %s under %s", ProductIdentity::ConfigFilename, GetSurface()->GetName(), ProductPaths::FromReaperResourcePath().ZonesRoot().string().c_str());
 
     vector<string> zoneFilesToProcess;
     collectFilesOfType(".zon", zoneFolder_, zoneFilesToProcess);

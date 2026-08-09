@@ -1,6 +1,7 @@
 // integrator_ui.cpp
 
 #include "../controls/integrator.h"
+#include "../shared/product_paths.h"
 #include "../resource.h"
 
 extern void TrimLine(string& line);

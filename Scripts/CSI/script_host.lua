@@ -1,4 +1,6 @@
 local r = reaper
+local scriptDir = debug.getinfo(1, "S").source:match("@(.+[\\/])") or ""
+local identity = dofile(scriptDir .. "product_identity.lua")
 
 local M = {}
 
@@ -61,7 +63,7 @@ function M.OnExit(cleanupFn)
         if not cleanupFn then return end
         local ok, err = pcall(cleanupFn)
         if not ok and r.ShowConsoleMsg then
-            r.ShowConsoleMsg("[CSI script_host] Cleanup failed: " .. tostring(err) .. "\n")
+            r.ShowConsoleMsg("[" .. identity.displayName .. " script_host] Cleanup failed: " .. tostring(err) .. "\n")
         end
     end)
 end

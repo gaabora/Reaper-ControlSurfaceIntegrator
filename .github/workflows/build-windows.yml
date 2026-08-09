@@ -22,6 +22,10 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: Get-Content "${{ github.workspace }}\build\generated\product_identity.env" | Add-Content -Path $env:GITHUB_ENV
+        shell: pwsh
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -30,15 +34,11 @@ jobs:
         shell: cmd
 
       - name: Prepare Package folder
-        run: |
-          mkdir Package\UserPlugins
-          copy .\build\Release\reaper_csurf_integrator.dll Package\UserPlugins\
-          xcopy Scripts Package\Scripts\ /E /I
-          xcopy CSI Package\CSI\ /E /I
-        shell: cmd
+        run: cmake --install "${{ github.workspace }}\build" --config Release --prefix Package
+        shell: pwsh
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CSI_win
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_win
           path: Package

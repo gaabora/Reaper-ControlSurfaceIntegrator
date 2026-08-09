@@ -24,6 +24,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: cat "${{ github.workspace }}/build/generated/product_identity.env" >> "$GITHUB_ENV"
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -31,17 +34,13 @@ jobs:
         run: find . -name '*.dylib'
 
       - name: Prepare Package folder
-        run: |
-          mkdir -p Package/UserPlugins
-          cp ./build/reaper_csurf_integrator.dylib Package/UserPlugins/
-          cp -r Scripts Package/
-          cp -r CSI Package/
+        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
         shell: bash
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CSI_mac_intel
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_mac_intel
           path: Package
 
   build-macos-arm:
@@ -61,6 +60,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: cat "${{ github.workspace }}/build/generated/product_identity.env" >> "$GITHUB_ENV"
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -68,15 +70,11 @@ jobs:
         run: find . -name '*.dylib'
 
       - name: Prepare Package folder
-        run: |
-          mkdir -p Package/UserPlugins
-          cp ./build/reaper_csurf_integrator.dylib Package/UserPlugins/
-          cp -r Scripts Package/
-          cp -r CSI Package/
+        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
         shell: bash
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CSI_mac_arm
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_mac_arm
           path: Package

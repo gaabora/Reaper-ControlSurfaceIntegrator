@@ -31,7 +31,7 @@ static void PublishConfigStatus(const string& outcome, const string& operation, 
         + "|" + SanitizeConfigStatusField(zoneName)
         + "|" + SanitizeConfigStatusField(message);
     const string scopedKey = "ConfigStatus_" + surfaceName + "_" + widgetName;
-    ::SetExtState("ReaCtrlSurf_OSK", scopedKey.c_str(), status.c_str(), false);
+    ::SetExtState(ProductIdentity::ExtStateOsk, scopedKey.c_str(), status.c_str(), false);
 }
 
 static string GetConfiguredOskLabel(ActionContext* context) {
@@ -746,7 +746,7 @@ void ControlSurface::PublishOSKLayout() {
     if (!isOskEnabled_) return;
 
     string key = string("Layout_") + name_;
-    ::SetExtState("ReaCtrlSurf_OSK", key.c_str(), cachedOskLayoutString_.c_str(), false);
+    ::SetExtState(ProductIdentity::ExtStateOsk, key.c_str(), cachedOskLayoutString_.c_str(), false);
 }
 
 void ControlSurface::PublishOSKState() {
@@ -791,7 +791,7 @@ void ControlSurface::PublishOSKState() {
     if (state != cachedOskStateString_) {
         cachedOskStateString_ = state;
         string key = string("State_") + name_;
-        ::SetExtState("ReaCtrlSurf_OSK", key.c_str(), state.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateOsk, key.c_str(), state.c_str(), false);
     }
 }
 
@@ -861,7 +861,7 @@ void ControlSurface::PublishOSKLabels() {
     if (labels != cachedOskLabelsString_) {
         cachedOskLabelsString_ = labels;
         string key = string("Labels_") + name_;
-        ::SetExtState("ReaCtrlSurf_OSK", key.c_str(), labels.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateOsk, key.c_str(), labels.c_str(), false);
     }
     PublishOSKLabelMap();
 }
@@ -984,13 +984,13 @@ void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {
     }
 
     const string keyResult = string("ConfigResult_") + this->name_ + "_" + widgetName;
-    ::SetExtState("ReaCtrlSurf_OSK", keyResult.c_str(), result.c_str(), false);
+    ::SetExtState(ProductIdentity::ExtStateOsk, keyResult.c_str(), result.c_str(), false);
 
     const string keyZoneName = string("ConfigZoneName_") + this->name_ + "_" + widgetName;
-    ::SetExtState("ReaCtrlSurf_OSK", keyZoneName.c_str(), zoneName.c_str(), false);
+    ::SetExtState(ProductIdentity::ExtStateOsk, keyZoneName.c_str(), zoneName.c_str(), false);
 
     const string keyZonePath = string("ConfigZonePath_") + this->name_ + "_" + widgetName;
-    ::SetExtState("ReaCtrlSurf_OSK", keyZonePath.c_str(), zonePath.c_str(), false);
+    ::SetExtState(ProductIdentity::ExtStateOsk, keyZonePath.c_str(), zonePath.c_str(), false);
 
     PublishConfigStatus("OK", "Query", this->name_, widgetName, zoneName, "Config query completed");
 }
@@ -1078,6 +1078,15 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
         return;
     }
 
+    bool activateUserZoneProfile = false;
+    string editableZonePath;
+    string preparationError;
+    if (!this->zoneManager_->PrepareZonePathForWrite(zonePath, editableZonePath, activateUserZoneProfile, preparationError)) {
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, preparationError);
+        return;
+    }
+    zonePath = editableZonePath;
+
     ifstream inputFile(zonePath);
     if (!inputFile.is_open()) {
         PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, "Unable to open zone file for read");
@@ -1153,7 +1162,14 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
     }
 
     if (updatedLines == originalLines) {
-        PublishConfigStatus("OK", "Save", this->name_, widgetName, targetZoneName, "No file changes required");
+        if (activateUserZoneProfile) {
+            this->oskConfigZoneNamesByWidget_.clear();
+            this->oskConfigZonePathsByWidget_.clear();
+            this->zoneManager_->ReloadFromDisk();
+            PublishConfigStatus("OK", "Save", this->name_, widgetName, targetZoneName, "Editable user zone profile is active; no zone file changes required");
+        } else {
+            PublishConfigStatus("OK", "Save", this->name_, widgetName, targetZoneName, "No file changes required");
+        }
         return;
     }
 
@@ -1162,6 +1178,12 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
     if (!CommitZoneFile(zonePath, updatedLines, backupPath, errorMessage)) {
         PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, errorMessage);
         return;
+    }
+
+    if (activateUserZoneProfile) {
+        this->oskConfigZoneNamesByWidget_.clear();
+        this->oskConfigZonePathsByWidget_.clear();
+        this->zoneManager_->ReloadFromDisk();
     }
 
     this->PublishOSKLabels();
@@ -1176,7 +1198,7 @@ void ControlSurface::HandleOSKConfigRevert(const string& widgetName) {
         return;
     }
 
-    this->zoneManager_->Initialize();
+    this->zoneManager_->ReloadFromDisk();
     this->PublishOSKLabels();
     this->PublishOSKState();
     this->PublishOSKLabelMap();
@@ -1241,6 +1263,6 @@ void ControlSurface::PublishOSKLabelMap() {
     if (labelMap != cachedOskLabelMapString_) {
         cachedOskLabelMapString_ = labelMap;
         string key = string("LabelMap_") + name_;
-        ::SetExtState("ReaCtrlSurf_OSK", key.c_str(), labelMap.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateOsk, key.c_str(), labelMap.c_str(), false);
     }
 }

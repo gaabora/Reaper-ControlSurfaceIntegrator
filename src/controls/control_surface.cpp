@@ -42,15 +42,15 @@ static string GetOskSurfaceEnabledSettingsKey(const string& surfaceName) {
 
 void ControlSurface::LoadOskEnabledSetting() {
     const string key = GetOskSurfaceEnabledSettingsKey(name_);
-    if (!::HasExtState("ReaCtrlSurf_OSK_SETTINGS", key.c_str())) return;
-    const string value = ::GetExtState("ReaCtrlSurf_OSK_SETTINGS", key.c_str());
+    if (!::HasExtState(ProductIdentity::ExtStateOskSettings, key.c_str())) return;
+    const string value = ::GetExtState(ProductIdentity::ExtStateOskSettings, key.c_str());
     isOskEnabled_ = IsSameString(value.c_str(), "true") || value == "1";
 }
 
 void ControlSurface::SetOskEnabled(bool value) {
     isOskEnabled_ = value;
     const string key = GetOskSurfaceEnabledSettingsKey(name_);
-    ::SetExtState("ReaCtrlSurf_OSK_SETTINGS", key.c_str(), value ? "true" : "false", true);
+    ::SetExtState(ProductIdentity::ExtStateOskSettings, key.c_str(), value ? "true" : "false", true);
 }
 
 void ControlSurface::Stop() {

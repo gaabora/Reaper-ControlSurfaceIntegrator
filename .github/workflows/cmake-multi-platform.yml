@@ -20,6 +20,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: cat "${{ github.workspace }}/build/generated/product_identity.env" >> "$GITHUB_ENV"
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -27,30 +30,26 @@ jobs:
         run: find . -name '*.dylib'
 
       - name: Prepare Package folder
-        run: |
-          mkdir -p Package/UserPlugins
-          cp ./build/reaper_csurf_integrator.dylib Package/UserPlugins/
-          cp -r Scripts Package/
-          cp -r CSI Package/
+        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
         shell: bash
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CSI_${{ github.ref_name }}_mac_intel.zip
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_mac_intel.zip
           path: Package
 
       - name: Create zip for release
         run: |
           cd Package
-          zip -r ../CSI_${{ github.ref_name }}_mac_intel.zip .
+          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_mac_intel.zip" .
         shell: bash
 
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            CSI_${{ github.ref_name }}_mac_intel.zip
+            ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_mac_intel.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -71,6 +70,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: cat "${{ github.workspace }}/build/generated/product_identity.env" >> "$GITHUB_ENV"
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -78,30 +80,26 @@ jobs:
         run: find . -name '*.dylib'
 
       - name: Prepare Package folder
-        run: |
-          mkdir -p Package/UserPlugins
-          cp ./build/reaper_csurf_integrator.dylib Package/UserPlugins/
-          cp -r Scripts Package/
-          cp -r CSI Package/
+        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
         shell: bash
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CSI_${{ github.ref_name }}_mac_arm.zip
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_mac_arm.zip
           path: Package
 
       - name: Create zip for release
         run: |
           cd Package
-          zip -r ../CSI_${{ github.ref_name }}_mac_arm.zip .
+          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_mac_arm.zip" .
         shell: bash
 
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            CSI_${{ github.ref_name }}_mac_arm.zip
+            ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_mac_arm.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -120,6 +118,10 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: Get-Content "${{ github.workspace }}\build\generated\product_identity.env" | Add-Content -Path $env:GITHUB_ENV
+        shell: pwsh
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -128,30 +130,26 @@ jobs:
         shell: cmd
 
       - name: Prepare Package folder
-        run: |
-          mkdir Package\UserPlugins
-          copy .\build\Release\reaper_csurf_integrator.dll Package\UserPlugins\
-          xcopy Scripts Package\Scripts\ /E /I
-          xcopy CSI Package\CSI\ /E /I
-        shell: cmd
+        run: cmake --install "${{ github.workspace }}\build" --config Release --prefix Package
+        shell: pwsh
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CSI_${{ github.ref_name }}_win.zip
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_win.zip
           path: Package
 
       - name: Create zip for release
         run: |
           cd Package
-          7z a ../CSI_${{ github.ref_name }}_win.zip *
-        shell: cmd
+          7z a "../${env:PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_win.zip" *
+        shell: pwsh
 
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            CSI_${{ github.ref_name }}_win.zip
+            ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_win.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -172,6 +170,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: cat "${{ github.workspace }}/build/generated/product_identity.env" >> "$GITHUB_ENV"
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -179,30 +180,25 @@ jobs:
         run: find . -name '*.so'
 
       - name: Prepare Package folder
-        run: |
-          mkdir -p Package/UserPlugins
-          cp ./build/reaper_csurf_integrator.so Package/UserPlugins/
-          cp -r Scripts Package/
-          cp -r CSI Package/
+        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
         shell: bash
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CSI_${{ github.ref_name }}_linux.zip
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_linux.zip
           path: Package
 
       - name: Create zip for release
         run: |
           cd Package
-          zip -r ../CSI_${{ github.ref_name }}_linux.zip .
+          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_linux.zip" .
         shell: bash
 
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            CSI_${{ github.ref_name }}_linux.zip
+            ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_linux.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

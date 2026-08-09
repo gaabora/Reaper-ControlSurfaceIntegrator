@@ -94,14 +94,14 @@ BEGIN
     CONTROL         " MCP",IDC_RADIO_MCP,"Button",BS_AUTORADIOBUTTON,7,39,32,10
     CONTROL         " TCP",IDC_RADIO_TCP,"Button",BS_AUTORADIOBUTTON,7,54,31,10
     CONTROL         " Bank with Other Pages",IDC_CHECK_SynchPages,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,77,89,10
-    CONTROL         " Ensure Selected Track Visible in both CSI and Reaper",IDC_CHECK_ScrollLink,
+    CONTROL         " Ensure Selected Track Visible in both the surface and Reaper",IDC_CHECK_ScrollLink,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,92,185,10
     CONTROL         " Surface and Reaper Mixer Scroll Together",IDC_CHECK_ScrollSynch,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,107,148,10
     DEFPUSHBUTTON   "OK",IDOK,97,125,44,14
     PUSHBUTTON      "Cancel",IDCANCEL,145,125,44,14
     RTEXT           "Page Name",IDC_STATIC,3,8,39,9
-    GROUPBOX        "CSI Follows Track Manager Show/Hide",IDC_STATIC,2,26,190,44
+    GROUPBOX        "Surface Follows Track Manager Show/Hide",IDC_STATIC,2,26,190,44
 END
 
 IDD_DIALOG_MidiSurface DIALOGEX 0, 0, 220, 151
@@ -143,8 +143,8 @@ BEGIN
     LTEXT           "Type",IDC_STATIC,13,36,17,8
     LTEXT           "Number of Channels",IDC_STATIC,13,57,66,8,WS_TABSTOP
     LTEXT           "Remote device IP",IDC_STATIC,13,76,58,8
-    LTEXT           "CSI receives on port",IDC_STATIC,13,94,69,8
-    LTEXT           "CSI sends to port",IDC_STATIC,13,113,66,8
+    LTEXT           "Plugin receives on port",IDC_STATIC,13,94,69,8
+    LTEXT           "Plugin sends to port",IDC_STATIC,13,113,66,8
     LTEXT           "Maximum packets",IDC_STATIC,13,132,66,8
     LTEXT           "Default is 0",IDC_STATIC,160,132,66,8
 END
@@ -184,7 +184,7 @@ BEGIN
     CONTROL         "MIDI input",IDC_CHECK_ShowRawInput,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,180,65,10
     CONTROL         "Input",IDC_CHECK_ShowInput,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,86,180,47,10
     CONTROL         "Output",IDC_CHECK_ShowOutput,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,142,180,53,10
-    CONTROL         "Write params to CSI/ZoneRawFXFiles when FX inserted",IDC_CHECK_WriteFXParams,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,213,180,220,10
+    CONTROL         "Write params to ZoneRawFXFiles when FX inserted",IDC_CHECK_WriteFXParams,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,213,180,220,10
     LTEXT           "Debug Level (0-4):",IDC_LABEL_DebugLevel,15,200,60,10
     EDITTEXT        IDC_EDIT_DebugLevel, 90, 200, 20, 14, ES_NUMBER | WS_TABSTOP
     DEFPUSHBUTTON   "OK",IDOK,290,210,52,14

@@ -1,6 +1,6 @@
 // config_parser.cpp — CSurfIntegrator::Init()
 //
-// Reads CSI.ini and wires up MIDI/OSC surfaces to pages.
+// Reads the product configuration file and wires up MIDI/OSC surfaces to pages.
 
 #include "integrator.h"
 
@@ -15,17 +15,18 @@ void CSurfIntegrator::Init() {
     oscSurfacesIO_.clear();
     string currentBroadcaster;
     Page* currentPage = NULL;
-    string CSIFolderPath = string(GetResourcePath()) + "/CSI";
+    const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
+    const string productRootPath = productPaths.ProductRoot().string();
 
-    if (!filesystem::exists(CSIFolderPath)) {
-        LogToConsole("[ERROR] Missing CSI Folder. Please check your installation, cannot find %s\n", CSIFolderPath.c_str());
+    if (!filesystem::exists(productRootPath)) {
+        LogToConsole("[ERROR] Missing %s resource folder. Please check your installation, cannot find %s\n", ProductIdentity::DisplayName, productRootPath.c_str());
         return;
     }
 
-    string iniFilePath = string(GetResourcePath()) + "/CSI/CSI.ini";
+    const string iniFilePath = productPaths.ConfigFile().string();
 
     if (!filesystem::exists(iniFilePath)) {
-        LogToConsole("[ERROR] Missing CSI.ini. Please check your installation, cannot find %s\n", iniFilePath.c_str());
+        LogToConsole("[ERROR] Missing %s. Please check your installation, cannot find %s\n", ProductIdentity::ConfigFilename, iniFilePath.c_str());
         return;
     }
 
@@ -46,7 +47,7 @@ void CSurfIntegrator::Init() {
                 const char* versionProp = pList.get_prop(PropertyType_Version);
                 if (versionProp) {
                     if (!IsSameString(versionProp, s_MajorVersionToken)) {
-                        LogToConsole("[ERROR] CSI.ini version mismatch. -- Your CSI.ini file is not %s.\n", s_MajorVersionToken);
+                        LogToConsole("[ERROR] %s version mismatch. The configuration version is not %s.\n", ProductIdentity::ConfigFilename, s_MajorVersionToken);
                         //FIXME: so what? make backup and generate new, or at least prompt to confirm
                         iniFile.close();
                         return;
@@ -55,7 +56,7 @@ void CSurfIntegrator::Init() {
                         continue;
                     }
                 } else {
-                    LogToConsole("[ERROR] CSI.ini has no version.\n");
+                    LogToConsole("[ERROR] %s has no version.\n", ProductIdentity::ConfigFilename);
                     //FIXME: so what? generate new, or at least prompt to confirm
                     iniFile.close();
                     return;
@@ -145,41 +146,61 @@ void CSurfIntegrator::Init() {
                             if (const char* startChannelProp = pList.get_prop(PropertyType_StartChannel)) {
                                 int startChannel = atoi(startChannelProp);
 
-                                string baseDir = string(GetResourcePath()) + string("/CSI/Surfaces/");
-
-                                if (!filesystem::exists(baseDir)) {
-                                    LogToConsole("[ERROR] Missing Surfaces Folder %s\n", baseDir.c_str());
-
+                                if (surfaceFolderProp[0] == '\0') {
+                                    LogToConsole("[ERROR] SurfaceFolder must contain a stable surface ID\n");
                                     return;
                                 }
 
-                                string surfaceFile = baseDir + surfaceFolderProp + "/Surface.txt";
-
-                                if (!filesystem::exists(surfaceFile)) {
-                                    LogToConsole("[ERROR] Missing Surfaces File %s\n", surfaceFile.c_str());
+                                std::optional<filesystem::path> resolvedSurfaceFile;
+                                try {
+                                    resolvedSurfaceFile = productPaths.FindSurfaceFile(surfaceFolderProp);
+                                } catch (const std::exception& error) {
+                                    LogToConsole("[ERROR] Invalid SurfaceFolder '%s': %s\n", surfaceFolderProp, error.what());
+                                    return;
                                 }
 
-                                string zoneFolder = baseDir + surfaceFolderProp + "/Zones";
-                                if (const char* zoneFolderProp = pList.get_prop(PropertyType_ZoneFolder))
-                                    zoneFolder = baseDir + zoneFolderProp + "/Zones";
+                                if (!resolvedSurfaceFile) {
+                                    LogToConsole("[ERROR] Missing surface '%s'. Expected %s/%s.txt or %s/%s.txt\n", surfaceFolderProp, productPaths.UserSurfacesRoot().string().c_str(), surfaceFolderProp, productPaths.VendorSurfacesRoot().string().c_str(), surfaceFolderProp);
+                                    return;
+                                }
+                                const string surfaceFile = resolvedSurfaceFile->string();
 
-                                if (!filesystem::exists(zoneFolder)) {
-                                    LogToConsole("[ERROR] Missing Zone Folder %s\n", zoneFolder.c_str());
+                                string zoneProfileId = surfaceFolderProp;
+                                if (const char* zoneFolderProp = pList.get_prop(PropertyType_ZoneFolder)) if (zoneFolderProp[0] != '\0') zoneProfileId = zoneFolderProp;
+                                std::optional<filesystem::path> resolvedZoneProfile;
+                                try {
+                                    resolvedZoneProfile = productPaths.FindZoneProfileDirectory(zoneProfileId);
+                                } catch (const std::exception& error) {
+                                    LogToConsole("[ERROR] Invalid ZoneFolder '%s': %s\n", zoneProfileId.c_str(), error.what());
+                                    return;
+                                }
+                                if (!resolvedZoneProfile) {
+                                    LogToConsole("[ERROR] Missing zone profile '%s'. Expected it under %s or %s\n", zoneProfileId.c_str(), productPaths.UserZonesRoot().string().c_str(), productPaths.VendorZonesRoot().string().c_str());
+                                    return;
+                                }
+                                const string zoneFolder = (*resolvedZoneProfile / "Main").string();
+                                if (!filesystem::is_directory(zoneFolder)) {
+                                    LogToConsole("[ERROR] Missing Main zone folder %s\n", zoneFolder.c_str());
+                                    return;
                                 }
 
-                                string fxZoneFolder = baseDir + surfaceFolderProp + "/FXZones";
-                                if (const char* fxZoneFolderProp = pList.get_prop(PropertyType_FXZoneFolder))
-                                    fxZoneFolder = baseDir + fxZoneFolderProp + "/FXZones";
-
-                                if (!filesystem::exists(fxZoneFolder)) {
-                                    try {
-                                        RecursiveCreateDirectory(fxZoneFolder.c_str(), 0);
-                                    } catch (const std::exception& e) {
-                                        LogToConsole("[ERROR] FAILED to Init. Unable to create folder %s\n", fxZoneFolder.c_str());
-                                        LogToConsole("Exception: %s\n", e.what());
-
-                                        return;
-                                    }
+                                string fxZoneProfileId = surfaceFolderProp;
+                                if (const char* fxZoneFolderProp = pList.get_prop(PropertyType_FXZoneFolder)) if (fxZoneFolderProp[0] != '\0') fxZoneProfileId = fxZoneFolderProp;
+                                std::optional<filesystem::path> resolvedFxZoneProfile;
+                                try {
+                                    resolvedFxZoneProfile = productPaths.FindZoneProfileDirectory(fxZoneProfileId);
+                                } catch (const std::exception& error) {
+                                    LogToConsole("[ERROR] Invalid FXZoneFolder '%s': %s\n", fxZoneProfileId.c_str(), error.what());
+                                    return;
+                                }
+                                if (!resolvedFxZoneProfile) {
+                                    LogToConsole("[ERROR] Missing FX zone profile '%s'. Expected it under %s or %s\n", fxZoneProfileId.c_str(), productPaths.UserZonesRoot().string().c_str(), productPaths.VendorZonesRoot().string().c_str());
+                                    return;
+                                }
+                                const string fxZoneFolder = (*resolvedFxZoneProfile / "FX").string();
+                                if (!filesystem::is_directory(fxZoneFolder)) {
+                                    LogToConsole("[ERROR] Missing FX zone folder %s\n", fxZoneFolder.c_str());
+                                    return;
                                 }
 
                                 bool foundIt = false;

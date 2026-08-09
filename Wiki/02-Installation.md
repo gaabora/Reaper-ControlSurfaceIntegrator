@@ -1,5 +1,7 @@
 # 02 - Installation Guide
 
+> This is the legacy upstream installation guide. The fork is not published yet. Current CI packages install `UserPlugins/reaper_csurf_integrator.*` and `Scripts/ReaControlSurface/`; the configuration root is `ReaControlSurface/`. ReaPack and vendor surface packages are planned but are not available yet. //FIXME before release
+
 **Purpose**: Get CSI installed and verified  
 **Time Required**: 15-20 minutes  
 **Difficulty**: Beginner

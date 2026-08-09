@@ -29,6 +29,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <system_error>
 #include <functional>
 
 using std::string;
@@ -87,6 +88,7 @@ namespace filesystem = std::filesystem;
 #include "../shared/daw_api.h"
 #include "../shared/utils.h"
 #include "../shared/types.h"
+#include "../shared/product_paths.h"
 
 #include "fwd.h"
 

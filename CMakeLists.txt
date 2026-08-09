@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ProductIdentity.cmake")
+
 # Enable policy for INTERPROCEDURAL_OPTIMIZATION if supported
 if(POLICY CMP0069)
   cmake_policy(SET CMP0069 NEW)
@@ -9,7 +11,7 @@ endif()
 # Project Definition and Versioning
 # ------------------------------------------------------------------------------
 
-project(ControlSurfaceIntegrator VERSION 7.1.0 LANGUAGES C CXX)
+project(${PRODUCT_CMAKE_TARGET} VERSION 7.1.0 LANGUAGES C CXX)
 
 # Attempt to extract latest Git tag as project version
 find_package(Git)
@@ -23,7 +25,7 @@ if(GIT_FOUND)
   if(NOT "${GIT_LATEST_TAG}" STREQUAL "")
     string(REGEX REPLACE "[^0-9.]" "" GIT_LATEST_TAG ${GIT_LATEST_TAG})
     if(NOT "${GIT_LATEST_TAG}" STREQUAL "")
-      project(${PROJECT_NAME} VERSION ${GIT_LATEST_TAG} LANGUAGES C CXX)
+      project(${PRODUCT_CMAKE_TARGET} VERSION ${GIT_LATEST_TAG} LANGUAGES C CXX)
     endif()
   endif()
 endif()
@@ -224,7 +226,7 @@ if(APPLE)
       VERBATIM
     )
   else()
-    message(WARNING "Skipping code signing: CSI_CODESIGN_IDENTITY environment variable not set.")
+    message(WARNING "Skipping code signing: APLDEV_CODESIGN_IDENTITY environment variable not set.")
   endif()
 
   # Notarization if username, password, and team ID are set
@@ -240,15 +242,28 @@ if(APPLE)
       VERBATIM
     )
   else()
-    message(WARNING "Skipping notarization: CSI_NOTARY_USERNAME, CSI_NOTARY_PASSWORD, or CSI_TEAM_ID environment variables not set.")
+    message(WARNING "Skipping notarization: APLDEV_NOTARY_USERNAME, APLDEV_NOTARY_PASSWORD, or APLDEV_TEAM_ID environment variables not set.")
   endif()
 endif()
 
 # ------------------------------------------------------------------------------
-# Configure Generated Header
+# Configure Generated Product Files
 # ------------------------------------------------------------------------------
 
+set(PRODUCT_GENERATED_DIRECTORY "${PROJECT_BINARY_DIR}/generated")
+set(PRODUCT_GENERATED_SCRIPT_DIRECTORY "${PRODUCT_GENERATED_DIRECTORY}/Scripts/${PRODUCT_SCRIPT_DIRECTORY}")
+file(MAKE_DIRECTORY "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}")
+
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.h.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.h" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.lua.in" "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/product_identity.lua" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.ts.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.ts" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.env.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.env" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/Scripts/CSI/CSI OSK on-screen keyboard.lua" "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSK_SCRIPT_FILENAME}" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/Scripts/CSI/CSI OSD on-screen display.lua" "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSD_SCRIPT_FILENAME}" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/Scripts/CSI/CSI OSK state debug.lua" "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSK_DEBUG_SCRIPT_FILENAME}" @ONLY)
+
+target_include_directories(${PROJECT_NAME} PRIVATE "${PRODUCT_GENERATED_DIRECTORY}")
 
 # ------------------------------------------------------------------------------
 # Platform-Specific Compiler Flags and Linker Options
@@ -352,39 +367,22 @@ else()
 endif()
 
 # ------------------------------------------------------------------------------
-# Determine REAPER_USER_PLUGINS path
-# ------------------------------------------------------------------------------
-
-if(DEFINED ENV{REAPER_RESOURCE_PATH})
-  file(TO_CMAKE_PATH "$ENV{REAPER_RESOURCE_PATH}" REAPER_RESOURCE_PATH)
-  if(EXISTS "${REAPER_RESOURCE_PATH}")
-    set(REAPER_USER_PLUGINS "${REAPER_RESOURCE_PATH}/UserPlugins")
-    message(STATUS "Using REAPER_USER_PLUGINS from REAPER_RESOURCE_PATH: ${REAPER_USER_PLUGINS}")
-  else()
-    message(WARNING "REAPER_RESOURCE_PATH is set but path does not exist: ${REAPER_RESOURCE_PATH}")
-  endif()
-endif()
-
-# Default fallback
-if(NOT DEFINED REAPER_USER_PLUGINS)
-  set(REAPER_USER_PLUGINS "UserPlugins")
-  message(STATUS "Using default REAPER_USER_PLUGINS path: ${REAPER_USER_PLUGINS}")
-endif()
-
-# ------------------------------------------------------------------------------
 # Installer Defaults and CPack Configuration
 # ------------------------------------------------------------------------------
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  if(WIN32)
-    set(USER_CONFIG_DIR "$ENV{APPDATA}")
+  if(DEFINED ENV{REAPER_RESOURCE_PATH})
+    file(TO_CMAKE_PATH "$ENV{REAPER_RESOURCE_PATH}" REAPER_RESOURCE_PATH)
+    set(DEFAULT_REAPER_RESOURCE_PATH "${REAPER_RESOURCE_PATH}")
+  elseif(WIN32)
+    set(DEFAULT_REAPER_RESOURCE_PATH "$ENV{APPDATA}/REAPER")
   elseif(APPLE)
-    set(USER_CONFIG_DIR "~/Library/Application Support")
+    set(DEFAULT_REAPER_RESOURCE_PATH "$ENV{HOME}/Library/Application Support/REAPER")
   else()
-    set(USER_CONFIG_DIR "~/.config")
+    set(DEFAULT_REAPER_RESOURCE_PATH "$ENV{HOME}/.config/REAPER")
   endif()
 
-  set(CMAKE_INSTALL_PREFIX "${USER_CONFIG_DIR}/REAPER" CACHE PATH "REAPER resource path where to install ReaPack" FORCE)
+  set(CMAKE_INSTALL_PREFIX "${DEFAULT_REAPER_RESOURCE_PATH}" CACHE PATH "REAPER resource path where to install ${PRODUCT_DISPLAY_NAME}" FORCE)
 endif()
 
 # Determine architecture string for output name
@@ -401,15 +399,33 @@ string(TOLOWER "${ARCH_NAME}" ARCH_NAME)
 # Set output name (no "lib" prefix) and architecture
 set_target_properties(${PROJECT_NAME} PROPERTIES
   PREFIX ""
-  OUTPUT_NAME "reaper_csurf_integrator"
+  OUTPUT_NAME "${PRODUCT_PLUGIN_FILENAME}"
   # OUTPUT_NAME "reaper_${PROJECT_NAME}-${ARCH_NAME}"
 )
 
 # Install shared library
 install(TARGETS ${PROJECT_NAME}
   COMPONENT ${PROJECT_NAME}
-  RUNTIME DESTINATION "${REAPER_USER_PLUGINS}" # Windows .dll
-  LIBRARY DESTINATION "${REAPER_USER_PLUGINS}" # Linux .so/macOS .dylib
+  RUNTIME DESTINATION "${PRODUCT_PLUGIN_INSTALL_DIRECTORY}" # Windows .dll
+  LIBRARY DESTINATION "${PRODUCT_PLUGIN_INSTALL_DIRECTORY}" # Linux .so/macOS .dylib
+)
+
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/Scripts/CSI/"
+  DESTINATION "${PRODUCT_SCRIPT_INSTALL_DIRECTORY}"
+  COMPONENT ${PROJECT_NAME}
+  FILES_MATCHING PATTERN "*.lua"
+  PATTERN "CSI OSK on-screen keyboard.lua" EXCLUDE
+  PATTERN "CSI OSD on-screen display.lua" EXCLUDE
+  PATTERN "CSI OSK state debug.lua" EXCLUDE
+)
+
+install(FILES
+  "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/product_identity.lua"
+  "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSK_SCRIPT_FILENAME}"
+  "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSD_SCRIPT_FILENAME}"
+  "${PRODUCT_GENERATED_SCRIPT_DIRECTORY}/${PRODUCT_OSK_DEBUG_SCRIPT_FILENAME}"
+  COMPONENT ${PROJECT_NAME}
+  DESTINATION "${PRODUCT_SCRIPT_INSTALL_DIRECTORY}"
 )
 
 # Install PDB files on Windows
@@ -417,7 +433,7 @@ if(WIN32)
   install(
     FILES $<TARGET_PDB_FILE:${PROJECT_NAME}>
     COMPONENT ${PROJECT_NAME}
-    DESTINATION "${REAPER_USER_PLUGINS}"
+    DESTINATION "${PRODUCT_PLUGIN_INSTALL_DIRECTORY}"
   )
 endif()
 
@@ -440,12 +456,16 @@ else()
 endif()
 
 # Custom CPack naming
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}-macOS")
+if(APPLE)
+  set(CPACK_PACKAGE_FILE_NAME "${PRODUCT_PACKAGE_PREFIX}-${PROJECT_VERSION}-macOS")
+elseif(WIN32)
+  set(CPACK_PACKAGE_FILE_NAME "${PRODUCT_PACKAGE_PREFIX}-${PROJECT_VERSION}-Windows")
+else()
+  set(CPACK_PACKAGE_FILE_NAME "${PRODUCT_PACKAGE_PREFIX}-${PROJECT_VERSION}-Linux")
 endif()
 
 set(CPACK_COMPONENT_${PROJECT_NAME}_REQUIRED ON)
-set(CPACK_NSIS_PACKAGE_NAME "${PROJECT_NAME}")
+set(CPACK_NSIS_PACKAGE_NAME "${PRODUCT_DISPLAY_NAME}")
 set(CPACK_NSIS_CPUBITS ${CPUBITS})
 
 include(CPack)

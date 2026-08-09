@@ -2,9 +2,11 @@
 
 ## Scope
 
-This document defines the current private interface between the CSI C++ extension and
+This document defines the current private interface between the ReaControlSurface C++ extension and
 the bundled OSK/OSD Lua scripts. The scripts have not been published, so this contract
 has no legacy aliases or migration fallbacks.
+
+The current `ReaCtrlSurf` prefix comes from [`../cmake/ProductIdentity.cmake`](../cmake/ProductIdentity.cmake). C++ and Lua use generated constants for the full section names shown below.
 
 All command and response entries are session-only unless a settings section is named.
 Lua-to-C++ commands are consumed once and deleted by C++.
@@ -165,7 +167,7 @@ Persistent keys in `ReaCtrlSurf_OSK_SETTINGS`:
 
 OSK uses one independent window per surface. Position writes are delayed while a
 window is moving and flushed on shutdown. The latest enabled/hidden state is
-persisted per surface and restored by the C++ bridge on CSI startup.
+persisted per surface and restored by the C++ bridge on product startup.
 
 Persistent keys in `ReaCtrlSurf_OSD_SETTINGS`:
 

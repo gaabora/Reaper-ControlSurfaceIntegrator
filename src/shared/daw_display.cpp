@@ -22,7 +22,7 @@ namespace DAW {
         lastValue = nextValue;
         lastUpdateTs = now;
         const string eventIdValue = std::to_string(++eventId);
-        ::SetExtState("ReaCtrlSurf_OSD", "OSD", lastValue.c_str(), false);
-        ::SetExtState("ReaCtrlSurf_OSD", "OSD_ID", eventIdValue.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateOsd, "OSD", lastValue.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateOsd, "OSD_ID", eventIdValue.c_str(), false);
     }
 } // namespace DAW

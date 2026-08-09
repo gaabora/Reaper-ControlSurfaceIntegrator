@@ -11,8 +11,6 @@ jobs:
     runs-on: macos-latest
 
     env:
-      PLUGIN_NAME: reaper_csurf_integrator
-      BUNDLE_ID: com.example.reaper_csurf_integrator
       APLDEV_CODESIGN_IDENTITY: ${{ secrets.APLDEV_CODESIGN_IDENTITY }}
       APLDEV_NOTARY_USERNAME: ${{ secrets.APLDEV_NOTARY_USERNAME }}
       APLDEV_NOTARY_PASSWORD: ${{ secrets.APLDEV_NOTARY_PASSWORD }}
@@ -38,6 +36,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S ${{ github.workspace }}
 
+      - name: Load product identity
+        run: cat "${{ github.workspace }}/build/generated/product_identity.env" >> "$GITHUB_ENV"
+
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
@@ -49,29 +50,25 @@ jobs:
           find build -name "*.dylib" -print0 | xargs -0 -I{} codesign --force --deep --options runtime --sign "$APLDEV_CODESIGN_IDENTITY" {}
 
       - name: Prepare Package folder
-        run: |
-          mkdir -p Package/UserPlugins
-          cp ./build/$PLUGIN_NAME.dylib Package/UserPlugins/
-          cp -r Scripts Package/
-          cp -r CSI Package/
+        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
         shell: bash
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: $PLUGIN_NAME_mac_intel
+          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_mac_intel
           path: Package
 
       - name: Create ZIP for Notarization
         run: |
-          zip ${{ github.workspace }}/to_notarization.zip ./Package/UserPlugins/$PLUGIN_NAME.dylib
+          zip ${{ github.workspace }}/to_notarization.zip ./Package/UserPlugins/$PRODUCT_PLUGIN_FILENAME.dylib
         shell: bash
 
       - name: Notarize ZIP file
         id: notarize
         run: >
           notarize_response=$(xcrun altool --notarize-app
-            --primary-bundle-id "$BUNDLE_ID"
+            --primary-bundle-id "$PRODUCT_BUNDLE_ID"
             --username $APLDEV_NOTARY_USERNAME
             --password $APLDEV_NOTARY_PASSWORD
             --file ${{ github.workspace }}/to_notarization.zip)
@@ -102,12 +99,11 @@ jobs:
 
       - name: Staple Notarization Ticket
         run: |
-          xcrun stapler staple ./Package/UserPlugins/$PLUGIN_NAME.dylib
+          xcrun stapler staple ./Package/UserPlugins/$PRODUCT_PLUGIN_FILENAME.dylib
         shell: bash
 
       - name: Create zip for release
         run: |
           cd Package
-          zip -r ../$PLUGIN_NAME_${{ github.ref_name }}_mac_arm.zip .
+          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_mac_arm.zip" .
         shell: bash
-

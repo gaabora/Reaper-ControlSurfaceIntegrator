@@ -1,9 +1,10 @@
+local identity = require("product_identity")
 local settings_store = require("settings_store")
 
 local M = {}
 
-M.OSK_SETTINGS_SECTION = "ReaCtrlSurf_OSK_SETTINGS"
-M.OSD_SETTINGS_SECTION = "ReaCtrlSurf_OSD_SETTINGS"
+M.OSK_SETTINGS_SECTION = identity.extState.oskSettings
+M.OSD_SETTINGS_SECTION = identity.extState.osdSettings
 
 M.FONT_FAMILIES = {
     { label = "Sans", family = "sans-serif" },

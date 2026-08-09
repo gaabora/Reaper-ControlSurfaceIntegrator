@@ -14,6 +14,7 @@
 - Scripts execute inside REAPER and depend on the `reaper` API and ReaImGui.
 - Keep ExtState section names, keys, payload delimiters, and command lifecycles compatible with the C++ bridge in `src/controls`.
 - Do not silently persist settings that are intended to remain session-only.
+- Installed script names, directories, and ExtState sections come from the generated `product_identity.lua`; source files under `Scripts/CSI` are installation inputs, not the installed product path contract.
 
 ## Work Guidance
 

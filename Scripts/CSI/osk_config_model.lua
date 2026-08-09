@@ -1,3 +1,5 @@
+local identity = require("product_identity")
+
 local M = {}
 
 M.SEARCH_MODE_ITEMS = "all\0csi\0reaper\0"
@@ -173,7 +175,7 @@ function M.RefreshSearchResults(state, r)
     if state.searchMode ~= "reaper" then
         for _, name in ipairs(state.csiActions) do
             if M.MatchesSearchTerms(name, query) then
-                results[#results + 1] = "[CSI] " .. name
+                results[#results + 1] = "[" .. identity.displayName .. "] " .. name
             end
         end
     end
@@ -323,7 +325,8 @@ function M.ApplySearchSelectionToBinding(state, binding, row, action_line)
     row = row or state.searchResults[state.searchSelected]
     if not row then return end
 
-    local csiAction = row:match("^%[CSI%]%s+(.+)$")
+    local productActionPrefix = "[" .. identity.displayName .. "] "
+    local csiAction = row:sub(1, #productActionPrefix) == productActionPrefix and row:sub(#productActionPrefix + 1) or nil
     if csiAction then
         binding.line = csiAction
         M.RefreshBindingDerivedFields(binding, action_line)

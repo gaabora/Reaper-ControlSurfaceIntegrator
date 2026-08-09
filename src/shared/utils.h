@@ -24,6 +24,8 @@
 #include <algorithm>
 #include <ctime>
 
+#include "product_identity.h"
+
 inline double int14ToNormalized(unsigned char msb, unsigned char lsb) {
     int val = lsb | (msb << 7);
     double normalizedVal = val / 16383.0;
@@ -80,7 +82,7 @@ inline const char* DebugLevelToString(int level) {
 }
 
 inline void LogMessage(const char* msg) {
-    std::ofstream logFile(std::string(GetResourcePath()) + "/CSI/CSI.log", std::ios::app);
+    std::ofstream logFile(std::string(GetResourcePath()) + "/" + ProductIdentity::ResourceDirectory + "/" + ProductIdentity::LogFilename, std::ios::app);
     if (logFile.is_open()) {
         char timeStr[32];
         time_t rawtime;
@@ -121,8 +123,9 @@ inline void LogStackTraceToConsole() {
         if (line.find('\\') != string::npos || line.find('/') != string::npos)
         {
             size_t pos = 0;
-            while ((pos = line.find("reaper_csurf_integrator!", pos)) != string::npos)
-                line.replace(pos, 24, "");
+            const string modulePrefix = string(ProductIdentity::PluginFilename) + "!";
+            while ((pos = line.find(modulePrefix, pos)) != string::npos)
+                line.replace(pos, modulePrefix.length(), "");
 
             pos = line.find("+0x");
             if (pos != string::npos)

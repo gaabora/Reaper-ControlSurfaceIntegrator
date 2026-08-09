@@ -1,0 +1,23 @@
+#pragma once
+
+namespace ProductIdentity {
+inline constexpr const char* DisplayName = "@PRODUCT_DISPLAY_NAME@";
+inline constexpr const char* ProductId = "@PRODUCT_ID@";
+inline constexpr const char* ResourceDirectory = "@PRODUCT_RESOURCE_DIRECTORY@";
+inline constexpr const char* ConfigFilename = "@PRODUCT_CONFIG_FILENAME@";
+inline constexpr const char* LogFilename = "@PRODUCT_LOG_FILENAME@";
+inline constexpr const char* ExtStatePrefix = "@PRODUCT_EXTSTATE_PREFIX@";
+inline constexpr const char* ExtStateOsk = "@PRODUCT_EXTSTATE_OSK@";
+inline constexpr const char* ExtStateOskCommand = "@PRODUCT_EXTSTATE_OSK_COMMAND@";
+inline constexpr const char* ExtStateOskSettings = "@PRODUCT_EXTSTATE_OSK_SETTINGS@";
+inline constexpr const char* ExtStateOsd = "@PRODUCT_EXTSTATE_OSD@";
+inline constexpr const char* ExtStateOsdSettings = "@PRODUCT_EXTSTATE_OSD_SETTINGS@";
+inline constexpr const char* ReaperRegistrationId = "@PRODUCT_REAPER_REGISTRATION_ID@";
+inline constexpr const char* PluginFilename = "@PRODUCT_PLUGIN_FILENAME@";
+inline constexpr const char* ScriptDirectory = "@PRODUCT_SCRIPT_DIRECTORY@";
+inline constexpr const char* PackagePrefix = "@PRODUCT_PACKAGE_PREFIX@";
+inline constexpr const char* OskScriptFilename = "@PRODUCT_OSK_SCRIPT_FILENAME@";
+inline constexpr const char* OsdScriptFilename = "@PRODUCT_OSD_SCRIPT_FILENAME@";
+inline constexpr const char* OskScriptResourcePath = "@PRODUCT_OSK_SCRIPT_RESOURCE_PATH@";
+inline constexpr const char* OsdScriptResourcePath = "@PRODUCT_OSD_SCRIPT_RESOURCE_PATH@";
+}

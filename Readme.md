@@ -22,6 +22,7 @@ Start in [Wiki/Home.md](Wiki/Home.md).
 - [docs/README.md](docs/README.md)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/LUA_CPP_EXTSTATE_INTERFACE.md](docs/LUA_CPP_EXTSTATE_INTERFACE.md)
+- [docs/PRODUCT_IDENTITY.md](docs/PRODUCT_IDENTITY.md)
 
 ### Open work
 
@@ -40,7 +41,7 @@ cmake --build build --config Debug
 macOS builds are not code-signed. If REAPER blocks or can not see the plugin, remove the quarantine flag by next command running in terminal:
 
 ```bash
-xattr -d com.apple.quarantine ~/Library/Application\ Support/REAPER/UserPlugins/reaper_csurf_integrator.dylib
+./allow_use_of_csurf_dylib.sh
 ```
 
 
@@ -92,4 +93,3 @@ setx REAPER_RESOURCE_PATH "c:\apps\MultiMedia\ReaperPortable\Data\ReaperPortable
 
 ## Other docs
 * [VSCode docs](https://code.visualstudio.com/docs/languages/cpp#_tutorials) and [Microsoft C++ docs](https://docs.microsoft.com/en-us/cpp/cpp/) are a helpful resource. And, of course, [ReaScript, JSFX, REAPER Plug-in Extensions, Developer Forum](https://forum.cockos.com/forumdisplay.php?f=3).
-

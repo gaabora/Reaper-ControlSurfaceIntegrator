@@ -33,7 +33,7 @@ function M.RenderContextMenu(ctx, popupId, surfName, deps)
     for _, action in ipairs(TOOLBAR_ACTIONS) do
         if imgui.MenuItem(ctx, action.title) then
             reaper.Main_OnCommand(action.action, 0)
-            reaper.ShowConsoleMsg("[CSI OSK] Action: " .. action.action .. " (" .. action.tooltip .. ")\n")
+            reaper.ShowConsoleMsg("[" .. data.productDisplayName .. " OSK] Action: " .. action.action .. " (" .. action.tooltip .. ")\n")
         end
         ui.ItemTooltip(ctx, action.tooltip)
     end

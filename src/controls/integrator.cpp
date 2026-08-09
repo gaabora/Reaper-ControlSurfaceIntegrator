@@ -201,8 +201,6 @@ int strToHex(string& valueStr) { return strtol(valueStr.c_str(), NULL, 16); }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CSurfIntegrator
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-static const char* const Control_Surface_Integrator = "Control Surface Integrator";
-
 CSurfIntegrator::CSurfIntegrator() {
     InitActionsDictionary();
 
@@ -238,7 +236,7 @@ CSurfIntegrator::~CSurfIntegrator() {
     actions_.clear();
 }
 
-const char* CSurfIntegrator::GetDescString() { return Control_Surface_Integrator; }
+const char* CSurfIntegrator::GetDescString() { return ProductIdentity::DisplayName; }
 
 const char* CSurfIntegrator::GetConfigString() {
     return "0 0";
@@ -270,7 +268,7 @@ static HWND configFunc(const char* type_string, HWND parent, const char* initCon
     return hwnd;
 }
 
-reaper_csurf_reg_t csurf_integrator_reg = { "CSI", Control_Surface_Integrator, createFunc, configFunc };
+reaper_csurf_reg_t csurf_integrator_reg = { ProductIdentity::ReaperRegistrationId, ProductIdentity::DisplayName, createFunc, configFunc };
 
 void localize_init(void* (*GetFunc)(const char* name)) {
     *(void**) &importedLocalizeFunc = GetFunc("__localizeFunc");

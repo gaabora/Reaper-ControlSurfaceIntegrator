@@ -1,14 +1,16 @@
 local r = reaper
 local layout_parser = require("layout_parser")
 local label_replacements = require("label_replacements")
+local identity = require("product_identity")
 local settings_store = require("settings_store")
 local theme = require("theme_settings")
 
 local M = {}
 
-M.EXT_SECTION = "ReaCtrlSurf_OSK"
-M.EXT_CMD_SECTION = "ReaCtrlSurf_OSK_CMD"
-M.EXT_SETTINGS = "ReaCtrlSurf_OSK_SETTINGS"
+M.productDisplayName = identity.displayName
+M.EXT_SECTION = identity.extState.osk
+M.EXT_CMD_SECTION = identity.extState.oskCommand
+M.EXT_SETTINGS = identity.extState.oskSettings
 
 local SURFACE_POSITION_PREFIX = "SurfacePosition_"
 local SURFACE_ENABLED_PREFIX = "SurfaceEnabled_"
@@ -88,7 +90,7 @@ function M.DebugFader(surfName, widgetName, message, throttleSeconds, keySuffix)
     end
     faderDebugLast[key] = now
     faderDebugLastMessage[key] = message
-    r.ShowConsoleMsg(string.format("[CSI OSK FADER DEBUG] %s|%s %s\n", tostring(surfName or "?"), tostring(widgetName or "?"), tostring(message or "")))
+    r.ShowConsoleMsg(string.format("[%s OSK FADER DEBUG] %s|%s %s\n", identity.displayName, tostring(surfName or "?"), tostring(widgetName or "?"), tostring(message or "")))
 end
 
 function M.GetStateValue(surfName, widgetName)

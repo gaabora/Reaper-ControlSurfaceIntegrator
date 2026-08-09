@@ -97,7 +97,7 @@ public:
     ~CSurfIntegrator();
 
     virtual int Extended(int call, void* parm1, void* parm2, void* parm3) override;
-    const char* GetTypeString() override { return "CSI"; }
+    const char* GetTypeString() override { return ProductIdentity::ReaperRegistrationId; }
     const char* GetDescString() override;
     const char* GetConfigString() override; // string of configuration data
 
@@ -176,36 +176,32 @@ public:
     }
 
     osd_data QueuedOSD;
+    int osdCommandId_ = 0;
     void OpenOSDPanel() {
         string scriptsPath = string(GetResourcePath()) + REASCRIPT_PATH__CSI_OSD;
-        int commandId = NamedCommandLookup(REASCRIPT_HASH__CSI_OSD);
-        if (commandId == 0) {
-            commandId = AddRemoveReaScript(true, 0, scriptsPath.c_str(), true);
-            if (commandId == 0) {
+        if (this->osdCommandId_ == 0) {
+            this->osdCommandId_ = AddRemoveReaScript(true, 0, scriptsPath.c_str(), true);
+            if (this->osdCommandId_ == 0) {
                 LogToConsole("[ERROR] FAILED to OpenOSDPanel. AddRemoveReaScript failed for '%s'\n", REASCRIPT_PATH__CSI_OSD);
                 return;
             }
-            commandId = NamedCommandLookup(REASCRIPT_HASH__CSI_OSD);
-            if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ReaScript %s was loaded: %s (%d)\n", REASCRIPT_PATH__CSI_OSD, REASCRIPT_HASH__CSI_OSD, commandId);
+            if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ReaScript %s was loaded: commandId=%d\n", REASCRIPT_PATH__CSI_OSD, this->osdCommandId_);
         }
         int runningState;
         for (int attempt = 1; attempt <= 2; ++attempt) {
-            runningState = GetToggleCommandState(commandId);
+            runningState = GetToggleCommandState(this->osdCommandId_);
             if (runningState == 1) return;
             if (attempt == 2) {
-                commandId = AddRemoveReaScript(true, 0, scriptsPath.c_str(), true);
-                if (commandId == 0) {
+                this->osdCommandId_ = AddRemoveReaScript(true, 0, scriptsPath.c_str(), true);
+                if (this->osdCommandId_ == 0) {
                     LogToConsole("[ERROR] FAILED to OpenOSDPanel. AddRemoveReaScript failed for '%s'\n", REASCRIPT_PATH__CSI_OSD);
                     return;
                 }
-                const char* commandHash = ReverseNamedCommandLookup(commandId);
-                if (!IsSameString(REASCRIPT_HASH__CSI_OSD + 1, commandHash))
-                    LogToConsole("[ERROR] Command ID changed for '%s': '%s' >>> '_%s'\n", REASCRIPT_PATH__CSI_OSD, REASCRIPT_HASH__CSI_OSD, commandHash);
             }
-            DAW::SendCommandMessage(commandId);
+            DAW::SendCommandMessage(this->osdCommandId_);
         }
-        runningState = GetToggleCommandState(commandId);
-        LogToConsole("[ERROR] FAILED to OpenOSDPanel. ReaScript: '%s' command ID: %s (%d) state: %d\n", REASCRIPT_PATH__CSI_OSD, REASCRIPT_HASH__CSI_OSD, commandId, runningState);
+        runningState = GetToggleCommandState(this->osdCommandId_);
+        LogToConsole("[ERROR] FAILED to OpenOSDPanel. ReaScript: '%s' command ID: %d state: %d\n", REASCRIPT_PATH__CSI_OSD, this->osdCommandId_, runningState);
     }
 
     // -----------------------------------------------------------------------
@@ -338,27 +334,27 @@ public:
             if (!csv.empty()) csv += ",";
             csv += name;
         }
-        ::SetExtState("ReaCtrlSurf_OSK", "ActionList", csv.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateOsk, "ActionList", csv.c_str(), false);
     }
 
     void PollAndHandleOSKCommands() {
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressDown")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressDown");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressDown", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "WidgetPressDown")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "WidgetPressDown");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "WidgetPressDown", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKWidgetPressDown(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressUp")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressUp");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetPressUp", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "WidgetPressUp")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "WidgetPressUp");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "WidgetPressUp", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKWidgetPressUp(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetScroll")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetScroll");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetScroll", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "WidgetScroll")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "WidgetScroll");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "WidgetScroll", false);
             auto sep1 = payload.find('|');
             if (sep1 != string::npos) {
                 auto sep2 = payload.find('|', sep1 + 1);
@@ -384,9 +380,9 @@ public:
                 }
             }
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetValue")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetValue");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetValue", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "WidgetValue")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "WidgetValue");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "WidgetValue", false);
             auto sep1 = payload.find('|');
             if (sep1 != string::npos) {
                 auto sep2 = payload.find('|', sep1 + 1);
@@ -402,9 +398,9 @@ public:
                 }
             }
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "WidgetTouch")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "WidgetTouch");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "WidgetTouch", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "WidgetTouch")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "WidgetTouch");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "WidgetTouch", false);
             auto sep1 = payload.find('|');
             if (sep1 != string::npos) {
                 auto sep2 = payload.find('|', sep1 + 1);
@@ -420,23 +416,23 @@ public:
                 }
             }
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "SurfaceEnabled")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "SurfaceEnabled");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "SurfaceEnabled", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "SurfaceEnabled")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "SurfaceEnabled");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "SurfaceEnabled", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKSurfaceEnabled(payload.substr(0, sep), payload.substr(sep + 1) == "1");
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigQuery")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigQuery");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ConfigQuery", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "ConfigQuery")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "ConfigQuery");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "ConfigQuery", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKConfigQuery(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigApplyLive")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigApplyLive");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ConfigApplyLive", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "ConfigApplyLive")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "ConfigApplyLive");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "ConfigApplyLive", false);
             auto sep1 = payload.find('|');
             if (sep1 != string::npos) {
                 auto sep2 = payload.find('|', sep1 + 1);
@@ -449,22 +445,22 @@ public:
                 }
             }
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigSave")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigSave");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ConfigSave", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "ConfigSave")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "ConfigSave");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "ConfigSave", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKConfigSave(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ConfigRevert")) {
-            string payload = ::GetExtState("ReaCtrlSurf_OSK_CMD", "ConfigRevert");
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ConfigRevert", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "ConfigRevert")) {
+            string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "ConfigRevert");
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "ConfigRevert", false);
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKConfigRevert(payload.substr(0, sep), payload.substr(sep + 1));
         }
-        if (::HasExtState("ReaCtrlSurf_OSK_CMD", "ActionListQuery")) {
-            ::DeleteExtState("ReaCtrlSurf_OSK_CMD", "ActionListQuery", false);
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "ActionListQuery")) {
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "ActionListQuery", false);
             PublishOSKActionList();
         }
     }
@@ -486,7 +482,7 @@ public:
     }
 
     void CloseOSKPanel() {
-        ::SetExtState("ReaCtrlSurf_OSK", "Command", "Close", false);
+        ::SetExtState(ProductIdentity::ExtStateOsk, "Command", "Close", false);
     }
 
     void PublishOSKSurfacesList() {
@@ -500,7 +496,7 @@ public:
                 }
             }
         }
-        ::SetExtState("ReaCtrlSurf_OSK", "Surfaces", surfaces.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateOsk, "Surfaces", surfaces.c_str(), false);
     }
 
     bool HasAnyOSKEnabled() const {
@@ -605,6 +601,13 @@ public:
 
         if (g_fxParamsWrite) {
             char fxName[MEDBUF];
+            const filesystem::path rawFxFilesRoot = ProductPaths::FromReaperResourcePath().RawFxFilesRoot();
+            std::error_code directoryError;
+            filesystem::create_directories(rawFxFilesRoot, directoryError);
+            if (directoryError) {
+                LogToConsole("[ERROR] Cannot create raw FX output folder %s: %s\n", rawFxFilesRoot.string().c_str(), directoryError.message().c_str());
+                return;
+            }
 
             for (int i = 0; i < TrackFX_GetCount(track); ++i) {
                 TrackFX_GetFXName(track, i, fxName, sizeof(fxName));
@@ -613,7 +616,7 @@ public:
                 if (g_fxParamsWrite) {
                     string fxNameNoBadChars(fxName);
                     ReplaceAllWith(fxNameNoBadChars, s_BadFileChars, "_");
-                    fxFile = fopenUTF8((string(GetResourcePath()) + "/CSI/ZoneRawFXFiles/" + fxNameNoBadChars + ".txt").c_str(), "wb");
+                    fxFile = fopenUTF8((rawFxFilesRoot / (fxNameNoBadChars + ".txt")).string().c_str(), "wb");
                     if (fxFile)
                         fprintf(fxFile, "Zone \"%s\"\n", fxName);
                 }

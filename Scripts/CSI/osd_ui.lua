@@ -6,6 +6,7 @@
 local r = reaper
 
 local font_cache = require("font_cache")
+local identity = require("product_identity")
 local theme = require("theme_settings")
 local ui = require("ui_components")
 
@@ -20,11 +21,11 @@ M.state = {
 
 M.vars = theme.osd
 
-M.EXT_SECTION = "ReaCtrlSurf_OSD"
+M.EXT_SECTION = identity.extState.osd
 M.EXT_KEY = "OSD"
 M.EXT_ID_KEY = "OSD_ID"
-M.EXT_SETTINGS_SECTION = "ReaCtrlSurf_OSD_SETTINGS"
-M.OSK_SETTINGS_SECTION = "ReaCtrlSurf_OSK_SETTINGS"
+M.EXT_SETTINGS_SECTION = identity.extState.osdSettings
+M.OSK_SETTINGS_SECTION = identity.extState.oskSettings
 
 M.settingsBackup = nil
 
@@ -73,7 +74,7 @@ local function debugLog(...)
     for index = 1, select("#", ...) do
         out[#out + 1] = tostring(select(index, ...))
     end
-    r.ShowConsoleMsg("[CSI OSD] " .. table.concat(out, " ") .. "\n")
+    r.ShowConsoleMsg("[" .. identity.displayName .. " OSD] " .. table.concat(out, " ") .. "\n")
 end
 
 local function getOskBarSettingsKey(surfaceName)

@@ -14,6 +14,7 @@
 - ExtState payloads must remain compatible with `CSurfIntegrator` and `ControlSurface` command handling.
 - The OSK layout, state, label, binding, and action-list formats are serialized contracts; change both ends together.
 - Module loading must continue to work from the installed REAPER Scripts path.
+- Load public display names and ExtState sections from the CMake-generated `product_identity.lua`; do not duplicate those values in Lua modules.
 - Track unapplied editor changes separately from live unsaved changes, and request C++ revert when an editor with live changes closes.
 - Keep the binding editor's structured columns, pseudo-modifiers, generated titles, and color controls backed by the same serialized raw action line used by `ConfigApplyLive`.
 - Keep config color-picker swatches compact: empty saved/recent slots use checker/transparent swatches, left-click uses a stored color, and right-clicking a saved slot overwrites it with the current picker color.

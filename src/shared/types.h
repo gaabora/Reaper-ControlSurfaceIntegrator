@@ -16,6 +16,8 @@
 #include <cstdio>
 #include <functional>
 
+#include "product_identity.h"
+
 // WDL utilities needed by PropertyList (lstrcpyn_safe, snprintf_append, WDL_NOT_NORMALLY)
 #include "../../lib/WDL/WDL/wdltypes.h"
 #include "../../lib/WDL/WDL/wdlcstring.h"
@@ -51,9 +53,8 @@ inline constexpr int PLAYSTATE_PAUSED = 2;
 inline constexpr int PLAYSTATE_RECORDING = 5;
 inline constexpr int PLAYSTATE_PAUSED_WHILE_RECORDING = 6;
 
-inline constexpr const char* REASCRIPT_PATH__CSI_OSD = "/Scripts/CSI/CSI OSD on-screen display.lua";
-inline constexpr const char* REASCRIPT_HASH__CSI_OSD = "_RSba74d8dbb9258d14b5305a183a5f20e8a6e0f64f";
-inline constexpr const char* REASCRIPT_PATH__CSI_OSK = "/Scripts/CSI/CSI OSK on-screen keyboard.lua";
+inline constexpr const char* REASCRIPT_PATH__CSI_OSD = ProductIdentity::OsdScriptResourcePath;
+inline constexpr const char* REASCRIPT_PATH__CSI_OSK = ProductIdentity::OskScriptResourcePath;
 inline constexpr int REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES = 41743;
 inline constexpr int REAPER__RESET_ALL_MIDI_CONTROL_SURFACE_DEVICES = 42348;
 inline constexpr int REAPER__FILE_NEW_PROJECT = 40023;
@@ -63,7 +64,7 @@ inline constexpr int REAPER__CLOSE_CURRENT_PROJECT_TAB = 40860;
 inline constexpr int REAPER__SWITCH_TO_NEXT_PROJECT_TAB = 40862;
 inline constexpr int REAPER__SWITCH_TO_PREVIOUS_PROJECT_TAB = 40861;
 
-inline constexpr const char* s_CSIName = "CSI";
+inline constexpr const char* s_CSIName = ProductIdentity::DisplayName;
 inline constexpr const char* s_CSIVersionDisplay = "v7.0";
 inline constexpr const char* s_MajorVersionToken = "7.0";
 inline constexpr const char* s_PageToken = "Page";

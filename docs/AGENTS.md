@@ -9,6 +9,7 @@
 - `README.md` developer-doc index.
 - `ARCHITECTURE.md` current runtime/component overview.
 - `LUA_CPP_EXTSTATE_INTERFACE.md` current C++/Lua ExtState contract.
+- `PRODUCT_IDENTITY.md` canonical public-name generation and product-owned path contract.
 
 ## Local Contracts
 

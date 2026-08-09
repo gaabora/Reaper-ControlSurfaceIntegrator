@@ -1,13 +1,13 @@
 
 --[[
- * ReaScript Name: CSI OSD on-screen display
- * About: Show OSD text box with data from CSI control surface using ImGui.
+ * ReaScript Name: @PRODUCT_DISPLAY_NAME@ OSD on-screen display
+ * About: Show OSD text box with data from @PRODUCT_DISPLAY_NAME@ control surfaces using ImGui.
  *        Displays at top or bottom of screen, with configurable size and transparency.
- * Author: CSI Contributors
+ * Author: @PRODUCT_DISPLAY_NAME@ Contributors
  * Licence: GPL v3
  * REAPER: 7.0
  * Version: 2.0.0
- * Notes: Requires ReaImGui. Shares OSD UI logic with CSI OSK via osd_ui module.
+ * Notes: Requires ReaImGui. Shares OSD UI logic with @PRODUCT_DISPLAY_NAME@ OSK via osd_ui module.
 --]]
 
 local r = reaper
@@ -16,6 +16,7 @@ local host = dofile(scriptDir .. "script_host.lua")
 local imgui = host.RequireImGui(scriptDir)
 if not imgui then return end
 
+local identity = require("product_identity")
 local font_cache = require("font_cache")
 local osd_ui = require("osd_ui")
 local theme = require("theme_settings")
@@ -66,7 +67,7 @@ local function Init()
     host.SetToolbarState(1)
     osd_ui.LoadSettings()
 
-    ctx = host.CreateContext("CSI OSD")
+    ctx = host.CreateContext(identity.displayName .. " OSD")
     fontCache = font_cache.New(imgui, ctx)
     local fonts = fontCache:Build(theme.DEFAULT_FONT_DEFINITIONS)
     FONT_SMALL = fonts.small
