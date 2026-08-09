@@ -9,6 +9,8 @@ This folder keeps the work that is still open.
 - [REFACTORING_BACKLOG.md](REFACTORING_BACKLOG.md) - remaining structural refactor targets after the `src/` migration and current file split
 - [SURFACE_TEMPLATE_EXTRACTION_PLAN.md](SURFACE_TEMPLATE_EXTRACTION_PLAN.md) - open plan for moving more surface-specific behavior into `Surface.txt`
 - [OSK_REMAINING_WORK.md](OSK_REMAINING_WORK.md) - remaining manual REAPER verification and follow-up checks for the shipped OSK/OSD work
+- [CONFIGURATION_WORKFLOW_PLAN.md](CONFIGURATION_WORKFLOW_PLAN.md) - plan for product paths, the local configuration editor, legacy import, vendor layouts, snippets, and OSK zone-file creation
+- [PSEUDO_MODIFIER_PLAN.md](PSEUDO_MODIFIER_PLAN.md) - independent plan for zone-scoped modifiers named after their source widgets
 
 ## What Was Removed
 
