@@ -7,7 +7,7 @@
 ## Ownership
 
 - ReaPack staging, package metadata, checksum, and index verification tools in `reapack/`.
-- Future local configuration editor tooling when its implementation phase starts.
+- Bun and TypeScript configuration parsing, validation, and action-catalog tooling in `config-editor/`.
 
 ## Local Contracts
 
@@ -28,4 +28,4 @@
 
 ## Child DOX Index
 
-- None.
+- `config-editor/AGENTS.md` - Configuration format contracts, lossless editor core, fixtures, and CLI validation.

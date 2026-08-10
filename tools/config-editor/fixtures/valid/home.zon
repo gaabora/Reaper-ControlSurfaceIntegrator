@@ -1,0 +1,10 @@
+// @format zone 1
+Zone Home NavType=SelectedTrack
+  SubZones
+    transport
+  SubZonesEnd
+
+  Play Play
+  Shift+Play Reaper 40044
+  Hold+Play GoSubZone transport Feedback=No HoldDelay=500
+ZoneEnd

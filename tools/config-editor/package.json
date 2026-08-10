@@ -1,0 +1,11 @@
+{
+  "name": "config-editor-core",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "actions": "bun run src/cli.ts actions",
+    "actions:generate": "bun run src/cli.ts actions --output generated/action-catalog.json",
+    "test": "bun test",
+    "validate": "bun run src/cli.ts validate"
+  }
+}

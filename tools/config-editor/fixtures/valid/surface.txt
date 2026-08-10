@@ -1,0 +1,27 @@
+// @format surface 1
+StepSize
+  RotaryWidgetClass 0.003
+StepSizeEnd
+
+AccelerationValues
+  RotaryWidgetClass Dec 41 42
+  RotaryWidgetClass Inc 01 02
+  RotaryWidgetClass Val 0.005 0.01
+AccelerationValuesEnd
+
+Widget Play # Shape=Round Color=55ff55
+  Press 90 5e 7f 90 5e 00
+  FB_TwoState 90 5e 7f 90 5e 00
+WidgetEnd
+
+Widget Rotary RotaryWidgetClass
+  Encoder b0 10 7f [ > 01-3f < 41-7f ]
+WidgetEnd
+
+OSKLayout Version=1
+  Row
+    Widget Play Width=1.5 Height=1.5
+    Spacer Width=0.25
+    Widget Rotary Width=1.5 Height=1.5
+  RowEnd
+OSKLayoutEnd

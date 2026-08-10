@@ -149,13 +149,14 @@ Ready when a future rename requires one identity change and generated output upd
 
 Ready when the preview repository passes official index validation, installs the correct platform payload and shared scripts, and can update or uninstall without changing user-owned files.
 
-### Phase 3. Format specifications and editor core
+### ✅ Phase 3. Format specifications and editor core
 
-- Create `tools/config-editor/` as the Bun and TypeScript application boundary with its own local DOX contract.
-- Define the versioned surface, zone, snippet, and product-config contracts before building UI forms.
-- Implement lossless parsers, serializers, semantic document views, validators, and shared fixtures.
-- Add a generated runtime action catalog for editor validation and search.
-- Provide a command-line validation entry point for development and import diagnostics.
+- ✅ Create `tools/config-editor/` as the Bun and TypeScript application boundary with its own local DOX contract.
+- ✅ Define the versioned surface, zone, snippet, and product-config contracts before building UI forms.
+- ✅ Implement lossless parsers, serializers, semantic document views, validators, and shared fixtures.
+- ✅ Add a generated runtime action catalog for editor validation and search.
+- ✅ Provide a command-line validation entry point for development and import diagnostics.
+- ✅ Run the Bun fixture and CLI checks after explicit approval.
 
 Ready when valid files round-trip without data loss and malformed fixtures produce stable, actionable errors.
 
