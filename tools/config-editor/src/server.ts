@@ -1,6 +1,8 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { actionNameSet } from "./action-catalog.ts";
+import type { LegacyImportConflictAction, LegacyImportRequest, LegacyImportResolution } from "./legacy-import.ts";
+import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
 import { ProductPathError, ProductRootGuard } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
@@ -63,6 +65,41 @@ function stringField(body: Record<string, unknown>, key: string): string {
     return value;
 }
 
+function booleanField(body: Record<string, unknown>, key: string): boolean {
+    const value = body[key];
+    if (typeof value !== "boolean") throw new EditorOperationError("request.field", `${key} must be a boolean`);
+    return value;
+}
+
+function stringArrayField(body: Record<string, unknown>, key: string, optional = false): string[] | undefined {
+    const value = body[key];
+    if (optional && value === undefined) return undefined;
+    if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) throw new EditorOperationError("request.field", `${key} must be an array of strings`);
+    return value as string[];
+}
+
+function legacyResolution(value: unknown): LegacyImportResolution {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.resolution", "Each legacy import resolution must be an object");
+    const body = value as Record<string, unknown>;
+    const action = stringField(body, "action") as LegacyImportConflictAction;
+    if (!["create", "rename", "replace", "skip"].includes(action)) throw new EditorOperationError("request.resolution.action", `Unsupported legacy import action: ${action}`);
+    const targetHash = body.targetHash;
+    if (targetHash !== null && typeof targetHash !== "string") throw new EditorOperationError("request.resolution.hash", "targetHash must be a string or null");
+    const targetPath = body.targetPath;
+    if (targetPath !== undefined && typeof targetPath !== "string") throw new EditorOperationError("request.resolution.path", "targetPath must be a string when provided");
+    return { action, id: stringField(body, "id"), sourceHash: stringField(body, "sourceHash"), targetHash, targetPath };
+}
+
+function legacyImportRequest(body: Record<string, unknown>): LegacyImportRequest {
+    if (!Array.isArray(body.resolutions)) throw new EditorOperationError("request.resolutions", "resolutions must be an array");
+    return {
+        includeSurface: booleanField(body, "includeSurface"),
+        resolutions: body.resolutions.map(legacyResolution),
+        selectedZonePaths: stringArrayField(body, "selectedZonePaths")!,
+        surfaceName: stringField(body, "surfaceName"),
+    };
+}
+
 function saveChange(value: unknown): SaveChange {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.change", "Each change must be an object");
     const body = value as Record<string, unknown>;
@@ -88,6 +125,7 @@ function errorResponse(error: unknown): Response {
 export function startEditorServer(options: EditorServerOptions): RunningEditorServer {
     const token = randomBytes(32).toString("hex");
     const knownActions = actionNameSet(options.actions);
+    let legacySource: LegacyCsiSource | undefined;
     let store: ConfigurationStore | undefined;
     let origin = "";
     const fetchRequest = async (request: Request): Promise<Response> => {
@@ -107,7 +145,19 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 store = new ConfigurationStore(guard, knownActions);
                 return jsonResponse({ dataPath: store.getReaperDataPath() });
             }
+            if (requestUrl.pathname === "/api/legacy/select" && request.method === "POST") {
+                const body = await requestBody(request);
+                legacySource = await LegacyCsiSource.create(stringField(body, "path"));
+                return jsonResponse({ root: legacySource.getRoot(), surfaces: await legacySource.listSurfaces() });
+            }
             if (!store) throw new EditorOperationError("data-path.required", "Open a REAPER data path first");
+            if (requestUrl.pathname.startsWith("/api/legacy/") && !legacySource) throw new EditorOperationError("legacy.path.required", "Open a legacy CSI path first");
+            if (requestUrl.pathname === "/api/legacy/preview" && request.method === "POST") {
+                const body = await requestBody(request);
+                const selectedZonePaths = stringArrayField(body, "selectedZonePaths", true);
+                return jsonResponse({ preview: await legacySource!.preview(store, knownActions, stringField(body, "surfaceName"), booleanField(body, "includeSurface"), selectedZonePaths) });
+            }
+            if (requestUrl.pathname === "/api/legacy/import" && request.method === "POST") return jsonResponse({ report: await legacySource!.import(store, knownActions, legacyImportRequest(await requestBody(request))) });
             if (requestUrl.pathname === "/api/tree" && request.method === "GET") return jsonResponse({ entries: await store.tree() });
             if (requestUrl.pathname === "/api/file" && request.method === "GET") {
                 const relativePath = requestUrl.searchParams.get("path");

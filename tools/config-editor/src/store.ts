@@ -29,6 +29,11 @@ export interface SaveChange {
     source: string;
 }
 
+export interface FileState {
+    exists: boolean;
+    hash: string | null;
+}
+
 export interface OperationReport {
     changed: string[];
     created: string[];
@@ -118,6 +123,19 @@ export class ConfigurationStore {
         const source = data.toString("utf8");
         const document = parseByPath(source, relativePath, this.knownActions);
         return { document: documentView(document), hash: sha256(data), path: relativePath, source, writable: info.writable };
+    }
+
+    async fileState(relativePath: string): Promise<FileState> {
+        this.guard.getPathInfo(relativePath);
+        const absolutePath = await this.guard.resolveForWrite(relativePath);
+        try {
+            const stats = await lstat(absolutePath);
+            if (!stats.isFile()) throw new EditorOperationError("path.file", `Configuration target is not a file: ${relativePath}`);
+            return { exists: true, hash: sha256(await readFile(absolutePath)) };
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return { exists: false, hash: null };
+            throw error;
+        }
     }
 
     validateSource(relativePath: string, source: string): DocumentView {
