@@ -8,7 +8,7 @@ import { ProductPathError, ProductRootGuard } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
 import type { SaveChange } from "./store.ts";
 import { ConfigurationStore, EditorOperationError } from "./store.ts";
-import { createEditorHtml, EDITOR_CSS, EDITOR_JAVASCRIPT } from "./ui.ts";
+import { createEditorHtml, createEditorTranslationsJson, EDITOR_CSS, EDITOR_JAVASCRIPT } from "./ui.ts";
 
 export interface EditorServerOptions {
     actions: ActionCatalogEntry[];
@@ -133,6 +133,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
         if (requestUrl.pathname === "/" && request.method === "GET") return contentResponse(createEditorHtml(options.identity.displayName), "text/html; charset=utf-8");
         if (requestUrl.pathname === "/app.css" && request.method === "GET") return contentResponse(EDITOR_CSS, "text/css; charset=utf-8");
         if (requestUrl.pathname === "/app.js" && request.method === "GET") return contentResponse(EDITOR_JAVASCRIPT, "text/javascript; charset=utf-8");
+        if (requestUrl.pathname === "/app-translations.json" && request.method === "GET") return contentResponse(createEditorTranslationsJson(), "application/json; charset=utf-8");
         if (!requestUrl.pathname.startsWith("/api/")) return jsonResponse({ error: { code: "not-found", message: "Not found" } }, 404);
         if (!tokenMatches(request.headers.get("x-session-token"), token)) return jsonResponse({ error: { code: "auth.token", message: "Invalid session token" } }, 401);
         const requestOrigin = request.headers.get("origin");

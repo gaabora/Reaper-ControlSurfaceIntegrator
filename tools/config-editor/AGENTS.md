@@ -12,7 +12,7 @@
 - Runtime action catalog generation from C++ registry and documentation source.
 - REAPER data path discovery, contained configuration access, safe saves, transactions, backups, rollback, and operation reports.
 - Read-only legacy CSI discovery, dependency preview, conflict resolution, and transactional import.
-- Loopback HTTP API and embedded browser UI under `src/`.
+- Loopback HTTP API under `src/`, browser asset sources under `src/ui/`, and their small text-import loader in `src/ui.ts`.
 - Standalone executable generation under `scripts/`.
 - Format examples and malformed input under `fixtures/`.
 - Parser and validator checks under `tests/`.
@@ -42,6 +42,7 @@
 - Keep parsers line-oriented until a format feature requires a more complex grammar.
 - Add a valid and malformed fixture when a public grammar rule changes.
 - Keep browser assets embedded so compiled executables do not need adjacent UI files.
+- Keep HTML, CSS, and browser JavaScript in their native file types under `src/ui/`. Import them as text from `src/ui.ts` so standalone builds still embed them.
 - Generate standalone identity and action data from repository contracts during compile. Do not source-control generated compile input or `dist/` output.
 
 ## Verification

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="{{displayLocale}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1 id="title">{{title}}</h1>
+      <p id="data-path-status">{{reaperDataPath.help}}</p>
+    </div>
+    <div class="data-path-controls">
+      <input id="data-path" list="data-path-candidates" placeholder="{{reaperDataPath.placeholder}}">
+      <datalist id="data-path-candidates"></datalist>
+      <button id="open-data-path">{{action.open}}</button>
+    </div>
+  </header>
+  <main>
+    <aside>
+      <div class="aside-title">{{files.title}}</div>
+      <div id="tree" class="tree muted">{{files.empty}}</div>
+    </aside>
+    <section class="workspace">
+      <details class="import-panel">
+        <summary>{{legacy.title}}</summary>
+        <div class="legacy-controls">
+          <input id="legacy-path" placeholder="{{legacy.path.placeholder}}">
+          <button id="open-legacy">{{action.open}}</button>
+          <select id="legacy-surface" aria-label="{{legacy.surface.title}}" disabled><option value="">{{legacy.surface.placeholder}}</option></select>
+          <label><input id="legacy-include-surface" type="checkbox" checked> {{legacy.includeSurface}}</label>
+          <button id="legacy-select-all" disabled>{{legacy.selectAll}}</button>
+          <button id="legacy-select-none" disabled>{{legacy.selectNone}}</button>
+          <button id="legacy-refresh" disabled>{{action.preview}}</button>
+        </div>
+        <p id="legacy-status" class="muted">{{legacy.preview.empty}}</p>
+        <div class="legacy-columns">
+          <div><h2>{{legacy.zones.title}}</h2><div id="legacy-zones" class="legacy-list muted">{{legacy.zones.empty}}</div></div>
+          <div><h2>{{legacy.dependencies.title}}</h2><div id="legacy-dependencies" class="legacy-list muted">{{legacy.dependencies.empty}}</div></div>
+        </div>
+        <h2>{{legacy.preview.title}}</h2>
+        <div id="legacy-diagnostics" class="muted">{{problems.none}}</div>
+        <div id="legacy-preview" class="legacy-preview muted">{{legacy.preview.empty}}</div>
+        <button id="legacy-import" disabled>{{action.import}}</button>
+      </details>
+      <div class="document-header">
+        <div>
+          <strong id="document-path">{{document.none}}</strong>
+          <span id="document-mode"></span>
+        </div>
+        <div class="actions">
+          <button id="clone" hidden>{{action.makeEditable}}</button>
+          <button id="validate" disabled>{{action.check}}</button>
+          <button id="add-batch" disabled>{{action.addToSaveAll}}</button>
+          <button id="save" disabled>{{action.save}}</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="raw">{{tab.text}}</button>
+        <button class="tab" data-tab="structured">{{tab.guided}}</button>
+      </div>
+      <textarea id="raw-editor" spellcheck="false" disabled></textarea>
+      <div id="structured-editor" hidden></div>
+      <div class="details">
+        <div>
+          <h2>{{problems.title}}</h2>
+          <div id="diagnostics" class="muted">{{problems.none}}</div>
+        </div>
+        <div>
+          <h2>{{details.title}}</h2>
+          <pre id="semantic">{}</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div><strong id="batch-count">{{pending.count}}</strong> <button id="commit-batch" disabled>{{action.saveAll}}</button></div>
+    <pre id="report">{{status.ready}}</pre>
+  </footer>
+  <script src="/app.js"></script>
+</body>
+</html>

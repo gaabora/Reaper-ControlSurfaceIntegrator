@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createEditorHtml, EDITOR_JAVASCRIPT } from "../src/ui.ts";
+import { createEditorHtml, EDITOR_CSS, EDITOR_JAVASCRIPT } from "../src/ui.ts";
 
 describe("browser UI bindings", () => {
     test("declares every used element and references an existing HTML ID", () => {
@@ -11,5 +11,9 @@ describe("browser UI bindings", () => {
         expect(declarations.size).toBeGreaterThan(0);
         expect([...usedNames].filter((name) => !declarations.has(name))).toEqual([]);
         expect([...declarations.values()].filter((id) => !htmlIds.has(id))).toEqual([]);
+        expect(html).not.toContain("{{");
+        expect(html).toContain('<link rel="stylesheet" href="/app.css">');
+        expect(EDITOR_CSS).toContain(":root");
+        expect(EDITOR_JAVASCRIPT).toContain('fetch("/app-translations.json")');
     });
 });
