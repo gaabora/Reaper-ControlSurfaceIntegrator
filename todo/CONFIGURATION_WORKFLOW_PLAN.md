@@ -19,6 +19,8 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 
 ## Target Structure
 
+`<ProductRoot>` is `<REAPER resource>/Data/<ProductResourceDirectory>` so ReaPack data packages can install the configuration with their standard target root.
+
 ```text
 <ProductRoot>/
   <ProductConfigFile>
@@ -56,7 +58,7 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 
 - Keep the canonical product identity in one manifest that does not require a C++ build.
 - Read the manifest directly from Lua and generate matching C++, TypeScript, CMake/CPack, CI, archive, and ReaPack values from it.
-- Include the display name, stable product ID, resource directory, config filename, ExtState prefix, REAPER registration ID, plugin filename, script directory, and package prefix.
+- Include the display name, stable product ID, resource directory, config filename, ExtState prefix, REAPER registration ID, plugin filename, script directory, package prefix, and repository URL.
 - Do not require internal C++ class names to change when the user-facing product name changes.
 - Keep explicit legacy CSI names only in the Bun importer.
 
@@ -134,15 +136,15 @@ Ready when a future rename requires one identity change and generated output upd
 
 ### Phase 2. ReaPack foundation
 
-- Add `.reapack-index.conf`, generated `index.xml`, and an official `reapack-index` validation command.
-- Run index validation in CI and prevent publication when package metadata, source URLs, checksums, or target paths are invalid.
-- Start with a preview ReaPack repository or preview index. Publish the stable repository URL only after installation checks pass.
-- Define one versioned core package with shared Lua scripts and a platform-selected C++ extension payload for Windows, macOS, and Linux.
-- Define platform-independent package groups for vendor surfaces, vendor zone profiles, and built-in snippets.
-- Generate package names, target paths, archive names, and release asset names from the canonical product identity.
-- Install only into product-owned runtime, script, vendor surface, vendor zone-profile, and built-in snippet paths.
-- Never install package content into `Surfaces/User`, `Zones/User`, `Snippets/User`, or `Backups`.
-- Document package ownership so update and uninstall behavior is explicit before publishing user content.
+- ✅ Add `.reapack-index.conf`, generated `index.xml`, and an official `reapack-index` validation command.
+- ✅ Run index validation in CI and prevent publication when package metadata, source URLs, checksums, or target paths are invalid.
+- ✅ Start with a release-specific preview ReaPack index. Publish the stable repository URL only after installation checks pass.
+- ✅ Define one versioned core package with shared Lua scripts and a platform-selected C++ extension payload for Windows, macOS, and Linux.
+- ✅ Define platform-independent package groups for vendor surfaces, vendor zone profiles, and built-in snippets.
+- ✅ Generate package names, target paths, archive names, and release asset names from the canonical product identity.
+- ✅ Install only into product-owned runtime, script, vendor surface, vendor zone-profile, and built-in snippet paths.
+- ✅ Never install package content into `Surfaces/User`, `Zones/User`, `Snippets/User`, or `Backups`.
+- ✅ Document package ownership so update and uninstall behavior is explicit before publishing user content.
 - Check install, update, downgrade, and uninstall in a clean portable REAPER resource directory for every supported platform.
 
 Ready when the preview repository passes official index validation, installs the correct platform payload and shared scripts, and can update or uninstall without changing user-owned files.

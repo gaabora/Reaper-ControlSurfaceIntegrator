@@ -8,7 +8,7 @@ A fast lookup guide for the most common CSI tasks and configurations.
 
 ```
 REAPER/
-├── ReaControlSurface/
+├── Data/ReaControlSurface/
 │   ├── ReaControlSurface.ini
 │   ├── Surfaces/Vendor/<surface-id>.txt
 │   ├── Surfaces/User/<surface-id>.txt
@@ -306,7 +306,6 @@ Then check REAPER console for messages:
 ---
 
 **Last Updated**: March 2026 | CSI v7.0
-
 
 
 

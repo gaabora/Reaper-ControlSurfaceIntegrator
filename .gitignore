@@ -39,6 +39,7 @@ reaper_csurf_integrator/res.rc_mac_menu
 reaper_csurf_integrator/res.aps
 cmake-build-win64/
 build/
+.reapack-build/
 .DS_Store
 WDL/
 lib/

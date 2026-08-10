@@ -2,6 +2,7 @@ export const productIdentity = Object.freeze({
     displayName: "@PRODUCT_DISPLAY_NAME@",
     productId: "@PRODUCT_ID@",
     resourceDirectory: "@PRODUCT_RESOURCE_DIRECTORY@",
+    resourceInstallDirectory: "@PRODUCT_RESOURCE_INSTALL_DIRECTORY@",
     configFilename: "@PRODUCT_CONFIG_FILENAME@",
     logFilename: "@PRODUCT_LOG_FILENAME@",
     extStatePrefix: "@PRODUCT_EXTSTATE_PREFIX@",
@@ -9,6 +10,7 @@ export const productIdentity = Object.freeze({
     pluginFilename: "@PRODUCT_PLUGIN_FILENAME@",
     scriptDirectory: "@PRODUCT_SCRIPT_DIRECTORY@",
     packagePrefix: "@PRODUCT_PACKAGE_PREFIX@",
+    repositoryUrl: "@PRODUCT_REPOSITORY_URL@",
     extState: Object.freeze({
         osk: "@PRODUCT_EXTSTATE_OSK@",
         oskCommand: "@PRODUCT_EXTSTATE_OSK_COMMAND@",

@@ -28,11 +28,13 @@ local function RequireValue(key)
 end
 
 local extStatePrefix = RequireValue("PRODUCT_EXTSTATE_PREFIX")
+local resourceDirectory = RequireValue("PRODUCT_RESOURCE_DIRECTORY")
 
 return {
     displayName = RequireValue("PRODUCT_DISPLAY_NAME"),
     productId = RequireValue("PRODUCT_ID"),
-    resourceDirectory = RequireValue("PRODUCT_RESOURCE_DIRECTORY"),
+    resourceDirectory = resourceDirectory,
+    resourceInstallDirectory = "Data/" .. resourceDirectory,
     configFilename = RequireValue("PRODUCT_CONFIG_FILENAME"),
     logFilename = RequireValue("PRODUCT_LOG_FILENAME"),
     extStatePrefix = extStatePrefix,
@@ -40,6 +42,7 @@ return {
     pluginFilename = RequireValue("PRODUCT_PLUGIN_FILENAME"),
     scriptDirectory = RequireValue("PRODUCT_SCRIPT_DIRECTORY"),
     packagePrefix = RequireValue("PRODUCT_PACKAGE_PREFIX"),
+    repositoryUrl = RequireValue("PRODUCT_REPOSITORY_URL"),
     extState = {
         osk = extStatePrefix .. "_OSK",
         oskCommand = extStatePrefix .. "_OSK_CMD",

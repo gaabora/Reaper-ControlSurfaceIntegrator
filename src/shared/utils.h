@@ -82,7 +82,7 @@ inline const char* DebugLevelToString(int level) {
 }
 
 inline void LogMessage(const char* msg) {
-    std::ofstream logFile(std::string(GetResourcePath()) + "/" + ProductIdentity::ResourceDirectory + "/" + ProductIdentity::LogFilename, std::ios::app);
+    std::ofstream logFile(std::string(GetResourcePath()) + "/" + ProductIdentity::ResourceInstallDirectory + "/" + ProductIdentity::LogFilename, std::ios::app);
     if (logFile.is_open()) {
         char timeStr[32];
         time_t rawtime;

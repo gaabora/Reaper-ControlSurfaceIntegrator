@@ -11,6 +11,7 @@ Current provisional values are:
 | Display name | `ReaControlSurface` |
 | Stable product ID | `reacontrolsurface` |
 | Resource directory | `ReaControlSurface` |
+| Resource install directory | `Data/ReaControlSurface` |
 | Configuration file | `ReaControlSurface.ini` |
 | ExtState prefix | `ReaCtrlSurf` |
 | REAPER registration ID | `ReaControlSurface` |
@@ -19,6 +20,7 @@ Current provisional values are:
 | OSK script | `OSK on-screen keyboard.lua` |
 | OSD script | `OSD on-screen display.lua` |
 | Package prefix | `ReaControlSurface` |
+| Repository URL | `https://github.com/gaabora/Reaper-ControlSurfaceIntegrator` |
 
 Internal C++ class names and source folder names are not public identity values and do not need to match the display name.
 
@@ -30,30 +32,31 @@ CMake configure generates these files under `build/generated/`:
 - `product_identity.ts` for the future Bun and TypeScript editor;
 - `product_identity.env` for CI archive and package steps.
 
-Lua loads the committed `Scripts/product_identity.lua`, which reads the manifest without CMake. Entry scripts also remain committed source files. CI loads the generated `product_identity.env` after configure and uses `cmake --install` to copy the complete Lua runtime into the package tree.
+Lua loads the committed `Scripts/product_identity.lua`, which reads the manifest without CMake. Entry scripts also remain committed source files. CI loads the generated `product_identity.env` after configure and uses `cmake --install` to copy the complete Lua runtime into the package tree. The ReaPack staging tool reads the same manifest directly, so it does not require CMake configure.
 
 ## Runtime structure
 
 `ProductPaths` resolves paths below the REAPER resource directory:
 
 ```text
-ReaControlSurface/
-  ReaControlSurface.ini
-  Surfaces/
-    Vendor/<surface-id>.txt
-    User/<surface-id>.txt
-  Zones/
-    Vendor/<profile-id>/
-      Main/*.zon
-      FX/*.zon
-    User/<profile-id>/
-      Main/*.zon
-      FX/*.zon
-  Snippets/
-    BuiltIn/*.snippet
-    User/*.snippet
-  Backups/<operation-id>/
-  Generated/ZoneRawFXFiles/
+Data/
+  ReaControlSurface/
+    ReaControlSurface.ini
+    Surfaces/
+      Vendor/<surface-id>.txt
+      User/<surface-id>.txt
+    Zones/
+      Vendor/<profile-id>/
+        Main/*.zon
+        FX/*.zon
+      User/<profile-id>/
+        Main/*.zon
+        FX/*.zon
+    Snippets/
+      BuiltIn/*.snippet
+      User/*.snippet
+    Backups/<operation-id>/
+    Generated/ZoneRawFXFiles/
 ```
 
 Surface, profile, and operation IDs use lowercase ASCII letters, digits, `_`, and `-`. A surface filename is its stable ID plus `.txt`. When the same surface or zone-profile ID exists in both `Vendor` and `User`, the runtime uses the user source. Existing symlinks must not resolve outside the typed root.
@@ -64,7 +67,7 @@ The runtime does not read the old `CSI/` root. Legacy names and layouts belong o
 
 ## Development resources
 
-The manual commands in [`../Readme.md`](../Readme.md) link `resources/Surfaces`, `resources/Zones`, and `resources/Snippets` into a local product root. They also link the repository `Scripts/` directory to `REAPER/Scripts/<ProductScriptDirectory>`. Build and install steps do not create these links. Development links keep edits visible in REAPER without repeated copies. Installers and ReaPack packages must contain normal files and directories. They must not contain links to a source checkout.
+The manual commands in [`../Readme.md`](../Readme.md) link `resources/Surfaces`, `resources/Zones`, and `resources/Snippets` into `REAPER/Data/<ProductResourceDirectory>`. They also link the repository `Scripts/` directory to `REAPER/Scripts/<ProductScriptDirectory>`. Build and install steps do not create these links. Development links keep edits visible in REAPER without repeated copies. Installers and ReaPack packages must contain normal files and directories. They must not contain links to a source checkout.
 
 ## Rename procedure
 

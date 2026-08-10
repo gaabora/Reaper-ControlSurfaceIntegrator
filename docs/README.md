@@ -7,6 +7,7 @@ This folder holds current contributor-facing reference material.
 - [ARCHITECTURE.md](ARCHITECTURE.md) - current plugin structure, major runtime components, and data flow
 - [LUA_CPP_EXTSTATE_INTERFACE.md](LUA_CPP_EXTSTATE_INTERFACE.md) - current ExtState contract shared by the C++ plugin and Lua OSK/OSD scripts
 - [PRODUCT_IDENTITY.md](PRODUCT_IDENTITY.md) - canonical public names, generated consumers, and runtime path structure
+- [REAPACK.md](REAPACK.md) - preview package ownership, index generation, validation, and release flow
 
 ## Related Folders
 

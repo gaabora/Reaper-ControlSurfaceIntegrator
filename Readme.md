@@ -23,6 +23,7 @@ Start in [Wiki/Home.md](Wiki/Home.md).
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/LUA_CPP_EXTSTATE_INTERFACE.md](docs/LUA_CPP_EXTSTATE_INTERFACE.md)
 - [docs/PRODUCT_IDENTITY.md](docs/PRODUCT_IDENTITY.md)
+- [docs/REAPACK.md](docs/REAPACK.md)
 
 ### Open work
 
@@ -38,7 +39,7 @@ cmake --build build --config Debug
 
 ## Link configuration resources and Lua scripts for development
 
-The plugin reads surface, zone, and snippet configuration from the product root in the REAPER resource directory. The Lua runtime is installed below the REAPER `Scripts` directory. For local development, link these paths to the repository so edits are available in REAPER immediately. Set `REAPER_RESOURCE_PATH` to the REAPER resource directory before you run the commands.
+The plugin reads surface, zone, and snippet configuration from `Data/<ProductResourceDirectory>` in the REAPER resource directory. The Lua runtime is installed below the REAPER `Scripts` directory. For local development, link these paths to the repository so edits are available in REAPER immediately. Set `REAPER_RESOURCE_PATH` to the REAPER resource directory before you run the commands.
 
 The commands read the current product directories from `Scripts/product_identity.conf`. CMake configure is not required. They do not replace existing paths. Move or remove existing `Surfaces`, `Zones`, `Snippets`, and `Scripts/<ProductScriptDirectory>` paths first.
 
@@ -49,7 +50,7 @@ repository_root="$(pwd)"
 identity_file="$repository_root/Scripts/product_identity.conf"
 product_resource_directory="$(sed -n 's/^PRODUCT_RESOURCE_DIRECTORY=//p' "$identity_file")"
 product_script_directory="$(sed -n 's/^PRODUCT_SCRIPT_DIRECTORY=//p' "$identity_file")"
-development_product_root="$REAPER_RESOURCE_PATH/$product_resource_directory"
+development_product_root="$REAPER_RESOURCE_PATH/Data/$product_resource_directory"
 development_scripts_root="$REAPER_RESOURCE_PATH/Scripts"
 
 mkdir -p "$development_product_root"
@@ -67,7 +68,8 @@ $repositoryRoot = (Get-Location).Path
 $identityFile = Join-Path $repositoryRoot "Scripts\product_identity.conf"
 $productResourceDirectory = ((Get-Content $identityFile | Select-String "^PRODUCT_RESOURCE_DIRECTORY=").Line -split "=", 2)[1]
 $productScriptDirectory = ((Get-Content $identityFile | Select-String "^PRODUCT_SCRIPT_DIRECTORY=").Line -split "=", 2)[1]
-$developmentProductRoot = Join-Path $env:REAPER_RESOURCE_PATH $productResourceDirectory
+$developmentDataRoot = Join-Path $env:REAPER_RESOURCE_PATH "Data"
+$developmentProductRoot = Join-Path $developmentDataRoot $productResourceDirectory
 $developmentScriptsRoot = Join-Path $env:REAPER_RESOURCE_PATH "Scripts"
 
 New-Item -ItemType Directory -Force -Path $developmentProductRoot

@@ -84,3 +84,7 @@ When the user requests a durable behavior change, record it here or in the relev
 - `Scripts/AGENTS.md` - REAPER Lua tooling and runtime contracts.
 - `src/AGENTS.md` - C++ plugin source, with child contracts for actions, controls, shared integration code, and native UI.
 - `Wiki/AGENTS.md` - User-facing wiki content and navigation.
+- `docs/AGENTS.md` - Developer-facing reference documentation.
+- `resources/AGENTS.md` - Development surface, zone, and snippet resources.
+- `todo/AGENTS.md` - Active implementation backlog and unfinished plans.
+- `tools/AGENTS.md` - Developer, release, and future configuration editor tools.

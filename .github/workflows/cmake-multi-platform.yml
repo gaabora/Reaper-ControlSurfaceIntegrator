@@ -1,6 +1,11 @@
+name: Build release and preview ReaPack index
+
 on:
   push:
     tags: [ 'v*' ]
+
+permissions:
+  contents: write
 
 jobs:
   build-macos-intel:
@@ -26,32 +31,22 @@ jobs:
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
-      - name: Debug Build Output
-        run: find . -name '*.dylib'
-
-      - name: Prepare Package folder
-        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
+      - name: Prepare release files
+        run: |
+          cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
+          cp "Package/UserPlugins/${PRODUCT_PLUGIN_FILENAME}.dylib" "${PRODUCT_PLUGIN_FILENAME}-darwin-x86_64.dylib"
+          cd Package
+          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${GITHUB_REF_NAME}_mac_intel.zip" .
         shell: bash
 
-      - name: Upload Build Artifact
+      - name: Upload release files
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_mac_intel.zip
-          path: Package
-
-      - name: Create zip for release
-        run: |
-          cd Package
-          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_mac_intel.zip" .
-        shell: bash
-
-      - name: Upload GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
+          name: release-macos-intel
+          if-no-files-found: error
+          path: |
+            ${{ env.PRODUCT_PLUGIN_FILENAME }}-darwin-x86_64.dylib
             ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_mac_intel.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos-arm:
     runs-on: macos-latest
@@ -76,32 +71,22 @@ jobs:
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
-      - name: Debug Build Output
-        run: find . -name '*.dylib'
-
-      - name: Prepare Package folder
-        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
+      - name: Prepare release files
+        run: |
+          cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
+          cp "Package/UserPlugins/${PRODUCT_PLUGIN_FILENAME}.dylib" "${PRODUCT_PLUGIN_FILENAME}-darwin-arm64.dylib"
+          cd Package
+          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${GITHUB_REF_NAME}_mac_arm.zip" .
         shell: bash
 
-      - name: Upload Build Artifact
+      - name: Upload release files
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_mac_arm.zip
-          path: Package
-
-      - name: Create zip for release
-        run: |
-          cd Package
-          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_mac_arm.zip" .
-        shell: bash
-
-      - name: Upload GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
+          name: release-macos-arm
+          if-no-files-found: error
+          path: |
+            ${{ env.PRODUCT_PLUGIN_FILENAME }}-darwin-arm64.dylib
             ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_mac_arm.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
     runs-on: windows-2022
@@ -125,33 +110,25 @@ jobs:
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
-      - name: Debug Build Output
-        run: dir /s *.dll
-        shell: cmd
-
-      - name: Prepare Package folder
-        run: cmake --install "${{ github.workspace }}\build" --config Release --prefix Package
+      - name: Prepare release files
+        run: |
+          cmake --install "${{ github.workspace }}\build" --config Release --prefix Package
+          $pluginSource = Join-Path "Package\UserPlugins" "$($env:PRODUCT_PLUGIN_FILENAME).dll"
+          $pluginAsset = "$($env:PRODUCT_PLUGIN_FILENAME)-win64.dll"
+          Copy-Item $pluginSource $pluginAsset
+          Push-Location Package
+          7z a "../$($env:PRODUCT_PACKAGE_PREFIX)_${{ github.ref_name }}_win.zip" *
+          Pop-Location
         shell: pwsh
 
-      - name: Upload Build Artifact
+      - name: Upload release files
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_win.zip
-          path: Package
-
-      - name: Create zip for release
-        run: |
-          cd Package
-          7z a "../${env:PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_win.zip" *
-        shell: pwsh
-
-      - name: Upload GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
+          name: release-windows
+          if-no-files-found: error
+          path: |
+            ${{ env.PRODUCT_PLUGIN_FILENAME }}-win64.dll
             ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_win.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-linux:
     runs-on: ubuntu-24.04
@@ -176,29 +153,80 @@ jobs:
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config Release
 
-      - name: Debug Build Output
-        run: find . -name '*.so'
-
-      - name: Prepare Package folder
-        run: cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
+      - name: Prepare release files
+        run: |
+          cmake --install "${{ github.workspace }}/build" --config Release --prefix Package
+          cp "Package/UserPlugins/${PRODUCT_PLUGIN_FILENAME}.so" "${PRODUCT_PLUGIN_FILENAME}-linux-x86_64.so"
+          cd Package
+          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${GITHUB_REF_NAME}_linux.zip" .
         shell: bash
 
-      - name: Upload Build Artifact
+      - name: Upload release files
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_linux.zip
-          path: Package
+          name: release-linux
+          if-no-files-found: error
+          path: |
+            ${{ env.PRODUCT_PLUGIN_FILENAME }}-linux-x86_64.so
+            ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_linux.zip
 
-      - name: Create zip for release
+  publish-release:
+    needs: [build-macos-intel, build-macos-arm, build-windows, build-linux]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download release files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
+      - name: Install official ReaPack indexer
+        run: gem install reapack-index --version 1.2.6 --no-document
+
+      - name: Prepare preview ReaPack repository
         run: |
-          cd Package
-          zip -r "../${PRODUCT_PACKAGE_PREFIX}_${{ github.ref_name }}_linux.zip" .
-        shell: bash
+          release_version="${GITHUB_REF_NAME#v}"
+          python3 tools/reapack/repository.py prepare --version "$release_version" --tag "$GITHUB_REF_NAME" --asset-dir release-assets
+          git -C .reapack-build/repository init
+          git -C .reapack-build/repository config user.name "ReaPack CI"
+          git -C .reapack-build/repository config user.email "actions@users.noreply.github.com"
+          git -C .reapack-build/repository add .
+          git -C .reapack-build/repository commit -m "Generate preview package metadata for ${GITHUB_REF_NAME}"
 
-      - name: Upload GitHub Release
+      - name: Validate and generate preview ReaPack index
+        run: |
+          product_display_name="$(sed -n 's/^PRODUCT_DISPLAY_NAME=//p' Scripts/product_identity.conf)"
+          cd .reapack-build/repository
+          reapack-index --check --strict .
+          reapack-index --scan . --strict --no-commit --name "${product_display_name} Preview" --output index.xml .
+
+      - name: Add checksums and verify index ownership
+        run: python3 tools/reapack/repository.py finalize --output-dir release-assets
+
+      - name: Upload preview index artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-reapack-index-${{ github.ref_name }}
+          if-no-files-found: error
+          path: |
+            release-assets/index.xml
+            release-assets/index.xml.sha256
+
+      - name: Publish complete GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_linux.zip
+          files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

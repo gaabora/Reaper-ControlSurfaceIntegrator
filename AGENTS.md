@@ -98,8 +98,8 @@ Read `DOX.md` before editing. This file is the repository-wide contract.
 
 - CMake is the supported build system; `Makefile` is legacy compatibility material unless a task explicitly targets it.
 - The plugin target is `ControlSurfaceIntegrator`, emitted as `reaper_csurf_integrator`.
-- `Scripts/product_identity.conf` is the only source for public product names and install paths. Lua reads it directly; CMake validates it and generates values for C++, TypeScript, CI, CPack, and future ReaPack data.
-- Current configuration lives under `ReaControlSurface/` in the REAPER resource directory. Runtime code must use `ProductPaths` instead of constructing product paths manually.
+- `Scripts/product_identity.conf` is the only source for public product names, install paths, and the release repository URL. Lua and ReaPack tooling read it directly; CMake validates it and generates values for C++, TypeScript, CI, and CPack.
+- Current configuration lives under `Data/ReaControlSurface/` in the REAPER resource directory. Runtime code must use `ProductPaths` instead of constructing product paths manually.
 - Developers may manually link `resources/Surfaces`, `resources/Zones`, and `resources/Snippets` into the local product root, and link `Scripts/` into `REAPER/Scripts/<ProductScriptDirectory>`, with the commands in `Readme.md`. Build and install steps must not create these development links. Install and ReaPack packages use normal files and directories.
 - Treat REAPER APIs, WDL/SWELL, MIDI/OSC protocols, zone files, surface templates, and Lua ExtState keys as external or cross-component contracts.
 - Do not index or create DOX files under `.git`, `.github`, `.vscode`, `build`, `cmake`, or `lib`.
@@ -135,3 +135,4 @@ Read `DOX.md` before editing. This file is the repository-wide contract.
 - `docs/AGENTS.md` - Developer-facing reference documentation.
 - `resources/AGENTS.md` - Development surface, zone, and snippet resources.
 - `todo/AGENTS.md` - Active implementation backlog and unfinished plans.
+- `tools/AGENTS.md` - Developer, release, and future configuration editor tools.

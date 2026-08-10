@@ -19,7 +19,7 @@ All current configuration files are located in the REAPER resource path:
 
 ```
 REAPER/
-├── ReaControlSurface/
+├── Data/ReaControlSurface/
 │   ├── ReaControlSurface.ini
 │   ├── Surfaces/
 │   │   ├── Vendor/<surface-id>.txt
