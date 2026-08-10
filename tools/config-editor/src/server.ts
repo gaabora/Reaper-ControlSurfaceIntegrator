@@ -1,0 +1,149 @@
+import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import type { ActionCatalogEntry } from "./action-catalog.ts";
+import { actionNameSet } from "./action-catalog.ts";
+import type { ReaperDataPathCandidate } from "./paths.ts";
+import { ProductPathError, ProductRootGuard } from "./paths.ts";
+import type { EditorProductIdentity } from "./product-identity.ts";
+import type { SaveChange } from "./store.ts";
+import { ConfigurationStore, EditorOperationError } from "./store.ts";
+import { createEditorHtml, EDITOR_CSS, EDITOR_JAVASCRIPT } from "./ui.ts";
+
+export interface EditorServerOptions {
+    actions: ActionCatalogEntry[];
+    candidates: ReaperDataPathCandidate[];
+    identity: EditorProductIdentity;
+    port?: number;
+}
+
+export interface RunningEditorServer {
+    server: ReturnType<typeof Bun.serve>;
+    token: string;
+    url: string;
+}
+
+const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
+
+function contentResponse(content: string, contentType: string): Response {
+    return new Response(content, {
+        headers: {
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": "default-src 'self'; connect-src 'self'; img-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+            "Content-Type": contentType,
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+        },
+    });
+}
+
+function jsonResponse(value: unknown, status = 200): Response {
+    return new Response(JSON.stringify(value), { status, headers: { "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
+}
+
+function tokenMatches(providedToken: string | null, expectedToken: string): boolean {
+    if (!providedToken) return false;
+    const provided = Buffer.from(providedToken);
+    const expected = Buffer.from(expectedToken);
+    return provided.length === expected.length && timingSafeEqual(provided, expected);
+}
+
+async function requestBody(request: Request): Promise<Record<string, unknown>> {
+    const contentLength = Number(request.headers.get("content-length") ?? "0");
+    if (!Number.isFinite(contentLength) || contentLength > MAX_REQUEST_BYTES) throw new EditorOperationError("request.size", "Request body is too large");
+    const body = await request.text();
+    if (Buffer.byteLength(body, "utf8") > MAX_REQUEST_BYTES) throw new EditorOperationError("request.size", "Request body is too large");
+    const value = JSON.parse(body) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.body", "Request body must be a JSON object");
+    return value as Record<string, unknown>;
+}
+
+function stringField(body: Record<string, unknown>, key: string): string {
+    const value = body[key];
+    if (typeof value !== "string") throw new EditorOperationError("request.field", `${key} must be a string`);
+    return value;
+}
+
+function saveChange(value: unknown): SaveChange {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.change", "Each change must be an object");
+    const body = value as Record<string, unknown>;
+    const originalHash = body.originalHash;
+    if (originalHash !== null && typeof originalHash !== "string") throw new EditorOperationError("request.hash", "originalHash must be a string or null");
+    return { originalHash, path: stringField(body, "path"), source: stringField(body, "source") };
+}
+
+function errorResponse(error: unknown): Response {
+    if (error instanceof SyntaxError) return jsonResponse({ error: { code: "request.json", message: "Request body is not valid JSON" } }, 400);
+    if (error instanceof ProductPathError) return jsonResponse({ error: { code: "path.invalid", message: error.message } }, 400);
+    if (error instanceof EditorOperationError) {
+        const status = error.code.startsWith("conflict.") ? 409 : error.code.startsWith("validation.") || error.code.startsWith("save.validate") ? 422 : 400;
+        return jsonResponse({ error: { code: error.code, details: error.details, message: error.message } }, status);
+    }
+    const errorCode = (error as NodeJS.ErrnoException).code;
+    if (errorCode === "ENOENT") return jsonResponse({ error: { code: "path.missing", message: "Configuration path does not exist" } }, 404);
+    if (errorCode === "EACCES" || errorCode === "EPERM") return jsonResponse({ error: { code: "path.permission", message: "Configuration path is not accessible" } }, 403);
+    const message = error instanceof Error ? error.message : String(error);
+    return jsonResponse({ error: { code: "server.error", message } }, 500);
+}
+
+export function startEditorServer(options: EditorServerOptions): RunningEditorServer {
+    const token = randomBytes(32).toString("hex");
+    const knownActions = actionNameSet(options.actions);
+    let store: ConfigurationStore | undefined;
+    let origin = "";
+    const fetchRequest = async (request: Request): Promise<Response> => {
+        const requestUrl = new URL(request.url);
+        if (requestUrl.pathname === "/" && request.method === "GET") return contentResponse(createEditorHtml(options.identity.displayName), "text/html; charset=utf-8");
+        if (requestUrl.pathname === "/app.css" && request.method === "GET") return contentResponse(EDITOR_CSS, "text/css; charset=utf-8");
+        if (requestUrl.pathname === "/app.js" && request.method === "GET") return contentResponse(EDITOR_JAVASCRIPT, "text/javascript; charset=utf-8");
+        if (!requestUrl.pathname.startsWith("/api/")) return jsonResponse({ error: { code: "not-found", message: "Not found" } }, 404);
+        if (!tokenMatches(request.headers.get("x-session-token"), token)) return jsonResponse({ error: { code: "auth.token", message: "Invalid session token" } }, 401);
+        const requestOrigin = request.headers.get("origin");
+        if (requestOrigin && requestOrigin !== origin) return jsonResponse({ error: { code: "auth.origin", message: "Invalid request origin" } }, 403);
+        try {
+            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity });
+            if (requestUrl.pathname === "/api/select-data-path" && request.method === "POST") {
+                const body = await requestBody(request);
+                const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);
+                store = new ConfigurationStore(guard, knownActions);
+                return jsonResponse({ dataPath: store.getReaperDataPath() });
+            }
+            if (!store) throw new EditorOperationError("data-path.required", "Open a REAPER data path first");
+            if (requestUrl.pathname === "/api/tree" && request.method === "GET") return jsonResponse({ entries: await store.tree() });
+            if (requestUrl.pathname === "/api/file" && request.method === "GET") {
+                const relativePath = requestUrl.searchParams.get("path");
+                if (!relativePath) throw new EditorOperationError("request.path", "File path is required");
+                return jsonResponse(await store.openDocument(relativePath));
+            }
+            if (requestUrl.pathname === "/api/validate" && request.method === "POST") {
+                const body = await requestBody(request);
+                return jsonResponse({ document: store.validateSource(stringField(body, "path"), stringField(body, "source")) });
+            }
+            if (requestUrl.pathname === "/api/save" && request.method === "POST") return jsonResponse(await store.saveOne(saveChange(await requestBody(request))));
+            if (requestUrl.pathname === "/api/transaction" && request.method === "POST") {
+                const body = await requestBody(request);
+                if (!Array.isArray(body.changes)) throw new EditorOperationError("request.changes", "changes must be an array");
+                return jsonResponse({ report: await store.saveTransaction(body.changes.map(saveChange)) });
+            }
+            if (requestUrl.pathname === "/api/clone" && request.method === "POST") {
+                const body = await requestBody(request);
+                return jsonResponse({ report: await store.cloneForEditing(stringField(body, "path")) });
+            }
+            return jsonResponse({ error: { code: "not-found", message: "Not found" } }, 404);
+        } catch (error) {
+            return errorResponse(error);
+        }
+    };
+    let server: ReturnType<typeof Bun.serve> | undefined;
+    const automaticPort = !options.port;
+    for (let attemptIdx = 0; attemptIdx < 20 && !server; attemptIdx++) {
+        const port = automaticPort ? randomInt(20000, 65536) : options.port;
+        try {
+            server = Bun.serve({ fetch: fetchRequest, hostname: "127.0.0.1", port });
+        } catch (error) {
+            if (!automaticPort || (error as NodeJS.ErrnoException).code !== "EADDRINUSE" || attemptIdx === 19) throw error;
+        }
+    }
+    if (!server) throw new Error("Unable to allocate a local editor port");
+    origin = `http://127.0.0.1:${server.port}`;
+    return { server, token, url: `${origin}/#token=${token}` };
+}

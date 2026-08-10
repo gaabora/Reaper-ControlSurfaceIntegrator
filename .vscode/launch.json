@@ -40,6 +40,34 @@
         ]
       },
       {
+        "name": "Config Editor: Debug server",
+        "type": "bun",
+        "request": "launch",
+        "program": "${workspaceFolder}/tools/config-editor/src/start.ts",
+        "args": [
+          "--no-open"
+        ],
+        "cwd": "${workspaceFolder}/tools/config-editor",
+        "runtime": "bun",
+        "runtimeArgs": [],
+        "stopOnEntry": false,
+        "watchMode": false
+      },
+      {
+        "name": "Config Editor: Debug current test",
+        "type": "bun",
+        "request": "launch",
+        "program": "${file}",
+        "args": [],
+        "cwd": "${workspaceFolder}/tools/config-editor",
+        "runtime": "bun",
+        "runtimeArgs": [
+          "test"
+        ],
+        "stopOnEntry": false,
+        "watchMode": false
+      },
+      {
         "type": "lua",
         "request": "attach",
         "name": "LuaPanda",
@@ -51,4 +79,3 @@
       }
     ]
   }
-  

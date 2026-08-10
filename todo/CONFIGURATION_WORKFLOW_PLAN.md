@@ -162,12 +162,17 @@ Ready when valid files round-trip without data loss and malformed fixtures produ
 
 ### Phase 4. Local browser editor and safe saving
 
-- Start with product-root selection, discovery, confirmation, and a read-only file tree.
-- Add structured and raw editing for surfaces, all supported zone forms, and snippets.
-- Run the backend only on `127.0.0.1` with a random session token and product-root access restrictions.
-- Add hash conflict detection, single-file atomic save, multi-file transactions, backups, rollback, and operation reports.
-- Build signed or packaged standalone executables for supported operating systems so users do not install Bun.
-- Keep plugin-triggered editor launch as an optional later integration, not a requirement for the first editor release.
+- ✅ Start with REAPER data path selection, discovery, confirmation, and a read-only file tree. Derive the internal product folder from product identity.
+- ✅ Add structured and raw editing for surfaces, all supported zone forms, and snippets.
+- ✅ Run the backend only on `127.0.0.1` with a random session token and internal configuration-folder access restrictions.
+- ✅ Add hash conflict detection, single-file atomic save, multi-file transactions, backups, rollback, and operation reports.
+- ✅ Add standalone compile targets that embed generated product identity and runtime actions.
+- ✅ Add platform defaults for the REAPER data path and prefill the path field.
+- ✅ Route fixed UI text through a typed i18n catalog and use beginner-facing labels.
+- Build, verify, sign or package standalone executables for supported operating systems so users do not install Bun.
+- ✅ Keep plugin-triggered editor launch as an optional later integration, not a requirement for the first editor release.
+- ✅ Run the Bun tests and local HTTP checks.
+- Run the standalone build after the planned interface changes.
 
 Ready when a user can safely inspect and edit the new configuration structure from a standalone local application.
 

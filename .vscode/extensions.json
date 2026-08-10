@@ -3,6 +3,7 @@
 	"recommendations": [
 		"ms-vscode.cpptools-extension-pack",
 		"ms-vscode.cmake-tools",
-		"antoinebalaine.reascript-docs"
+		"antoinebalaine.reascript-docs",
+		"oven.bun-vscode"
 	]
 }

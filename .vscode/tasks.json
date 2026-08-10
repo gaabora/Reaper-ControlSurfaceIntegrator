@@ -43,6 +43,102 @@
         "reveal": "always",
         "echo": true
       }
+    },
+    {
+      "label": "Config Editor: Start",
+      "type": "process",
+      "group": "build",
+      "command": "bun",
+      "args": [
+        "run",
+        "src/start.ts"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/tools/config-editor"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "clear": true,
+        "echo": true,
+        "focus": false,
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Config Editor: Test",
+      "type": "process",
+      "command": "bun",
+      "args": [
+        "test"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/tools/config-editor"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "clear": true,
+        "echo": true,
+        "focus": false,
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Config Editor: Test watch",
+      "type": "process",
+      "command": "bun",
+      "args": [
+        "test",
+        "--watch"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/tools/config-editor"
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "clear": true,
+        "echo": true,
+        "focus": false,
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Config Editor: Validate path",
+      "type": "process",
+      "group": "build",
+      "command": "bun",
+      "args": [
+        "run",
+        "validate",
+        "--",
+        "${input:configEditorValidationPath}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/tools/config-editor"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "clear": true,
+        "echo": true,
+        "focus": false,
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "configEditorValidationPath",
+      "type": "promptString",
+      "description": "Config file or directory, relative to tools/config-editor",
+      "default": "fixtures/valid"
     }
   ]
 }

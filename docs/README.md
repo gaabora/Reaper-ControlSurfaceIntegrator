@@ -13,4 +13,4 @@ This folder holds current contributor-facing reference material.
 
 - [../Wiki/Home.md](../Wiki/Home.md) - end-user setup and usage documentation
 - [../todo/README.md](../todo/README.md) - active backlog, unfinished plans, and follow-up work
-- [../tools/config-editor/README.md](../tools/config-editor/README.md) - lossless configuration parser, format fixtures, action catalog, and validation CLI
+- [../tools/config-editor/README.md](../tools/config-editor/README.md) - local browser editor, safe-save service, lossless formats, action catalog, and validation CLI

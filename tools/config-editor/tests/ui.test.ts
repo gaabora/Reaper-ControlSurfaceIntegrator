@@ -1,0 +1,15 @@
+import { describe, expect, test } from "bun:test";
+import { createEditorHtml, EDITOR_JAVASCRIPT } from "../src/ui.ts";
+
+describe("browser UI bindings", () => {
+    test("declares every used element and references an existing HTML ID", () => {
+        const html = createEditorHtml("Test Product");
+        const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+        const declarations = new Map([...EDITOR_JAVASCRIPT.matchAll(/^\s+([A-Za-z][A-Za-z0-9]*): requiredElement\("([^"]+)"\),$/gm)].map((match) => [match[1], match[2]]));
+        const usedNames = new Set([...EDITOR_JAVASCRIPT.matchAll(/\belements\.([A-Za-z][A-Za-z0-9]*)/g)].map((match) => match[1]));
+
+        expect(declarations.size).toBeGreaterThan(0);
+        expect([...usedNames].filter((name) => !declarations.has(name))).toEqual([]);
+        expect([...declarations.values()].filter((id) => !htmlIds.has(id))).toEqual([]);
+    });
+});
