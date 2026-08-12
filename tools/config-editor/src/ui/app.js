@@ -12,6 +12,8 @@ function requiredElement(id) {
 
 const elements = {
     addBatch: requiredElement("add-batch"),
+    backToTasks: requiredElement("back-to-tasks"),
+    batchControls: requiredElement("batch-controls"),
     batchCount: requiredElement("batch-count"),
     clone: requiredElement("clone"),
     commitBatch: requiredElement("commit-batch"),
@@ -21,6 +23,9 @@ const elements = {
     diagnostics: requiredElement("diagnostics"),
     documentMode: requiredElement("document-mode"),
     documentPath: requiredElement("document-path"),
+    editorMain: requiredElement("editor-main"),
+    exportSnippet: requiredElement("export-snippet"),
+    filePanel: requiredElement("file-panel"),
     legacyDependencies: requiredElement("legacy-dependencies"),
     legacyDiagnostics: requiredElement("legacy-diagnostics"),
     legacyImport: requiredElement("legacy-import"),
@@ -40,12 +45,49 @@ const elements = {
     report: requiredElement("report"),
     save: requiredElement("save"),
     semantic: requiredElement("semantic"),
+    snippetApplicationId: requiredElement("snippet-application-id"),
+    snippetApply: requiredElement("snippet-apply"),
+    snippetBindings: requiredElement("snippet-bindings"),
+    snippetConflict: requiredElement("snippet-conflict"),
+    snippetConflictAction: requiredElement("snippet-conflict-action"),
+    snippetDiagnostics: requiredElement("snippet-diagnostics"),
+    snippetImportAction: requiredElement("snippet-import-action"),
+    snippetImportApply: requiredElement("snippet-import-apply"),
+    snippetImportConflict: requiredElement("snippet-import-conflict"),
+    snippetImportDiagnostics: requiredElement("snippet-import-diagnostics"),
+    snippetImportFile: requiredElement("snippet-import-file"),
+    snippetImportSource: requiredElement("snippet-import-source"),
+    snippetImportTarget: requiredElement("snippet-import-target"),
+    snippetExportDownload: requiredElement("snippet-export-download"),
+    snippetExportSource: requiredElement("snippet-export-source"),
+    snippetMappingStep: requiredElement("snippet-mapping-step"),
+    snippetRenameId: requiredElement("snippet-rename-id"),
+    snippetSource: requiredElement("snippet-source"),
+    snippetStatus: requiredElement("snippet-status"),
+    snippetSurface: requiredElement("snippet-surface"),
+    snippetZone: requiredElement("snippet-zone"),
+    snippetZonePreview: requiredElement("snippet-zone-preview"),
     structuredEditor: requiredElement("structured-editor"),
+    taskHome: requiredElement("task-home"),
+    taskHomeStatus: requiredElement("task-home-status"),
     title: requiredElement("title"),
     tree: requiredElement("tree"),
     validate: requiredElement("validate"),
+    workflowDescription: requiredElement("workflow-description"),
+    workflowEdit: requiredElement("workflow-edit"),
+    workflowLegacy: requiredElement("workflow-legacy"),
+    workflowShare: requiredElement("workflow-share"),
+    workflowSnippet: requiredElement("workflow-snippet"),
+    workflowTitle: requiredElement("workflow-title"),
 };
-const state = { batch: new Map(), current: null, legacy: { preview: null, resolutions: new Map(), selectedZonePaths: new Set(), widgetMappings: new Map() }, tab: "raw" };
+const state = {
+    batch: new Map(),
+    current: null,
+    legacy: { preview: null, resolutions: new Map(), selectedZonePaths: new Set(), widgetMappings: new Map() },
+    snippet: { choices: new Map(), conflictAction: "", importAction: "", importFile: null, importPreview: null, preview: null, treeEntries: [] },
+    tab: "raw",
+    task: "",
+};
 
 function translate(key, params = {}) {
     let text = translations[key] ?? key;
@@ -71,6 +113,32 @@ function showReport(value) {
 
 function showError(error) {
     showReport(error.details ? error.message + "\n" + JSON.stringify(error.details, null, 2) : error.message);
+}
+
+function setTaskAvailability(available) {
+    for (const button of document.querySelectorAll(".task-card")) button.disabled = !available;
+    elements.taskHomeStatus.textContent = translate(available ? "tasks.ready" : "tasks.openDataFirst");
+}
+
+function showTask(task) {
+    const workflows = { edit: elements.workflowEdit, legacy: elements.workflowLegacy, share: elements.workflowShare, snippet: elements.workflowSnippet };
+    const translationTask = task === "snippet" ? "apply" : task;
+    state.task = task;
+    elements.taskHome.hidden = true;
+    elements.editorMain.hidden = false;
+    elements.filePanel.hidden = task !== "edit";
+    elements.batchControls.hidden = task !== "edit";
+    elements.editorMain.classList.toggle("file-task", task === "edit");
+    for (const workflow of Object.values(workflows)) workflow.hidden = workflow !== workflows[task];
+    elements.workflowTitle.textContent = translate(`task.${translationTask}.title`);
+    elements.workflowDescription.textContent = translate(`task.${translationTask}.description`);
+}
+
+function showTaskHome() {
+    state.task = "";
+    elements.editorMain.hidden = true;
+    elements.batchControls.hidden = true;
+    elements.taskHome.hidden = false;
 }
 
 function renderDiagnosticsIn(container, diagnostics = []) {
@@ -128,6 +196,7 @@ function renderDocument() {
     elements.addBatch.disabled = !current || !current.writable;
     elements.save.disabled = !current || !current.writable;
     elements.clone.hidden = !current || current.writable || !["surface", "zone", "snippet"].includes(current.document.format);
+    elements.exportSnippet.hidden = !current || current.document.format !== "snippet";
     renderDiagnostics(current?.document.diagnostics);
     elements.semantic.textContent = JSON.stringify(current?.document.semantic || {}, null, 2);
     renderStructured();
@@ -180,8 +249,10 @@ function treeList(entries) {
 
 async function refreshTree() {
     const result = await api("/api/tree");
+    state.snippet.treeEntries = result.entries;
     elements.tree.className = "tree";
     elements.tree.replaceChildren(treeList(result.entries));
+    renderSnippetPathOptions();
 }
 
 function updateBatch() {
@@ -189,10 +260,243 @@ function updateBatch() {
     elements.commitBatch.disabled = state.batch.size === 0;
 }
 
+function flattenConfigFiles(entries, result = []) {
+    for (const entry of entries) {
+        if (entry.kind === "file") result.push(entry);
+        else if (entry.kind === "directory") flattenConfigFiles(entry.children || [], result);
+    }
+    return result;
+}
+
+function fillPathSelect(select, files, placeholderKey) {
+    const selectedPath = select.value;
+    select.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = translate(placeholderKey);
+    select.append(placeholder);
+    for (const file of files.sort((left, right) => left.path.localeCompare(right.path))) {
+        const option = document.createElement("option");
+        option.value = file.path;
+        option.textContent = file.path;
+        select.append(option);
+    }
+    select.value = files.some((file) => file.path === selectedPath) ? selectedPath : "";
+    select.disabled = files.length === 0;
+}
+
+function renderSnippetPathOptions() {
+    const files = flattenConfigFiles(state.snippet.treeEntries);
+    const snippets = files.filter((file) => file.type === "snippet");
+    fillPathSelect(elements.snippetSource, snippets, "snippet.source.choose");
+    fillPathSelect(elements.snippetExportSource, snippets, "snippet.source.choose");
+    fillPathSelect(elements.snippetSurface, files.filter((file) => file.type === "surface"), "snippet.surface.choose");
+    fillPathSelect(elements.snippetZone, files.filter((file) => file.type === "zone" && file.writable), "snippet.zone.choose");
+    elements.snippetApply.disabled = !snippetPathsReady();
+    elements.snippetExportDownload.disabled = !elements.snippetExportSource.value;
+}
+
+function snippetPathsReady() {
+    return Boolean(elements.snippetSource.value && elements.snippetSurface.value && elements.snippetZone.value);
+}
+
+function snippetChoicesForRequest() {
+    return [...state.snippet.choices].map(([bindingId, choice]) => ({ bindingId, ...choice }));
+}
+
+function snippetApplicationBody() {
+    return {
+        applicationId: elements.snippetApplicationId.value,
+        bindingChoices: snippetChoicesForRequest(),
+        conflictAction: state.snippet.conflictAction,
+        renamedApplicationId: elements.snippetRenameId.value,
+        snippetPath: elements.snippetSource.value,
+        surfacePath: elements.snippetSurface.value,
+        targetZonePath: elements.snippetZone.value,
+    };
+}
+
+function invalidateSnippetPreview() {
+    if (state.snippet.preview) state.snippet.preview.valid = false;
+    elements.snippetApply.disabled = !snippetPathsReady();
+    elements.snippetStatus.className = "muted";
+    elements.snippetStatus.textContent = translate("snippet.preview.invalid");
+}
+
+function renderSnippetConflict() {
+    const preview = state.snippet.preview;
+    const existingApplicationId = preview?.conflict.existingApplicationId;
+    elements.snippetConflict.hidden = !existingApplicationId;
+    elements.snippetConflictAction.replaceChildren();
+    if (!existingApplicationId) return;
+    for (const [value, key] of [["", "legacy.conflict.choose"], ["replace", "legacy.conflict.replace"], ["rename", "legacy.conflict.rename"], ["skip", "legacy.conflict.skip"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = translate(key);
+        elements.snippetConflictAction.append(option);
+    }
+    elements.snippetConflictAction.value = state.snippet.conflictAction;
+    elements.snippetRenameId.hidden = state.snippet.conflictAction !== "rename";
+}
+
+function selectedSnippetCandidate(binding, widgetName) {
+    return binding.candidates.find((candidate) => candidate.name.toLowerCase() === widgetName.toLowerCase());
+}
+
+function renderSnippetBindings() {
+    const bindings = state.snippet.preview?.bindings || [];
+    elements.snippetBindings.replaceChildren();
+    if (!bindings.length) {
+        elements.snippetBindings.className = "snippet-bindings muted";
+        elements.snippetBindings.textContent = translate("snippet.bindings.empty");
+        return;
+    }
+    elements.snippetBindings.className = "snippet-bindings";
+    for (const binding of bindings) {
+        let choice = state.snippet.choices.get(binding.id);
+        if (!choice) {
+            choice = { allowIncompatible: false, confirmed: binding.automatic, widgetName: binding.selectedWidgetName || binding.recommendedWidgetName || "" };
+            state.snippet.choices.set(binding.id, choice);
+        }
+        const row = document.createElement("div");
+        row.className = "snippet-binding";
+        const identity = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = binding.id;
+        const requirements = document.createElement("small");
+        requirements.textContent = translate("snippet.binding.requirements", { capabilities: translatedCapabilities(binding.requiredCapabilities), role: binding.requiredRole });
+        identity.append(name, document.createElement("br"), requirements);
+        const select = document.createElement("select");
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = binding.required ? translate("snippet.binding.choose") : translate("snippet.binding.optionalSkip");
+        select.append(placeholder);
+        for (const candidate of binding.candidates) {
+            const option = document.createElement("option");
+            option.value = candidate.name;
+            option.textContent = candidate.name + " [" + candidate.role + "; " + translatedCapabilities(candidate.capabilities) + "]" + (candidate.compatible ? "" : " ⚠");
+            select.append(option);
+        }
+        select.value = choice.widgetName;
+        const options = document.createElement("div");
+        options.className = "snippet-binding-options";
+        const candidate = selectedSnippetCandidate(binding, choice.widgetName);
+        const automatic = Boolean(candidate?.compatible && candidate.name.toLowerCase() === binding.id.toLowerCase());
+        if (automatic) {
+            const automaticStatus = document.createElement("span");
+            automaticStatus.className = "snippet-automatic";
+            automaticStatus.textContent = "✓ " + translate("snippet.binding.automatic");
+            options.append(automaticStatus);
+            choice.confirmed = true;
+        } else {
+            const confirmLabel = document.createElement("label");
+            const confirm = document.createElement("input");
+            confirm.type = "checkbox";
+            confirm.checked = choice.confirmed;
+            confirm.addEventListener("change", () => { choice.confirmed = confirm.checked; invalidateSnippetPreview(); });
+            confirmLabel.append(confirm, document.createTextNode(" " + translate("snippet.binding.confirm")));
+            options.append(confirmLabel);
+        }
+        if (candidate && !candidate.compatible) {
+            const mismatch = document.createElement("div");
+            mismatch.className = "snippet-mismatch";
+            mismatch.textContent = candidate.mismatchReasons.join("; ");
+            const overrideLabel = document.createElement("label");
+            const override = document.createElement("input");
+            override.type = "checkbox";
+            override.checked = choice.allowIncompatible;
+            override.addEventListener("change", () => { choice.allowIncompatible = override.checked; invalidateSnippetPreview(); });
+            overrideLabel.append(override, document.createTextNode(" " + translate("snippet.binding.allowIncompatible")));
+            options.append(mismatch, overrideLabel);
+        }
+        select.addEventListener("change", () => {
+            choice.widgetName = select.value;
+            const selectedCandidate = selectedSnippetCandidate(binding, choice.widgetName);
+            choice.confirmed = Boolean(selectedCandidate?.compatible && selectedCandidate.name.toLowerCase() === binding.id.toLowerCase());
+            choice.allowIncompatible = false;
+            invalidateSnippetPreview();
+            renderSnippetBindings();
+        });
+        row.append(identity, select, options);
+        elements.snippetBindings.append(row);
+    }
+}
+
+function renderSnippetApplication() {
+    const preview = state.snippet.preview;
+    elements.snippetMappingStep.hidden = !preview?.bindings.length;
+    renderSnippetBindings();
+    renderSnippetConflict();
+    renderDiagnosticsIn(elements.snippetDiagnostics, preview?.diagnostics);
+    elements.snippetZonePreview.textContent = preview?.source || translate("snippet.preview.empty");
+    elements.snippetStatus.className = preview ? (preview.valid ? "" : "diagnostic error") : "muted";
+    elements.snippetStatus.textContent = preview ? translate(preview.valid ? "snippet.preview.valid" : "snippet.preview.invalid") : translate("snippet.preview.empty");
+    elements.snippetApply.disabled = !snippetPathsReady();
+}
+
+async function refreshSnippetPreview() {
+    const result = await api("/api/snippet/apply-preview", { method: "POST", body: JSON.stringify(snippetApplicationBody()) });
+    state.snippet.preview = result.preview;
+    if (!elements.snippetApplicationId.value) elements.snippetApplicationId.value = result.preview.applicationId;
+    state.snippet.conflictAction = result.preview.conflict.action;
+    renderSnippetApplication();
+}
+
+function renderSnippetImport() {
+    const preview = state.snippet.importPreview;
+    renderDiagnosticsIn(elements.snippetImportDiagnostics, preview?.diagnostics);
+    elements.snippetImportSource.textContent = preview?.source || translate("snippet.import.empty");
+    elements.snippetImportAction.replaceChildren();
+    elements.snippetImportConflict.hidden = !preview?.targetExists;
+    if (!preview) {
+        elements.snippetImportAction.disabled = true;
+        elements.snippetImportApply.disabled = true;
+        return;
+    }
+    const actions = preview.targetExists
+        ? [["", "legacy.conflict.choose"], ["replace", "legacy.conflict.replace"], ["rename", "legacy.conflict.rename"], ["skip", "legacy.conflict.skip"]]
+        : preview.targetPath === preview.defaultTargetPath ? [["create", "legacy.conflict.create"]] : [["rename", "legacy.conflict.rename"]];
+    for (const [value, key] of actions) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = translate(key);
+        elements.snippetImportAction.append(option);
+    }
+    if (!actions.some(([value]) => value === state.snippet.importAction)) state.snippet.importAction = actions.length === 1 ? actions[0][0] : "";
+    elements.snippetImportAction.value = state.snippet.importAction;
+    elements.snippetImportAction.disabled = actions.length === 1;
+    elements.snippetImportApply.disabled = !preview.valid || !state.snippet.importAction || preview.targetPath !== elements.snippetImportTarget.value;
+}
+
+async function refreshSnippetImportPreview() {
+    if (!state.snippet.importFile) return;
+    const result = await api("/api/snippet/import-preview", { method: "POST", body: JSON.stringify({ fileName: state.snippet.importFile.name, source: state.snippet.importFile.source, targetPath: elements.snippetImportTarget.value }) });
+    state.snippet.importPreview = result.preview;
+    elements.snippetImportTarget.value = result.preview.targetPath;
+    renderSnippetImport();
+}
+
 function renameSuggestion(targetPath) {
     const extensionPosition = targetPath.lastIndexOf(".");
     if (extensionPosition < 0) return targetPath + "-imported";
     return targetPath.slice(0, extensionPosition) + "-imported" + targetPath.slice(extensionPosition);
+}
+
+function downloadSource(fileName, source) {
+    const downloadUrl = URL.createObjectURL(new Blob([source], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.download = fileName;
+    link.href = downloadUrl;
+    link.click();
+    URL.revokeObjectURL(downloadUrl);
+}
+
+async function downloadSnippetPath(relativePath) {
+    const opened = await api("/api/file?path=" + encodeURIComponent(relativePath));
+    if (opened.document.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error(translate("error.fixBeforeSave"));
+    const fileName = relativePath.split("/").at(-1);
+    downloadSource(fileName, opened.source);
+    showReport(translate("status.exportedSnippet", { name: fileName }));
 }
 
 function selectedLegacyItems() {
@@ -432,6 +736,7 @@ async function initialize() {
         const translationsResponse = await fetch("/app-translations.json");
         if (!translationsResponse.ok) throw new Error(translationsResponse.statusText);
         translations = await translationsResponse.json();
+        setTaskAvailability(false);
         if (!token) {
             showReport(translate("error.missingToken"));
             return;
@@ -452,6 +757,7 @@ async function initialize() {
             elements.dataPathStatus.textContent = status.dataPath;
             elements.dataPath.value = status.dataPath;
             await refreshTree();
+            setTaskAvailability(true);
         }
     } catch (error) {
         showReport(translate("error.configLoad") + "\n" + error.message);
@@ -464,9 +770,18 @@ elements.openDataPath.addEventListener("click", async () => {
         elements.dataPathStatus.textContent = result.dataPath;
         state.current = null;
         state.batch.clear();
+        state.snippet.choices.clear();
+        state.snippet.conflictAction = "";
+        state.snippet.importAction = "";
+        state.snippet.importPreview = null;
+        state.snippet.preview = null;
         updateBatch();
         renderDocument();
+        renderSnippetApplication();
+        renderSnippetImport();
         await refreshTree();
+        setTaskAvailability(true);
+        showTaskHome();
         if (elements.legacySurface.value) await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
         showReport(translate("status.openedDataPath", { path: result.dataPath }));
     } catch (error) { showError(error); }
@@ -555,6 +870,95 @@ elements.legacyImport.addEventListener("click", async () => {
     } catch (error) { showError(error); }
 });
 
+for (const select of [elements.snippetSource, elements.snippetSurface, elements.snippetZone]) select.addEventListener("change", async () => {
+    try {
+        state.snippet.choices.clear();
+        state.snippet.conflictAction = "";
+        state.snippet.preview = null;
+        elements.snippetApplicationId.value = "";
+        elements.snippetRenameId.value = "";
+        renderSnippetPathOptions();
+        renderSnippetApplication();
+        if (snippetPathsReady()) await refreshSnippetPreview();
+    } catch (error) { showError(error); }
+});
+
+elements.snippetApplicationId.addEventListener("input", invalidateSnippetPreview);
+elements.snippetRenameId.addEventListener("input", invalidateSnippetPreview);
+
+elements.snippetConflictAction.addEventListener("change", () => {
+    state.snippet.conflictAction = elements.snippetConflictAction.value;
+    elements.snippetRenameId.hidden = state.snippet.conflictAction !== "rename";
+    if (state.snippet.conflictAction === "rename" && !elements.snippetRenameId.value) elements.snippetRenameId.value = elements.snippetApplicationId.value + "-copy";
+    invalidateSnippetPreview();
+});
+
+elements.snippetApply.addEventListener("click", async () => {
+    try {
+        await refreshSnippetPreview();
+        const preview = state.snippet.preview;
+        if (!preview?.valid) return;
+        const confirmed = window.confirm(translate("snippet.confirmApply", { snippet: elements.snippetSource.selectedOptions[0]?.textContent || elements.snippetSource.value, zone: elements.snippetZone.selectedOptions[0]?.textContent || elements.snippetZone.value }));
+        if (!confirmed) return;
+        const result = await api("/api/snippet/apply", { method: "POST", body: JSON.stringify({ ...snippetApplicationBody(), snippetHash: preview.snippetHash, surfaceHash: preview.surfaceHash, targetHash: preview.targetHash }) });
+        await refreshTree();
+        await refreshSnippetPreview();
+        showReport({ message: translate("status.appliedSnippet", { path: preview.targetZonePath }), ...result.report });
+    } catch (error) { showError(error); }
+});
+
+elements.snippetImportFile.addEventListener("change", async () => {
+    try {
+        const file = elements.snippetImportFile.files?.[0];
+        state.snippet.importAction = "";
+        state.snippet.importPreview = null;
+        state.snippet.importFile = file ? { name: file.name, source: await file.text() } : null;
+        elements.snippetImportTarget.value = "";
+        renderSnippetImport();
+        if (file) await refreshSnippetImportPreview();
+    } catch (error) { showError(error); }
+});
+
+elements.snippetImportTarget.addEventListener("input", () => {
+    state.snippet.importPreview = null;
+    elements.snippetImportApply.disabled = true;
+    renderSnippetImport();
+});
+elements.snippetImportTarget.addEventListener("change", async () => {
+    try { await refreshSnippetImportPreview(); } catch (error) { showError(error); }
+});
+
+elements.snippetImportAction.addEventListener("change", async () => {
+    try {
+        state.snippet.importAction = elements.snippetImportAction.value;
+        if (state.snippet.importAction === "rename" && state.snippet.importPreview) {
+            elements.snippetImportTarget.value = renameSuggestion(state.snippet.importPreview.defaultTargetPath);
+            state.snippet.importPreview = null;
+            await refreshSnippetImportPreview();
+        } else renderSnippetImport();
+    } catch (error) { showError(error); }
+});
+
+elements.snippetImportApply.addEventListener("click", async () => {
+    try {
+        const importFile = state.snippet.importFile;
+        if (!importFile) return;
+        await refreshSnippetImportPreview();
+        const preview = state.snippet.importPreview;
+        if (!preview?.valid || !importFile) throw new Error(translate("snippet.preview.invalid"));
+        if (!state.snippet.importAction) return;
+        const result = await api("/api/snippet/import", { method: "POST", body: JSON.stringify({ action: state.snippet.importAction, fileName: importFile.name, source: importFile.source, sourceHash: preview.sourceHash, targetHash: preview.targetHash, targetPath: preview.targetPath }) });
+        await refreshTree();
+        state.snippet.importAction = "";
+        state.snippet.importFile = null;
+        state.snippet.importPreview = null;
+        elements.snippetImportFile.value = "";
+        elements.snippetImportTarget.value = "";
+        renderSnippetImport();
+        showReport({ message: translate("status.importedSnippet", { count: result.report.changed.length + result.report.created.length }), ...result.report });
+    } catch (error) { showError(error); }
+});
+
 elements.validate.addEventListener("click", async () => {
     try { await validateCurrent(); showReport(translate("status.checked")); } catch (error) { showError(error); }
 });
@@ -601,6 +1005,16 @@ elements.clone.addEventListener("click", async () => {
     } catch (error) { showError(error); }
 });
 
+elements.exportSnippet.addEventListener("click", async () => {
+    try {
+        const documentView = await validateCurrent();
+        if (!state.current || documentView.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error(translate("error.fixBeforeSave"));
+        const fileName = state.current.path.split("/").at(-1);
+        downloadSource(fileName, state.current.source);
+        showReport(translate("status.exportedSnippet", { name: fileName }));
+    } catch (error) { showError(error); }
+});
+
 for (const tab of document.querySelectorAll(".tab")) tab.addEventListener("click", async () => {
     try {
         if (state.current) await validateCurrent();
@@ -612,4 +1026,12 @@ for (const tab of document.querySelectorAll(".tab")) tab.addEventListener("click
 });
 
 elements.rawEditor.addEventListener("input", () => { if (state.current) state.current.source = elements.rawEditor.value; });
+for (const taskButton of document.querySelectorAll(".task-card")) taskButton.addEventListener("click", () => showTask(taskButton.dataset.task));
+elements.backToTasks.addEventListener("click", showTaskHome);
+elements.snippetExportSource.addEventListener("change", () => { elements.snippetExportDownload.disabled = !elements.snippetExportSource.value; });
+elements.snippetExportDownload.addEventListener("click", async () => {
+    try { await downloadSnippetPath(elements.snippetExportSource.value); } catch (error) { showError(error); }
+});
+setTaskAvailability(false);
+showTaskHome();
 initialize();

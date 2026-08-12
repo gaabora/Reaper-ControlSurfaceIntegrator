@@ -203,12 +203,15 @@ Ready when every vendor MIDI surface has an installable layout and ReaPack canno
 
 ### Phase 7. Reusable functional snippets
 
-- Define semantic slots with required widget roles, inputs, feedback, and targets.
-- Show a filtered widget dropdown for every binding and require confirmation before apply.
-- Permit manual selection only when validation explains any capability mismatch.
-- Support preview, `Rename`, `Replace`, `Skip`, raw editing, import, export, and a small built-in starter set.
-- Apply a resolved snippet as one validated transaction.
-- Store shipped snippets in `Snippets/BuiltIn` and exports in `Snippets/User`.
+- ✅ Define semantic slots with required widget roles, inputs, feedback, and target surface widgets.
+- ✅ Present the editor as four task entry points: apply functionality, edit configuration, import old CSI, and import or export a snippet. Show only the selected workflow.
+- ✅ Keep the normal apply workflow to three steps: choose the snippet, surface, and user zone; check only unresolved mappings; then apply. Keep the application ID and generated source under advanced details.
+- ✅ Show a filtered widget dropdown for every binding. Resolve exact compatible name matches automatically and require confirmation for different manual choices.
+- ✅ Permit manual selection only when validation explains any capability mismatch and the user enables an explicit override.
+- ✅ Support preview, `Rename`, `Replace`, `Skip`, raw editing, import, export, and a small built-in transport starter.
+- ✅ Apply a resolved snippet as one validated transaction after rechecking the snippet, surface, and target-zone hashes.
+- ✅ Store shipped snippets in `Snippets/BuiltIn` and imported or editable copies in `Snippets/User`. Browser export downloads the checked current source.
+- Verify the focused parser, workflow, server, and browser UI checks after explicit approval.
 
 Ready when a function group can move between compatible surfaces without fixed vendor widget names or partial file changes.
 
@@ -231,7 +234,7 @@ Ready when OSK can safely create any supported one-file zone scaffold without be
 - Detect an external file change made after the editor opened it.
 - Force a failure during a multi-file commit and verify complete rollback from the manifest.
 - Confirm legacy import leaves every source file unchanged.
-- Confirm semantic dropdowns reject widgets without required capabilities.
+- Confirm semantic dropdowns block widgets without required capabilities unless the user sees the mismatch, enables the explicit override, and confirms the choice.
 - Confirm a standalone editor starts without an installed Bun runtime and exposes no non-local network listener.
 - Validate the generated ReaPack index in CI before publication.
 - Install, update, downgrade, and uninstall the core package in a clean portable REAPER resource directory for each supported platform.

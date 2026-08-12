@@ -55,6 +55,14 @@ describe("configuration formats", () => {
         expect(wrongCapability.diagnostics.some((diagnostic) => diagnostic.code === "surface.layout.target.capability" && diagnostic.severity === "error")).toBeTrue();
     });
 
+    test("functional snippet bindings require explicit semantic fields and valid modifiers", () => {
+        const document = parseByPath("Snippet Version=1 Id=test Name=Test\n  Binding Id=play Role=Button Input=Press\n    Action NoMod+Shift Play\n  BindingEnd\nSnippetEnd\n", "test.snippet", new Set(["Play"]));
+        const errorCodes = document.diagnostics.filter((diagnostic) => diagnostic.severity === "error").map((diagnostic) => diagnostic.code);
+        expect(errorCodes).toContain("snippet.binding.feedback");
+        expect(errorCodes).toContain("snippet.binding.required.missing");
+        expect(errorCodes).toContain("snippet.action.modifiers");
+    });
+
     test("zone dependency cycles report a stable error", () => {
         const alpha = parseByPath("// @format zone 1\nZone alpha\n  Play GoZone beta\nZoneEnd\n", "/zones/alpha.zon");
         const beta = parseByPath("// @format zone 1\nZone beta\n  Play GoZone alpha\nZoneEnd\n", "/zones/beta.zon");

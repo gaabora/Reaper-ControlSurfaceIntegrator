@@ -18,14 +18,31 @@
       <button id="open-data-path">{{action.open}}</button>
     </div>
   </header>
-  <main>
-    <aside>
+  <section id="task-home" class="task-home">
+    <div class="task-home-copy">
+      <h2>{{tasks.title}}</h2>
+      <p>{{tasks.description}}</p>
+    </div>
+    <div class="task-grid">
+      <button class="task-card" data-task="snippet" disabled><strong>{{task.apply.title}}</strong><span>{{task.apply.description}}</span></button>
+      <button class="task-card" data-task="edit" disabled><strong>{{task.edit.title}}</strong><span>{{task.edit.description}}</span></button>
+      <button class="task-card" data-task="legacy" disabled><strong>{{task.legacy.title}}</strong><span>{{task.legacy.description}}</span></button>
+      <button class="task-card" data-task="share" disabled><strong>{{task.share.title}}</strong><span>{{task.share.description}}</span></button>
+    </div>
+    <p id="task-home-status" class="muted">{{tasks.openDataFirst}}</p>
+  </section>
+  <main id="editor-main" hidden>
+    <aside id="file-panel" hidden>
       <div class="aside-title">{{files.title}}</div>
       <div id="tree" class="tree muted">{{files.empty}}</div>
     </aside>
     <section class="workspace">
-      <details class="import-panel">
-        <summary>{{legacy.title}}</summary>
+      <div class="workflow-topbar">
+        <button id="back-to-tasks">{{action.backToTasks}}</button>
+        <div><h2 id="workflow-title"></h2><p id="workflow-description" class="muted"></p></div>
+      </div>
+      <section id="workflow-legacy" class="workflow-panel" hidden>
+        <div class="workflow-step"><span class="step-number">1</span><div><h2>{{legacy.step.source.title}}</h2><p class="muted">{{legacy.step.source.description}}</p></div></div>
         <div class="legacy-controls">
           <input id="legacy-path" placeholder="{{legacy.path.placeholder}}">
           <button id="open-legacy">{{action.open}}</button>
@@ -46,39 +63,95 @@
         <div id="legacy-diagnostics" class="muted">{{problems.none}}</div>
         <div id="legacy-preview" class="legacy-preview muted">{{legacy.preview.empty}}</div>
         <button id="legacy-import" disabled>{{action.import}}</button>
-      </details>
-      <div class="document-header">
-        <div>
-          <strong id="document-path">{{document.none}}</strong>
-          <span id="document-mode"></span>
+      </section>
+      <section id="workflow-snippet" class="workflow-panel" hidden>
+        <div class="workflow-step"><span class="step-number">1</span><div><h2>{{snippet.step.choose.title}}</h2><p class="muted">{{snippet.step.choose.description}}</p></div></div>
+        <div class="snippet-controls">
+          <label><span>{{snippet.source}}</span><select id="snippet-source" disabled><option value="">{{snippet.source.choose}}</option></select></label>
+          <label><span>{{snippet.surface}}</span><select id="snippet-surface" disabled><option value="">{{snippet.surface.choose}}</option></select></label>
+          <label><span>{{snippet.zone}}</span><select id="snippet-zone" disabled><option value="">{{snippet.zone.choose}}</option></select></label>
         </div>
-        <div class="actions">
-          <button id="clone" hidden>{{action.makeEditable}}</button>
-          <button id="validate" disabled>{{action.check}}</button>
-          <button id="add-batch" disabled>{{action.addToSaveAll}}</button>
-          <button id="save" disabled>{{action.save}}</button>
+        <p id="snippet-status" class="muted">{{snippet.preview.empty}}</p>
+        <div id="snippet-mapping-step" class="snippet-step" hidden>
+          <div class="workflow-step"><span class="step-number">2</span><div><h2>{{snippet.step.map.title}}</h2><p class="muted">{{snippet.step.map.description}}</p></div></div>
+          <div id="snippet-bindings" class="snippet-bindings muted">{{snippet.bindings.empty}}</div>
         </div>
-      </div>
-      <div class="tabs">
-        <button class="tab active" data-tab="raw">{{tab.text}}</button>
-        <button class="tab" data-tab="structured">{{tab.guided}}</button>
-      </div>
-      <textarea id="raw-editor" spellcheck="false" disabled></textarea>
-      <div id="structured-editor" hidden></div>
-      <div class="details">
-        <div>
-          <h2>{{problems.title}}</h2>
-          <div id="diagnostics" class="muted">{{problems.none}}</div>
+        <div id="snippet-conflict" class="snippet-conflict" hidden>
+          <strong>{{snippet.conflict.message}}</strong>
+          <select id="snippet-conflict-action" aria-label="{{snippet.conflict.title}}"></select>
+          <input id="snippet-rename-id" placeholder="{{snippet.conflict.renameId}}" hidden>
         </div>
-        <div>
-          <h2>{{details.title}}</h2>
-          <pre id="semantic">{}</pre>
+        <div id="snippet-diagnostics" class="muted">{{problems.none}}</div>
+        <div class="snippet-apply-row">
+          <div class="workflow-step"><span class="step-number">3</span><div><h2>{{snippet.step.apply.title}}</h2><p class="muted">{{snippet.step.apply.description}}</p></div></div>
+          <button id="snippet-apply" class="primary" disabled>{{action.applySnippet}}</button>
         </div>
-      </div>
+        <details class="advanced-panel">
+          <summary>{{advanced.title}}</summary>
+          <label>{{snippet.applicationId}} <input id="snippet-application-id" placeholder="{{snippet.applicationId}}"></label>
+          <pre id="snippet-zone-preview" class="snippet-source-preview">{{snippet.preview.empty}}</pre>
+        </details>
+      </section>
+      <section id="workflow-share" class="workflow-panel" hidden>
+        <div class="share-grid">
+          <section class="share-card">
+            <div class="workflow-step"><div><h2>{{snippet.import.title}}</h2><p class="muted">{{snippet.import.description}}</p></div></div>
+            <input id="snippet-import-file" type="file" accept=".snippet">
+            <div id="snippet-import-conflict" class="snippet-conflict" hidden>
+              <strong>{{snippet.import.conflict}}</strong>
+              <select id="snippet-import-action" aria-label="{{snippet.conflict.title}}" disabled></select>
+            </div>
+            <div id="snippet-import-diagnostics" class="muted">{{problems.none}}</div>
+            <button id="snippet-import-apply" class="primary" disabled>{{action.importSnippet}}</button>
+            <details class="advanced-panel">
+              <summary>{{advanced.title}}</summary>
+              <input id="snippet-import-target" placeholder="{{snippet.import.target}}">
+              <pre id="snippet-import-source" class="snippet-source-preview">{{snippet.import.empty}}</pre>
+            </details>
+          </section>
+          <section class="share-card">
+            <div class="workflow-step"><div><h2>{{snippet.export.title}}</h2><p class="muted">{{snippet.export.description}}</p></div></div>
+            <select id="snippet-export-source" disabled><option value="">{{snippet.source.choose}}</option></select>
+            <button id="snippet-export-download" class="primary" disabled>{{action.export}}</button>
+          </section>
+        </div>
+      </section>
+      <section id="workflow-edit" class="document-workflow" hidden>
+        <p id="edit-help" class="workflow-help">{{edit.help}}</p>
+        <div class="document-header">
+          <div>
+            <strong id="document-path">{{document.none}}</strong>
+            <span id="document-mode"></span>
+          </div>
+          <div class="actions">
+            <button id="clone" hidden>{{action.makeEditable}}</button>
+            <button id="export-snippet" hidden>{{action.export}}</button>
+            <button id="validate" disabled>{{action.check}}</button>
+            <button id="add-batch" disabled>{{action.addToSaveAll}}</button>
+            <button id="save" disabled>{{action.save}}</button>
+          </div>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="raw">{{tab.text}}</button>
+          <button class="tab" data-tab="structured">{{tab.guided}}</button>
+        </div>
+        <textarea id="raw-editor" spellcheck="false" disabled></textarea>
+        <div id="structured-editor" hidden></div>
+        <div class="details">
+          <div>
+            <h2>{{problems.title}}</h2>
+            <div id="diagnostics" class="muted">{{problems.none}}</div>
+          </div>
+          <div>
+            <h2>{{details.title}}</h2>
+            <pre id="semantic">{}</pre>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
   <footer>
-    <div><strong id="batch-count">{{pending.count}}</strong> <button id="commit-batch" disabled>{{action.saveAll}}</button></div>
+    <div id="batch-controls" hidden><strong id="batch-count">{{pending.count}}</strong> <button id="commit-batch" disabled>{{action.saveAll}}</button></div>
     <pre id="report">{{status.ready}}</pre>
   </footer>
   <script src="/app.js"></script>

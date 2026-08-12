@@ -23,6 +23,12 @@
 - Unknown data produces a warning and remains serializable. Syntax or unsafe identifiers produce errors.
 - Product config version is the runtime `Version` value. Surface and zone version markers use `// @format <type> <version>` and remain safe for the current C++ parsers.
 - Functional snippets use semantic bindings and must not store fixed hardware widget names.
+- Functional snippet `Role`, `Input`, and `Feedback` requirements use the same capability rules as runtime OSK metadata. Formal layout metadata overrides inferred surface metadata when present.
+- Resolve an exact compatible semantic-slot and widget-name match automatically. Require explicit confirmation for a different manual choice. Allow an incompatible choice only after showing its role or capability mismatch and receiving an explicit override.
+- Keep the browser editor task-based. Show one main workflow at a time and keep file paths, application IDs, and generated source below an advanced-details control when they are not needed for the normal workflow.
+- Apply resolved snippets only to writable user zones. Use stable application IDs and the `// @snippet Application=<id> Source=<snippet-id>` and matching `// @snippet-end Application=<id>` markers.
+- Require `Replace`, `Rename`, or `Skip` when an application marker or snippet import target already exists. Recheck all preview hashes before a validated transaction.
+- Import snippet files only below `Snippets/User`. Keep browser export independent from file writes so checked unsaved source can be downloaded.
 - Read action names from `src/shared/types.h` `ACTION_TYPE_LIST`. Do not add a manual action-name list.
 - Keep parsers independent from the browser UI and file-writing service.
 - Bind the editor server only to `127.0.0.1` and require a random session token for every API request.
@@ -55,6 +61,7 @@
 - Run `bun run actions` and compare the catalog count with `ACTION_TYPE_LIST`.
 - Run focused store tests for conflicts, rollback, cloning, symlink traversal, and directory link cycles.
 - Run focused legacy import tests for source discovery, `Zones` and `FXZones` mapping, backup-file filtering, dependency selection, semantic widget mapping, repeat conflicts, source immutability, and transactional writes.
+- Run focused snippet workflow tests for semantic widget filtering, explicit confirmation, mismatch override, repeat application conflicts, import conflicts, hash conflicts, and transactional writes.
 - Start the server with `--no-open` and confirm unauthenticated API access fails.
 - Build and launch each standalone target in its matching operating system before release.
 

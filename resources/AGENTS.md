@@ -17,6 +17,7 @@
 - Zone profiles use `Zones/Vendor/<profile-id>/Main`, `Zones/Vendor/<profile-id>/FX`, and matching paths under `Zones/User`.
 - A user zone profile with the same stable ID fully overrides its vendor profile.
 - Stable IDs match `[a-z0-9][a-z0-9_-]*`.
+- Built-in snippets use semantic bindings with explicit `Role`, `Input`, `Feedback`, and `Required` values. They must not contain fixed surface widget names.
 - ReaPack installs these resources below `REAPER/Data/<ProductResourceDirectory>`, owns vendor surfaces, vendor zone profiles, and built-in snippets, and must not overwrite user surfaces, user zone profiles, or user snippets.
 
 ## Work Guidance

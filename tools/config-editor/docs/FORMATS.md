@@ -87,8 +87,23 @@ Snippet Version=1 Id=transport Name="Transport controls"
 SnippetEnd
 ```
 
-- `Snippet` and every `Binding` have stable IDs.
-- A binding declares the role, input capability, optional feedback capability, and whether selection is required.
-- Each `Action` contains a modifier expression, runtime action, and its parameters.
-- A `Widget` property is an error. The Phase 7 application UI selects and confirms a compatible widget for every binding.
-- The snippet parser does not apply or save configuration. Application remains a later transactional workflow.
+- `Snippet` has a stable `Id` and a display `Name`. Every `Binding` has a stable `Id`.
+- `Role` is one of `Button`, `Display`, `Fader`, `Meter`, or `Rotary`.
+- `Input` contains one or more `Press`, `Relative`, `Absolute`, or `Touch` capabilities separated by `+`.
+- `Feedback` contains one or more `Toggle`, `Color`, `Value`, `Text`, or `Meter` capabilities separated by `+`. Use `Feedback=None` when the binding needs no feedback.
+- `Required` is `Yes` or `No`. An optional binding can be skipped, but the user must confirm the skip.
+- Each binding contains at least one `Action`. An action contains a modifier expression, runtime action, and its parameters. `NoMod` cannot be combined with other modifiers.
+- A `Widget` property is an error. The application UI resolves an exact compatible semantic-slot and widget-name match automatically. A different manual selection requires confirmation.
+
+The editor compares each selected widget with the binding role and capabilities. A mismatch is blocked by default. The user can apply it only after the editor shows the mismatch and the user enables the override and confirms the widget.
+
+Applying a snippet resolves semantic bindings into normal zone lines. The editor inserts the lines before `ZoneEnd` in a marked block:
+
+```text
+  // @snippet Application=transport Source=transport
+  Play Play
+  Stop Stop
+  // @snippet-end Application=transport
+```
+
+`Application` is a stable ID inside the target zone. A repeated application requires `Replace`, `Rename`, or `Skip`. `Replace` changes only the matching marked block, `Rename` adds a separate block with a new application ID, and `Skip` writes nothing. The editor rechecks the snippet, surface, and target-zone hashes and saves the resolved zone through one validated transaction.

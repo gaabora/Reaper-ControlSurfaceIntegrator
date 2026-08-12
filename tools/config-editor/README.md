@@ -16,11 +16,13 @@ This Bun and TypeScript application provides a local browser editor and its loss
 - Backup manifests, rollback, and operation reports.
 - Repeatable read-only import from legacy `Surface.txt`, `Zones/**/*.zon`, and `FXZones/**/*.zon` files.
 - Legacy dependency preview, semantic widget mapping, selected-zone import, and required `Rename`, `Replace`, or `Skip` conflict resolution.
+- Reusable functional snippet application with semantic widget filtering, automatic exact matches, confirmed manual mappings, mismatch explanations, conflict resolution, and transactional zone updates.
+- Snippet file import into `Snippets/User`, raw editing, editable built-in copies, and browser download export.
 - A loopback-only browser server with a random session token.
 - A typed English UI text catalog with parameter replacement.
 - Standalone compile targets for Windows, macOS, and Linux.
 
-Functional snippet application remains a later phase. Plugin-triggered launch is optional and is not part of the first local editor.
+Plugin-triggered launch is optional and is not part of the first local editor.
 
 ## Commands
 
@@ -62,6 +64,16 @@ The preview shows migrated source text, target paths, syntax diagnostics, depend
 The importer compares each selected binding with the target surface. If `Surface.txt` is included and will be created or replaced, this is the imported surface. If the surface conflict is set to `Rename` or `Skip`, or `Surface.txt` is excluded, the importer uses the existing user surface and then the vendor surface with the same stable ID. Changing this conflict choice refreshes the widget preview. Missing or incompatible widgets require a compatible replacement from the dropdown. The dropdown uses the same press, touch, relative, absolute, value, toggle, color, text, and meter capabilities as the runtime OSK metadata. Channel placeholders stay channel placeholders, so a legacy `Fader|` can map to a compatible family such as `Rotary|`, but not to one fixed `Rotary1`. The resolved widget names are written into the preview source before hashes are calculated.
 
 Every existing target requires `Rename`, `Replace`, or `Skip`. Import is disabled while selected content has errors, a widget mapping is unresolved, or a conflict has no decision. The server checks source and target hashes again, validates the final file set, and saves it through the normal multi-file transaction. The final report lists changed, created, failed, restored, and skipped paths.
+
+## Functional snippets
+
+Open the target REAPER `Data` directory first, choose `Apply functionality`, then choose a built-in or user snippet, a surface, and an editable zone below `Zones/User`. The editor lists each semantic binding and recommends a widget that has the required role, input, and feedback capabilities. An exact compatible name match is accepted automatically. Confirm a different manual choice. To skip a binding with `Required=No`, leave its widget empty and confirm the skip.
+
+An incompatible widget is not accepted by default. If the manual choice is intentional, read the displayed mismatch, enable the mismatch override, and confirm the widget. `Apply functionality` refreshes validation before it writes. The complete target-zone preview and application ID are available under `Advanced details`.
+
+The application ID identifies one generated block inside the zone. Applying the same ID again requires `Replace`, `Rename`, or `Skip`. Replace updates only that block. Rename creates another block under a new ID. Skip makes no file change. Apply rechecks the snippet, surface, and zone hashes and writes the zone through one validated transaction with the normal backup and report.
+
+Choose `Import or export snippet` to copy a local `.snippet` file into `Snippets/User` or download an existing snippet. Import validation starts when the file is selected. An existing destination requires `Replace`, `Rename`, or `Skip`. Choose `Edit configuration` to open any snippet for normal text or guided editing. `Export` in the editor downloads the currently checked source, including unsaved text changes. Built-in snippets stay read-only until `Make editable copy` creates the matching user file.
 
 `actions:generate` writes `generated/action-catalog.json`. Generated output is not source-controlled. The catalog is rebuilt from `src/shared/types.h` and action documentation, so action names are not duplicated in TypeScript.
 

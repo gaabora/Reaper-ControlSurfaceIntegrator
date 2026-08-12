@@ -5,8 +5,8 @@ import { parseByPath, type AnyDocument } from "./formats.ts";
 import { addDiagnostic, serializeDocument, type Diagnostic } from "./model.ts";
 import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
 import { EditorOperationError } from "./store.ts";
-import type { SurfaceSemantic, SurfaceWidget } from "./surface.ts";
 import { validateDocumentSet } from "./validation.ts";
+import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
 import type { ZoneBinding, ZoneSemantic } from "./zone.ts";
 
 export type LegacyImportConflictAction = "create" | "rename" | "replace" | "skip";
@@ -19,7 +19,7 @@ export interface LegacySurfaceSummary {
     zoneCount: number;
 }
 
-export type LegacyWidgetCapability = "absolute-input" | "color-feedback" | "meter-feedback" | "press-input" | "relative-input" | "text-feedback" | "toggle-feedback" | "touch-input" | "value-feedback";
+export type LegacyWidgetCapability = WidgetCapability;
 
 export interface LegacyWidgetCandidate {
     capabilities: LegacyWidgetCapability[];
@@ -128,71 +128,12 @@ function formatSource(source: string, kind: LegacyImportKind, targetPath: string
     return `${bom}// @format ${kind} 1${firstEnding}${content}`;
 }
 
-function normalizedWidgetName(widgetName: string): string {
-    return widgetName.toLowerCase();
-}
-
-function widgetCapabilities(widget: SurfaceWidget): LegacyWidgetCapability[] {
-    const capabilities = new Set<LegacyWidgetCapability>();
-    for (const line of widget.body) {
-        const widgetType = (line.tokens[0] ?? "").toLowerCase();
-        if (widgetType === "press" || widgetType === "anypress") capabilities.add("press-input");
-        else if (widgetType === "touch") capabilities.add("touch-input");
-        else if (["encoder", "mftencoder", "encoderplain", "encoder7bit", "x32rotarytoencoder"].includes(widgetType)) {
-            capabilities.add("relative-input");
-            capabilities.add("value-feedback");
-        } else if (["fader14bit", "faderportclassicfader14bit", "fader7bit", "x32fader"].includes(widgetType)) {
-            capabilities.add("absolute-input");
-            capabilities.add("value-feedback");
-        } else if (widgetType.startsWith("fb_fader") || ["fb_encoder", "fb_asparionencoder", "fb_sce24encoder", "fb_faderportvaluebar"].includes(widgetType) || widgetType.includes("processor")) capabilities.add("value-feedback");
-        else if (widgetType.startsWith("fb_mcu") || widgetType.includes("display") || widgetType.includes("scribble")) capabilities.add("text-feedback");
-        else if (widgetType.includes("vumeter") || widgetType.includes("meter")) {
-            capabilities.add("meter-feedback");
-            capabilities.add("value-feedback");
-        } else if (widgetType.includes("rgb") || widgetType.includes("twostate")) {
-            capabilities.add("toggle-feedback");
-            capabilities.add("color-feedback");
-        }
-    }
-    return [...capabilities].sort();
-}
-
-function commonWidgetCapabilities(widgets: SurfaceWidget[]): LegacyWidgetCapability[] {
-    if (!widgets.length) return [];
-    const capabilities = new Set(widgetCapabilities(widgets[0]));
-    for (const widget of widgets.slice(1)) {
-        const current = new Set(widgetCapabilities(widget));
-        for (const capability of capabilities) if (!current.has(capability)) capabilities.delete(capability);
-    }
-    return [...capabilities].sort();
-}
-
-function surfaceWidgetSlots(surface: AnyDocument, patternSlots: boolean): LegacyWidgetCandidate[] {
-    const widgets = (surface.semantic as SurfaceSemantic).widgets;
-    if (!patternSlots) return widgets.map((widget) => ({ capabilities: widgetCapabilities(widget), name: widget.name }));
-    const families = new Map<string, SurfaceWidget[]>();
-    for (const widget of widgets) {
-        const match = widget.name.match(/^(.*\D)(\d+)$/);
-        if (!match) continue;
-        const familyName = `${match[1]}|`;
-        const family = families.get(normalizedWidgetName(familyName)) ?? [];
-        family.push(widget);
-        families.set(normalizedWidgetName(familyName), family);
-    }
-    return [...families.values()].map((family) => ({ capabilities: commonWidgetCapabilities(family), name: `${family[0].name.replace(/\d+$/, "")}|` }));
-}
-
 function inferredBindingCapabilities(binding: ZoneBinding): LegacyWidgetCapability[] {
     const capabilities = new Set<LegacyWidgetCapability>();
     if (binding.modifiers.some((modifier) => modifier === "Hold" || modifier === "DoublePress")) capabilities.add("press-input");
     if (binding.modifiers.some((modifier) => modifier === "Decrease" || modifier === "Increase")) capabilities.add("relative-input");
     if (binding.modifiers.some((modifier) => modifier.includes("Touch"))) capabilities.add("touch-input");
     return [...capabilities].sort();
-}
-
-function isCompatible(requiredCapabilities: LegacyWidgetCapability[], candidateCapabilities: LegacyWidgetCapability[]): boolean {
-    const available = new Set(candidateCapabilities);
-    return requiredCapabilities.every((capability) => available.has(capability));
 }
 
 function widgetMappingMap(widgetMappings: LegacyWidgetMapping[]): Map<string, string> {
@@ -270,7 +211,7 @@ function collectWidgetMappings(zoneDocuments: Map<string, AnyDocument>, selected
         const requiredCapabilities = [...new Set([...(sourceSlot?.capabilities ?? []), ...entries.flatMap((entry) => inferredBindingCapabilities(entry.binding))])].sort();
         const sameNameTarget = targetSlots.find((slot) => normalizedWidgetName(slot.name) === sourceKey);
         if (sameNameTarget && isCompatible(requiredCapabilities, sameNameTarget.capabilities)) continue;
-        const candidates = targetSlots.filter((candidate) => isCompatible(requiredCapabilities, candidate.capabilities)).sort((left, right) => left.name.localeCompare(right.name));
+        const candidates = targetSlots.filter((candidate) => isCompatible(requiredCapabilities, candidate.capabilities)).map((candidate) => ({ capabilities: candidate.capabilities, name: candidate.name })).sort((left, right) => left.name.localeCompare(right.name));
         const requestedTarget = requested.get(sourceKey);
         const selectedCandidate = requestedTarget ? candidates.find((candidate) => normalizedWidgetName(candidate.name) === normalizedWidgetName(requestedTarget)) : undefined;
         if (selectedCandidate) validMappings.set(sourceKey, selectedCandidate.name);

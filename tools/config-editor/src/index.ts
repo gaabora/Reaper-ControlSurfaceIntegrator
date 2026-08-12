@@ -9,6 +9,8 @@ export * from "./product-identity.ts";
 export * from "./product-config.ts";
 export * from "./server.ts";
 export * from "./snippet.ts";
+export * from "./snippet-workflow.ts";
+export * from "./widget-capabilities.ts";
 export * from "./store.ts";
 export * from "./surface.ts";
 export * from "./validation.ts";

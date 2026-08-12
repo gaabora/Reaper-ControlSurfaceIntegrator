@@ -6,6 +6,7 @@ import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
 import { ProductPathError, ProductRootGuard } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
+import { applySnippetApplication, importSnippet, previewSnippetApplication, previewSnippetImport, type SnippetApplicationRequest, type SnippetApplyRequest, type SnippetBindingChoice, type SnippetConflictAction, type SnippetImportRequest } from "./snippet-workflow.ts";
 import type { SaveChange } from "./store.ts";
 import { ConfigurationStore, EditorOperationError } from "./store.ts";
 import { createEditorHtml, createEditorTranslationsJson, EDITOR_CSS, EDITOR_JAVASCRIPT } from "./ui.ts";
@@ -63,6 +64,11 @@ function stringField(body: Record<string, unknown>, key: string): string {
     const value = body[key];
     if (typeof value !== "string") throw new EditorOperationError("request.field", `${key} must be a string`);
     return value;
+}
+
+function optionalStringField(body: Record<string, unknown>, key: string, defaultValue = ""): string {
+    if (body[key] === undefined) return defaultValue;
+    return stringField(body, key);
 }
 
 function booleanField(body: Record<string, unknown>, key: string): boolean {
@@ -126,6 +132,41 @@ function saveChange(value: unknown): SaveChange {
     return { originalHash, path: stringField(body, "path"), source: stringField(body, "source") };
 }
 
+function snippetConflictAction(body: Record<string, unknown>, key = "conflictAction"): SnippetConflictAction {
+    const action = optionalStringField(body, key) as SnippetConflictAction;
+    if (!["", "create", "rename", "replace", "skip"].includes(action)) throw new EditorOperationError("request.snippet.action", `Unsupported snippet conflict action: ${action}`);
+    return action;
+}
+
+function snippetBindingChoice(value: unknown): SnippetBindingChoice {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.snippet.choice", "Each snippet binding choice must be an object");
+    const body = value as Record<string, unknown>;
+    return { allowIncompatible: optionalBooleanField(body, "allowIncompatible"), bindingId: stringField(body, "bindingId"), confirmed: booleanField(body, "confirmed"), widgetName: stringField(body, "widgetName") };
+}
+
+function snippetApplicationRequest(body: Record<string, unknown>): SnippetApplicationRequest {
+    if (!Array.isArray(body.bindingChoices)) throw new EditorOperationError("request.snippet.choices", "bindingChoices must be an array");
+    return {
+        applicationId: optionalStringField(body, "applicationId"),
+        bindingChoices: body.bindingChoices.map(snippetBindingChoice),
+        conflictAction: snippetConflictAction(body),
+        renamedApplicationId: optionalStringField(body, "renamedApplicationId") || undefined,
+        snippetPath: stringField(body, "snippetPath"),
+        surfacePath: stringField(body, "surfacePath"),
+        targetZonePath: stringField(body, "targetZonePath"),
+    };
+}
+
+function snippetApplyRequest(body: Record<string, unknown>): SnippetApplyRequest {
+    return { ...snippetApplicationRequest(body), snippetHash: stringField(body, "snippetHash"), surfaceHash: stringField(body, "surfaceHash"), targetHash: stringField(body, "targetHash") };
+}
+
+function snippetImportRequest(body: Record<string, unknown>): SnippetImportRequest {
+    const targetHash = body.targetHash;
+    if (targetHash !== null && typeof targetHash !== "string") throw new EditorOperationError("request.snippet.hash", "targetHash must be a string or null");
+    return { action: snippetConflictAction(body, "action"), fileName: stringField(body, "fileName"), source: stringField(body, "source"), sourceHash: stringField(body, "sourceHash"), targetHash, targetPath: stringField(body, "targetPath") };
+}
+
 function errorResponse(error: unknown): Response {
     if (error instanceof SyntaxError) return jsonResponse({ error: { code: "request.json", message: "Request body is not valid JSON" } }, 400);
     if (error instanceof ProductPathError) return jsonResponse({ error: { code: "path.invalid", message: error.message } }, 400);
@@ -177,6 +218,13 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 return jsonResponse({ preview: await legacySource!.preview(store, knownActions, stringField(body, "surfaceName"), booleanField(body, "includeSurface"), selectedZonePaths, legacyWidgetMappings(body, true), optionalBooleanField(body, "useExistingSurface")) });
             }
             if (requestUrl.pathname === "/api/legacy/import" && request.method === "POST") return jsonResponse({ report: await legacySource!.import(store, knownActions, legacyImportRequest(await requestBody(request))) });
+            if (requestUrl.pathname === "/api/snippet/apply-preview" && request.method === "POST") return jsonResponse({ preview: await previewSnippetApplication(store, knownActions, snippetApplicationRequest(await requestBody(request))) });
+            if (requestUrl.pathname === "/api/snippet/apply" && request.method === "POST") return jsonResponse({ report: await applySnippetApplication(store, knownActions, snippetApplyRequest(await requestBody(request))) });
+            if (requestUrl.pathname === "/api/snippet/import-preview" && request.method === "POST") {
+                const body = await requestBody(request);
+                return jsonResponse({ preview: await previewSnippetImport(store, knownActions, stringField(body, "fileName"), stringField(body, "source"), optionalStringField(body, "targetPath") || undefined) });
+            }
+            if (requestUrl.pathname === "/api/snippet/import" && request.method === "POST") return jsonResponse({ report: await importSnippet(store, knownActions, snippetImportRequest(await requestBody(request))) });
             if (requestUrl.pathname === "/api/tree" && request.method === "GET") return jsonResponse({ entries: await store.tree() });
             if (requestUrl.pathname === "/api/file" && request.method === "GET") {
                 const relativePath = requestUrl.searchParams.get("path");

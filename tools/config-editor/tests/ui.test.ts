@@ -16,5 +16,14 @@ describe("browser UI bindings", () => {
         expect(EDITOR_CSS).toContain(":root");
         expect(EDITOR_JAVASCRIPT).toContain('fetch("/app-translations.json")');
         expect(EDITOR_JAVASCRIPT).toContain('showReport({ message: translate("status.importedLegacy"');
+        expect(EDITOR_JAVASCRIPT).toContain('api("/api/snippet/apply"');
+        expect(EDITOR_JAVASCRIPT).toContain('api("/api/snippet/import"');
+        expect(html).toContain('id="task-home"');
+        expect(html).toContain('id="workflow-snippet"');
+        expect(html).toContain('id="workflow-edit"');
+        expect(html).toContain('id="snippet-bindings"');
+        expect(html).toContain('id="export-snippet"');
+        expect(html).not.toContain('id="snippet-preview"');
+        expect(html).not.toContain('id="snippet-import-preview"');
     });
 });
