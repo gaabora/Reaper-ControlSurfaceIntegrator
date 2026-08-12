@@ -9,6 +9,7 @@
 - `OSK on-screen keyboard.lua`, `OSD on-screen display.lua`, and `OSK state debug.lua` entry scripts.
 - `product_identity.conf` canonical public identity and `product_identity.lua` runtime loader.
 - Shared Lua modules for data parsing, configuration editing, input, rendering, settings, and UI behavior directly under `Scripts/`.
+- `osk_zone_create.lua` small zone-scaffold dialog and its `ZoneCreate` request/status state.
 - Installation and linked-development assumptions for the Lua runtime.
 
 ## Local Contracts
@@ -41,6 +42,7 @@
 - Keep OSK font size, font family, wrapped-label line-height, and label-case controls in the OSK context menu near zoom.
 - Keep OSK wheel inversion in the context menu with interactive-control settings; ReaImGui exposes wheel delta but not reliable mouse-wheel versus trackpad source.
 - Show OSK hover tooltips with the default binding first and `+ `-prefixed alternate bindings for modifiers, Hold, DoublePress, and combined pseudo-modifier entries.
+- Keep full surface, zone, snippet, import, export, and dependency editing out of OSK. Zone creation may create one validated empty scaffold but must not edit a parent zone.
 
 ## Work Guidance
 

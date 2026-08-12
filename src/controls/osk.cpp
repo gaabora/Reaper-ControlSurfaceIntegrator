@@ -1,6 +1,7 @@
 // osk.cpp — ControlSurface OSK (On-Screen Keyboard) member implementations.
 
 #include "integrator.h"
+#include "zone_file_creator.h"
 
 static string BuildTimestampForBackup() {
     time_t rawTime = time(nullptr);
@@ -31,6 +32,12 @@ static void PublishConfigStatus(const string& outcome, const string& operation, 
         + "|" + SanitizeConfigStatusField(zoneName)
         + "|" + SanitizeConfigStatusField(message);
     const string scopedKey = "ConfigStatus_" + surfaceName + "_" + widgetName;
+    ::SetExtState(ProductIdentity::ExtStateOsk, scopedKey.c_str(), status.c_str(), false);
+}
+
+static void PublishZoneCreateStatus(const string& surfaceName, const string& outcome, const string& path, const string& message) {
+    const string status = SanitizeConfigStatusField(outcome) + "|" + SanitizeConfigStatusField(path) + "|" + SanitizeConfigStatusField(message);
+    const string scopedKey = "ZoneCreateStatus_" + surfaceName;
     ::SetExtState(ProductIdentity::ExtStateOsk, scopedKey.c_str(), status.c_str(), false);
 }
 
@@ -1280,6 +1287,25 @@ void ControlSurface::HandleOSKConfigRevert(const string& widgetName) {
     this->PublishOSKState();
     this->PublishOSKLabelMap();
     PublishConfigStatus("OK", "Revert", this->name_, widgetName, "", "Reverted from disk");
+}
+
+void ControlSurface::HandleOSKZoneCreate(const string& scaffoldType, const string& zoneName, const string& alias, const string& navigator) {
+    const ZoneFileCreateResult result = ZoneFileCreator::Create(this->zoneManager_.get(), { scaffoldType, zoneName, alias, navigator });
+    if (!result.success) {
+        PublishZoneCreateStatus(this->name_, "ERR", result.path, result.message);
+        return;
+    }
+    try {
+        this->oskConfigZoneNamesByWidget_.clear();
+        this->oskConfigZonePathsByWidget_.clear();
+        this->zoneManager_->ReloadFromDisk();
+        this->PublishOSKLabels();
+        this->PublishOSKState();
+        this->PublishOSKLabelMap();
+        PublishZoneCreateStatus(this->name_, "OK", result.path, result.message);
+    } catch (const std::exception& error) {
+        PublishZoneCreateStatus(this->name_, "ERR", result.path, string("Zone was created, but reload failed: ") + error.what());
+    }
 }
 
 void ControlSurface::PublishOSKLabelMap() {

@@ -217,13 +217,14 @@ Ready when a function group can move between compatible surfaces without fixed v
 
 ### Phase 8. Small zone-file creation from Lua OSK
 
-- Add a Lua command that asks C++ to create one minimal valid zone file.
-- Provide scaffold templates for normal, FX, subzone, included, and other supported zone forms.
-- Validate the name, required fields, profile, destination, path containment, and case-insensitive duplicates in C++.
-- Create the file through a completed temporary file, reload zones, and return its path or an actionable error.
-- Do not modify a parent zone automatically in the first version.
-- Treat `Create and link to parent` as a later multi-file operation if it is still useful.
-- Keep full editing, dependency changes, legacy import, and snippet management in the Bun editor.
+- ✅ Add a Lua command that asks C++ to create one minimal valid zone file.
+- ✅ Provide scaffold templates for normal, Home, Go, FX, subzone, included, and Learn zone forms.
+- ✅ Validate the name, required fields, profile, destination, path containment, and case-insensitive duplicates in C++.
+- ✅ Create the file through a completed temporary file, reload zones, and return its path or an actionable error.
+- ✅ Do not modify a parent zone automatically in the first version.
+- ✅ Treat `Create and link to parent` as a later multi-file operation if it is still useful.
+- ✅ Keep full editing, dependency changes, legacy import, and snippet management in the Bun editor.
+- Verify the C++ build, Lua self-checks, and focused OSK creation cases after explicit approval.
 
 Ready when OSK can safely create any supported one-file zone scaffold without becoming a second full configuration editor.
 

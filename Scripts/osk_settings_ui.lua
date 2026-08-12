@@ -38,6 +38,9 @@ function M.RenderContextMenu(ctx, popupId, surfName, deps)
         ui.ItemTooltip(ctx, action.tooltip)
     end
 
+    if imgui.MenuItem(ctx, "Create zone file...") and deps.onCreateZone then deps.onCreateZone(surfName) end
+    ui.ItemTooltip(ctx, "Create one empty zone file in the current surface profile")
+
     imgui.Separator(ctx)
     sliderSetting(ctx, "Zoom", theme.osk.zoom, function(value)
         theme.osk.zoom = value

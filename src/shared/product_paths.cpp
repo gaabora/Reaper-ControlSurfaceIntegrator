@@ -135,18 +135,21 @@ std::optional<std::filesystem::path> ProductPaths::FindZoneProfileDirectory(cons
 std::filesystem::path ProductPaths::MainZones(ZoneSource source, const std::string& profileId) const { return this->ZoneProfileDirectory(source, profileId) / "Main"; }
 std::filesystem::path ProductPaths::FxZones(ZoneSource source, const std::string& profileId) const { return this->ZoneProfileDirectory(source, profileId) / "FX"; }
 
-std::optional<std::string> ProductPaths::VendorZoneProfileIdForPath(const std::filesystem::path& zonePath) const {
-    const std::filesystem::path canonicalVendorRoot = std::filesystem::weakly_canonical(std::filesystem::absolute(this->VendorZonesRoot()));
+std::optional<std::string> ProductPaths::ZoneProfileIdForPath(const std::filesystem::path& root, const std::filesystem::path& zonePath) {
+    const std::filesystem::path canonicalRoot = std::filesystem::weakly_canonical(std::filesystem::absolute(root));
     const std::filesystem::path canonicalZonePath = std::filesystem::weakly_canonical(std::filesystem::absolute(zonePath));
-    if (!ProductPaths::IsContainedPath(canonicalVendorRoot, canonicalZonePath)) return std::nullopt;
-    const std::filesystem::path relativePath = canonicalZonePath.lexically_relative(canonicalVendorRoot);
+    if (!ProductPaths::IsContainedPath(canonicalRoot, canonicalZonePath)) return std::nullopt;
+    const std::filesystem::path relativePath = canonicalZonePath.lexically_relative(canonicalRoot);
     if (relativePath.empty() || relativePath.begin() == relativePath.end()) return std::nullopt;
     const std::string profileId = (*relativePath.begin()).string();
     if (!ProductPaths::IsStableId(profileId)) return std::nullopt;
-    const std::filesystem::path vendorProfile = this->ZoneProfileDirectory(ZoneSource::Vendor, profileId);
-    if (!ProductPaths::IsContainedPath(vendorProfile, canonicalZonePath)) return std::nullopt;
+    const std::filesystem::path profileRoot = canonicalRoot / profileId;
+    if (!ProductPaths::IsContainedPath(profileRoot, canonicalZonePath)) return std::nullopt;
     return profileId;
 }
+
+std::optional<std::string> ProductPaths::UserZoneProfileIdForPath(const std::filesystem::path& zonePath) const { return ProductPaths::ZoneProfileIdForPath(this->UserZonesRoot(), zonePath); }
+std::optional<std::string> ProductPaths::VendorZoneProfileIdForPath(const std::filesystem::path& zonePath) const { return ProductPaths::ZoneProfileIdForPath(this->VendorZonesRoot(), zonePath); }
 
 std::filesystem::path ProductPaths::UserZonePathForVendorPath(const std::string& profileId, const std::filesystem::path& vendorZonePath) const {
     const std::filesystem::path vendorProfile = this->ZoneProfileDirectory(ZoneSource::Vendor, profileId);

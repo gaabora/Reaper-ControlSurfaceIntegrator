@@ -25,6 +25,7 @@ private:
     static void AddSurfaceIds(const std::filesystem::path& root, std::unordered_map<std::string, std::string>& idsByLowercase);
     static bool IsContainedPath(const std::filesystem::path& root, const std::filesystem::path& candidate);
     static bool IsStableId(const std::string& value);
+    static std::optional<std::string> ZoneProfileIdForPath(const std::filesystem::path& root, const std::filesystem::path& zonePath);
     static std::filesystem::path StableIdChild(const std::filesystem::path& root, const std::string& stableId);
     static std::filesystem::path StableIdFile(const std::filesystem::path& root, const std::string& stableId, const std::string& extension);
 
@@ -51,6 +52,7 @@ public:
     std::optional<std::filesystem::path> FindZoneProfileDirectory(const std::string& profileId) const;
     std::filesystem::path MainZones(ZoneSource source, const std::string& profileId) const;
     std::filesystem::path FxZones(ZoneSource source, const std::string& profileId) const;
+    std::optional<std::string> UserZoneProfileIdForPath(const std::filesystem::path& zonePath) const;
     std::optional<std::string> VendorZoneProfileIdForPath(const std::filesystem::path& zonePath) const;
     std::filesystem::path UserZonePathForVendorPath(const std::string& profileId, const std::filesystem::path& vendorZonePath) const;
     void CloneVendorZoneProfileToUser(const std::string& profileId) const;

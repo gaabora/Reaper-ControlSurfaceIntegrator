@@ -38,6 +38,7 @@ Keys in `ReaCtrlSurf_OSK`:
 | `ConfigZoneName_<surface>_<widget>` | Active edit-target zone name |
 | `ConfigZonePath_<surface>_<widget>` | Active edit-target zone file path |
 | `ConfigStatus_<surface>_<widget>` | Structured operation status |
+| `ZoneCreateStatus_<surface>` | `outcome|path|message` for one zone-file creation request |
 
 Configuration status format:
 
@@ -91,6 +92,9 @@ Keys in `ReaCtrlSurf_OSK_CMD`:
 | `ConfigRevert` | `surface|widget` |
 | `ActionListQuery` | Empty payload |
 | `SurfaceEnabled` | `surface|0-or-1` |
+| `ZoneCreate` | `surface|scaffoldType|zoneName|alias|navigator` |
+
+`ZoneCreate` supports `main`, `home`, `go`, `subzone`, `included`, `learn`, and `fx` scaffold types. C++ resolves the active surface profile and writes only below its user profile. A vendor profile requires confirmation and a complete user-profile copy first. The command creates one file and does not add it to a parent zone. `zoneName` is also the file stem and uses ASCII letters, digits, `_`, and `-`. The optional alias must not contain `|`, quotes, or line breaks. The optional navigator is empty or one of the navigator names offered by the OSK dialog.
 
 `WidgetScroll` uses a non-negative acceleration index and an event count from `-8` to
 `8`, excluding zero. The sign is the direction. Lua rate-limits and coalesces wheel

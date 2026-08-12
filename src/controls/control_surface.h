@@ -477,4 +477,5 @@ public:
     void HandleOSKConfigApplyLive(const string& widgetName, const string& bindingData);
     void HandleOSKConfigSave(const string& widgetName);
     void HandleOSKConfigRevert(const string& widgetName);
+    void HandleOSKZoneCreate(const string& scaffoldType, const string& zoneName, const string& alias, const string& navigator);
 };
