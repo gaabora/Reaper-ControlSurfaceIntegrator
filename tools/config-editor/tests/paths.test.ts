@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { t } from "../src/i18n.ts";
@@ -38,8 +38,27 @@ describe("REAPER data path", () => {
 
     test("adds the product directory internally", async () => {
         const guard = await ProductRootGuard.createFromReaperDataPath(reaperDataPath, identity);
-        expect(guard.getReaperDataPath()).toBe(await realpath(reaperDataPath));
-        expect(guard.getRoot()).toBe(await realpath(path.join(reaperDataPath, identity.resourceDirectory)));
+        expect(guard.getReaperDataPath()).toBe(path.resolve(reaperDataPath));
+        expect(guard.getRoot()).toBe(path.resolve(reaperDataPath, identity.resourceDirectory));
+    });
+
+    test("follows linked configuration directories and stops link cycles", async () => {
+        if (process.platform === "win32") return;
+        const configurationPath = path.join(reaperDataPath, identity.resourceDirectory);
+        const linkedSurfaces = path.join(temporaryRoot, "linked-surfaces");
+        const linkedUser = path.join(linkedSurfaces, "User");
+        await mkdir(linkedUser, { recursive: true });
+        await writeFile(path.join(linkedUser, "linked.txt"), "// @format surface 1\nWidget Linked\nWidgetEnd\n", "utf8");
+        await symlink(linkedUser, path.join(linkedUser, "loop"));
+        await symlink(linkedSurfaces, path.join(configurationPath, "Surfaces"));
+
+        const guard = await ProductRootGuard.createFromReaperDataPath(reaperDataPath, identity);
+        expect(await guard.resolveExisting("Surfaces/User/linked.txt")).toBe(await realpath(path.join(linkedUser, "linked.txt")));
+        const surfaces = (await guard.listTree()).find((entry) => entry.path === "Surfaces");
+        const user = surfaces?.children?.find((entry) => entry.path === "Surfaces/User");
+        expect(surfaces?.kind).toBe("directory");
+        expect(user?.children?.find((entry) => entry.path === "Surfaces/User/linked.txt")?.kind).toBe("file");
+        expect(user?.children?.find((entry) => entry.path === "Surfaces/User/loop")?.reason).toBe("Directory link cycle");
     });
 });
 

@@ -482,7 +482,7 @@ elements.legacyImport.addEventListener("click", async () => {
         });
         await refreshTree();
         await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
-        showReport(translate("status.importedLegacy", { count: result.report.changed.length + result.report.created.length }));
+        showReport({ message: translate("status.importedLegacy", { count: result.report.changed.length + result.report.created.length }), ...result.report });
     } catch (error) { showError(error); }
 });
 

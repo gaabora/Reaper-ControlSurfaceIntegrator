@@ -1,4 +1,4 @@
-import { copyFile, lstat, mkdir, open, readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import type { AnyDocument } from "./formats.ts";
@@ -129,7 +129,7 @@ export class ConfigurationStore {
         this.guard.getPathInfo(relativePath);
         const absolutePath = await this.guard.resolveForWrite(relativePath);
         try {
-            const stats = await lstat(absolutePath);
+            const stats = await stat(absolutePath);
             if (!stats.isFile()) throw new EditorOperationError("path.file", `Configuration target is not a file: ${relativePath}`);
             return { exists: true, hash: sha256(await readFile(absolutePath)) };
         } catch (error) {
@@ -288,7 +288,7 @@ export class ConfigurationStore {
         try {
             await mkdir(path.dirname(targetRoot), { recursive: true });
             await mkdir(temporaryRoot);
-            await this.copyDirectory(sourceRoot, temporaryRoot, sourceRelativePath, report);
+            await this.copyDirectory(sourceRoot, temporaryRoot, sourceRelativePath, report, new Set());
             await rename(temporaryRoot, targetRoot);
             return report;
         } catch (error) {
@@ -298,16 +298,20 @@ export class ConfigurationStore {
         }
     }
 
-    private async copyDirectory(sourceDirectory: string, targetDirectory: string, sourceRelativeDirectory: string, report: OperationReport): Promise<void> {
+    private async copyDirectory(sourceDirectory: string, targetDirectory: string, sourceRelativeDirectory: string, report: OperationReport, ancestorDirectories: Set<string>): Promise<void> {
+        const canonicalDirectory = await realpath(sourceDirectory);
+        if (ancestorDirectories.has(canonicalDirectory)) throw new EditorOperationError("clone.cycle", `Vendor profile contains a directory link cycle: ${sourceRelativeDirectory}`);
+        const currentAncestors = new Set(ancestorDirectories);
+        currentAncestors.add(canonicalDirectory);
         for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
             const sourcePath = path.join(sourceDirectory, entry.name);
             const targetPath = path.join(targetDirectory, entry.name);
             const sourceRelativePath = `${sourceRelativeDirectory}/${entry.name}`;
-            if (entry.isSymbolicLink()) throw new EditorOperationError("clone.symlink", `Vendor profile contains a symbolic link: ${sourceRelativePath}`);
-            if (entry.isDirectory()) {
+            const sourceStats = await stat(sourcePath);
+            if (sourceStats.isDirectory()) {
                 await mkdir(targetPath);
-                await this.copyDirectory(sourcePath, targetPath, sourceRelativePath, report);
-            } else if (entry.isFile()) {
+                await this.copyDirectory(sourcePath, targetPath, sourceRelativePath, report, currentAncestors);
+            } else if (sourceStats.isFile()) {
                 await copyFile(sourcePath, targetPath);
                 report.created.push(sourceRelativePath.replace("Zones/Vendor/", "Zones/User/"));
             } else {
@@ -328,7 +332,7 @@ export class ConfigurationStore {
         let existingMode = 0o600;
         let currentHash: string | null = null;
         try {
-            const targetStats = await lstat(targetPath);
+            const targetStats = await stat(targetPath);
             if (!targetStats.isFile()) throw new EditorOperationError("path.file", `Configuration target is not a file: ${change.path}`);
             existed = true;
             existingMode = (await stat(targetPath)).mode;
@@ -368,7 +372,7 @@ export class ConfigurationStore {
     private async assertOriginalUnchanged(prepared: PreparedChange): Promise<void> {
         let currentHash: string | null = null;
         try {
-            const currentStats = await lstat(prepared.targetPath);
+            const currentStats = await stat(prepared.targetPath);
             if (!currentStats.isFile()) throw new EditorOperationError("path.file", `Configuration target is not a file: ${prepared.path}`);
             currentHash = sha256(await readFile(prepared.targetPath));
         } catch (error) {

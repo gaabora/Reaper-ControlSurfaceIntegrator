@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { ProductRootGuard } from "../src/paths.ts";
@@ -101,14 +101,19 @@ describe("configuration store", () => {
         expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "notes.txt"), "utf8")).toBe("profile notes\n");
     });
 
-    test("symbolic link escapes are rejected", async () => {
+    test("symbolic link files are followed", async () => {
         if (process.platform === "win32") return;
         const outsidePath = path.join(temporaryRoot, "outside.txt");
-        const linkPath = path.join(productRoot, "Surfaces", "User", "escaped.txt");
-        await writeFile(outsidePath, "Widget Escape\nWidgetEnd\n", "utf8");
+        const linkPath = path.join(productRoot, "Surfaces", "User", "linked.txt");
+        const originalSource = "// @format surface 1\nWidget Escape\nWidgetEnd\n";
+        const changedSource = originalSource.replace("Escape", "Linked");
+        await writeFile(outsidePath, originalSource, "utf8");
         await symlink(outsidePath, linkPath);
         const store = await createStore();
-        await expect(store.openDocument("Surfaces/User/escaped.txt")).rejects.toThrow("Symbolic links are not allowed");
+        const opened = await store.openDocument("Surfaces/User/linked.txt");
+        await store.saveOne({ originalHash: opened.hash, path: opened.path, source: changedSource });
+        expect(await readFile(outsidePath, "utf8")).toBe(changedSource);
+        expect((await lstat(linkPath)).isSymbolicLink()).toBeTrue();
     });
 
     test("case-only path conflicts are rejected", async () => {

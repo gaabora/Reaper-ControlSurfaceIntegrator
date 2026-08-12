@@ -1,4 +1,4 @@
-import { lstat, readdir, realpath } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { TranslationKey } from "./i18n.ts";
@@ -88,7 +88,7 @@ export async function discoverReaperDataPaths(explicitPath?: string): Promise<Re
         seen.add(key);
         let exists = false;
         try {
-            exists = (await lstat(absolutePath)).isDirectory();
+            exists = (await stat(absolutePath)).isDirectory();
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
@@ -102,27 +102,27 @@ export class ProductRootGuard {
 
     static async create(selectedRoot: string, identity: EditorProductIdentity): Promise<ProductRootGuard> {
         if (!path.isAbsolute(selectedRoot)) throw new ProductPathError("Configuration folder must be an absolute path");
-        const stats = await lstat(selectedRoot);
+        const stats = await stat(selectedRoot);
         if (!stats.isDirectory()) throw new ProductPathError("Configuration folder is not a directory");
-        const canonicalRoot = await realpath(selectedRoot);
-        if (path.basename(canonicalRoot) !== identity.resourceDirectory) throw new ProductPathError(`Selected directory must be named ${identity.resourceDirectory}`);
-        const entries = new Set((await readdir(canonicalRoot)).map((name) => name));
+        const resolvedRoot = path.resolve(selectedRoot);
+        if (path.basename(resolvedRoot) !== identity.resourceDirectory) throw new ProductPathError(`Selected directory must be named ${identity.resourceDirectory}`);
+        const entries = new Set((await readdir(resolvedRoot)).map((name) => name));
         if (!entries.has(identity.configFilename) && ![...TOP_LEVEL_DIRECTORIES].some((name) => entries.has(name))) throw new ProductPathError("The app configuration folder is empty or invalid");
-        return new ProductRootGuard(identity, canonicalRoot);
+        return new ProductRootGuard(identity, resolvedRoot);
     }
 
     static async createFromReaperDataPath(reaperDataPath: string, identity: EditorProductIdentity): Promise<ProductRootGuard> {
         if (!path.isAbsolute(reaperDataPath)) throw new ProductPathError("REAPER data path must be an absolute path");
         let stats: Awaited<ReturnType<typeof lstat>>;
         try {
-            stats = await lstat(reaperDataPath);
+            stats = await stat(reaperDataPath);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new ProductPathError("REAPER data path does not exist");
             throw error;
         }
         if (!stats.isDirectory()) throw new ProductPathError("REAPER data path is not a directory");
-        const canonicalDataPath = await realpath(reaperDataPath);
-        const configurationPath = path.join(canonicalDataPath, identity.resourceDirectory);
+        const resolvedDataPath = path.resolve(reaperDataPath);
+        const configurationPath = path.join(resolvedDataPath, identity.resourceDirectory);
         try {
             return await ProductRootGuard.create(configurationPath, identity);
         } catch (error) {
@@ -153,35 +153,31 @@ export class ProductRootGuard {
         const segments = relativeSegments(relativePath);
         const candidate = path.join(this.root, ...segments);
         await this.rejectCaseConflicts(segments);
-        await this.rejectSymlinks(segments, true);
-        const canonicalPath = await realpath(candidate);
-        if (!isContainedPath(this.root, canonicalPath)) throw new ProductPathError(`Configuration path escapes the app configuration folder: ${relativePath}`);
-        return canonicalPath;
+        if (!isContainedPath(this.root, path.resolve(candidate))) throw new ProductPathError(`Configuration path escapes the app configuration folder: ${relativePath}`);
+        return realpath(candidate);
     }
 
     async resolveForWrite(relativePath: string): Promise<string> {
         const segments = relativeSegments(relativePath);
         const candidate = path.join(this.root, ...segments);
         await this.rejectCaseConflicts(segments);
-        await this.rejectSymlinks(segments, false);
         if (!isContainedPath(this.root, path.resolve(candidate))) throw new ProductPathError(`Configuration path escapes the app configuration folder: ${relativePath}`);
-        return candidate;
+        return this.resolveWriteTarget(candidate);
     }
 
     async listTree(): Promise<ProductTreeEntry[]> {
         const entries: ProductTreeEntry[] = [];
         try {
             const configPath = await this.resolveExisting(this.identity.configFilename);
-            if ((await lstat(configPath)).isFile()) entries.push({ kind: "file", name: this.identity.configFilename, path: this.identity.configFilename, type: "product-config", writable: true });
+            if ((await stat(configPath)).isFile()) entries.push({ kind: "file", name: this.identity.configFilename, path: this.identity.configFilename, type: "product-config", writable: true });
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") entries.push({ kind: "blocked", name: this.identity.configFilename, path: this.identity.configFilename, reason: error instanceof Error ? error.message : String(error) });
         }
         for (const directoryName of [...TOP_LEVEL_DIRECTORIES].sort()) {
             const directoryPath = path.join(this.root, directoryName);
             try {
-                const stats = await lstat(directoryPath);
-                if (stats.isSymbolicLink()) entries.push({ kind: "blocked", name: directoryName, path: directoryName, reason: "Symbolic links are not allowed" });
-                else if (stats.isDirectory()) entries.push(await this.listDirectory(directoryName));
+                const stats = await stat(directoryPath);
+                if (stats.isDirectory()) entries.push(await this.listDirectory(directoryName, new Set()));
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
             }
@@ -189,33 +185,33 @@ export class ProductRootGuard {
         return entries;
     }
 
-    private async listDirectory(relativeDirectory: string): Promise<ProductTreeEntry> {
+    private async listDirectory(relativeDirectory: string, ancestorDirectories: Set<string>): Promise<ProductTreeEntry> {
         const absoluteDirectory = path.join(this.root, ...relativeDirectory.split("/"));
+        const canonicalDirectory = await realpath(absoluteDirectory);
+        if (ancestorDirectories.has(canonicalDirectory)) return { kind: "blocked", name: path.posix.basename(relativeDirectory), path: relativeDirectory, reason: "Directory link cycle" };
+        const currentAncestors = new Set(ancestorDirectories);
+        currentAncestors.add(canonicalDirectory);
         const children: ProductTreeEntry[] = [];
         for (const entry of (await readdir(absoluteDirectory, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name))) {
             const relativePath = `${relativeDirectory}/${entry.name}`;
-            if (entry.isSymbolicLink()) children.push({ kind: "blocked", name: entry.name, path: relativePath, reason: "Symbolic links are not allowed" });
-            else if (entry.isDirectory()) children.push(await this.listDirectory(relativePath));
-            else if (entry.isFile()) {
+            const entryPath = path.join(absoluteDirectory, entry.name);
+            let entryStats: Awaited<ReturnType<typeof stat>>;
+            try {
+                entryStats = await stat(entryPath);
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+                    children.push({ kind: "blocked", name: entry.name, path: relativePath, reason: "Link target is unavailable" });
+                    continue;
+                }
+                throw error;
+            }
+            if (entryStats.isDirectory()) children.push(await this.listDirectory(relativePath, currentAncestors));
+            else if (entryStats.isFile()) {
                 const info = classifyConfigPath(relativePath, this.identity);
                 if (info) children.push({ kind: "file", name: entry.name, path: relativePath, type: info.kind, writable: info.writable });
             }
         }
         return { children, kind: "directory", name: path.posix.basename(relativeDirectory), path: relativeDirectory };
-    }
-
-    private async rejectSymlinks(segments: string[], requireLeaf: boolean): Promise<void> {
-        let currentPath = this.root;
-        for (const [segmentIdx, segment] of segments.entries()) {
-            currentPath = path.join(currentPath, segment);
-            try {
-                const stats = await lstat(currentPath);
-                if (stats.isSymbolicLink()) throw new ProductPathError(`Symbolic links are not allowed in configuration paths: ${segments.slice(0, segmentIdx + 1).join("/")}`);
-            } catch (error) {
-                if ((error as NodeJS.ErrnoException).code === "ENOENT" && !requireLeaf) return;
-                throw error;
-            }
-        }
     }
 
     private async rejectCaseConflicts(segments: string[]): Promise<void> {
@@ -232,6 +228,22 @@ export class ProductRootGuard {
             if (matches.length > 1 || matches.length === 1 && matches[0] !== segment) throw new ProductPathError(`Configuration path differs only by letter case: ${segments.slice(0, segmentIdx).concat(matches).join("/")}`);
             if (!matches.length) return;
             currentPath = path.join(currentPath, segment);
+        }
+    }
+
+    private async resolveWriteTarget(candidate: string): Promise<string> {
+        let existingAncestor = candidate;
+        const missingSegments: string[] = [];
+        while (true) {
+            try {
+                return path.join(await realpath(existingAncestor), ...missingSegments);
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+                const parent = path.dirname(existingAncestor);
+                if (parent === existingAncestor) throw error;
+                missingSegments.unshift(path.basename(existingAncestor));
+                existingAncestor = parent;
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { LegacyCsiSource } from "../src/legacy-import.ts";
@@ -84,5 +84,16 @@ describe("legacy CSI import", () => {
             expect(error).toBeInstanceOf(EditorOperationError);
             expect((error as EditorOperationError).code).toBe("legacy.resolution.required");
         }
+    });
+
+    test("follows linked legacy zone files", async () => {
+        if (process.platform === "win32") return;
+        const linkedSource = path.join(temporaryRoot, "Linked.zon");
+        await writeFile(linkedSource, "Zone Linked\n  Play Play\nZoneEnd\n", "utf8");
+        await symlink(linkedSource, path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "GoZones", "Linked.zon"));
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        expect(preview.selectedZonePaths).toContain("GoZones/Linked.zon");
+        expect(preview.valid).toBeTrue();
     });
 });

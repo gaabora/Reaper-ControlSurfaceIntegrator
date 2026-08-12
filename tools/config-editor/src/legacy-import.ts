@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { parseByPath, type AnyDocument } from "./formats.ts";
 import type { Diagnostic } from "./model.ts";
@@ -117,8 +117,7 @@ function collectDependencies(relativePath: string, semantic: ZoneSemantic, match
 
 async function isDirectory(directoryPath: string): Promise<boolean> {
     try {
-        const stats = await lstat(directoryPath);
-        return stats.isDirectory() && !stats.isSymbolicLink();
+        return (await stat(directoryPath)).isDirectory();
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
         throw error;
@@ -130,14 +129,14 @@ export class LegacyCsiSource {
 
     static async create(selectedPath: string): Promise<LegacyCsiSource> {
         if (!path.isAbsolute(selectedPath)) throw new EditorOperationError("legacy.path.absolute", "Legacy CSI path must be absolute");
-        let selectedStats: Awaited<ReturnType<typeof lstat>>;
+        let selectedStats: Awaited<ReturnType<typeof stat>>;
         try {
-            selectedStats = await lstat(selectedPath);
+            selectedStats = await stat(selectedPath);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new EditorOperationError("legacy.path.missing", "Legacy CSI path does not exist");
             throw error;
         }
-        if (!selectedStats.isDirectory() || selectedStats.isSymbolicLink()) throw new EditorOperationError("legacy.path.directory", "Legacy CSI path must be a normal directory, not a symbolic link");
+        if (!selectedStats.isDirectory()) throw new EditorOperationError("legacy.path.directory", "Legacy CSI path must be a directory");
         const canonicalSelection = await realpath(selectedPath);
         const candidates = [canonicalSelection, path.join(canonicalSelection, "CSI")];
         for (const candidate of candidates) if (await isDirectory(candidate) && await isDirectory(path.join(candidate, "Surfaces"))) return new LegacyCsiSource(await realpath(candidate));
@@ -152,8 +151,8 @@ export class LegacyCsiSource {
         const summaries: LegacySurfaceSummary[] = [];
         const surfacesRoot = path.join(this.root, "Surfaces");
         for (const entry of (await readdir(surfacesRoot, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name))) {
-            if (entry.isSymbolicLink() || !entry.isDirectory()) continue;
             const surfaceRoot = path.join(surfacesRoot, entry.name);
+            if (!await isDirectory(surfaceRoot)) continue;
             if (!await this.isRegularFile(path.join(surfaceRoot, "Surface.txt"))) continue;
             const zoneCount = await this.countZones(path.join(surfaceRoot, "Zones"));
             summaries.push({ name: entry.name, stableId: stableId(entry.name), zoneCount });
@@ -262,11 +261,11 @@ export class LegacyCsiSource {
     private async readSurfaceFiles(surfaceName: string): Promise<LegacySurfaceFiles> {
         if (!surfaceName || surfaceName.includes("/") || surfaceName.includes("\\") || surfaceName === "." || surfaceName === "..") throw new EditorOperationError("legacy.surface.name", "Legacy surface name is invalid");
         const surfaceRoot = path.join(this.root, "Surfaces", surfaceName);
-        const stats = await lstat(surfaceRoot).catch((error: NodeJS.ErrnoException) => {
+        const stats = await stat(surfaceRoot).catch((error: NodeJS.ErrnoException) => {
             if (error.code === "ENOENT") throw new EditorOperationError("legacy.surface.missing", `Legacy surface does not exist: ${surfaceName}`);
             throw error;
         });
-        if (!stats.isDirectory() || stats.isSymbolicLink()) throw new EditorOperationError("legacy.surface.directory", `Legacy surface is not a normal directory: ${surfaceName}`);
+        if (!stats.isDirectory()) throw new EditorOperationError("legacy.surface.directory", `Legacy surface is not a directory: ${surfaceName}`);
         const surfacePath = path.join(surfaceRoot, "Surface.txt");
         if (!await this.isRegularFile(surfacePath)) throw new EditorOperationError("legacy.surface.file", `Legacy surface has no regular Surface.txt file: ${surfaceName}`);
         const zones = await this.readZones(path.join(surfaceRoot, "Zones"));
@@ -283,34 +282,36 @@ export class LegacyCsiSource {
     }
 
     private async readZones(zonesRoot: string): Promise<LegacySourceFile[]> {
-        let rootStats: Awaited<ReturnType<typeof lstat>>;
+        let rootStats: Awaited<ReturnType<typeof stat>>;
         try {
-            rootStats = await lstat(zonesRoot);
+            rootStats = await stat(zonesRoot);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
             throw error;
         }
-        if (rootStats.isSymbolicLink()) throw new EditorOperationError("legacy.path.symlink", "Legacy Zones directory is a symbolic link");
         if (!rootStats.isDirectory()) throw new EditorOperationError("legacy.zones.directory", "Legacy Zones path is not a directory");
         const zones: LegacySourceFile[] = [];
-        const visit = async (directoryPath: string, relativeDirectory: string): Promise<void> => {
+        const visit = async (directoryPath: string, relativeDirectory: string, ancestorDirectories: Set<string>): Promise<void> => {
+            const canonicalDirectory = await realpath(directoryPath);
+            if (ancestorDirectories.has(canonicalDirectory)) throw new EditorOperationError("legacy.path.cycle", `Legacy zone path contains a directory link cycle: ${relativeDirectory}`);
+            const currentAncestors = new Set(ancestorDirectories);
+            currentAncestors.add(canonicalDirectory);
             for (const entry of (await readdir(directoryPath, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name))) {
                 const entryPath = path.join(directoryPath, entry.name);
                 const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
                 if (entry.name.includes("\\")) throw new EditorOperationError("legacy.path.separator", `Legacy zone path contains a backslash: ${relativePath}`);
-                if (entry.isSymbolicLink()) throw new EditorOperationError("legacy.path.symlink", `Legacy zone path is a symbolic link: ${relativePath}`);
-                if (entry.isDirectory()) await visit(entryPath, relativePath);
-                else if (entry.isFile() && entry.name.endsWith(".zon")) zones.push({ relativePath, source: await readFile(entryPath, "utf8") });
+                const entryStats = await stat(entryPath);
+                if (entryStats.isDirectory()) await visit(entryPath, relativePath, currentAncestors);
+                else if (entryStats.isFile() && entry.name.endsWith(".zon")) zones.push({ relativePath, source: await readFile(entryPath, "utf8") });
             }
         };
-        await visit(zonesRoot, "");
+        await visit(zonesRoot, "", new Set());
         return zones;
     }
 
     private async isRegularFile(filePath: string): Promise<boolean> {
         try {
-            const stats = await lstat(filePath);
-            return stats.isFile() && !stats.isSymbolicLink();
+            return (await stat(filePath)).isFile();
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
             throw error;

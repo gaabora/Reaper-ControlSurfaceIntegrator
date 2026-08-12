@@ -27,12 +27,13 @@
 - Keep parsers independent from the browser UI and file-writing service.
 - Bind the editor server only to `127.0.0.1` and require a random session token for every API request.
 - Let the user select only the REAPER `Data` directory. Derive the internal product configuration folder from product identity before file access.
-- Reject absolute child paths, `..`, unsupported locations, symbolic links, and paths outside the internal configuration folder.
+- Reject absolute child paths, `..`, and unsupported logical locations. Follow configuration file and directory links while applying ownership and write permissions to their logical paths.
 - Keep all fixed user-interface text in the typed English catalog in `src/i18n.ts`.
 - Write only the product config and user-owned surface, zone, and snippet paths. Clone vendor content before editing.
-- Keep a selected legacy CSI source separate from the writable product-root guard. Accept the legacy `CSI/` directory or its parent, reject source symbolic links, and never modify source files.
+- Keep a selected legacy CSI source separate from the writable product-root guard. Accept the legacy `CSI/` directory or its parent, follow source links, and never modify source files.
 - Import legacy `Surface.txt` and exact `Zones/**/*.zon` files into user-owned paths. Ignore backup names that do not end in `.zon`, add missing surface and zone format markers, and preserve zone subdirectories.
 - Require explicit `Rename`, `Replace`, or `Skip` decisions for existing import targets. Recheck source and target hashes before one validated multi-file transaction.
+- Show the complete legacy import operation report with changed, created, failed, restored, and skipped paths.
 - Check the open-file SHA-256 before save. Stage and validate complete files before atomic rename.
 - Back up and roll back multi-file operations and keep their manifest below the product `Backups` directory.
 
@@ -51,7 +52,7 @@
 - Run `bun run validate -- fixtures/valid` and confirm there are no errors.
 - Run `bun run validate -- fixtures/invalid` and confirm the command reports errors.
 - Run `bun run actions` and compare the catalog count with `ACTION_TYPE_LIST`.
-- Run focused store tests for conflicts, rollback, cloning, and symlink rejection.
+- Run focused store tests for conflicts, rollback, cloning, symlink traversal, and directory link cycles.
 - Run focused legacy import tests for source discovery, backup-file filtering, dependency selection, repeat conflicts, source immutability, and transactional writes.
 - Start the server with `--no-open` and confirm unauthenticated API access fails.
 - Build and launch each standalone target in its matching operating system before release.

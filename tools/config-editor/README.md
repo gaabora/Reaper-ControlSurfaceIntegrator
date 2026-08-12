@@ -49,17 +49,17 @@ bun run start -- --data-path "/absolute/REAPER/resource/Data"
 
 The browser opens no configuration files until the user clicks `Open`. The tree marks vendor surfaces, vendor zone profiles, and built-in snippets as read-only. Use `Make editable copy` before editing them. A vendor zone copy includes its complete profile.
 
-The default security policy rejects symbolic links anywhere below the app configuration folder. This prevents a selected file path from escaping that folder. A development configuration that links repository resource directories is therefore not editable with this first security mode; use a normal test copy when testing saves.
+The editor follows linked files and directories. This lets a development product root link `Surfaces`, `Zones`, and `Snippets` directly to repository resources. Access and write permissions still use the logical configuration path, so linked vendor content remains read-only and only supported paths below `User` are writable. Directory link cycles are shown as unavailable instead of being traversed.
 
 ## Legacy CSI import
 
-Open the target REAPER `Data` directory first. Expand `Import old CSI configuration`, enter either an old `CSI/` directory or its parent directory, and click `Open`. The source remains read-only and the importer rejects symbolic links below it.
+Open the target REAPER `Data` directory first. Expand `Import old CSI configuration`, enter either an old `CSI/` directory or its parent directory, and click `Open`. The source remains read-only and the importer follows linked files and directories.
 
 Choose a surface, include or exclude its `Surface.txt`, and select any `.zon` files. Selecting a zone also selects its single unambiguous `GoZone`, `GoSubZone`, `IncludedZones`, and `SubZones` dependencies. You can clear a dependency after automatic selection. Files whose names do not end exactly in `.zon`, such as `.zon~20260101` and `.zon1` backup files, are not imported.
 
 The preview shows migrated source text, target paths, syntax diagnostics, dependencies, and conflicts. Missing format markers are added as `// @format surface 1` or `// @format zone 1`. A legacy surface named `FaderPortV2` maps to `Surfaces/User/faderportv2.txt`, and its zones map below `Zones/User/faderportv2/` while keeping their relative subdirectories.
 
-Every existing target requires `Rename`, `Replace`, or `Skip`. Import is disabled while selected content has errors or a conflict has no decision. The server checks source and target hashes again, validates the final file set, and saves it through the normal multi-file transaction. The current importer reads only `Surface.txt` and zones below the legacy `Zones/` directory. Legacy `FXZones/` support and semantic widget replacement remain later Phase 5 work.
+Every existing target requires `Rename`, `Replace`, or `Skip`. Import is disabled while selected content has errors or a conflict has no decision. The server checks source and target hashes again, validates the final file set, and saves it through the normal multi-file transaction. The final report lists changed, created, failed, restored, and skipped paths. The current importer reads only `Surface.txt` and zones below the legacy `Zones/` directory. Legacy `FXZones/` support and semantic widget replacement remain later Phase 5 work.
 
 `actions:generate` writes `generated/action-catalog.json`. Generated output is not source-controlled. The catalog is rebuilt from `src/shared/types.h` and action documentation, so action names are not duplicated in TypeScript.
 
@@ -71,7 +71,7 @@ Each opened file includes a SHA-256 hash. Save fails with a conflict when the fi
 
 `Save all` stages and validates every file, then writes `Backups/<operation-id>/manifest.json`, copies original files into the operation backup, and commits each staged file. A commit failure restores every file already changed and records the rollback in the manifest and operation report.
 
-Only the main config and files below `Surfaces/User`, `Zones/User`, and `Snippets/User` are writable. API paths are relative to the app configuration folder. Absolute paths, `..`, backslash separators, unsupported locations, and symbolic links are rejected.
+Only the main config and files below `Surfaces/User`, `Zones/User`, and `Snippets/User` are writable. API paths are relative to the app configuration folder. Absolute paths, `..`, backslash separators, and unsupported logical locations are rejected. Symlink targets use the permissions of the logical API path.
 
 ## Local server
 

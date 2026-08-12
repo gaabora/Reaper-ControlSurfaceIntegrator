@@ -76,6 +76,8 @@ Default section order:
 
 ## User Preferences
 
+- Keep project diagnostic scripts under the repository `./tmp` directory. Do not put them in system temporary directories.
+
 When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
 
 ## Child DOX Index

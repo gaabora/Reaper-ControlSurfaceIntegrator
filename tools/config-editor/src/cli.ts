@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { lstat, readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { actionNameSet, loadActionCatalog, writeActionCatalog } from "./action-catalog.ts";
@@ -16,19 +16,20 @@ function printUsage(): void {
     console.log("  bun run src/cli.ts actions [--output <catalog.json>]");
 }
 
-async function collectConfigPaths(inputPath: string): Promise<string[]> {
+async function collectConfigPaths(inputPath: string, ancestorDirectories: Set<string> = new Set()): Promise<string[]> {
     const absolutePath = path.resolve(inputPath);
-    const stats = await lstat(absolutePath);
-    if (stats.isSymbolicLink()) throw new Error(`Symbolic link input is not allowed: ${absolutePath}`);
+    const stats = await stat(absolutePath);
     if (stats.isFile()) return isSupportedConfigPath(absolutePath) ? [absolutePath] : [];
     if (!stats.isDirectory()) return [];
+    const canonicalDirectory = await realpath(absolutePath);
+    if (ancestorDirectories.has(canonicalDirectory)) return [];
+    const currentAncestors = new Set(ancestorDirectories);
+    currentAncestors.add(canonicalDirectory);
     const result: string[] = [];
     const entries = await readdir(absolutePath, { withFileTypes: true });
     for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
         const entryPath = path.join(absolutePath, entry.name);
-        if (entry.isSymbolicLink()) throw new Error(`Symbolic link input is not allowed: ${entryPath}`);
-        if (entry.isDirectory()) result.push(...await collectConfigPaths(entryPath));
-        else if (entry.isFile() && isSupportedConfigPath(entryPath)) result.push(entryPath);
+        result.push(...await collectConfigPaths(entryPath, currentAncestors));
     }
     return result;
 }
@@ -44,7 +45,7 @@ async function validateCommand(args: string[]): Promise<number> {
     if (!inputs.length) throw new Error("validate requires at least one file or directory");
     const catalog = await loadActionCatalog(repositoryRoot);
     const knownActions = actionNameSet(catalog);
-    const configPaths = [...new Set((await Promise.all(inputs.map(collectConfigPaths))).flat())].sort();
+    const configPaths = [...new Set((await Promise.all(inputs.map((input) => collectConfigPaths(input)))).flat())].sort();
     if (!configPaths.length) throw new Error("No supported .ini, .txt, .zon, or .snippet files were found");
 
     const documents: AnyDocument[] = [];

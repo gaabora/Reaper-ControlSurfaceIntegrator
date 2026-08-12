@@ -67,7 +67,7 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 - Use stable lowercase ASCII IDs matching `[a-z0-9][a-z0-9_-]*` for surface and profile paths.
 - Store user-facing display names separately and allow spaces and Unicode in them.
 - Give each public config, surface, zone, and snippet format an explicit version contract.
-- Resolve and canonicalize every target path before access. Reject absolute child paths, `..`, symlink escapes, and paths outside the selected product or import root.
+- Resolve target paths before access. Reject absolute child paths, `..`, and unsupported logical locations. Follow file and directory links while applying ownership and write permissions to the logical configuration path.
 - Check duplicate IDs and filenames case-insensitively so the same data works on Windows, macOS, and Linux. Intentional `User` overrides of vendor surface and zone-profile IDs are the only cross-owner exceptions.
 
 ### Lossless document editing
@@ -188,7 +188,7 @@ Ready when a user can safely inspect and edit the new configuration structure fr
 - ✅ Show a full source preview and require `Rename`, `Replace`, or `Skip` for every existing target conflict.
 - ✅ Validate source and target hashes, validate the final file set, and commit the resolved import as one transaction.
 - Add legacy `FXZones/` discovery after its target mapping and relation to zone profiles are defined.
-- Run the focused importer, server, and browser UI tests with the custom `FaderPortV2` data, then correct any parser or dependency issues found.
+- ✅ Run the focused importer, server, and browser UI tests with the custom `FaderPortV2` data, then correct any parser or dependency issues found.
 
 Ready when legacy content can be imported repeatedly without runtime legacy support or changes to the source installation.
 
@@ -229,7 +229,7 @@ Ready when OSK can safely create any supported one-file zone scaffold without be
 ## Verification
 
 - Round-trip representative surface, zone, and snippet files without losing comments or unknown data.
-- Reject malformed versions, unsafe IDs, absolute child paths, `..`, symlink escapes, and case-only duplicates.
+- Reject malformed versions, unsafe IDs, absolute child paths, `..`, unsupported logical locations, and case-only duplicates. Follow linked resources without recursive directory cycles.
 - Detect an external file change made after the editor opened it.
 - Force a failure during a multi-file commit and verify complete rollback from the manifest.
 - Confirm legacy import leaves every source file unchanged.

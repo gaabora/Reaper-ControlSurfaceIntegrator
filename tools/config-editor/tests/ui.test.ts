@@ -15,5 +15,6 @@ describe("browser UI bindings", () => {
         expect(html).toContain('<link rel="stylesheet" href="/app.css">');
         expect(EDITOR_CSS).toContain(":root");
         expect(EDITOR_JAVASCRIPT).toContain('fetch("/app-translations.json")');
+        expect(EDITOR_JAVASCRIPT).toContain('showReport({ message: translate("status.importedLegacy"');
     });
 });
