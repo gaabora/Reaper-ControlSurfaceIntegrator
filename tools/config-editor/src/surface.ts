@@ -33,6 +33,17 @@ const BLOCK_ENDS = new Map([
     ["ColorCalibration", "ColorCalibrationEnd"],
 ]);
 
+const OSK_TARGET_CAPABILITIES = new Map([
+    ["PressTarget", ["press", "anypress"]],
+    ["ScrollTarget", ["encoder", "mftencoder", "encoderplain", "encoder7bit", "x32rotarytoencoder"]],
+    ["ValueTarget", ["fader14bit", "faderportclassicfader14bit", "fader7bit", "x32fader"]],
+    ["TouchTarget", ["touch"]],
+]);
+
+function supportsOskTarget(widget: SurfaceWidget, supportedTypes: string[]): boolean {
+    return widget.body.some((line) => supportedTypes.includes((line.tokens[0] ?? "").toLowerCase()));
+}
+
 export function parseSurface(source: string, documentPath?: string): LosslessDocument<SurfaceSemantic> {
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
@@ -171,7 +182,19 @@ export function parseSurface(source: string, documentPath?: string): LosslessDoc
         if (existing) addDiagnostic(diagnostics, "error", "surface.widget.duplicate", `Widget names differ only by case or are duplicated: ${existing.name}, ${widget.name}`, widget.line, documentPath);
         else widgetsByName.set(lowercaseName, widget);
     }
-    for (const row of layout?.rows ?? []) for (const cell of row.cells) if (cell.type === "widget" && cell.widgetName && !widgetsByName.has(cell.widgetName.toLowerCase())) addDiagnostic(diagnostics, "error", "surface.layout.widget.missing", `OSK layout references unknown widget: ${cell.widgetName}`, cell.line, documentPath);
+    for (const row of layout?.rows ?? []) {
+        for (const cell of row.cells) {
+            if (cell.type !== "widget" || !cell.widgetName) continue;
+            if (!widgetsByName.has(cell.widgetName.toLowerCase())) addDiagnostic(diagnostics, "error", "surface.layout.widget.missing", `OSK layout references unknown widget: ${cell.widgetName}`, cell.line, documentPath);
+            for (const [propertyName, supportedTypes] of OSK_TARGET_CAPABILITIES) {
+                const targetName = propertyValue(cell.properties, propertyName);
+                if (!targetName) continue;
+                const targetWidget = widgetsByName.get(targetName.toLowerCase());
+                if (!targetWidget) addDiagnostic(diagnostics, "error", "surface.layout.target.missing", `${propertyName} references unknown widget: ${targetName}`, cell.line, documentPath);
+                else if (!supportsOskTarget(targetWidget, supportedTypes)) addDiagnostic(diagnostics, "error", "surface.layout.target.capability", `${propertyName} widget does not provide the required input: ${targetName}`, cell.line, documentPath);
+            }
+        }
+    }
     if (layout && legacyOskLayout) addDiagnostic(diagnostics, "warning", "surface.layout.mixed", "Surface contains both formal and legacy OSK layout data", layout.line, documentPath);
 
     return { diagnostics, format: "surface", lines, path: documentPath, semantic: { legacyOskLayout, oskLayout: layout, widgets }, source, version };

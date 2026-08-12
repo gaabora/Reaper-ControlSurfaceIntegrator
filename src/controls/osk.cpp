@@ -675,70 +675,147 @@ void ControlSurface::BuildCachedLayoutString() {
 }
 
 void ControlSurface::ParseOSKLayout(const string& surfaceFilePath) {
-    surfaceFilePath_ = surfaceFilePath;
-    oskLayout_.clear();
+    this->surfaceFilePath_ = surfaceFilePath;
+    this->oskLayout_.clear();
+    this->cachedOskLayoutString_.clear();
     try {
         ifstream file(surfaceFilePath);
         if (!file.is_open()) return;
+
+        vector<string> lines;
+        bool hasFormalLayout = false;
+        for (string line; getline(file, line);) {
+            TrimLine(line);
+            lines.push_back(line);
+            if (IsCommentedOrEmpty(line)) continue;
+            vector<string> tokens;
+            GetTokens(tokens, line);
+            if (!tokens.empty() && tokens[0] == "OSKLayout") hasFormalLayout = true;
+        }
+
         OskRow currentRow;
         vector<OskWidgetInfo> hiddenWidgets;
         bool hasRow = false;
-        for (string line; getline(file, line);) {
-            TrimLine(line);
-            // transform(line.begin(), line.end(), line.begin(), ::tolower);
 
-            if (line == "# OSKRow") {
-                if (hasRow && !currentRow.cells.empty())
-                    oskLayout_.push_back(std::move(currentRow));
-                currentRow = OskRow();
-                hasRow = true;
-                continue;
-            }
-            if (line.find("# OSKSpacer") == 0) {
-                float width = 0.5f;
-                auto pos = line.find("Width=");
-                if (pos != string::npos) width = (float) atof(line.c_str() + pos + 6);
-                if (hasRow) {
+        if (hasFormalLayout) {
+            bool inLayout = false;
+            bool layoutComplete = false;
+            for (const auto& line : lines) {
+                if (IsCommentedOrEmpty(line)) continue;
+                vector<string> tokens;
+                GetTokens(tokens, line);
+                if (tokens.empty()) continue;
+
+                if (!inLayout) {
+                    if (tokens[0] != "OSKLayout") continue;
+                    if (std::find(tokens.begin() + 1, tokens.end(), "Version=1") == tokens.end()) throw std::runtime_error("OSKLayout requires supported Version=1");
+                    inLayout = true;
+                    continue;
+                }
+                if (tokens[0] == "OSKLayoutEnd") {
+                    if (hasRow) throw std::runtime_error("OSK layout row has no RowEnd");
+                    layoutComplete = true;
+                    break;
+                }
+                if (tokens[0] == "Row") {
+                    if (hasRow) throw std::runtime_error("OSK layout rows cannot be nested");
+                    currentRow = OskRow();
+                    hasRow = true;
+                    continue;
+                }
+                if (tokens[0] == "RowEnd") {
+                    if (!hasRow) throw std::runtime_error("OSK RowEnd has no matching Row");
+                    if (!currentRow.cells.empty()) this->oskLayout_.push_back(std::move(currentRow));
+                    currentRow = OskRow();
+                    hasRow = false;
+                    continue;
+                }
+                if (!hasRow) throw std::runtime_error("OSK layout cells must be inside a Row block");
+
+                if (tokens[0] == "Spacer") {
+                    float width = 0.5f;
+                    const auto widthPosition = line.find("Width=");
+                    if (widthPosition != string::npos) width = (float) atof(line.c_str() + widthPosition + 6);
                     OskCell cell;
                     cell.isSpacer = true;
                     cell.spacerWidth = width;
                     currentRow.cells.push_back(cell);
-                }
-                continue;
-            }
-            if (line.find("Widget ") == 0) {
-                auto hashPos = line.find('#');
-                string widgetPart = (hashPos != string::npos) ? line.substr(0, hashPos) : line;
-                string propsPart = (hashPos != string::npos) ? line.substr(hashPos + 1) : "";
-                vector<string> tokens;
-                GetTokens(tokens, widgetPart);
-                if (tokens.size() < 2) continue;
-                OskWidgetInfo info;
-                info.name = tokens[1];
-                ParseOskProperties(propsPart, info);
-                ApplyOskWidgetMetadata(info);
-
-                if (info.hidden) {
-                    hiddenWidgets.push_back(info);
                     continue;
                 }
-                if (!hasRow) {
-                    currentRow = OskRow();
-                    hasRow = true;
-                }
+
+                if (tokens[0] != "Widget") throw std::runtime_error("Unknown OSK layout entry: " + tokens[0]);
+                if (tokens.size() < 2) throw std::runtime_error("OSK layout Widget requires a name");
+                OskWidgetInfo info;
+                info.name = tokens[1];
+                if (!this->GetWidgetByName(info.name)) throw std::runtime_error("OSK layout references unknown widget: " + info.name);
+                const size_t widgetNamePosition = line.find(tokens[1]);
+                const string propsPart = widgetNamePosition == string::npos ? "" : line.substr(widgetNamePosition + tokens[1].size());
+                this->ParseOskProperties(propsPart, info);
+                this->ApplyOskWidgetMetadata(info);
+
+                if (info.hidden) continue;
                 OskCell cell;
                 cell.isSpacer = false;
                 cell.widget = info;
                 currentRow.cells.push_back(cell);
             }
+            if (!layoutComplete) throw std::runtime_error("OSKLayout has no OSKLayoutEnd");
+        } else {
+            for (const auto& line : lines) {
+                // transform(line.begin(), line.end(), line.begin(), ::tolower);
+
+                if (line == "# OSKRow") {
+                    if (hasRow && !currentRow.cells.empty()) this->oskLayout_.push_back(std::move(currentRow));
+                    currentRow = OskRow();
+                    hasRow = true;
+                    continue;
+                }
+                if (line.find("# OSKSpacer") == 0) {
+                    float width = 0.5f;
+                    const auto widthPosition = line.find("Width=");
+                    if (widthPosition != string::npos) width = (float) atof(line.c_str() + widthPosition + 6);
+                    if (hasRow) {
+                        OskCell cell;
+                        cell.isSpacer = true;
+                        cell.spacerWidth = width;
+                        currentRow.cells.push_back(cell);
+                    }
+                    continue;
+                }
+                if (line.find("Widget ") == 0) {
+                    const auto hashPosition = line.find('#');
+                    const string widgetPart = hashPosition != string::npos ? line.substr(0, hashPosition) : line;
+                    const string propsPart = hashPosition != string::npos ? line.substr(hashPosition + 1) : "";
+                    vector<string> tokens;
+                    GetTokens(tokens, widgetPart);
+                    if (tokens.size() < 2) continue;
+                    OskWidgetInfo info;
+                    info.name = tokens[1];
+                    this->ParseOskProperties(propsPart, info);
+                    this->ApplyOskWidgetMetadata(info);
+
+                    if (info.hidden) {
+                        hiddenWidgets.push_back(info);
+                        continue;
+                    }
+                    if (!hasRow) {
+                        currentRow = OskRow();
+                        hasRow = true;
+                    }
+                    OskCell cell;
+                    cell.isSpacer = false;
+                    cell.widget = info;
+                    currentRow.cells.push_back(cell);
+                }
+            }
+
+            if (hasRow && !currentRow.cells.empty()) this->oskLayout_.push_back(std::move(currentRow));
         }
 
-        if (hasRow && !currentRow.cells.empty())
-            oskLayout_.push_back(std::move(currentRow));
-        ApplyGroupedOskTargets(hiddenWidgets);
-        BuildCachedLayoutString();
-    } catch (const std::exception& e) {
-        LogToConsole("[ERROR] ParseOSKLayout failed for %s: %s\n", surfaceFilePath.c_str(), e.what());
+        this->ApplyGroupedOskTargets(hiddenWidgets);
+        this->BuildCachedLayoutString();
+    } catch (const std::exception& error) {
+        LogToConsole("[ERROR] ParseOSKLayout failed for %s: %s\n", surfaceFilePath.c_str(), error.what());
     }
 }
 

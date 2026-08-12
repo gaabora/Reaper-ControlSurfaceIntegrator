@@ -30,15 +30,16 @@ All names before these suffixes come from `Scripts/product_identity.conf`.
 
 ## Generation and validation
 
-`tools/reapack/repository.py prepare` creates a temporary repository below `.reapack-build/`. Its category paths match the final `Scripts/` and `Data/` destinations. Source URLs point to the exact release tag and exact GitHub Release assets.
+`tools/reapack/repository.py prepare` creates a temporary repository below `.reapack-build/`. Its category paths match the final `Scripts/` and `Data/` destinations. Source URLs point to the exact release tag and exact GitHub Release assets. The release workflow validates vendor surface files before package generation.
 
 The release workflow then:
 
-1. Runs official `reapack-index` 1.2.6 in strict check mode.
-2. Uses official `reapack-index` to generate `index.xml`.
-3. Runs `tools/reapack/repository.py finalize` to match every index source to a known local file.
-4. Adds a SHA-256 multihash to every source.
-5. Writes `index.xml.sha256` and publishes all release files in one gated job.
+1. Runs the configuration editor validator against every vendor surface.
+2. Runs official `reapack-index` 1.2.6 in strict check mode.
+3. Uses official `reapack-index` to generate `index.xml`.
+4. Runs `tools/reapack/repository.py finalize` to match every index source to a known local file.
+5. Adds a SHA-256 multihash to every source.
+6. Writes `index.xml.sha256` and publishes all release files in one gated job.
 
 The core commands used after all four platform assets exist in `release-assets/` are:
 

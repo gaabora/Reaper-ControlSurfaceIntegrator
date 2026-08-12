@@ -47,6 +47,14 @@ describe("configuration formats", () => {
         expect(serializeDocument(parseByPath(source, "Home.zon"))).toBe(source);
     });
 
+    test("OSK targets must name widgets with the required input", () => {
+        const missingTarget = parseByPath("// @format surface 1\nWidget Rotary\n  Encoder b0 10 7f\nWidgetEnd\nOSKLayout Version=1\n  Row\n    Widget Rotary PressTarget=Missing\n  RowEnd\nOSKLayoutEnd\n", "surface.txt");
+        expect(missingTarget.diagnostics.some((diagnostic) => diagnostic.code === "surface.layout.target.missing" && diagnostic.severity === "error")).toBeTrue();
+
+        const wrongCapability = parseByPath("// @format surface 1\nWidget Rotary\n  Encoder b0 10 7f\nWidgetEnd\nOSKLayout Version=1\n  Row\n    Widget Rotary PressTarget=Rotary\n  RowEnd\nOSKLayoutEnd\n", "surface.txt");
+        expect(wrongCapability.diagnostics.some((diagnostic) => diagnostic.code === "surface.layout.target.capability" && diagnostic.severity === "error")).toBeTrue();
+    });
+
     test("zone dependency cycles report a stable error", () => {
         const alpha = parseByPath("// @format zone 1\nZone alpha\n  Play GoZone beta\nZoneEnd\n", "/zones/alpha.zon");
         const beta = parseByPath("// @format zone 1\nZone beta\n  Play GoZone alpha\nZoneEnd\n", "/zones/beta.zon");

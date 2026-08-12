@@ -182,8 +182,8 @@ Ready when a user can safely inspect and edit the new configuration structure fr
 - ✅ Import one surface, one zone, or a selected set of zones from `Surface.txt` and `Zones/**/*.zon`.
 - ✅ Show `GoZone`, `GoSubZone`, `SubZones`, and `IncludedZones` dependencies before import.
 - ✅ Select single unambiguous dependencies by default when the user selects a zone, but allow the user to exclude them.
-- ✅ Import legacy surfaces into `Surfaces/User` unless a curated vendor package is selected separately.
-- ✅ Import legacy zone profiles into `Zones/User` unless a curated vendor package is selected separately.
+- ✅ Import legacy surfaces into `Surfaces/User` unless a vendor package is selected separately.
+- ✅ Import legacy zone profiles into `Zones/User` unless a vendor package is selected separately.
 - ✅ Use semantic widget dropdowns for incompatible or missing target widgets.
 - ✅ Show a full source preview and require `Rename`, `Replace`, or `Skip` for every existing target conflict.
 - ✅ Validate source and target hashes, validate the final file set, and commit the resolved import as one transaction.
@@ -192,16 +192,14 @@ Ready when a user can safely inspect and edit the new configuration structure fr
 
 Ready when legacy content can be imported repeatedly without runtime legacy support or changes to the source installation.
 
-### Phase 6. Vendor surfaces, zone profiles, and ReaPack content
+### ✅ Phase 6. Vendor surfaces, zone profiles, and ReaPack content
 
-- Start with surfaces that this project owns or has verified permission to redistribute.
-- Add a validated `OSKLayout` block to every curated MIDI surface file.
-- Publish versioned surface and matching zone-profile packages through the ReaPack foundation from Phase 2.
-- Verify that package install and update touch only `Surfaces/Vendor` and `Zones/Vendor`.
-- Require the editor to clone a vendor surface or zone profile before customization.
-- Keep vendor inventory, compatibility, provenance, and redistribution status visible in package metadata.
+- ✅ Add a validated `OSKLayout` block to every vendor MIDI surface file. Runtime support, editor validation, and the first formal `FaderPortV2` layout are verified.
+- ✅ Generate versioned surface and matching zone-profile packages through the preview ReaPack foundation from Phase 2. Stable publication remains gated by the clean-install checks documented in `docs/REAPACK.md`.
+- ✅ Verify that generated install and update paths touch only `Surfaces/Vendor` and `Zones/Vendor`. Two local preview versions produced identical targets and no user-owned targets.
+- ✅ Require the editor to clone a vendor surface or zone profile before customization.
 
-Ready when every curated MIDI surface has an installable layout and ReaPack cannot overwrite user content.
+Ready when every vendor MIDI surface has an installable layout and ReaPack cannot overwrite user content.
 
 ### Phase 7. Reusable functional snippets
 

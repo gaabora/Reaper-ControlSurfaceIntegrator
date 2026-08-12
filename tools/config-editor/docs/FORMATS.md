@@ -38,7 +38,7 @@ Widget Play
 WidgetEnd
 ```
 
-Supported top-level blocks are `StepSize`, `AccelerationValues`, `ColorCalibration`, `Widget`, and the planned formal `OSKLayout`. Block names have matching `End` lines. Widget names are unique case-insensitively.
+Supported top-level blocks are `StepSize`, `AccelerationValues`, `ColorCalibration`, `Widget`, and `OSKLayout`. Block names have matching `End` lines. Widget names are unique case-insensitively.
 
 The formal layout grammar is:
 
@@ -51,7 +51,7 @@ OSKLayout Version=1
 OSKLayoutEnd
 ```
 
-Layout widget names must exist in hardware `Widget` blocks. The editor core can parse and validate this block now, but it must not write the formal layout into active files until the C++ runtime supports ignoring layout cells during hardware parsing and loading the formal layout. Current `# OSKRow` and `# OSKSpacer` data remains lossless legacy layout input.
+Layout widget names and `PressTarget`, `ScrollTarget`, `ValueTarget`, and `TouchTarget` values must exist in hardware `Widget` blocks. Every target must provide the required input type. The MIDI runtime loads the formal block and ignores its layout cells during hardware parsing. Current `# OSKRow` and `# OSKSpacer` data remains lossless legacy import input.
 
 ## Zone 1
 

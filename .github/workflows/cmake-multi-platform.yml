@@ -195,6 +195,13 @@ jobs:
       - name: Install official ReaPack indexer
         run: gem install reapack-index --version 1.2.6 --no-document
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Validate vendor surface files
+        working-directory: tools/config-editor
+        run: bun run src/cli.ts validate ../../resources/Surfaces/Vendor
+
       - name: Prepare preview ReaPack repository
         run: |
           release_version="${GITHUB_REF_NAME#v}"

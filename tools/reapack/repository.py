@@ -90,6 +90,18 @@ def require_regular_file(path, label):
         fail(f"Missing or unsupported {label}: {path}")
 
 
+def verify_vendor_install_paths(records, resource_directory):
+    surface_source_prefix = "resources/Surfaces/Vendor/"
+    surface_install_prefix = f"Data/{resource_directory}/Surfaces/Vendor/"
+    zone_source_prefix = "resources/Zones/Vendor/"
+    zone_install_prefix = f"Data/{resource_directory}/Zones/Vendor/"
+    for record in records:
+        if record["localPath"].startswith(surface_source_prefix) and not record["installPath"].startswith(surface_install_prefix):
+            fail(f"Vendor surface has an invalid install path: {record['installPath']}")
+        if record["localPath"].startswith(zone_source_prefix) and not record["installPath"].startswith(zone_install_prefix):
+            fail(f"Vendor zone has an invalid install path: {record['installPath']}")
+
+
 def raw_url(owner, repository, tag, relative_path):
     encoded_tag = quote(tag, safe="")
     encoded_path = quote(relative_path.as_posix(), safe="/")
@@ -204,6 +216,8 @@ def prepare(args):
             fail(f"Invalid vendor zone profile ID: {profile_id}")
         provides = []
         for zone_path in sorted(path for path in profile_path.rglob("*") if path.is_file()):
+            if zone_path.name == ".gitkeep":
+                continue
             require_regular_file(zone_path, "vendor zone source")
             source_file = zone_path.relative_to(profile_path).as_posix()
             url = raw_url(owner, repository, args.tag, zone_path.relative_to(root))
@@ -224,6 +238,7 @@ def prepare(args):
         install_path = Path("Data") / resource_directory / "Snippets" / "BuiltIn" / snippet_path.name
         add_source(source_records, url, snippet_path.relative_to(root), snippet_path.name, install_path)
 
+    verify_vendor_install_paths(source_records, resource_directory)
     source_map_path = stage_root.parent / "reapack-source-map.json"
     source_map_path.write_text(json.dumps({"sources": source_records}, indent=2) + "\n", encoding="utf-8")
     print(f"Prepared {len(source_records)} ReaPack sources in {stage_root}")

@@ -18,10 +18,14 @@ Widget Rotary RotaryWidgetClass
   Encoder b0 10 7f [ > 01-3f < 41-7f ]
 WidgetEnd
 
+Widget RotaryPush
+  Press 90 20 7f 90 20 00
+WidgetEnd
+
 OSKLayout Version=1
   Row
     Widget Play Width=1.5 Height=1.5
     Spacer Width=0.25
-    Widget Rotary Width=1.5 Height=1.5
+    Widget Rotary Width=1.5 Height=1.5 PressTarget=RotaryPush
   RowEnd
 OSKLayoutEnd

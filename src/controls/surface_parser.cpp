@@ -108,6 +108,11 @@ void SurfaceTemplateParser::ParseMidiTemplate(const string& filePath,
             vector<string> tokens;
             GetTokens(tokens, parseLine.c_str());
 
+            if (tokens.size() > 0 && tokens[0] == "OSKLayout") {
+                GetTokenLines(file, "OSKLayoutEnd", lineNumber);
+                continue;
+            }
+
             if (tokens.size() > 0 && tokens[0] != "Widget")
                 valueLines.push_back(tokens);
 
