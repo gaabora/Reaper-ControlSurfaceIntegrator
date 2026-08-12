@@ -1,7 +1,7 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { actionNameSet } from "./action-catalog.ts";
-import type { LegacyImportConflictAction, LegacyImportRequest, LegacyImportResolution } from "./legacy-import.ts";
+import type { LegacyImportConflictAction, LegacyImportRequest, LegacyImportResolution, LegacyWidgetMapping } from "./legacy-import.ts";
 import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
 import { ProductPathError, ProductRootGuard } from "./paths.ts";
@@ -71,6 +71,11 @@ function booleanField(body: Record<string, unknown>, key: string): boolean {
     return value;
 }
 
+function optionalBooleanField(body: Record<string, unknown>, key: string, defaultValue = false): boolean {
+    if (body[key] === undefined) return defaultValue;
+    return booleanField(body, key);
+}
+
 function stringArrayField(body: Record<string, unknown>, key: string, optional = false): string[] | undefined {
     const value = body[key];
     if (optional && value === undefined) return undefined;
@@ -90,6 +95,18 @@ function legacyResolution(value: unknown): LegacyImportResolution {
     return { action, id: stringField(body, "id"), sourceHash: stringField(body, "sourceHash"), targetHash, targetPath };
 }
 
+function legacyWidgetMapping(value: unknown): LegacyWidgetMapping {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.widget-mapping", "Each widget mapping must be an object");
+    const body = value as Record<string, unknown>;
+    return { sourceWidget: stringField(body, "sourceWidget"), targetWidget: stringField(body, "targetWidget") };
+}
+
+function legacyWidgetMappings(body: Record<string, unknown>, optional = false): LegacyWidgetMapping[] {
+    if (optional && body.widgetMappings === undefined) return [];
+    if (!Array.isArray(body.widgetMappings)) throw new EditorOperationError("request.widget-mappings", "widgetMappings must be an array");
+    return body.widgetMappings.map(legacyWidgetMapping);
+}
+
 function legacyImportRequest(body: Record<string, unknown>): LegacyImportRequest {
     if (!Array.isArray(body.resolutions)) throw new EditorOperationError("request.resolutions", "resolutions must be an array");
     return {
@@ -97,6 +114,7 @@ function legacyImportRequest(body: Record<string, unknown>): LegacyImportRequest
         resolutions: body.resolutions.map(legacyResolution),
         selectedZonePaths: stringArrayField(body, "selectedZonePaths")!,
         surfaceName: stringField(body, "surfaceName"),
+        widgetMappings: legacyWidgetMappings(body),
     };
 }
 
@@ -156,7 +174,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             if (requestUrl.pathname === "/api/legacy/preview" && request.method === "POST") {
                 const body = await requestBody(request);
                 const selectedZonePaths = stringArrayField(body, "selectedZonePaths", true);
-                return jsonResponse({ preview: await legacySource!.preview(store, knownActions, stringField(body, "surfaceName"), booleanField(body, "includeSurface"), selectedZonePaths) });
+                return jsonResponse({ preview: await legacySource!.preview(store, knownActions, stringField(body, "surfaceName"), booleanField(body, "includeSurface"), selectedZonePaths, legacyWidgetMappings(body, true), optionalBooleanField(body, "useExistingSurface")) });
             }
             if (requestUrl.pathname === "/api/legacy/import" && request.method === "POST") return jsonResponse({ report: await legacySource!.import(store, knownActions, legacyImportRequest(await requestBody(request))) });
             if (requestUrl.pathname === "/api/tree" && request.method === "GET") return jsonResponse({ entries: await store.tree() });

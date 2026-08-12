@@ -32,6 +32,7 @@ const elements = {
     legacySelectNone: requiredElement("legacy-select-none"),
     legacyStatus: requiredElement("legacy-status"),
     legacySurface: requiredElement("legacy-surface"),
+    legacyWidgetMappings: requiredElement("legacy-widget-mappings"),
     legacyZones: requiredElement("legacy-zones"),
     openDataPath: requiredElement("open-data-path"),
     openLegacy: requiredElement("open-legacy"),
@@ -44,7 +45,7 @@ const elements = {
     tree: requiredElement("tree"),
     validate: requiredElement("validate"),
 };
-const state = { batch: new Map(), current: null, legacy: { preview: null, resolutions: new Map(), selectedZonePaths: new Set() }, tab: "raw" };
+const state = { batch: new Map(), current: null, legacy: { preview: null, resolutions: new Map(), selectedZonePaths: new Set(), widgetMappings: new Map() }, tab: "raw" };
 
 function translate(key, params = {}) {
     let text = translations[key] ?? key;
@@ -279,10 +280,69 @@ function renderLegacyDependencies() {
     }
 }
 
+function translatedCapabilities(capabilities) {
+    if (!capabilities.length) return "-";
+    return capabilities.map((capability) => translate("legacy.widget.capability." + capability)).join(", ");
+}
+
+function widgetMappingsForRequest() {
+    return [...state.legacy.widgetMappings].map(([sourceWidget, targetWidget]) => ({ sourceWidget, targetWidget }));
+}
+
+function usesExistingLegacySurface() {
+    const surfaceItem = state.legacy.preview?.items.find((item) => item.kind === "surface");
+    const resolution = surfaceItem ? state.legacy.resolutions.get(surfaceItem.id) : undefined;
+    return elements.legacyIncludeSurface.checked && surfaceItem?.targetExists && (resolution?.action === "rename" || resolution?.action === "skip");
+}
+
+function renderLegacyWidgetMappings() {
+    const issues = state.legacy.preview?.widgetMappings || [];
+    elements.legacyWidgetMappings.replaceChildren();
+    if (!issues.length) {
+        elements.legacyWidgetMappings.className = "legacy-widget-mappings muted";
+        elements.legacyWidgetMappings.textContent = translate("legacy.widgetMappings.empty");
+        return;
+    }
+    elements.legacyWidgetMappings.className = "legacy-widget-mappings";
+    for (const issue of issues) {
+        const row = document.createElement("div");
+        row.className = "legacy-widget-mapping";
+        const source = document.createElement("strong");
+        source.textContent = issue.sourceWidget;
+        const details = document.createElement("small");
+        const reason = translate("legacy.widgetMappings." + issue.reason);
+        const required = translate("legacy.widgetMappings.required", { capabilities: translatedCapabilities(issue.requiredCapabilities) });
+        const occurrences = translate("legacy.widgetMappings.occurrences", { count: issue.occurrences.length });
+        details.textContent = reason + " " + required + " " + occurrences;
+        const select = document.createElement("select");
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = translate("legacy.widgetMappings.choose");
+        select.append(placeholder);
+        for (const candidate of issue.candidates) {
+            const option = document.createElement("option");
+            option.value = candidate.name;
+            option.textContent = candidate.name + " [" + translatedCapabilities(candidate.capabilities) + "]";
+            select.append(option);
+        }
+        select.value = state.legacy.widgetMappings.get(issue.sourceWidget) || issue.selectedTarget || "";
+        select.addEventListener("change", async () => {
+            try {
+                if (select.value) state.legacy.widgetMappings.set(issue.sourceWidget, select.value);
+                else state.legacy.widgetMappings.delete(issue.sourceWidget);
+                await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+            } catch (error) { showError(error); }
+        });
+        row.append(source, select, details);
+        elements.legacyWidgetMappings.append(row);
+    }
+}
+
 function renderLegacyPreview() {
     const preview = state.legacy.preview;
     renderLegacyZones();
     renderLegacyDependencies();
+    renderLegacyWidgetMappings();
     elements.legacyPreview.replaceChildren();
     if (!preview) {
         elements.legacyPreview.className = "legacy-preview muted";
@@ -327,11 +387,13 @@ function renderLegacyPreview() {
             renameInput.value = resolution.targetPath || renameSuggestion(item.targetPath);
             renameInput.hidden = resolution.action !== "rename";
             renameInput.addEventListener("input", () => { resolution.targetPath = renameInput.value; updateLegacyImportButton(); });
-            actionControl.addEventListener("change", () => {
+            actionControl.addEventListener("change", async () => {
                 resolution.action = actionControl.value;
                 if (resolution.action === "rename" && !resolution.targetPath) resolution.targetPath = renameInput.value;
                 renameInput.hidden = resolution.action !== "rename";
-                updateLegacyImportButton();
+                if (item.kind === "surface") {
+                    try { await refreshLegacyPreview([...state.legacy.selectedZonePaths], usesExistingLegacySurface()); } catch (error) { showError(error); }
+                } else updateLegacyImportButton();
             });
         } else {
             actionControl = document.createElement("span");
@@ -351,13 +413,14 @@ function renderLegacyPreview() {
     updateLegacyImportButton();
 }
 
-async function refreshLegacyPreview(selectedZonePaths) {
+async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = usesExistingLegacySurface()) {
     if (!elements.legacySurface.value) return;
-    const body = { includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value };
+    const body = { includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value, useExistingSurface, widgetMappings: widgetMappingsForRequest() };
     if (selectedZonePaths !== undefined) body.selectedZonePaths = selectedZonePaths;
     const result = await api("/api/legacy/preview", { method: "POST", body: JSON.stringify(body) });
     state.legacy.preview = result.preview;
     state.legacy.selectedZonePaths = new Set(result.preview.selectedZonePaths);
+    state.legacy.widgetMappings = new Map(result.preview.widgetMappings.filter((issue) => issue.selectedTarget).map((issue) => [issue.sourceWidget, issue.selectedTarget]));
     elements.legacySelectAll.disabled = false;
     elements.legacySelectNone.disabled = false;
     elements.legacyRefresh.disabled = false;
@@ -415,6 +478,7 @@ elements.openLegacy.addEventListener("click", async () => {
         state.legacy.preview = null;
         state.legacy.resolutions.clear();
         state.legacy.selectedZonePaths.clear();
+        state.legacy.widgetMappings.clear();
         elements.legacySurface.replaceChildren();
         const placeholder = document.createElement("option");
         placeholder.value = "";
@@ -423,7 +487,7 @@ elements.openLegacy.addEventListener("click", async () => {
         for (const surface of result.surfaces) {
             const option = document.createElement("option");
             option.value = surface.name;
-            option.textContent = translate("legacy.surface.option", { count: surface.zoneCount, name: surface.name });
+            option.textContent = translate("legacy.surface.option", { count: surface.zoneCount, fxCount: surface.fxZoneCount, name: surface.name });
             elements.legacySurface.append(option);
         }
         elements.legacySurface.disabled = result.surfaces.length === 0;
@@ -440,6 +504,7 @@ elements.legacySurface.addEventListener("change", async () => {
     try {
         state.legacy.resolutions.clear();
         state.legacy.selectedZonePaths.clear();
+        state.legacy.widgetMappings.clear();
         if (elements.legacySurface.value) await refreshLegacyPreview();
         else {
             state.legacy.preview = null;
@@ -449,7 +514,10 @@ elements.legacySurface.addEventListener("change", async () => {
 });
 
 elements.legacyIncludeSurface.addEventListener("change", async () => {
-    try { if (elements.legacySurface.value) await refreshLegacyPreview([...state.legacy.selectedZonePaths]); } catch (error) { showError(error); }
+    try {
+        state.legacy.widgetMappings.clear();
+        if (elements.legacySurface.value) await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+    } catch (error) { showError(error); }
 });
 
 elements.legacySelectAll.addEventListener("click", async () => {
@@ -478,6 +546,7 @@ elements.legacyImport.addEventListener("click", async () => {
                 resolutions,
                 selectedZonePaths: [...state.legacy.selectedZonePaths],
                 surfaceName: elements.legacySurface.value,
+                widgetMappings: widgetMappingsForRequest(),
             }),
         });
         await refreshTree();
@@ -544,4 +613,3 @@ for (const tab of document.querySelectorAll(".tab")) tab.addEventListener("click
 
 elements.rawEditor.addEventListener("input", () => { if (state.current) state.current.source = elements.rawEditor.value; });
 initialize();
-

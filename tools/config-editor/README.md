@@ -14,13 +14,13 @@ This Bun and TypeScript application provides a local browser editor and its loss
 - Text and guided editing with the same lossless document.
 - Hash conflict checks, atomic single-file saves, and multi-file transactions.
 - Backup manifests, rollback, and operation reports.
-- Repeatable read-only import from a legacy `CSI/Surfaces/<name>/Surface.txt` and `Zones/**/*.zon` tree.
-- Legacy dependency preview, selected-zone import, and required `Rename`, `Replace`, or `Skip` conflict resolution.
+- Repeatable read-only import from legacy `Surface.txt`, `Zones/**/*.zon`, and `FXZones/**/*.zon` files.
+- Legacy dependency preview, semantic widget mapping, selected-zone import, and required `Rename`, `Replace`, or `Skip` conflict resolution.
 - A loopback-only browser server with a random session token.
 - A typed English UI text catalog with parameter replacement.
 - Standalone compile targets for Windows, macOS, and Linux.
 
-Semantic widget mapping during legacy import and functional snippet application remain later phases. Plugin-triggered launch is optional and is not part of the first local editor.
+Functional snippet application remains a later phase. Plugin-triggered launch is optional and is not part of the first local editor.
 
 ## Commands
 
@@ -55,11 +55,13 @@ The editor follows linked files and directories. This lets a development product
 
 Open the target REAPER `Data` directory first. Expand `Import old CSI configuration`, enter either an old `CSI/` directory or its parent directory, and click `Open`. The source remains read-only and the importer follows linked files and directories.
 
-Choose a surface, include or exclude its `Surface.txt`, and select any `.zon` files. Selecting a zone also selects its single unambiguous `GoZone`, `GoSubZone`, `IncludedZones`, and `SubZones` dependencies. You can clear a dependency after automatic selection. Files whose names do not end exactly in `.zon`, such as `.zon~20260101` and `.zon1` backup files, are not imported.
+Choose a surface, include or exclude its `Surface.txt`, and select any `.zon` files from its legacy `Zones` and `FXZones` directories. Selecting a zone also selects its single unambiguous `GoZone`, `GoSubZone`, `IncludedZones`, and `SubZones` dependencies. You can clear a dependency after automatic selection. Files whose names do not end exactly in `.zon`, such as `.zon~20260101` and `.zon1` backup files, are not imported.
 
-The preview shows migrated source text, target paths, syntax diagnostics, dependencies, and conflicts. Missing format markers are added as `// @format surface 1` or `// @format zone 1`. A legacy surface named `FaderPortV2` maps to `Surfaces/User/faderportv2.txt`, and its zones map below `Zones/User/faderportv2/` while keeping their relative subdirectories.
+The preview shows migrated source text, target paths, syntax diagnostics, dependencies, widget mappings, and conflicts. Missing format markers are added as `// @format surface 1` or `// @format zone 1`. A legacy surface named `FaderPortV2` maps to `Surfaces/User/faderportv2.txt`. Its `Zones` files map below `Zones/User/faderportv2/Main`, and its `FXZones` files map below `Zones/User/faderportv2/FX`. Relative subdirectories are preserved.
 
-Every existing target requires `Rename`, `Replace`, or `Skip`. Import is disabled while selected content has errors or a conflict has no decision. The server checks source and target hashes again, validates the final file set, and saves it through the normal multi-file transaction. The final report lists changed, created, failed, restored, and skipped paths. The current importer reads only `Surface.txt` and zones below the legacy `Zones/` directory. Legacy `FXZones/` support and semantic widget replacement remain later Phase 5 work.
+The importer compares each selected binding with the target surface. If `Surface.txt` is included and will be created or replaced, this is the imported surface. If the surface conflict is set to `Rename` or `Skip`, or `Surface.txt` is excluded, the importer uses the existing user surface and then the vendor surface with the same stable ID. Changing this conflict choice refreshes the widget preview. Missing or incompatible widgets require a compatible replacement from the dropdown. The dropdown uses the same press, touch, relative, absolute, value, toggle, color, text, and meter capabilities as the runtime OSK metadata. Channel placeholders stay channel placeholders, so a legacy `Fader|` can map to a compatible family such as `Rotary|`, but not to one fixed `Rotary1`. The resolved widget names are written into the preview source before hashes are calculated.
+
+Every existing target requires `Rename`, `Replace`, or `Skip`. Import is disabled while selected content has errors, a widget mapping is unresolved, or a conflict has no decision. The server checks source and target hashes again, validates the final file set, and saves it through the normal multi-file transaction. The final report lists changed, created, failed, restored, and skipped paths.
 
 `actions:generate` writes `generated/action-catalog.json`. Generated output is not source-controlled. The catalog is rebuilt from `src/shared/types.h` and action documentation, so action names are not duplicated in TypeScript.
 

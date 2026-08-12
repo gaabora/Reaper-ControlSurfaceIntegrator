@@ -31,7 +31,8 @@
 - Keep all fixed user-interface text in the typed English catalog in `src/i18n.ts`.
 - Write only the product config and user-owned surface, zone, and snippet paths. Clone vendor content before editing.
 - Keep a selected legacy CSI source separate from the writable product-root guard. Accept the legacy `CSI/` directory or its parent, follow source links, and never modify source files.
-- Import legacy `Surface.txt` and exact `Zones/**/*.zon` files into user-owned paths. Ignore backup names that do not end in `.zon`, add missing surface and zone format markers, and preserve zone subdirectories.
+- Import legacy `Surface.txt` into `Surfaces/User`, `Zones/**/*.zon` into the matching `Zones/User/<profile>/Main` tree, and `FXZones/**/*.zon` into its `FX` tree. Ignore backup names that do not end in `.zon`, add missing surface and zone format markers, and preserve zone subdirectories.
+- Resolve missing or incompatible legacy zone widgets through capability-filtered target widget mappings. Preserve `Widget|` channel-family semantics and map them only to another compatible channel family. Apply mappings to preview source before source hashes and transactional saves are calculated.
 - Require explicit `Rename`, `Replace`, or `Skip` decisions for existing import targets. Recheck source and target hashes before one validated multi-file transaction.
 - Show the complete legacy import operation report with changed, created, failed, restored, and skipped paths.
 - Check the open-file SHA-256 before save. Stage and validate complete files before atomic rename.
@@ -53,7 +54,7 @@
 - Run `bun run validate -- fixtures/invalid` and confirm the command reports errors.
 - Run `bun run actions` and compare the catalog count with `ACTION_TYPE_LIST`.
 - Run focused store tests for conflicts, rollback, cloning, symlink traversal, and directory link cycles.
-- Run focused legacy import tests for source discovery, backup-file filtering, dependency selection, repeat conflicts, source immutability, and transactional writes.
+- Run focused legacy import tests for source discovery, `Zones` and `FXZones` mapping, backup-file filtering, dependency selection, semantic widget mapping, repeat conflicts, source immutability, and transactional writes.
 - Start the server with `--no-open` and confirm unauthenticated API access fails.
 - Build and launch each standalone target in its matching operating system before release.
 

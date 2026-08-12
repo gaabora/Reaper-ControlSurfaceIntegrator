@@ -27,6 +27,8 @@ const HTML_TRANSLATION_KEYS = [
     "legacy.surface.placeholder",
     "legacy.surface.title",
     "legacy.title",
+    "legacy.widgetMappings.empty",
+    "legacy.widgetMappings.title",
     "legacy.zones.empty",
     "legacy.zones.title",
     "problems.none",

@@ -176,7 +176,7 @@ Ready when valid files round-trip without data loss and malformed fixtures produ
 
 Ready when a user can safely inspect and edit the new configuration structure from a standalone local application.
 
-### Phase 5. Repeatable legacy CSI import
+### ✅ Phase 5. Repeatable legacy CSI import
 
 - ✅ Let the editor open an old CSI root at any time without changing it.
 - ✅ Import one surface, one zone, or a selected set of zones from `Surface.txt` and `Zones/**/*.zon`.
@@ -184,11 +184,11 @@ Ready when a user can safely inspect and edit the new configuration structure fr
 - ✅ Select single unambiguous dependencies by default when the user selects a zone, but allow the user to exclude them.
 - ✅ Import legacy surfaces into `Surfaces/User` unless a curated vendor package is selected separately.
 - ✅ Import legacy zone profiles into `Zones/User` unless a curated vendor package is selected separately.
-- Use semantic widget dropdowns for incompatible or missing target widgets.
+- ✅ Use semantic widget dropdowns for incompatible or missing target widgets.
 - ✅ Show a full source preview and require `Rename`, `Replace`, or `Skip` for every existing target conflict.
 - ✅ Validate source and target hashes, validate the final file set, and commit the resolved import as one transaction.
-- Add legacy `FXZones/` discovery after its target mapping and relation to zone profiles are defined.
-- ✅ Run the focused importer, server, and browser UI tests with the custom `FaderPortV2` data, then correct any parser or dependency issues found.
+- ✅ Add legacy `FXZones/` discovery after its target mapping and relation to zone profiles are defined. Map legacy `Zones/` to the user profile `Main` tree and `FXZones/` to its `FX` tree.
+- ✅ Re-run the focused importer, server, and browser UI tests with the custom `FaderPortV2` data after the `FXZones` and semantic widget mapping changes, then correct any issues found.
 
 Ready when legacy content can be imported repeatedly without runtime legacy support or changes to the source installation.
 

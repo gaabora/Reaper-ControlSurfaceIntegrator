@@ -18,6 +18,7 @@ const knownActions = new Set(["GoZone", "Play"]);
 const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
+const fxSource = "Zone ReaEQ\n  Play Play\nZoneEnd\n";
 let temporaryRoot = "";
 let legacyRoot = "";
 let productRoot = "";
@@ -33,10 +34,12 @@ beforeEach(async () => {
     const surfaceRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2");
     await mkdir(path.join(surfaceRoot, "Zones", "HomeZones"), { recursive: true });
     await mkdir(path.join(surfaceRoot, "Zones", "GoZones"), { recursive: true });
+    await mkdir(path.join(surfaceRoot, "FXZones"), { recursive: true });
     await writeFile(path.join(surfaceRoot, "Surface.txt"), surfaceSource, "utf8");
     await writeFile(path.join(surfaceRoot, "Zones", "HomeZones", "Home.zon"), homeSource, "utf8");
     await writeFile(path.join(surfaceRoot, "Zones", "HomeZones", "Home.zon~20260101"), "backup\n", "utf8");
     await writeFile(path.join(surfaceRoot, "Zones", "GoZones", "Transport.zon"), transportSource, "utf8");
+    await writeFile(path.join(surfaceRoot, "FXZones", "ReaEQ.zon"), fxSource, "utf8");
 
     productRoot = path.join(temporaryRoot, "Data", identity.resourceDirectory);
     await mkdir(path.join(productRoot, "Surfaces", "User"), { recursive: true });
@@ -51,18 +54,19 @@ afterEach(async () => {
 describe("legacy CSI import", () => {
     test("discovers a surface from a parent path and prepares a complete preview", async () => {
         const source = await LegacyCsiSource.create(temporaryRoot);
-        expect(await source.listSurfaces()).toEqual([{ name: "FaderPortV2", stableId: "faderportv2", zoneCount: 2 }]);
+        expect(await source.listSurfaces()).toEqual([{ fxZoneCount: 1, name: "FaderPortV2", stableId: "faderportv2", zoneCount: 3 }]);
 
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
         expect(preview.valid).toBeTrue();
-        expect(preview.selectedZonePaths).toEqual(["GoZones/Transport.zon", "HomeZones/Home.zon"]);
+        expect(preview.selectedZonePaths).toEqual(["FXZones/ReaEQ.zon", "Zones/GoZones/Transport.zon", "Zones/HomeZones/Home.zon"]);
         expect(preview.items.map((item) => item.targetPath)).toEqual([
             "Surfaces/User/faderportv2.txt",
-            "Zones/User/faderportv2/GoZones/Transport.zon",
-            "Zones/User/faderportv2/HomeZones/Home.zon",
+            "Zones/User/faderportv2/Main/GoZones/Transport.zon",
+            "Zones/User/faderportv2/Main/HomeZones/Home.zon",
+            "Zones/User/faderportv2/FX/ReaEQ.zon",
         ]);
         expect(preview.items.every((item) => item.source.startsWith(`// @format ${item.kind} 1\n`))).toBeTrue();
-        expect(preview.dependencies).toContainEqual({ from: "HomeZones/Home.zon", matches: ["GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
+        expect(preview.dependencies).toContainEqual({ from: "Zones/HomeZones/Home.zon", matches: ["Zones/GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
     });
 
     test("writes selected files in one transaction and requires conflict decisions on repeat", async () => {
@@ -70,15 +74,16 @@ describe("legacy CSI import", () => {
         const store = await createStore();
         const preview = await source.preview(store, knownActions, "FaderPortV2", true);
         const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
-        const report = await source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2" });
+        const report = await source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
 
-        expect(report.created).toHaveLength(3);
+        expect(report.created).toHaveLength(4);
         expect(await readFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "utf8")).toStartWith("// @format surface 1\n");
-        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "HomeZones", "Home.zon"), "utf8")).toStartWith("// @format zone 1\n");
+        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8")).toStartWith("// @format zone 1\n");
+        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "ReaEQ.zon"), "utf8")).toStartWith("// @format zone 1\n");
         expect(await readFile(path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt"), "utf8")).toBe(surfaceSource);
 
         try {
-            await source.import(store, knownActions, { includeSurface: true, resolutions: [], selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2" });
+            await source.import(store, knownActions, { includeSurface: true, resolutions: [], selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
             throw new Error("Expected a required conflict resolution");
         } catch (error) {
             expect(error).toBeInstanceOf(EditorOperationError);
@@ -93,7 +98,85 @@ describe("legacy CSI import", () => {
         await symlink(linkedSource, path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "GoZones", "Linked.zon"));
         const source = await LegacyCsiSource.create(legacyRoot);
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
-        expect(preview.selectedZonePaths).toContain("GoZones/Linked.zon");
+        expect(preview.selectedZonePaths).toContain("Zones/GoZones/Linked.zon");
         expect(preview.valid).toBeTrue();
+    });
+
+    test("requires a compatible widget mapping and rewrites every selected binding", async () => {
+        await writeFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "Widget Play\n  Encoder b0 10 7f\nWidgetEnd\nWidget Stop\n  Press 90 5d 7f 90 5d 00\nWidgetEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const store = await createStore();
+        const selectedZonePaths = ["Zones/HomeZones/Home.zon"];
+        const unresolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths);
+
+        expect(unresolved.valid).toBeFalse();
+        expect(unresolved.widgetMappings).toContainEqual({
+            candidates: [{ capabilities: ["press-input"], name: "Stop" }],
+            occurrences: [{ line: 3, path: "Zones/HomeZones/Home.zon" }, { line: 4, path: "Zones/HomeZones/Home.zon" }],
+            reason: "incompatible",
+            requiredCapabilities: ["press-input"],
+            selectedTarget: undefined,
+            sourceWidget: "Play",
+        });
+
+        const widgetMappings = [{ sourceWidget: "Play", targetWidget: "Stop" }];
+        const resolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths, widgetMappings);
+        expect(resolved.valid).toBeTrue();
+        const zone = resolved.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
+        expect(zone.source).toContain("  Stop Play\n");
+        expect(zone.source).toContain("  Shift+Stop GoZone Transport\n");
+        const resolutions = [{ action: "create" as const, id: zone.id, sourceHash: zone.sourceHash, targetHash: zone.targetHash }];
+        await source.import(store, knownActions, { includeSurface: false, resolutions, selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings });
+        const imported = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8");
+        expect(imported).toContain("  Stop Play\n");
+        expect(imported).toContain("  Shift+Stop GoZone Transport\n");
+    });
+
+    test("maps channel placeholder widgets only to another channel family", async () => {
+        const legacySurfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
+        const legacyZonePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        await writeFile(legacySurfacePath, "Widget Fader1\n  Press 90 01 7f 90 01 00\nWidgetEnd\nWidget Fader2\n  Press 90 02 7f 90 02 00\nWidgetEnd\n", "utf8");
+        await writeFile(legacyZonePath, "Zone Home\n  Fader| Play\nZoneEnd\n", "utf8");
+        await writeFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "Widget RotaryPush1\n  Press 90 11 7f 90 11 00\nWidgetEnd\nWidget RotaryPush2\n  Press 90 12 7f 90 12 00\nWidgetEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const store = await createStore();
+        const selectedZonePaths = ["Zones/HomeZones/Home.zon"];
+        const unresolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths);
+
+        expect(unresolved.widgetMappings[0].sourceWidget).toBe("Fader|");
+        expect(unresolved.widgetMappings[0].candidates.map((candidate) => candidate.name)).toEqual(["RotaryPush|"]);
+        const resolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths, [{ sourceWidget: "Fader|", targetWidget: "RotaryPush|" }]);
+        expect(resolved.valid).toBeTrue();
+        expect(resolved.items.find((item) => item.sourcePath === selectedZonePaths[0])?.source).toContain("  RotaryPush| Play\n");
+    });
+
+    test("does not request hardware mapping for a declared modifier alias", async () => {
+        const legacyZonePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        await writeFile(legacyZonePath, "Zone Home\n  Play Nudge\n  Nudge Play\n  NullDisplay NoAction\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);
+
+        expect(preview.valid).toBeTrue();
+        expect(preview.widgetMappings).toEqual([]);
+    });
+
+    test("uses the existing surface when the imported surface conflict is skipped", async () => {
+        await writeFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "Widget Play\n  Encoder b0 10 7f\nWidgetEnd\nWidget Stop\n  Press 90 5d 7f 90 5d 00\nWidgetEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const store = await createStore();
+        const selectedZonePaths = ["Zones/HomeZones/Home.zon"];
+        const widgetMappings = [{ sourceWidget: "Play", targetWidget: "Stop" }];
+        const preview = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths, widgetMappings, true);
+        const surface = preview.items.find((item) => item.kind === "surface")!;
+        const zone = preview.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
+        const resolutions = [
+            { action: "skip" as const, id: surface.id, sourceHash: surface.sourceHash, targetHash: surface.targetHash },
+            { action: "create" as const, id: zone.id, sourceHash: zone.sourceHash, targetHash: zone.targetHash },
+        ];
+
+        expect(preview.widgetTarget).toBe("existing");
+        await source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings });
+        expect(await readFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "utf8")).toContain("  Encoder b0 10 7f\n");
+        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8")).toContain("  Stop Play\n");
     });
 });
