@@ -5,6 +5,7 @@ import path from "node:path";
 import type { ActionCatalogEntry } from "../src/action-catalog.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { startEditorServer } from "../src/server.ts";
+import { bundleEditorJavascript } from "../src/ui.ts";
 
 const identity: EditorProductIdentity = {
     configFilename: "TestProduct.ini",
@@ -14,10 +15,11 @@ const identity: EditorProductIdentity = {
     resourceDirectory: "TestProduct",
 };
 const actions: ActionCatalogEntry[] = [{ category: "Transport", enumName: "Play", name: "Play" }];
+const editorJavascript = await bundleEditorJavascript();
 
 describe("local editor server", () => {
     test("binds to loopback and protects API calls with its session token", async () => {
-        const running = startEditorServer({ actions, candidates: [], identity });
+        const running = startEditorServer({ actions, candidates: [], editorJavascript, identity });
         try {
             expect(running.url.startsWith("http://127.0.0.1:")).toBeTrue();
             const page = await fetch(new URL("/", running.url));
@@ -41,18 +43,24 @@ describe("local editor server", () => {
         const snippetPath = path.join(productRoot, "Snippets", "BuiltIn", "transport.snippet");
         const surfacePath = path.join(productRoot, "Surfaces", "Vendor", "test-surface.txt");
         const zonePath = path.join(productRoot, "Zones", "User", "test-profile", "Main", "Home.zon");
+        const legacySurfacePath = path.join(temporaryRoot, "CSI", "Surfaces", "LegacySurface", "Surface.txt");
         await mkdir(path.dirname(snippetPath), { recursive: true });
         await mkdir(path.dirname(surfacePath), { recursive: true });
         await mkdir(path.dirname(zonePath), { recursive: true });
+        await mkdir(path.dirname(legacySurfacePath), { recursive: true });
         await writeFile(path.join(productRoot, identity.configFilename), "Version=7.0\n", "utf8");
         await writeFile(snippetPath, "Snippet Version=1 Id=transport Name=Transport\n  Binding Id=play Role=Button Input=Press Feedback=Toggle Required=Yes\n    Action NoMod Play\n  BindingEnd\nSnippetEnd\n", "utf8");
         await writeFile(surfacePath, "// @format surface 1\nWidget Play\n  Press 90 5e 7f 90 5e 00\n  FB_TwoState 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
         await writeFile(zonePath, "// @format zone 1\nZone Home\n  Play Play\nZoneEnd\n", "utf8");
-        const running = startEditorServer({ actions, candidates: [], identity });
+        await writeFile(legacySurfacePath, "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
+        const running = startEditorServer({ actions, candidates: [], editorJavascript, identity });
         const headers = { "Content-Type": "application/json", "X-Session-Token": running.token };
         try {
             const selected = await fetch(new URL("/api/select-data-path", running.url), { body: JSON.stringify({ path: dataRoot }), headers, method: "POST" });
             expect(selected.status).toBe(200);
+            const selectedPayload = await selected.json();
+            expect(selectedPayload.legacy.path).toBe(path.join(temporaryRoot, "CSI"));
+            expect(selectedPayload.legacy.surfaces.map((surface: { name: string }) => surface.name)).toEqual(["LegacySurface"]);
 
             const previewResponse = await fetch(new URL("/api/snippet/apply-preview", running.url), {
                 body: JSON.stringify({ applicationId: "transport", bindingChoices: [{ allowIncompatible: false, bindingId: "play", confirmed: true, widgetName: "Play" }], conflictAction: "", snippetPath: "Snippets/BuiltIn/transport.snippet", surfacePath: "Surfaces/Vendor/test-surface.txt", targetZonePath: "Zones/User/test-profile/Main/Home.zon" }),

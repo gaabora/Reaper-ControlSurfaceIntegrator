@@ -11,7 +11,7 @@ This Bun and TypeScript application provides a local browser editor and its loss
 - Runtime action catalog loaded from C++ `ACTION_TYPE_LIST` and `//!` metadata, including short descriptions where available.
 - CLI validation and JSON action-catalog generation.
 - Automatic REAPER data path discovery and manual selection.
-- Text and guided editing with the same lossless document.
+- CodeMirror text editing with line numbers and configuration syntax highlighting, plus guided editing with the same lossless document.
 - Hash conflict checks, atomic single-file saves, and multi-file transactions.
 - Backup manifests, rollback, and operation reports.
 - Repeatable read-only import from legacy `Surface.txt`, `Zones/**/*.zon`, and `FXZones/**/*.zon` files.
@@ -29,6 +29,7 @@ Plugin-triggered launch is optional and is not part of the first local editor.
 Run these commands from `tools/config-editor/`:
 
 ```sh
+bun install
 bun run validate -- fixtures/valid
 bun run validate -- --json fixtures/invalid
 bun run actions
@@ -49,29 +50,31 @@ Enter only the REAPER `Data` directory. The editor adds the product configuratio
 bun run start -- --data-path "/absolute/REAPER/resource/Data"
 ```
 
-The browser opens no configuration files until the user clicks `Open`. The tree marks vendor surfaces, vendor zone profiles, and built-in snippets as read-only. Use `Make editable copy` before editing them. A vendor zone copy includes its complete profile.
+The browser opens the first valid discovered REAPER data path automatically. The main page keeps `Open` as a fallback when the discovered path is wrong or a different REAPER installation is needed. The tree marks vendor surfaces, vendor zone profiles, and built-in snippets with a dim read-only style. Use `Make editable copy` before editing them. A vendor zone copy includes its complete profile.
 
 The editor follows linked files and directories. This lets a development product root link `Surfaces`, `Zones`, and `Snippets` directly to repository resources. Access and write permissions still use the logical configuration path, so linked vendor content remains read-only and only supported paths below `User` are writable. Directory link cycles are shown as unavailable instead of being traversed.
 
 ## Legacy CSI import
 
-Open the target REAPER `Data` directory first. Expand `Import old CSI configuration`, enter either an old `CSI/` directory or its parent directory, and click `Open`. The source remains read-only and the importer follows linked files and directories.
+The editor checks the standard old `CSI` directory beside the selected `Data` directory automatically. For example, `/REAPER/Data` maps to `/REAPER/CSI`. If that folder is missing or the old installation is elsewhere, open `Advanced details`, enter either an old `CSI/` directory or its parent directory, and click `Open`. The source remains read-only and the importer follows linked files and directories.
 
-Choose a surface, include or exclude its `Surface.txt`, and select any `.zon` files from its legacy `Zones` and `FXZones` directories. Selecting a zone also selects its single unambiguous `GoZone`, `GoSubZone`, `IncludedZones`, and `SubZones` dependencies. You can clear a dependency after automatic selection. Files whose names do not end exactly in `.zon`, such as `.zon~20260101` and `.zon1` backup files, are not imported.
+Choose a surface, include or exclude its `Surface.txt`, and select any `.zon` files from its legacy `Zones` and `FXZones` directories. Selecting a zone also selects its single unambiguous `GoZone`, `GoSubZone`, `IncludedZones`, and `SubZones` dependencies. You can clear a dependency after automatic selection. Files whose names do not end exactly in `.zon`, such as `.zon~20260101` and `.zon1` backup files, are not imported. A deprecated `GoZones.zon` manifest is not imported. When it assigns a navigator to a zone, the importer adds that navigator to the matching zone header as `NavType`.
 
-The preview shows migrated source text, target paths, syntax diagnostics, dependencies, widget mappings, and conflicts. Missing format markers are added as `// @format surface 1` or `// @format zone 1`. A legacy surface named `FaderPortV2` maps to `Surfaces/User/faderportv2.txt`. Its `Zones` files map below `Zones/User/faderportv2/Main`, and its `FXZones` files map below `Zones/User/faderportv2/FX`. Relative subdirectories are preserved.
+The preview shows migrated source text, target paths, syntax diagnostics, dependencies, widget mappings, and conflicts. Missing format markers are added as `// @format surface 1` or `// @format zone 1`. Click a source file or diagnostic to open its import draft at the related line. Draft changes stay in memory and are written only to the new target during import. The old CSI file is never changed.
 
-The importer compares each selected binding with the target surface. If `Surface.txt` is included and will be created or replaced, this is the imported surface. If the surface conflict is set to `Rename` or `Skip`, or `Surface.txt` is excluded, the importer uses the existing user surface and then the vendor surface with the same stable ID. Changing this conflict choice refreshes the widget preview. Missing or incompatible widgets require a compatible replacement from the dropdown. The dropdown uses the same press, touch, relative, absolute, value, toggle, color, text, and meter capabilities as the runtime OSK metadata. Channel placeholders stay channel placeholders, so a legacy `Fader|` can map to a compatible family such as `Rotary|`, but not to one fixed `Rotary1`. The resolved widget names are written into the preview source before hashes are calculated.
+A legacy surface named `FaderPortV2` initially maps to `Surfaces/User/faderportv2.txt`. Its `Zones` files map below `Zones/User/faderportv2/Main`, and its `FXZones` files map below `Zones/User/faderportv2/FX`. Change the target profile ID to rename this common profile root. You can also edit each selected target path inside that profile. The preview reports existing files and rejects duplicate targets. Relative subdirectories are preserved unless you change them.
+
+The importer compares each selected binding with the target surface. If `Surface.txt` is included and will be created or replaced, this is the imported surface. If the surface conflict is set to `Rename` or `Skip`, or `Surface.txt` is excluded, the importer uses the existing user surface and then the vendor surface with the target profile ID. Changing this conflict choice refreshes the widget preview. Missing or incompatible widgets require a compatible replacement from the dropdown. The dropdown uses the same press, touch, relative, absolute, value, toggle, color, text, and meter capabilities as the runtime OSK metadata. A binding such as `Touch+DisplayLower|` uses `Touch` as a modifier, so the `DisplayLower|` family does not need touch input. Channel placeholders stay channel placeholders, so a legacy `Fader|` can map to a compatible family such as `Rotary|`, but not to one fixed `Rotary1`. The resolved widget names are written into the preview source before hashes are calculated.
 
 Every existing target requires `Rename`, `Replace`, or `Skip`. Import is disabled while selected content has errors, a widget mapping is unresolved, or a conflict has no decision. The server checks source and target hashes again, validates the final file set, and saves it through the normal multi-file transaction. The final report lists changed, created, failed, restored, and skipped paths.
 
 ## Functional snippets
 
-Open the target REAPER `Data` directory first, choose `Apply functionality`, then choose a built-in or user snippet, a surface, and an editable zone below `Zones/User`. The editor lists each semantic binding and recommends a widget that has the required role, input, and feedback capabilities. An exact compatible name match is accepted automatically. Confirm a different manual choice. To skip a binding with `Required=No`, leave its widget empty and confirm the skip.
+Open the target REAPER `Data` directory first, choose `Apply functionality`, then choose a built-in or user snippet, a surface, and an editable zone below `Zones/User`. The complete selected target zone appears in the lower editor. The upper controls list each semantic binding and recommend a widget that has the required role, input, and feedback capabilities. An exact compatible name match is accepted automatically. Confirm a different manual choice. To skip a binding with `Required=No`, leave its widget empty and confirm the skip.
 
-An incompatible widget is not accepted by default. If the manual choice is intentional, read the displayed mismatch, enable the mismatch override, and confirm the widget. `Apply functionality` refreshes validation before it writes. The complete target-zone preview and application ID are available under `Advanced details`.
+An incompatible widget is not accepted by default. If the manual choice is intentional, read the displayed mismatch, enable the mismatch override, and confirm the widget. `Apply to draft` refreshes the mapping preview and places the generated result in the lower editor. It does not write a file. Mapping changes do not replace manual draft edits until you press `Apply to draft` again. The application ID is available under `Advanced details`.
 
-The application ID identifies one generated block inside the zone. Applying the same ID again requires `Replace`, `Rename`, or `Skip`. Replace updates only that block. Rename creates another block under a new ID. Skip makes no file change. Apply rechecks the snippet, surface, and zone hashes and writes the zone through one validated transaction with the normal backup and report.
+The application ID identifies one generated block inside the zone. Applying the same ID again requires `Replace`, `Rename`, or `Skip`. Replace updates only that block. Rename creates another block under a new ID. Skip does not change the draft. Edit any other zone text directly in the lower editor. `Save` validates the complete draft, checks that the zone did not change after it was opened, and performs one atomic file save without a transaction backup.
 
 Choose `Import or export snippet` to copy a local `.snippet` file into `Snippets/User` or download an existing snippet. Import validation starts when the file is selected. An existing destination requires `Replace`, `Rename`, or `Skip`. Choose `Edit configuration` to open any snippet for normal text or guided editing. `Export` in the editor downloads the currently checked source, including unsaved text changes. Built-in snippets stay read-only until `Make editable copy` creates the matching user file.
 
@@ -89,7 +92,7 @@ Only the main config and files below `Surfaces/User`, `Zones/User`, and `Snippet
 
 ## Local server
 
-The server binds to `127.0.0.1` on a random port. It creates a new 256-bit session token for every launch. The token starts in the URL fragment, moves into browser session storage, and is sent only in the `X-Session-Token` request header. API requests from another browser origin are rejected.
+The server binds to `127.0.0.1` on a random port. It creates a new 256-bit session token for every launch. The token starts in the URL fragment, moves into browser session storage, and is sent only in the `X-Session-Token` request header. API requests from another browser origin are rejected. CodeMirror and its configuration language support are bundled into the served JavaScript. The editor does not load browser code from a CDN.
 
 Use `--no-open` to prevent automatic browser launch and `--port <number>` to select a fixed loopback port.
 

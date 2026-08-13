@@ -1,7 +1,8 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { actionNameSet } from "./action-catalog.ts";
-import type { LegacyImportConflictAction, LegacyImportRequest, LegacyImportResolution, LegacyWidgetMapping } from "./legacy-import.ts";
+import type { LegacyImportConflictAction, LegacyImportDraft, LegacyImportRequest, LegacyImportResolution, LegacyImportTargetPath, LegacySurfaceSummary, LegacyWidgetMapping } from "./legacy-import.ts";
 import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
 import { ProductPathError, ProductRootGuard } from "./paths.ts";
@@ -9,11 +10,12 @@ import type { EditorProductIdentity } from "./product-identity.ts";
 import { applySnippetApplication, importSnippet, previewSnippetApplication, previewSnippetImport, type SnippetApplicationRequest, type SnippetApplyRequest, type SnippetBindingChoice, type SnippetConflictAction, type SnippetImportRequest } from "./snippet-workflow.ts";
 import type { SaveChange } from "./store.ts";
 import { ConfigurationStore, EditorOperationError } from "./store.ts";
-import { createEditorHtml, createEditorTranslationsJson, EDITOR_CSS, EDITOR_JAVASCRIPT } from "./ui.ts";
+import { createEditorHtml, createEditorTranslationsJson, EDITOR_CSS } from "./ui.ts";
 
 export interface EditorServerOptions {
     actions: ActionCatalogEntry[];
     candidates: ReaperDataPathCandidate[];
+    editorJavascript: string;
     identity: EditorProductIdentity;
     port?: number;
 }
@@ -26,11 +28,26 @@ export interface RunningEditorServer {
 
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
 
+interface LegacySourceSelection {
+    path: string;
+    root?: string;
+    surfaces: LegacySurfaceSummary[];
+}
+
+async function trySelectLegacySource(selectedPath: string): Promise<{ selection: LegacySourceSelection; source?: LegacyCsiSource }> {
+    try {
+        const source = await LegacyCsiSource.create(selectedPath);
+        return { selection: { path: selectedPath, root: source.getRoot(), surfaces: await source.listSurfaces() }, source };
+    } catch {
+        return { selection: { path: selectedPath, surfaces: [] } };
+    }
+}
+
 function contentResponse(content: string, contentType: string): Response {
     return new Response(content, {
         headers: {
             "Cache-Control": "no-store",
-            "Content-Security-Policy": "default-src 'self'; connect-src 'self'; img-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+            "Content-Security-Policy": "default-src 'self'; connect-src 'self'; img-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
             "Content-Type": contentType,
             "Referrer-Policy": "no-referrer",
             "X-Content-Type-Options": "nosniff",
@@ -113,13 +130,40 @@ function legacyWidgetMappings(body: Record<string, unknown>, optional = false): 
     return body.widgetMappings.map(legacyWidgetMapping);
 }
 
+function legacyDraft(value: unknown): LegacyImportDraft {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.legacy-draft", "Each import draft must be an object");
+    const body = value as Record<string, unknown>;
+    return { originalSourceHash: stringField(body, "originalSourceHash"), source: stringField(body, "source"), sourcePath: stringField(body, "sourcePath") };
+}
+
+function legacyDrafts(body: Record<string, unknown>): LegacyImportDraft[] {
+    if (body.drafts === undefined) return [];
+    if (!Array.isArray(body.drafts)) throw new EditorOperationError("request.legacy-drafts", "drafts must be an array");
+    return body.drafts.map(legacyDraft);
+}
+
+function legacyTargetPath(value: unknown): LegacyImportTargetPath {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.legacy-target", "Each import target must be an object");
+    const body = value as Record<string, unknown>;
+    return { sourcePath: stringField(body, "sourcePath"), targetPath: stringField(body, "targetPath") };
+}
+
+function legacyTargetPaths(body: Record<string, unknown>): LegacyImportTargetPath[] {
+    if (body.targetPaths === undefined) return [];
+    if (!Array.isArray(body.targetPaths)) throw new EditorOperationError("request.legacy-targets", "targetPaths must be an array");
+    return body.targetPaths.map(legacyTargetPath);
+}
+
 function legacyImportRequest(body: Record<string, unknown>): LegacyImportRequest {
     if (!Array.isArray(body.resolutions)) throw new EditorOperationError("request.resolutions", "resolutions must be an array");
     return {
+        drafts: legacyDrafts(body),
         includeSurface: booleanField(body, "includeSurface"),
         resolutions: body.resolutions.map(legacyResolution),
         selectedZonePaths: stringArrayField(body, "selectedZonePaths")!,
         surfaceName: stringField(body, "surfaceName"),
+        targetPaths: legacyTargetPaths(body),
+        targetProfileId: optionalStringField(body, "targetProfileId") || undefined,
         widgetMappings: legacyWidgetMappings(body),
     };
 }
@@ -184,6 +228,7 @@ function errorResponse(error: unknown): Response {
 export function startEditorServer(options: EditorServerOptions): RunningEditorServer {
     const token = randomBytes(32).toString("hex");
     const knownActions = actionNameSet(options.actions);
+    let legacySelection: LegacySourceSelection | undefined;
     let legacySource: LegacyCsiSource | undefined;
     let store: ConfigurationStore | undefined;
     let origin = "";
@@ -191,31 +236,36 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
         const requestUrl = new URL(request.url);
         if (requestUrl.pathname === "/" && request.method === "GET") return contentResponse(createEditorHtml(options.identity.displayName), "text/html; charset=utf-8");
         if (requestUrl.pathname === "/app.css" && request.method === "GET") return contentResponse(EDITOR_CSS, "text/css; charset=utf-8");
-        if (requestUrl.pathname === "/app.js" && request.method === "GET") return contentResponse(EDITOR_JAVASCRIPT, "text/javascript; charset=utf-8");
+        if (requestUrl.pathname === "/app.js" && request.method === "GET") return contentResponse(options.editorJavascript, "text/javascript; charset=utf-8");
         if (requestUrl.pathname === "/app-translations.json" && request.method === "GET") return contentResponse(createEditorTranslationsJson(), "application/json; charset=utf-8");
         if (!requestUrl.pathname.startsWith("/api/")) return jsonResponse({ error: { code: "not-found", message: "Not found" } }, 404);
         if (!tokenMatches(request.headers.get("x-session-token"), token)) return jsonResponse({ error: { code: "auth.token", message: "Invalid session token" } }, 401);
         const requestOrigin = request.headers.get("origin");
         if (requestOrigin && requestOrigin !== origin) return jsonResponse({ error: { code: "auth.origin", message: "Invalid request origin" } }, 403);
         try {
-            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity });
+            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity, legacy: legacySelection });
             if (requestUrl.pathname === "/api/select-data-path" && request.method === "POST") {
                 const body = await requestBody(request);
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);
                 store = new ConfigurationStore(guard, knownActions);
-                return jsonResponse({ dataPath: store.getReaperDataPath() });
+                const automaticLegacy = await trySelectLegacySource(path.join(path.dirname(store.getReaperDataPath()), "CSI"));
+                legacySelection = automaticLegacy.selection;
+                legacySource = automaticLegacy.source;
+                return jsonResponse({ dataPath: store.getReaperDataPath(), legacy: legacySelection });
             }
             if (requestUrl.pathname === "/api/legacy/select" && request.method === "POST") {
                 const body = await requestBody(request);
-                legacySource = await LegacyCsiSource.create(stringField(body, "path"));
-                return jsonResponse({ root: legacySource.getRoot(), surfaces: await legacySource.listSurfaces() });
+                const selectedPath = stringField(body, "path");
+                legacySource = await LegacyCsiSource.create(selectedPath);
+                legacySelection = { path: selectedPath, root: legacySource.getRoot(), surfaces: await legacySource.listSurfaces() };
+                return jsonResponse(legacySelection);
             }
             if (!store) throw new EditorOperationError("data-path.required", "Open a REAPER data path first");
             if (requestUrl.pathname.startsWith("/api/legacy/") && !legacySource) throw new EditorOperationError("legacy.path.required", "Open a legacy CSI path first");
             if (requestUrl.pathname === "/api/legacy/preview" && request.method === "POST") {
                 const body = await requestBody(request);
                 const selectedZonePaths = stringArrayField(body, "selectedZonePaths", true);
-                return jsonResponse({ preview: await legacySource!.preview(store, knownActions, stringField(body, "surfaceName"), booleanField(body, "includeSurface"), selectedZonePaths, legacyWidgetMappings(body, true), optionalBooleanField(body, "useExistingSurface")) });
+                return jsonResponse({ preview: await legacySource!.preview(store, knownActions, stringField(body, "surfaceName"), booleanField(body, "includeSurface"), selectedZonePaths, legacyWidgetMappings(body, true), optionalBooleanField(body, "useExistingSurface"), legacyDrafts(body), optionalStringField(body, "targetProfileId") || undefined, legacyTargetPaths(body)) });
             }
             if (requestUrl.pathname === "/api/legacy/import" && request.method === "POST") return jsonResponse({ report: await legacySource!.import(store, knownActions, legacyImportRequest(await requestBody(request))) });
             if (requestUrl.pathname === "/api/snippet/apply-preview" && request.method === "POST") return jsonResponse({ preview: await previewSnippetApplication(store, knownActions, snippetApplicationRequest(await requestBody(request))) });

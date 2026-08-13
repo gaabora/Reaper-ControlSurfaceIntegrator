@@ -2,8 +2,8 @@ export const DISPLAY_LOCALE = "en-US";
 
 const english = {
     "action.addToSaveAll": "Add to Save All",
-    "action.applySnippet": "Apply functionality",
-    "action.backToTasks": "All tasks",
+    "action.applySnippet": "Apply to draft",
+    "action.backToTasks": "Back to all tasks",
     "action.check": "Check",
     "action.export": "Export",
     "action.makeEditable": "Make editable copy",
@@ -26,7 +26,6 @@ const english = {
     "document.editable": "Editable",
     "document.none": "Select a file",
     "document.readOnly": "Read-only",
-    "edit.help": "Choose a file from the left. Vendor files are read-only until you make an editable user copy.",
     "error.browserOpen": "Could not open the browser: {message}",
     "error.configLoad": "Could not load app settings.",
     "error.fixBeforeSave": "Fix the errors before you save.",
@@ -45,7 +44,11 @@ const english = {
     "legacy.conflict.skip": "Skip",
     "legacy.dependencies.empty": "No dependencies found for the selected zones.",
     "legacy.dependencies.title": "Dependencies",
+    "legacy.draft.description": "Edit only the import draft. The old CSI file stays unchanged.",
+    "legacy.draft.discard": "Discard draft",
+    "legacy.draft.title": "Import draft",
     "legacy.includeSurface": "Include Surface.txt",
+    "legacy.path.advanced": "Use another old CSI folder",
     "legacy.path.placeholder": "Old CSI root or its parent directory",
     "legacy.preview.empty": "Choose a legacy surface to prepare an import preview.",
     "legacy.preview.invalid": "The selected files contain errors. Change the selection before import.",
@@ -54,13 +57,16 @@ const english = {
     "legacy.selectAll": "Select all zones",
     "legacy.selectNone": "Clear zone selection",
     "legacy.source": "Source",
+    "legacy.status.notFound": "No usable old CSI folder was found at {path}. Open Advanced details only if it is in another location.",
     "legacy.status.opened": "Opened legacy CSI root: {path}",
-    "legacy.step.source.description": "Choose the old CSI folder and the surface that you want to move.",
-    "legacy.step.source.title": "Choose the old configuration",
+    "legacy.step.source.description": "Choose a surface and its zones. The standard old CSI folder was checked automatically.",
+    "legacy.step.source.title": "Choose what to import",
     "legacy.surface.placeholder": "Choose a surface",
     "legacy.surface.option": "{name} - {count} zone files, {fxCount} FX",
     "legacy.surface.title": "Legacy surface",
     "legacy.target": "Target",
+    "legacy.targetProfile": "Target profile ID",
+    "legacy.targetProfile.placeholder": "lowercase-profile-id",
     "legacy.zones.empty": "This surface has no .zon files.",
     "legacy.zones.title": "Zones and FX zones",
     "legacy.widget.capability.absolute-input": "absolute input",
@@ -82,7 +88,7 @@ const english = {
     "pending.count": "Files ready to save: {count}",
     "problems.none": "No problems found.",
     "problems.title": "Problems",
-    "reaperDataPath.help": "Check the REAPER data path, then click Open.",
+    "reaperDataPath.help": "The standard REAPER data path is selected automatically. Change it only when needed.",
     "reaperDataPath.placeholder": "REAPER data path",
     "server.local": "Local server: {url}",
     "server.stop": "Press Ctrl+C to stop.",
@@ -105,43 +111,45 @@ const english = {
     "snippet.export.description": "Choose one snippet and download a copy that you can share.",
     "snippet.export.title": "Export a snippet",
     "snippet.preview.empty": "Choose a snippet, surface, and editable user zone.",
-    "snippet.preview.invalid": "Resolve every binding and conflict before apply.",
-    "snippet.preview.valid": "The resolved snippet is ready to apply.",
+    "snippet.preview.invalid": "Resolve every binding and conflict before building the draft.",
+    "snippet.preview.valid": "The resolved snippet is ready for the draft.",
     "snippet.source": "Snippet",
     "snippet.source.choose": "Choose a snippet",
-    "snippet.step.apply.description": "Review any warnings, then apply the bindings to the zone.",
-    "snippet.step.apply.title": "Apply the change",
+    "snippet.step.apply.description": "Build the editable target-zone draft. This does not write a file.",
+    "snippet.step.apply.title": "Build the draft",
     "snippet.step.choose.description": "Choose the function, the hardware surface, and the editable zone that will receive it.",
     "snippet.step.choose.title": "Choose what and where",
     "snippet.step.map.description": "Exact matching buttons are automatic. Confirm only a different manual choice.",
     "snippet.step.map.title": "Check the buttons",
     "snippet.surface": "Surface",
     "snippet.surface.choose": "Choose a surface",
+    "snippet.target.description": "Edit the complete target zone, then save it without a transaction backup.",
+    "snippet.target.empty": "Choose a target user zone.",
+    "snippet.target.title": "Target zone draft",
     "snippet.zone": "Target user zone",
     "snippet.zone.choose": "Choose an editable user zone",
-    "snippet.confirmApply": "Apply {snippet} to {zone}? The zone file will be changed and backed up.",
     "status.addedToSaveAll": "Added {path} to Save All.",
     "status.checked": "Check complete.",
     "status.openedDataPath": "Opened REAPER data path: {path}",
     "status.openedFile": "Opened {path}",
     "status.importedLegacy": "Imported files: {count}.",
     "status.importedSnippet": "Imported snippet files: {count}.",
-    "status.appliedSnippet": "Applied snippet to {path}.",
+    "status.appliedSnippetDraft": "Applied snippet to the editable draft for {path}.",
     "status.exportedSnippet": "Exported {name}.",
     "status.ready": "Ready.",
     "status.savedAll": "Saved files: {count}.",
     "status.savedFile": "Saved {path}.",
     "status.userCopyCreated": "Created an editable copy.",
-    "task.apply.description": "Add a reusable set of actions to one editable zone.",
+    "task.apply.description": "Choose a snippet, hardware surface, and editable user zone. Build, edit, then save the target-zone draft.",
     "task.apply.title": "Apply functionality",
-    "task.edit.description": "Open and change a surface, zone, snippet, or product configuration file.",
+    "task.edit.description": "Choose a file in the tree. Make an editable copy before changing vendor or built-in content.",
     "task.edit.title": "Edit configuration",
-    "task.legacy.description": "Move selected surfaces and zones from an old CSI folder.",
+    "task.legacy.description": "Choose an old surface and its zones, resolve any conflicts, then import them.",
     "task.legacy.title": "Import old CSI",
-    "task.share.description": "Bring in a shared snippet or download one for another user.",
+    "task.share.description": "Choose a local snippet to import, or select an existing snippet to download.",
     "task.share.title": "Import or export snippet",
     "tasks.description": "Choose what you want to do. The editor will show only the controls needed for that task.",
-    "tasks.openDataFirst": "Open a REAPER data path to start.",
+    "tasks.openDataFirst": "No valid REAPER data path was found. Choose it above.",
     "tasks.ready": "Choose a task.",
     "tasks.title": "What do you want to do?",
     "tab.guided": "Guided",
@@ -149,7 +157,12 @@ const english = {
 } as const;
 
 export type TranslationKey = keyof typeof english;
+export type TranslationOverrides = Partial<Record<TranslationKey, string>>;
 type TranslationParams = Record<string, number | string>;
+
+export function isTranslationKey(key: string): key is TranslationKey {
+    return Object.hasOwn(english, key);
+}
 
 export function t(key: TranslationKey, params: TranslationParams = {}): string {
     let text: string = english[key];
@@ -157,6 +170,6 @@ export function t(key: TranslationKey, params: TranslationParams = {}): string {
     return text;
 }
 
-export function translationCatalog(): Readonly<Record<TranslationKey, string>> {
-    return english;
+export function translationCatalog(overrides: TranslationOverrides = {}): Readonly<Record<TranslationKey, string>> {
+    return { ...english, ...overrides };
 }

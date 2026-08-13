@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <header>
+  <header id="home-header">
     <div>
       <h1 id="title">{{title}}</h1>
       <p id="data-path-status">{{reaperDataPath.help}}</p>
@@ -32,27 +32,31 @@
     <p id="task-home-status" class="muted">{{tasks.openDataFirst}}</p>
   </section>
   <main id="editor-main" hidden>
-    <aside id="file-panel" hidden>
-      <div class="aside-title">{{files.title}}</div>
-      <div id="tree" class="tree muted">{{files.empty}}</div>
-    </aside>
-    <section class="workspace">
-      <div class="workflow-topbar">
-        <button id="back-to-tasks">{{action.backToTasks}}</button>
-        <div><h2 id="workflow-title"></h2><p id="workflow-description" class="muted"></p></div>
-      </div>
+    <div class="workflow-topbar">
+      <button id="back-to-tasks" class="back-button" title="{{action.backToTasks}}" aria-label="{{action.backToTasks}}">&lt;</button>
+      <div><h2 id="workflow-title"></h2><p id="workflow-description" class="muted"></p></div>
+    </div>
+    <div id="editor-body" class="editor-body">
+      <aside id="file-panel" hidden>
+        <div class="aside-title">{{files.title}}</div>
+        <div id="tree" class="tree muted">{{files.empty}}</div>
+      </aside>
+      <section id="workspace" class="workspace">
       <section id="workflow-legacy" class="workflow-panel" hidden>
         <div class="workflow-step"><span class="step-number">1</span><div><h2>{{legacy.step.source.title}}</h2><p class="muted">{{legacy.step.source.description}}</p></div></div>
         <div class="legacy-controls">
-          <input id="legacy-path" placeholder="{{legacy.path.placeholder}}">
-          <button id="open-legacy">{{action.open}}</button>
           <select id="legacy-surface" aria-label="{{legacy.surface.title}}" disabled><option value="">{{legacy.surface.placeholder}}</option></select>
           <label><input id="legacy-include-surface" type="checkbox" checked> {{legacy.includeSurface}}</label>
           <button id="legacy-select-all" disabled>{{legacy.selectAll}}</button>
           <button id="legacy-select-none" disabled>{{legacy.selectNone}}</button>
           <button id="legacy-refresh" disabled>{{action.preview}}</button>
         </div>
+        <label class="legacy-profile-control"><span>{{legacy.targetProfile}}</span><input id="legacy-target-profile" placeholder="{{legacy.targetProfile.placeholder}}"></label>
         <p id="legacy-status" class="muted">{{legacy.preview.empty}}</p>
+        <details class="advanced-panel legacy-path-panel">
+          <summary>{{legacy.path.advanced}}</summary>
+          <div class="legacy-path-controls"><input id="legacy-path" placeholder="{{legacy.path.placeholder}}"><button id="open-legacy">{{action.open}}</button></div>
+        </details>
         <div class="legacy-columns">
           <div><h2>{{legacy.zones.title}}</h2><div id="legacy-zones" class="legacy-list muted">{{legacy.zones.empty}}</div></div>
           <div><h2>{{legacy.dependencies.title}}</h2><div id="legacy-dependencies" class="legacy-list muted">{{legacy.dependencies.empty}}</div></div>
@@ -61,10 +65,18 @@
         <div id="legacy-widget-mappings" class="legacy-widget-mappings muted">{{legacy.widgetMappings.empty}}</div>
         <h2>{{legacy.preview.title}}</h2>
         <div id="legacy-diagnostics" class="muted">{{problems.none}}</div>
+        <section id="legacy-draft-panel" class="legacy-draft-panel" hidden>
+          <div class="legacy-draft-header">
+            <div><strong>{{legacy.draft.title}}</strong><span id="legacy-draft-path"></span><p class="muted">{{legacy.draft.description}}</p></div>
+            <div class="actions"><button id="legacy-draft-discard">{{legacy.draft.discard}}</button><button id="legacy-draft-check" class="primary">{{action.check}}</button></div>
+          </div>
+          <div id="legacy-draft-editor" class="code-editor"></div>
+        </section>
         <div id="legacy-preview" class="legacy-preview muted">{{legacy.preview.empty}}</div>
         <button id="legacy-import" disabled>{{action.import}}</button>
       </section>
       <section id="workflow-snippet" class="workflow-panel" hidden>
+        <div class="snippet-builder">
         <div class="workflow-step"><span class="step-number">1</span><div><h2>{{snippet.step.choose.title}}</h2><p class="muted">{{snippet.step.choose.description}}</p></div></div>
         <div class="snippet-controls">
           <label><span>{{snippet.source}}</span><select id="snippet-source" disabled><option value="">{{snippet.source.choose}}</option></select></label>
@@ -89,8 +101,16 @@
         <details class="advanced-panel">
           <summary>{{advanced.title}}</summary>
           <label>{{snippet.applicationId}} <input id="snippet-application-id" placeholder="{{snippet.applicationId}}"></label>
-          <pre id="snippet-zone-preview" class="snippet-source-preview">{{snippet.preview.empty}}</pre>
         </details>
+        </div>
+        <section class="snippet-target-panel">
+          <div class="snippet-target-header">
+            <div><strong>{{snippet.target.title}}</strong><span id="snippet-target-path">{{snippet.target.empty}}</span><p class="muted">{{snippet.target.description}}</p></div>
+            <button id="snippet-target-save" class="primary" disabled>{{action.save}}</button>
+          </div>
+          <div id="snippet-target-diagnostics" class="muted">{{problems.none}}</div>
+          <div id="snippet-target-editor" class="code-editor"></div>
+        </section>
       </section>
       <section id="workflow-share" class="workflow-panel" hidden>
         <div class="share-grid">
@@ -117,7 +137,6 @@
         </div>
       </section>
       <section id="workflow-edit" class="document-workflow" hidden>
-        <p id="edit-help" class="workflow-help">{{edit.help}}</p>
         <div class="document-header">
           <div>
             <strong id="document-path">{{document.none}}</strong>
@@ -135,7 +154,7 @@
           <button class="tab active" data-tab="raw">{{tab.text}}</button>
           <button class="tab" data-tab="structured">{{tab.guided}}</button>
         </div>
-        <textarea id="raw-editor" spellcheck="false" disabled></textarea>
+        <div id="raw-editor" class="code-editor"></div>
         <div id="structured-editor" hidden></div>
         <div class="details">
           <div>
@@ -148,12 +167,13 @@
           </div>
         </div>
       </section>
-    </section>
+      </section>
+    </div>
   </main>
   <footer>
     <div id="batch-controls" hidden><strong id="batch-count">{{pending.count}}</strong> <button id="commit-batch" disabled>{{action.saveAll}}</button></div>
     <pre id="report">{{status.ready}}</pre>
   </footer>
-  <script src="/app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

@@ -14,7 +14,7 @@ const identity: EditorProductIdentity = {
     productId: "test-product",
     resourceDirectory: "TestProduct",
 };
-const knownActions = new Set(["GoZone", "Play"]);
+const knownActions = new Set(["GoZone", "Play", "TrackVolumeDisplay"]);
 const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
@@ -38,6 +38,7 @@ beforeEach(async () => {
     await writeFile(path.join(surfaceRoot, "Surface.txt"), surfaceSource, "utf8");
     await writeFile(path.join(surfaceRoot, "Zones", "HomeZones", "Home.zon"), homeSource, "utf8");
     await writeFile(path.join(surfaceRoot, "Zones", "HomeZones", "Home.zon~20260101"), "backup\n", "utf8");
+    await writeFile(path.join(surfaceRoot, "Zones", "GoZones", "GoZones.zon"), "Zone GoZones\n  Transport TrackNavigator\nZoneEnd\n", "utf8");
     await writeFile(path.join(surfaceRoot, "Zones", "GoZones", "Transport.zon"), transportSource, "utf8");
     await writeFile(path.join(surfaceRoot, "FXZones", "ReaEQ.zon"), fxSource, "utf8");
 
@@ -66,6 +67,8 @@ describe("legacy CSI import", () => {
             "Zones/User/faderportv2/FX/ReaEQ.zon",
         ]);
         expect(preview.items.every((item) => item.source.startsWith(`// @format ${item.kind} 1\n`))).toBeTrue();
+        expect(preview.items.some((item) => item.sourcePath.endsWith("GoZones.zon"))).toBeFalse();
+        expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.source).toContain("Zone Transport NavType=TrackNavigator\n");
         expect(preview.dependencies).toContainEqual({ from: "Zones/HomeZones/Home.zon", matches: ["Zones/GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
     });
 
@@ -148,6 +151,52 @@ describe("legacy CSI import", () => {
         const resolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths, [{ sourceWidget: "Fader|", targetWidget: "RotaryPush|" }]);
         expect(resolved.valid).toBeTrue();
         expect(resolved.items.find((item) => item.sourcePath === selectedZonePaths[0])?.source).toContain("  RotaryPush| Play\n");
+    });
+
+    test("treats Touch as a modifier for a display family", async () => {
+        const legacySurfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
+        const legacyZonePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        await writeFile(legacySurfacePath, "Widget DisplayLower1\n  FB_MCUDisplayLower 0\nWidgetEnd\nWidget DisplayLower2\n  FB_MCUDisplayLower 1\nWidgetEnd\n", "utf8");
+        await writeFile(legacyZonePath, "Zone Home\n  Touch+DisplayLower| TrackVolumeDisplay\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);
+
+        expect(preview.valid).toBeTrue();
+        expect(preview.widgetMappings).toEqual([]);
+        expect(preview.diagnostics.some((diagnostic) => diagnostic.code === "legacy.widget.mapping.required")).toBeFalse();
+    });
+
+    test("imports an edited draft into a custom profile and target without changing the old CSI file", async () => {
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const store = await createStore();
+        const selectedZonePaths = ["Zones/HomeZones/Home.zon"];
+        const initial = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths);
+        const initialZone = initial.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
+        const draftSource = initialZone.source.replace("  Play Play\n", "  Play GoZone Transport\n");
+        const drafts = [{ originalSourceHash: initialZone.originalSourceHash, source: draftSource, sourcePath: initialZone.sourcePath }];
+        const targetPaths = [{ sourcePath: initialZone.sourcePath, targetPath: "Zones/User/custom-profile/Main/Transport/Home.zon" }];
+        const preview = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths, [], false, drafts, "custom-profile", targetPaths);
+        const importedZone = preview.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
+        const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
+
+        expect(preview.valid).toBeTrue();
+        expect(preview.targetProfileId).toBe("custom-profile");
+        expect(importedZone.targetPath).toBe("Zones/User/custom-profile/Main/Transport/Home.zon");
+        expect(importedZone.source).toContain("  Play GoZone Transport\n");
+        await source.import(store, knownActions, { drafts, includeSurface: true, resolutions, selectedZonePaths, surfaceName: "FaderPortV2", targetPaths, targetProfileId: "custom-profile", widgetMappings: [] });
+        expect(await readFile(path.join(productRoot, "Zones", "User", "custom-profile", "Main", "Transport", "Home.zon"), "utf8")).toContain("  Play GoZone Transport\n");
+        expect(await readFile(path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon"), "utf8")).toBe(homeSource);
+    });
+
+    test("reports when two selected zones use the same import target", async () => {
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const selectedZonePaths = ["Zones/HomeZones/Home.zon", "Zones/GoZones/Transport.zon"];
+        const targetPath = "Zones/User/faderportv2/Main/Shared.zon";
+        const targetPaths = selectedZonePaths.map((sourcePath) => ({ sourcePath, targetPath }));
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, selectedZonePaths, [], false, [], undefined, targetPaths);
+
+        expect(preview.valid).toBeFalse();
+        expect(preview.diagnostics.some((diagnostic) => diagnostic.code === "legacy.target.duplicate")).toBeTrue();
     });
 
     test("does not request hardware mapping for a declared modifier alias", async () => {

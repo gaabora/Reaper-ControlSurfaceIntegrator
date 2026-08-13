@@ -3,11 +3,13 @@ import { t } from "./i18n.ts";
 import { discoverReaperDataPaths } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
 import { startEditorServer } from "./server.ts";
+import { bundleEditorJavascript } from "./ui.ts";
 
 export interface EditorLaunchOptions {
     actions: ActionCatalogEntry[];
     args: string[];
     identity: EditorProductIdentity;
+    editorJavascript?: string;
 }
 
 function argumentValue(args: string[], name: string): string | undefined {
@@ -39,7 +41,8 @@ export async function launchEditor(options: EditorLaunchOptions): Promise<void> 
         throw new Error(`Unknown argument: ${argument}`);
     }
     const candidates = await discoverReaperDataPaths(explicitDataPath);
-    const running = startEditorServer({ actions: options.actions, candidates, identity: options.identity, port });
+    const editorJavascript = options.editorJavascript ?? await bundleEditorJavascript();
+    const running = startEditorServer({ actions: options.actions, candidates, editorJavascript, identity: options.identity, port });
     console.log(t("app.title", { product: options.identity.displayName }));
     console.log(t("server.local", { url: running.url }));
     console.log(t("server.stop"));

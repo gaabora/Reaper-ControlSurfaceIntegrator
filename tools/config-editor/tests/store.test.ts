@@ -53,6 +53,7 @@ describe("configuration store", () => {
         const saved = await store.saveOne({ originalHash: opened.hash, path: relativePath, source: changedSource });
         expect(saved.report.changed).toEqual([relativePath]);
         expect(await readFile(absolutePath, "utf8")).toBe(changedSource);
+        await expect(lstat(path.join(productRoot, "Backups"))).rejects.toThrow();
 
         await writeFile(absolutePath, alphaSource, "utf8");
         try {

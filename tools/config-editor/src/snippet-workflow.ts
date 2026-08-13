@@ -60,6 +60,7 @@ export interface SnippetApplicationPreview {
     source: string;
     surfaceHash: string;
     targetHash: string;
+    targetSource: string;
     targetZonePath: string;
     valid: boolean;
 }
@@ -256,6 +257,7 @@ export async function previewSnippetApplication(store: ConfigurationStore, known
         source,
         surfaceHash: openedSurface.hash,
         targetHash: openedZone.hash,
+        targetSource: openedZone.source,
         targetZonePath: request.targetZonePath,
         valid: !diagnostics.some((diagnostic) => diagnostic.severity === "error"),
     };

@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadActionCatalog } from "../src/action-catalog.ts";
 import { loadProductIdentity } from "../src/product-identity.ts";
+import { bundleEditorJavascript } from "../src/ui.ts";
 
 const editorRoot = fileURLToPath(new URL("../", import.meta.url));
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -16,6 +17,7 @@ if (target && !supportedTargets.has(target)) throw new Error(`Unsupported Bun co
 
 const identity = await loadProductIdentity(path.join(repositoryRoot, "Scripts", "product_identity.conf"));
 const actions = await loadActionCatalog(repositoryRoot);
+const editorJavascript = await bundleEditorJavascript();
 const generatedRoot = path.join(editorRoot, "generated");
 const distributionRoot = path.join(editorRoot, "dist");
 await mkdir(generatedRoot, { recursive: true });
@@ -26,7 +28,8 @@ const entrySource = [
     "import { launchEditor } from '../src/launch.ts';",
     `const identity = ${JSON.stringify(identity)};`,
     `const actions = ${JSON.stringify(actions)};`,
-    "await launchEditor({ actions, args: process.argv.slice(2), identity });",
+    `const editorJavascript = ${JSON.stringify(editorJavascript)};`,
+    "await launchEditor({ actions, args: process.argv.slice(2), editorJavascript, identity });",
     "",
 ].join("\n");
 await Bun.write(entryPath, entrySource);

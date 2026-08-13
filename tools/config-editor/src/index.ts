@@ -13,5 +13,6 @@ export * from "./snippet-workflow.ts";
 export * from "./widget-capabilities.ts";
 export * from "./store.ts";
 export * from "./surface.ts";
+export * from "./ui.ts";
 export * from "./validation.ts";
 export * from "./zone.ts";

@@ -5,6 +5,7 @@ import { parseByPath, type AnyDocument } from "./formats.ts";
 import { addDiagnostic, serializeDocument, type Diagnostic } from "./model.ts";
 import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
 import { EditorOperationError } from "./store.ts";
+import { initializeLine, isStableId, splitSourceLines } from "./text.ts";
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
 import type { ZoneBinding, ZoneSemantic } from "./zone.ts";
@@ -52,6 +53,7 @@ export interface LegacyImportItem {
     diagnostics: Diagnostic[];
     id: string;
     kind: LegacyImportKind;
+    originalSourceHash: string;
     selected: boolean;
     source: string;
     sourceHash: string;
@@ -71,6 +73,7 @@ export interface LegacyImportPreview {
     selectedZonePaths: string[];
     surfaceName: string;
     surfaceStableId: string;
+    targetProfileId: string;
     valid: boolean;
     widgetMappings: LegacyWidgetMappingIssue[];
     widgetTarget: "existing" | "imported";
@@ -85,14 +88,29 @@ export interface LegacyImportResolution {
 }
 
 export interface LegacyImportRequest {
+    drafts?: LegacyImportDraft[];
     includeSurface: boolean;
     resolutions: LegacyImportResolution[];
     selectedZonePaths: string[];
     surfaceName: string;
+    targetPaths?: LegacyImportTargetPath[];
+    targetProfileId?: string;
     widgetMappings: LegacyWidgetMapping[];
 }
 
+export interface LegacyImportDraft {
+    originalSourceHash: string;
+    source: string;
+    sourcePath: string;
+}
+
+export interface LegacyImportTargetPath {
+    sourcePath: string;
+    targetPath: string;
+}
+
 interface LegacyZoneSourceFile {
+    originalSourceHash: string;
     profile: "FX" | "Main";
     relativePath: string;
     source: string;
@@ -102,7 +120,7 @@ interface LegacyZoneSourceFile {
 interface LegacySurfaceFiles {
     name: string;
     stableId: string;
-    surface: { source: string; sourcePath: string };
+    surface: { originalSourceHash: string; source: string; sourcePath: string };
     zones: LegacyZoneSourceFile[];
 }
 
@@ -132,8 +150,43 @@ function inferredBindingCapabilities(binding: ZoneBinding): LegacyWidgetCapabili
     const capabilities = new Set<LegacyWidgetCapability>();
     if (binding.modifiers.some((modifier) => modifier === "Hold" || modifier === "DoublePress")) capabilities.add("press-input");
     if (binding.modifiers.some((modifier) => modifier === "Decrease" || modifier === "Increase")) capabilities.add("relative-input");
-    if (binding.modifiers.some((modifier) => modifier.includes("Touch"))) capabilities.add("touch-input");
     return [...capabilities].sort();
+}
+
+function legacyGoZoneNavigators(source: string): Map<string, string> | undefined {
+    const lines = splitSourceLines(source);
+    const content = lines.filter((line) => Boolean(initializeLine(line)) && line.kind !== "comment");
+    if (content[0]?.tokens[0] !== "Zone" || content[0]?.tokens[1]?.toLowerCase() !== "gozones") return undefined;
+    const navigators = new Map<string, string>();
+    for (const line of content.slice(1)) {
+        if (line.tokens[0] === "ZoneEnd") break;
+        if (line.tokens[0] && line.tokens[1]) navigators.set(line.tokens[0].toLowerCase(), line.tokens[1]);
+    }
+    return navigators;
+}
+
+function legacyZoneName(source: string): string | undefined {
+    for (const line of splitSourceLines(source)) {
+        initializeLine(line);
+        if (line.tokens[0] === "Zone") return line.tokens[1];
+    }
+    return undefined;
+}
+
+function addLegacyNavigator(source: string, navigator: string | undefined): string {
+    if (!navigator) return source;
+    const lines = splitSourceLines(source);
+    for (const line of lines) {
+        const text = initializeLine(line);
+        if (line.tokens[0] !== "Zone") continue;
+        if (/\bNavType=/i.test(text)) return source;
+        const commentPosition = line.text.indexOf("//");
+        const definition = commentPosition < 0 ? line.text : line.text.slice(0, commentPosition);
+        const comment = commentPosition < 0 ? "" : line.text.slice(commentPosition);
+        line.text = `${definition.trimEnd()} NavType=${navigator}${comment ? ` ${comment}` : ""}`;
+        return lines.map((line) => `${line.text}${line.ending}`).join("");
+    }
+    return source;
 }
 
 function widgetMappingMap(widgetMappings: LegacyWidgetMapping[]): Map<string, string> {
@@ -278,26 +331,49 @@ export class LegacyCsiSource {
         return summaries;
     }
 
-    async preview(store: ConfigurationStore, knownActions: Set<string>, surfaceName: string, includeSurface: boolean, selectedZonePaths?: string[], requestedWidgetMappings: LegacyWidgetMapping[] = [], useExistingSurface = false): Promise<LegacyImportPreview> {
+    async preview(store: ConfigurationStore, knownActions: Set<string>, surfaceName: string, includeSurface: boolean, selectedZonePaths?: string[], requestedWidgetMappings: LegacyWidgetMapping[] = [], useExistingSurface = false, drafts: LegacyImportDraft[] = [], requestedProfileId?: string, requestedTargetPaths: LegacyImportTargetPath[] = []): Promise<LegacyImportPreview> {
         const files = await this.readSurfaceFiles(surfaceName);
+        const targetProfileId = requestedProfileId || files.stableId;
+        if (!isStableId(targetProfileId)) throw new EditorOperationError("legacy.target.profile", "Target profile ID must be a stable lowercase ASCII ID");
         const selectedPaths = new Set(selectedZonePaths ?? files.zones.map((zone) => zone.sourcePath));
         const availableZonePaths = new Set(files.zones.map((zone) => zone.sourcePath));
         for (const selectedPath of selectedPaths) if (!availableZonePaths.has(selectedPath)) throw new EditorOperationError("legacy.zone.missing", `Legacy zone is not available in ${surfaceName}: ${selectedPath}`);
 
-        const surfaceTargetPath = `Surfaces/User/${files.stableId}.txt`;
-        const migratedSurface = formatSource(files.surface.source, "surface", surfaceTargetPath, knownActions);
+        const sourceFiles = new Map<string, { kind: LegacyImportKind; originalSourceHash: string; source: string }>([[files.surface.sourcePath, { kind: "surface", originalSourceHash: files.surface.originalSourceHash, source: files.surface.source }]]);
+        for (const zone of files.zones) sourceFiles.set(zone.sourcePath, { kind: "zone", originalSourceHash: zone.originalSourceHash, source: zone.source });
+        const draftMap = new Map<string, LegacyImportDraft>();
+        for (const draft of drafts) {
+            const sourceFile = sourceFiles.get(draft.sourcePath);
+            if (!sourceFile) throw new EditorOperationError("legacy.draft.source", `Import draft does not match a legacy source file: ${draft.sourcePath}`);
+            if (draftMap.has(draft.sourcePath)) throw new EditorOperationError("legacy.draft.duplicate", `Import draft is duplicated: ${draft.sourcePath}`);
+            if (sourceFile.originalSourceHash !== draft.originalSourceHash) throw new EditorOperationError("conflict.legacy-source", `Legacy source changed after its import draft was opened: ${draft.sourcePath}`);
+            draftMap.set(draft.sourcePath, draft);
+        }
+        const targetPathMap = new Map<string, string>();
+        for (const target of requestedTargetPaths) {
+            if (!sourceFiles.has(target.sourcePath)) throw new EditorOperationError("legacy.target.source", `Import target does not match a legacy source file: ${target.sourcePath}`);
+            if (targetPathMap.has(target.sourcePath)) throw new EditorOperationError("legacy.target.duplicate-source", `Import target is duplicated: ${target.sourcePath}`);
+            targetPathMap.set(target.sourcePath, target.targetPath);
+        }
+
+        const surfaceTargetPath = targetPathMap.get(files.surface.sourcePath) || `Surfaces/User/${targetProfileId}.txt`;
+        this.validateTargetScope("surface", surfaceTargetPath, targetProfileId);
+        const migratedSurface = formatSource(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source, "surface", surfaceTargetPath, knownActions);
         const surfaceDocument = parseByPath(migratedSurface, surfaceTargetPath, knownActions);
         const zoneDocuments = new Map<string, AnyDocument>();
         const migratedZoneSources = new Map<string, string>();
+        const zoneTargetPaths = new Map<string, string>();
         for (const zone of files.zones) {
-            const targetPath = `Zones/User/${files.stableId}/${zone.profile}/${zone.relativePath}`;
-            const migratedSource = formatSource(zone.source, "zone", targetPath, knownActions);
+            const targetPath = targetPathMap.get(zone.sourcePath) || `Zones/User/${targetProfileId}/${zone.profile}/${zone.relativePath}`;
+            this.validateTargetScope("zone", targetPath, targetProfileId);
+            const migratedSource = formatSource(draftMap.get(zone.sourcePath)?.source ?? zone.source, "zone", targetPath, knownActions);
             migratedZoneSources.set(zone.sourcePath, migratedSource);
             zoneDocuments.set(zone.sourcePath, parseByPath(migratedSource, targetPath, knownActions));
+            zoneTargetPaths.set(zone.sourcePath, targetPath);
         }
 
         const widgetTarget = includeSurface && !useExistingSurface ? "imported" : "existing";
-        const targetSurface = widgetTarget === "imported" ? surfaceDocument : await this.readExistingTargetSurface(store, knownActions, files.stableId);
+        const targetSurface = widgetTarget === "imported" ? surfaceDocument : await this.readExistingTargetSurface(store, knownActions, targetProfileId);
         const widgetMappingResult = collectWidgetMappings(zoneDocuments, selectedPaths, surfaceDocument, targetSurface, requestedWidgetMappings);
         for (const [sourcePath, document] of zoneDocuments) {
             if (!selectedPaths.has(sourcePath)) continue;
@@ -318,21 +394,28 @@ export class LegacyCsiSource {
         for (const [sourcePath, document] of zoneDocuments) for (const dependency of collectDependencies(sourcePath, document.semantic as ZoneSemantic, matchesByName, selectedPaths)) dependenciesByKey.set(dependencyKey(dependency), dependency);
 
         const items: LegacyImportItem[] = [];
-        const appendItem = async (kind: LegacyImportKind, sourcePath: string, targetPath: string, source: string, document: AnyDocument, selected: boolean, zoneName?: string): Promise<void> => {
+        const appendItem = async (kind: LegacyImportKind, sourcePath: string, originalSourceHash: string, targetPath: string, source: string, document: AnyDocument, selected: boolean, zoneName?: string): Promise<void> => {
             const targetState = await store.fileState(targetPath);
-            items.push({ diagnostics: document.diagnostics, id: `${kind}:${sourcePath}`, kind, selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, zoneName });
+            items.push({ diagnostics: document.diagnostics, id: `${kind}:${sourcePath}`, kind, originalSourceHash, selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, zoneName });
         };
-        await appendItem("surface", files.surface.sourcePath, surfaceTargetPath, migratedSurface, surfaceDocument, includeSurface);
+        await appendItem("surface", files.surface.sourcePath, files.surface.originalSourceHash, surfaceTargetPath, migratedSurface, surfaceDocument, includeSurface);
         for (const zone of files.zones) {
             const document = zoneDocuments.get(zone.sourcePath)!;
-            await appendItem("zone", zone.sourcePath, `Zones/User/${files.stableId}/${zone.profile}/${zone.relativePath}`, migratedZoneSources.get(zone.sourcePath)!, document, selectedPaths.has(zone.sourcePath), (document.semantic as ZoneSemantic).name);
+            await appendItem("zone", zone.sourcePath, zone.originalSourceHash, zoneTargetPaths.get(zone.sourcePath)!, migratedZoneSources.get(zone.sourcePath)!, document, selectedPaths.has(zone.sourcePath), (document.semantic as ZoneSemantic).name);
         }
 
         const selectedDocuments = items.filter((item) => item.selected).map((item) => item.kind === "surface" ? surfaceDocument : zoneDocuments.get(item.sourcePath)!);
         const mappingSurfaceDocuments = widgetTarget === "existing" ? [...(!includeSurface ? [surfaceDocument] : []), ...(targetSurface ? [targetSurface] : [])] : [];
-        const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics);
+        const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics).filter((diagnostic) => diagnostic.code !== "surface.format.missing" && diagnostic.code !== "zone.format.missing");
         const diagnostics = selectedDocuments.flatMap((document) => document.diagnostics).concat(mappingSurfaceDiagnostics, validateDocumentSet(selectedDocuments), widgetMappingResult.diagnostics);
-        if (widgetTarget === "existing" && selectedPaths.size && !targetSurface) addDiagnostic(diagnostics, "error", "legacy.widget.surface.missing", `Import Surface.txt or create Surfaces/User/${files.stableId}.txt before importing its zones.`);
+        const selectedTargetPaths = new Map<string, string>();
+        for (const item of items.filter((candidate) => candidate.selected)) {
+            const targetKey = item.targetPath.toLowerCase();
+            const existingSourcePath = selectedTargetPaths.get(targetKey);
+            if (existingSourcePath) addDiagnostic(diagnostics, "error", "legacy.target.duplicate", `Import target is used by both ${existingSourcePath} and ${item.sourcePath}`, undefined, item.targetPath);
+            else selectedTargetPaths.set(targetKey, item.sourcePath);
+        }
+        if (widgetTarget === "existing" && selectedPaths.size && !targetSurface) addDiagnostic(diagnostics, "error", "legacy.widget.surface.missing", `Import Surface.txt or create Surfaces/User/${targetProfileId}.txt before importing its zones.`);
         return {
             dependencies: [...dependenciesByKey.values()].sort((left, right) => left.from.localeCompare(right.from) || left.type.localeCompare(right.type) || left.name.localeCompare(right.name)),
             diagnostics,
@@ -342,6 +425,7 @@ export class LegacyCsiSource {
             selectedZonePaths: [...selectedPaths].sort(),
             surfaceName: files.name,
             surfaceStableId: files.stableId,
+            targetProfileId,
             valid: !diagnostics.some((diagnostic) => diagnostic.severity === "error"),
             widgetMappings: widgetMappingResult.issues,
             widgetTarget,
@@ -351,10 +435,10 @@ export class LegacyCsiSource {
     async import(store: ConfigurationStore, knownActions: Set<string>, request: LegacyImportRequest): Promise<OperationReport> {
         const resolutions = new Map(request.resolutions.map((resolution) => [resolution.id, resolution]));
         if (resolutions.size !== request.resolutions.length) throw new EditorOperationError("legacy.resolution.duplicate", "Legacy import resolutions must have unique IDs");
-        let preview = await this.preview(store, knownActions, request.surfaceName, request.includeSurface, request.selectedZonePaths, request.widgetMappings);
+        let preview = await this.preview(store, knownActions, request.surfaceName, request.includeSurface, request.selectedZonePaths, request.widgetMappings, false, request.drafts ?? [], request.targetProfileId, request.targetPaths ?? []);
         const surfaceItem = preview.items.find((item) => item.kind === "surface");
         const surfaceResolution = surfaceItem ? resolutions.get(surfaceItem.id) : undefined;
-        if (request.includeSurface && surfaceResolution && (surfaceResolution.action === "rename" || surfaceResolution.action === "skip")) preview = await this.preview(store, knownActions, request.surfaceName, request.includeSurface, request.selectedZonePaths, request.widgetMappings, true);
+        if (request.includeSurface && surfaceResolution && (surfaceResolution.action === "rename" || surfaceResolution.action === "skip")) preview = await this.preview(store, knownActions, request.surfaceName, request.includeSurface, request.selectedZonePaths, request.widgetMappings, true, request.drafts ?? [], request.targetProfileId, request.targetPaths ?? []);
         if (!preview.valid) throw new EditorOperationError("validation.failed", "Legacy import contains configuration errors", preview.diagnostics);
         const changes: SaveChange[] = [];
         const skipped: string[] = [];
@@ -372,7 +456,7 @@ export class LegacyCsiSource {
             if (resolution.action === "rename") {
                 const renameTarget = resolution.targetPath;
                 if (!renameTarget) throw new EditorOperationError("legacy.rename.path", `Rename requires a target path for ${item.sourcePath}`);
-                this.validateRenameScope(item, renameTarget, preview.surfaceStableId);
+                this.validateRenameScope(item, renameTarget, preview.targetProfileId);
                 const renamedDocument = store.validateSource(renameTarget, item.source);
                 if (renamedDocument.format !== item.kind) throw new EditorOperationError("legacy.rename.kind", `Rename target has the wrong file type: ${renameTarget}`);
                 const targetState = await store.fileState(renameTarget);
@@ -389,9 +473,14 @@ export class LegacyCsiSource {
         return report;
     }
 
-    private validateRenameScope(item: LegacyImportItem, targetPath: string, surfaceStableId: string): void {
-        if (item.kind === "surface" && !targetPath.startsWith("Surfaces/User/")) throw new EditorOperationError("legacy.rename.scope", "A surface rename target must stay below Surfaces/User");
-        if (item.kind === "zone" && !targetPath.startsWith(`Zones/User/${surfaceStableId}/`)) throw new EditorOperationError("legacy.rename.scope", `A zone rename target must stay below Zones/User/${surfaceStableId}`);
+    private validateTargetScope(kind: LegacyImportKind, targetPath: string, targetProfileId: string): void {
+        if (kind === "surface" && targetPath !== `Surfaces/User/${targetProfileId}.txt`) throw new EditorOperationError("legacy.target.surface", `The surface target must be Surfaces/User/${targetProfileId}.txt`);
+        if (kind === "zone" && (!targetPath.startsWith(`Zones/User/${targetProfileId}/`) || !targetPath.endsWith(".zon"))) throw new EditorOperationError("legacy.target.zone", `A zone target must be a .zon file below Zones/User/${targetProfileId}`);
+    }
+
+    private validateRenameScope(item: LegacyImportItem, targetPath: string, targetProfileId: string): void {
+        if (item.kind === "surface" && (!targetPath.startsWith("Surfaces/User/") || !targetPath.endsWith(".txt"))) throw new EditorOperationError("legacy.rename.scope", "A surface rename target must be a .txt file below Surfaces/User");
+        if (item.kind === "zone" && (!targetPath.startsWith(`Zones/User/${targetProfileId}/`) || !targetPath.endsWith(".zon"))) throw new EditorOperationError("legacy.rename.scope", `A zone rename target must be a .zon file below Zones/User/${targetProfileId}`);
     }
 
     private async readExistingTargetSurface(store: ConfigurationStore, knownActions: Set<string>, surfaceStableId: string): Promise<AnyDocument | undefined> {
@@ -414,28 +503,41 @@ export class LegacyCsiSource {
         if (!stats.isDirectory()) throw new EditorOperationError("legacy.surface.directory", `Legacy surface is not a directory: ${surfaceName}`);
         const surfacePath = path.join(surfaceRoot, "Surface.txt");
         if (!await this.isRegularFile(surfacePath)) throw new EditorOperationError("legacy.surface.file", `Legacy surface has no regular Surface.txt file: ${surfaceName}`);
-        const zones = [
-            ...await this.readZones(path.join(surfaceRoot, "Zones"), "Main", "Zones"),
-            ...await this.readZones(path.join(surfaceRoot, "FXZones"), "FX", "FXZones"),
-        ];
+        const mainZones = await this.readZones(path.join(surfaceRoot, "Zones"), "Main", "Zones");
+        const navigators = new Map<string, string>();
+        const zones: LegacyZoneSourceFile[] = [];
+        for (const zone of mainZones) {
+            const manifestNavigators = path.posix.basename(zone.relativePath).toLowerCase() === "gozones.zon" ? legacyGoZoneNavigators(zone.source) : undefined;
+            if (manifestNavigators) {
+                for (const [zoneName, navigator] of manifestNavigators) navigators.set(zoneName, navigator);
+                continue;
+            }
+            zones.push(zone);
+        }
+        for (const zone of zones) zone.source = addLegacyNavigator(zone.source, navigators.get(legacyZoneName(zone.source)?.toLowerCase() ?? ""));
+        zones.push(...await this.readZones(path.join(surfaceRoot, "FXZones"), "FX", "FXZones"));
+        const surfaceSource = await readFile(surfacePath, "utf8");
         return {
             name: surfaceName,
             stableId: stableId(surfaceName),
-            surface: { source: await readFile(surfacePath, "utf8"), sourcePath: `Surfaces/${surfaceName}/Surface.txt` },
+            surface: { originalSourceHash: sha256(surfaceSource), source: surfaceSource, sourcePath: `Surfaces/${surfaceName}/Surface.txt` },
             zones,
         };
     }
 
     private async countZones(zonesRoot: string): Promise<number> {
         let count = 0;
-        await this.visitZoneFiles(zonesRoot, async () => { count++; });
+        await this.visitZoneFiles(zonesRoot, async (filePath, relativePath) => {
+            if (path.posix.basename(relativePath).toLowerCase() !== "gozones.zon" || !legacyGoZoneNavigators(await readFile(filePath, "utf8"))) count++;
+        });
         return count;
     }
 
     private async readZones(zonesRoot: string, profile: LegacyZoneSourceFile["profile"], sourceDirectory: "FXZones" | "Zones"): Promise<LegacyZoneSourceFile[]> {
         const zones: LegacyZoneSourceFile[] = [];
         await this.visitZoneFiles(zonesRoot, async (filePath, relativePath) => {
-            zones.push({ profile, relativePath, source: await readFile(filePath, "utf8"), sourcePath: `${sourceDirectory}/${relativePath}` });
+            const source = await readFile(filePath, "utf8");
+            zones.push({ originalSourceHash: sha256(source), profile, relativePath, source, sourcePath: `${sourceDirectory}/${relativePath}` });
         });
         return zones;
     }

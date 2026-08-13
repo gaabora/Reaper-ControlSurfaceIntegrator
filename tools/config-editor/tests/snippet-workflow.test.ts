@@ -87,6 +87,7 @@ describe("functional snippet workflow", () => {
 
         const preview = await previewSnippetApplication(store, knownActions, applicationRequest());
         expect(preview.valid).toBeTrue();
+        expect(preview.targetSource).toBe(zoneSource);
         expect(preview.source).toContain("// @snippet Application=transport Source=transport\n  Play Play\n  Stop Stop\n  // @snippet-end Application=transport");
         const report = await applySnippetApplication(store, knownActions, { ...applicationRequest(), snippetHash: preview.snippetHash, surfaceHash: preview.surfaceHash, targetHash: preview.targetHash });
 

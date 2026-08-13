@@ -1,3 +1,5 @@
+import { createConfigurationEditor } from "./code-editor.js";
+
 let translations = {};
 const hashToken = new URLSearchParams(location.hash.slice(1)).get("token") || "";
 if (hashToken) sessionStorage.setItem("config-editor-token", hashToken);
@@ -23,11 +25,17 @@ const elements = {
     diagnostics: requiredElement("diagnostics"),
     documentMode: requiredElement("document-mode"),
     documentPath: requiredElement("document-path"),
+    editorBody: requiredElement("editor-body"),
     editorMain: requiredElement("editor-main"),
     exportSnippet: requiredElement("export-snippet"),
     filePanel: requiredElement("file-panel"),
     legacyDependencies: requiredElement("legacy-dependencies"),
     legacyDiagnostics: requiredElement("legacy-diagnostics"),
+    legacyDraftCheck: requiredElement("legacy-draft-check"),
+    legacyDraftDiscard: requiredElement("legacy-draft-discard"),
+    legacyDraftEditor: requiredElement("legacy-draft-editor"),
+    legacyDraftPanel: requiredElement("legacy-draft-panel"),
+    legacyDraftPath: requiredElement("legacy-draft-path"),
     legacyImport: requiredElement("legacy-import"),
     legacyIncludeSurface: requiredElement("legacy-include-surface"),
     legacyPath: requiredElement("legacy-path"),
@@ -37,8 +45,10 @@ const elements = {
     legacySelectNone: requiredElement("legacy-select-none"),
     legacyStatus: requiredElement("legacy-status"),
     legacySurface: requiredElement("legacy-surface"),
+    legacyTargetProfile: requiredElement("legacy-target-profile"),
     legacyWidgetMappings: requiredElement("legacy-widget-mappings"),
     legacyZones: requiredElement("legacy-zones"),
+    homeHeader: requiredElement("home-header"),
     openDataPath: requiredElement("open-data-path"),
     openLegacy: requiredElement("open-legacy"),
     rawEditor: requiredElement("raw-editor"),
@@ -65,8 +75,11 @@ const elements = {
     snippetSource: requiredElement("snippet-source"),
     snippetStatus: requiredElement("snippet-status"),
     snippetSurface: requiredElement("snippet-surface"),
+    snippetTargetDiagnostics: requiredElement("snippet-target-diagnostics"),
+    snippetTargetEditor: requiredElement("snippet-target-editor"),
+    snippetTargetPath: requiredElement("snippet-target-path"),
+    snippetTargetSave: requiredElement("snippet-target-save"),
     snippetZone: requiredElement("snippet-zone"),
-    snippetZonePreview: requiredElement("snippet-zone-preview"),
     structuredEditor: requiredElement("structured-editor"),
     taskHome: requiredElement("task-home"),
     taskHomeStatus: requiredElement("task-home-status"),
@@ -79,15 +92,32 @@ const elements = {
     workflowShare: requiredElement("workflow-share"),
     workflowSnippet: requiredElement("workflow-snippet"),
     workflowTitle: requiredElement("workflow-title"),
+    workspace: requiredElement("workspace"),
 };
 const state = {
     batch: new Map(),
     current: null,
-    legacy: { preview: null, resolutions: new Map(), selectedZonePaths: new Set(), widgetMappings: new Map() },
-    snippet: { choices: new Map(), conflictAction: "", importAction: "", importFile: null, importPreview: null, preview: null, treeEntries: [] },
+    legacy: { activeDraftPath: "", drafts: new Map(), preview: null, resolutions: new Map(), selectedZonePaths: new Set(), targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
+    snippet: { choices: new Map(), conflictAction: "", importAction: "", importFile: null, importPreview: null, preview: null, targetDiagnostics: [], targetDirty: false, targetHash: "", targetPath: "", treeEntries: [] },
+    renderedDocumentPath: "",
     tab: "raw",
     task: "",
 };
+const codeEditor = createConfigurationEditor(elements.rawEditor, (source) => { if (state.current) state.current.source = source; });
+const legacyDraftEditor = createConfigurationEditor(elements.legacyDraftEditor, (source) => {
+    const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === state.legacy.activeDraftPath);
+    if (item) state.legacy.drafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source });
+});
+const snippetTargetEditor = createConfigurationEditor(elements.snippetTargetEditor, () => {
+    if (!state.snippet.targetPath) return;
+    state.snippet.targetDiagnostics = [];
+    state.snippet.targetDirty = true;
+    renderSnippetTarget();
+});
+legacyDraftEditor.setReadOnly(false);
+legacyDraftEditor.setVisible(false);
+snippetTargetEditor.setReadOnly(false);
+snippetTargetEditor.setVisible(false);
 
 function translate(key, params = {}) {
     let text = translations[key] ?? key;
@@ -124,24 +154,30 @@ function showTask(task) {
     const workflows = { edit: elements.workflowEdit, legacy: elements.workflowLegacy, share: elements.workflowShare, snippet: elements.workflowSnippet };
     const translationTask = task === "snippet" ? "apply" : task;
     state.task = task;
+    elements.homeHeader.hidden = true;
     elements.taskHome.hidden = true;
     elements.editorMain.hidden = false;
     elements.filePanel.hidden = task !== "edit";
     elements.batchControls.hidden = task !== "edit";
-    elements.editorMain.classList.toggle("file-task", task === "edit");
+    elements.editorBody.classList.toggle("file-task", task === "edit");
+    elements.workspace.classList.toggle("document-task", task === "edit");
+    elements.workspace.classList.toggle("snippet-task", task === "snippet");
     for (const workflow of Object.values(workflows)) workflow.hidden = workflow !== workflows[task];
     elements.workflowTitle.textContent = translate(`task.${translationTask}.title`);
     elements.workflowDescription.textContent = translate(`task.${translationTask}.description`);
+    if (task === "edit") codeEditor.setVisible(state.tab === "raw");
+    snippetTargetEditor.setVisible(task === "snippet");
 }
 
 function showTaskHome() {
     state.task = "";
+    elements.homeHeader.hidden = false;
     elements.editorMain.hidden = true;
     elements.batchControls.hidden = true;
     elements.taskHome.hidden = false;
 }
 
-function renderDiagnosticsIn(container, diagnostics = []) {
+function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDiagnostic) {
     container.replaceChildren();
     if (!diagnostics.length) {
         container.className = "muted";
@@ -150,8 +186,13 @@ function renderDiagnosticsIn(container, diagnostics = []) {
     }
     container.className = "";
     for (const diagnostic of diagnostics) {
-        const row = document.createElement("div");
+        const actionable = Boolean(diagnostic.path || diagnostic.line);
+        const row = document.createElement(actionable ? "button" : "div");
         row.className = "diagnostic " + diagnostic.severity;
+        if (actionable) {
+            row.classList.add("diagnostic-link");
+            row.addEventListener("click", () => navigate(diagnostic));
+        }
         row.textContent = (diagnostic.path ? diagnostic.path + ": " : "") + (diagnostic.line ? translate("diagnostic.line", { line: diagnostic.line }) : "") + diagnostic.severity.toUpperCase() + " " + diagnostic.code + ": " + diagnostic.message;
         container.append(row);
     }
@@ -180,7 +221,7 @@ function renderStructured() {
         input.dataset.line = String(line.lineNumber);
         input.disabled = !state.current.writable;
         input.value = line.text;
-        input.addEventListener("input", () => { elements.rawEditor.value = rebuildSourceFromStructured(); });
+        input.addEventListener("input", () => { codeEditor.setValue(rebuildSourceFromStructured()); });
         row.append(lineNumber, input);
         elements.structuredEditor.append(row);
     }
@@ -188,10 +229,12 @@ function renderStructured() {
 
 function renderDocument() {
     const current = state.current;
+    const documentPath = current?.path || "";
     elements.documentPath.textContent = current?.path || translate("document.none");
     elements.documentMode.textContent = current ? (current.writable ? translate("document.editable") : translate("document.readOnly")) : "";
-    elements.rawEditor.disabled = !current || !current.writable;
-    elements.rawEditor.value = current?.source || "";
+    codeEditor.setReadOnly(!current || !current.writable);
+    codeEditor.setValue(current?.source || "", documentPath !== state.renderedDocumentPath);
+    state.renderedDocumentPath = documentPath;
     elements.validate.disabled = !current;
     elements.addBatch.disabled = !current || !current.writable;
     elements.save.disabled = !current || !current.writable;
@@ -204,21 +247,47 @@ function renderDocument() {
 
 async function validateCurrent() {
     if (!state.current) return null;
-    const source = elements.rawEditor.value;
+    const source = codeEditor.getValue();
     const result = await api("/api/validate", { method: "POST", body: JSON.stringify({ path: state.current.path, source }) });
     state.current = { ...state.current, document: result.document, source };
     renderDocument();
     return result.document;
 }
 
-async function openDocument(path) {
+async function openDocument(path, line) {
     try {
         state.current = await api("/api/file?path=" + encodeURIComponent(path));
+        updateTreeSelection(path);
         renderDocument();
+        if (line) requestAnimationFrame(() => codeEditor.goToLine(line));
         showReport(translate("status.openedFile", { path }));
     } catch (error) {
         showError(error);
     }
+}
+
+async function navigateDiagnostic(diagnostic) {
+    if (state.task === "legacy") {
+        const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === diagnostic.path || candidate.targetPath === diagnostic.path);
+        if (item) {
+            openLegacyDraft(item, diagnostic.line);
+            return;
+        }
+    }
+    if (!diagnostic.path && !state.current) return;
+    showTask("edit");
+    state.tab = "raw";
+    for (const tab of document.querySelectorAll(".tab")) tab.classList.toggle("active", tab.dataset.tab === "raw");
+    codeEditor.setVisible(true);
+    elements.structuredEditor.hidden = true;
+    if (diagnostic.path && diagnostic.path !== state.current?.path) await openDocument(diagnostic.path, diagnostic.line);
+    else if (diagnostic.line) requestAnimationFrame(() => codeEditor.goToLine(diagnostic.line));
+}
+
+function hasWritableTreeEntry(entry) {
+    if (entry.kind === "file") return entry.writable;
+    if (entry.kind === "directory") return (entry.children || []).some(hasWritableTreeEntry);
+    return false;
 }
 
 function treeList(entries) {
@@ -228,8 +297,12 @@ function treeList(entries) {
         if (entry.kind === "directory") {
             const details = document.createElement("details");
             details.open = true;
+            details.classList.toggle("read-only", !hasWritableTreeEntry(entry));
             const summary = document.createElement("summary");
-            summary.textContent = entry.name;
+            const folderIcon = document.createElement("span");
+            folderIcon.className = "folder-icon";
+            folderIcon.setAttribute("aria-hidden", "true");
+            summary.append(folderIcon, document.createTextNode(entry.name));
             details.append(summary, treeList(entry.children || []));
             item.append(details);
         } else if (entry.kind === "blocked") {
@@ -238,13 +311,27 @@ function treeList(entries) {
             item.textContent = entry.name + " (" + translate("files.blocked") + ")";
         } else {
             const button = document.createElement("button");
-            button.textContent = entry.name + (entry.writable ? "" : " (" + translate("files.readOnly") + ")");
+            button.dataset.path = entry.path;
+            button.textContent = entry.name;
+            button.classList.toggle("read-only", !entry.writable);
+            button.classList.toggle("selected", entry.path === state.current?.path);
+            if (entry.path === state.current?.path) button.setAttribute("aria-current", "page");
+            if (!entry.writable) button.title = translate("files.readOnly");
             button.addEventListener("click", () => openDocument(entry.path));
             item.append(button);
         }
         list.append(item);
     }
     return list;
+}
+
+function updateTreeSelection(selectedPath) {
+    for (const button of elements.tree.querySelectorAll("button[data-path]")) {
+        const selected = button.dataset.path === selectedPath;
+        button.classList.toggle("selected", selected);
+        if (selected) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+    }
 }
 
 async function refreshTree() {
@@ -428,10 +515,49 @@ function renderSnippetApplication() {
     renderSnippetBindings();
     renderSnippetConflict();
     renderDiagnosticsIn(elements.snippetDiagnostics, preview?.diagnostics);
-    elements.snippetZonePreview.textContent = preview?.source || translate("snippet.preview.empty");
     elements.snippetStatus.className = preview ? (preview.valid ? "" : "diagnostic error") : "muted";
     elements.snippetStatus.textContent = preview ? translate(preview.valid ? "snippet.preview.valid" : "snippet.preview.invalid") : translate("snippet.preview.empty");
-    elements.snippetApply.disabled = !snippetPathsReady();
+    elements.snippetApply.disabled = !preview?.valid || preview.conflict.action === "skip";
+    renderSnippetTarget();
+}
+
+function renderSnippetTarget() {
+    elements.snippetTargetPath.textContent = state.snippet.targetPath || translate("snippet.target.empty");
+    elements.snippetTargetSave.disabled = !state.snippet.targetPath || !state.snippet.targetDirty;
+    snippetTargetEditor.setReadOnly(!state.snippet.targetPath);
+    renderDiagnosticsIn(elements.snippetTargetDiagnostics, state.snippet.targetDiagnostics, (diagnostic) => {
+        snippetTargetEditor.goToLine(diagnostic.line || 1);
+    });
+}
+
+function resetSnippetTarget() {
+    state.snippet.targetDiagnostics = [];
+    state.snippet.targetDirty = false;
+    state.snippet.targetHash = "";
+    state.snippet.targetPath = "";
+    snippetTargetEditor.setValue("", true);
+    renderSnippetTarget();
+}
+
+async function loadSnippetTarget(targetPath) {
+    resetSnippetTarget();
+    if (!targetPath) return;
+    const opened = await api("/api/file?path=" + encodeURIComponent(targetPath));
+    state.snippet.targetHash = opened.hash;
+    state.snippet.targetPath = opened.path;
+    state.snippet.targetDiagnostics = opened.document.diagnostics;
+    snippetTargetEditor.setValue(opened.source, true);
+    renderSnippetTarget();
+}
+
+function syncSnippetTarget(preview) {
+    const changedTarget = preview.targetZonePath !== state.snippet.targetPath;
+    if (!changedTarget && state.snippet.targetDirty) return;
+    if (changedTarget) state.snippet.targetDiagnostics = [];
+    state.snippet.targetDirty = false;
+    state.snippet.targetHash = preview.targetHash;
+    state.snippet.targetPath = preview.targetZonePath;
+    snippetTargetEditor.setValue(preview.targetSource, changedTarget);
 }
 
 async function refreshSnippetPreview() {
@@ -439,6 +565,7 @@ async function refreshSnippetPreview() {
     state.snippet.preview = result.preview;
     if (!elements.snippetApplicationId.value) elements.snippetApplicationId.value = result.preview.applicationId;
     state.snippet.conflictAction = result.preview.conflict.action;
+    syncSnippetTarget(result.preview);
     renderSnippetApplication();
 }
 
@@ -497,6 +624,31 @@ async function downloadSnippetPath(relativePath) {
     const fileName = relativePath.split("/").at(-1);
     downloadSource(fileName, opened.source);
     showReport(translate("status.exportedSnippet", { name: fileName }));
+}
+
+function legacyDraftsForRequest() {
+    return [...state.legacy.drafts].map(([sourcePath, draft]) => ({ originalSourceHash: draft.originalSourceHash, source: draft.source, sourcePath }));
+}
+
+function legacyTargetPathsForRequest() {
+    return [...state.legacy.targetPaths].map(([sourcePath, targetPath]) => ({ sourcePath, targetPath }));
+}
+
+function closeLegacyDraft() {
+    state.legacy.activeDraftPath = "";
+    legacyDraftEditor.setVisible(false);
+    elements.legacyDraftPanel.hidden = true;
+}
+
+function openLegacyDraft(item, line) {
+    const changedItem = state.legacy.activeDraftPath !== item.sourcePath;
+    state.legacy.activeDraftPath = item.sourcePath;
+    elements.legacyDraftPanel.hidden = false;
+    legacyDraftEditor.setVisible(true);
+    elements.legacyDraftPath.textContent = item.sourcePath + " → " + item.targetPath;
+    const draft = state.legacy.drafts.get(item.sourcePath);
+    legacyDraftEditor.setValue(draft?.source ?? item.source, changedItem);
+    if (line) requestAnimationFrame(() => legacyDraftEditor.goToLine(line));
 }
 
 function selectedLegacyItems() {
@@ -652,6 +804,7 @@ function renderLegacyPreview() {
         elements.legacyPreview.className = "legacy-preview muted";
         elements.legacyPreview.textContent = translate("legacy.preview.empty");
         renderDiagnosticsIn(elements.legacyDiagnostics);
+        closeLegacyDraft();
         updateLegacyImportButton();
         return;
     }
@@ -671,10 +824,20 @@ function renderLegacyPreview() {
         container.className = "legacy-item";
         const header = document.createElement("div");
         header.className = "legacy-item-header";
-        const sourcePath = document.createElement("span");
+        const sourcePath = document.createElement("button");
+        sourcePath.className = "legacy-source-link";
         sourcePath.textContent = translate("legacy.source") + ": " + item.sourcePath;
-        const targetPath = document.createElement("span");
-        targetPath.textContent = translate("legacy.target") + ": " + item.targetPath;
+        sourcePath.addEventListener("click", () => openLegacyDraft(item));
+        const targetPath = document.createElement("input");
+        targetPath.className = "legacy-target-input";
+        targetPath.value = item.targetPath;
+        targetPath.title = translate("legacy.target");
+        targetPath.addEventListener("change", async () => {
+            try {
+                state.legacy.targetPaths.set(item.sourcePath, targetPath.value);
+                await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+            } catch (error) { showError(error); }
+        });
         const resolution = resolutionFor(item);
         let actionControl;
         let renameInput;
@@ -714,21 +877,83 @@ function renderLegacyPreview() {
         container.append(header, details);
         elements.legacyPreview.append(container);
     }
+    const activeItem = preview.items.find((item) => item.sourcePath === state.legacy.activeDraftPath);
+    if (activeItem) {
+        const draft = state.legacy.drafts.get(activeItem.sourcePath);
+        if (draft) draft.source = activeItem.source;
+        openLegacyDraft(activeItem);
+    } else if (state.legacy.activeDraftPath) closeLegacyDraft();
     updateLegacyImportButton();
 }
 
 async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = usesExistingLegacySurface()) {
     if (!elements.legacySurface.value) return;
-    const body = { includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value, useExistingSurface, widgetMappings: widgetMappingsForRequest() };
+    const body = { drafts: legacyDraftsForRequest(), includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value, targetPaths: legacyTargetPathsForRequest(), targetProfileId: state.legacy.targetProfileId || undefined, useExistingSurface, widgetMappings: widgetMappingsForRequest() };
     if (selectedZonePaths !== undefined) body.selectedZonePaths = selectedZonePaths;
     const result = await api("/api/legacy/preview", { method: "POST", body: JSON.stringify(body) });
     state.legacy.preview = result.preview;
     state.legacy.selectedZonePaths = new Set(result.preview.selectedZonePaths);
+    state.legacy.targetProfileId = result.preview.targetProfileId;
+    elements.legacyTargetProfile.value = result.preview.targetProfileId;
     state.legacy.widgetMappings = new Map(result.preview.widgetMappings.filter((issue) => issue.selectedTarget).map((issue) => [issue.sourceWidget, issue.selectedTarget]));
     elements.legacySelectAll.disabled = false;
     elements.legacySelectNone.disabled = false;
     elements.legacyRefresh.disabled = false;
     renderLegacyPreview();
+}
+
+function renderLegacySelection(selection) {
+    closeLegacyDraft();
+    state.legacy.drafts.clear();
+    state.legacy.preview = null;
+    state.legacy.resolutions.clear();
+    state.legacy.selectedZonePaths.clear();
+    state.legacy.targetPaths.clear();
+    state.legacy.targetProfileId = "";
+    state.legacy.widgetMappings.clear();
+    elements.legacyPath.value = selection?.path || "";
+    elements.legacyTargetProfile.value = "";
+    elements.legacySurface.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = translate("legacy.surface.placeholder");
+    elements.legacySurface.append(placeholder);
+    for (const surface of selection?.surfaces || []) {
+        const option = document.createElement("option");
+        option.value = surface.name;
+        option.textContent = translate("legacy.surface.option", { count: surface.zoneCount, fxCount: surface.fxZoneCount, name: surface.name });
+        elements.legacySurface.append(option);
+    }
+    elements.legacySurface.disabled = !selection?.surfaces?.length;
+    elements.legacySelectAll.disabled = true;
+    elements.legacySelectNone.disabled = true;
+    elements.legacyRefresh.disabled = true;
+    elements.legacyStatus.className = "muted";
+    elements.legacyStatus.textContent = selection?.root ? translate("legacy.status.opened", { path: selection.root }) : translate("legacy.status.notFound", { path: selection?.path || "CSI" });
+    renderLegacyPreview();
+}
+
+async function applyDataPath(dataPath, showOpenedReport) {
+    const result = await api("/api/select-data-path", { method: "POST", body: JSON.stringify({ path: dataPath }) });
+    elements.dataPathStatus.textContent = result.dataPath;
+    elements.dataPath.value = result.dataPath;
+    state.current = null;
+    state.batch.clear();
+    state.snippet.choices.clear();
+    state.snippet.conflictAction = "";
+    state.snippet.importAction = "";
+    state.snippet.importPreview = null;
+    state.snippet.preview = null;
+    resetSnippetTarget();
+    updateBatch();
+    renderDocument();
+    renderSnippetApplication();
+    renderSnippetImport();
+    renderLegacySelection(result.legacy);
+    await refreshTree();
+    setTaskAvailability(true);
+    showTaskHome();
+    if (showOpenedReport) showReport(translate("status.openedDataPath", { path: result.dataPath }));
 }
 
 async function initialize() {
@@ -752,12 +977,29 @@ async function initialize() {
             option.label = candidate.exists ? source : translate("candidate.notFound", { source });
             elements.dataPathCandidates.append(option);
         }
-        if (status.candidates.length) elements.dataPath.value = status.candidates[0].path;
         if (status.dataPath) {
             elements.dataPathStatus.textContent = status.dataPath;
             elements.dataPath.value = status.dataPath;
+            renderLegacySelection(status.legacy);
             await refreshTree();
             setTaskAvailability(true);
+            return;
+        }
+        const existingCandidates = status.candidates.filter((candidate) => candidate.exists);
+        if (existingCandidates.length) {
+            elements.dataPath.value = existingCandidates[0].path;
+            let lastError;
+            for (const candidate of existingCandidates) {
+                try {
+                    await applyDataPath(candidate.path, false);
+                    return;
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+            if (lastError) showReport(translate("error.configLoad") + "\n" + lastError.message);
+        } else if (status.candidates.length) {
+            elements.dataPath.value = status.candidates[0].path;
         }
     } catch (error) {
         showReport(translate("error.configLoad") + "\n" + error.message);
@@ -766,65 +1008,54 @@ async function initialize() {
 
 elements.openDataPath.addEventListener("click", async () => {
     try {
-        const result = await api("/api/select-data-path", { method: "POST", body: JSON.stringify({ path: elements.dataPath.value }) });
-        elements.dataPathStatus.textContent = result.dataPath;
-        state.current = null;
-        state.batch.clear();
-        state.snippet.choices.clear();
-        state.snippet.conflictAction = "";
-        state.snippet.importAction = "";
-        state.snippet.importPreview = null;
-        state.snippet.preview = null;
-        updateBatch();
-        renderDocument();
-        renderSnippetApplication();
-        renderSnippetImport();
-        await refreshTree();
-        setTaskAvailability(true);
-        showTaskHome();
-        if (elements.legacySurface.value) await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
-        showReport(translate("status.openedDataPath", { path: result.dataPath }));
+        await applyDataPath(elements.dataPath.value, true);
     } catch (error) { showError(error); }
 });
 
 elements.openLegacy.addEventListener("click", async () => {
     try {
         const result = await api("/api/legacy/select", { method: "POST", body: JSON.stringify({ path: elements.legacyPath.value }) });
-        state.legacy.preview = null;
-        state.legacy.resolutions.clear();
-        state.legacy.selectedZonePaths.clear();
-        state.legacy.widgetMappings.clear();
-        elements.legacySurface.replaceChildren();
-        const placeholder = document.createElement("option");
-        placeholder.value = "";
-        placeholder.textContent = translate("legacy.surface.placeholder");
-        elements.legacySurface.append(placeholder);
-        for (const surface of result.surfaces) {
-            const option = document.createElement("option");
-            option.value = surface.name;
-            option.textContent = translate("legacy.surface.option", { count: surface.zoneCount, fxCount: surface.fxZoneCount, name: surface.name });
-            elements.legacySurface.append(option);
-        }
-        elements.legacySurface.disabled = result.surfaces.length === 0;
-        elements.legacySelectAll.disabled = true;
-        elements.legacySelectNone.disabled = true;
-        elements.legacyRefresh.disabled = true;
-        elements.legacyStatus.className = "muted";
-        elements.legacyStatus.textContent = translate("legacy.status.opened", { path: result.root });
-        renderLegacyPreview();
+        renderLegacySelection(result);
     } catch (error) { showError(error); }
 });
 
 elements.legacySurface.addEventListener("change", async () => {
     try {
+        closeLegacyDraft();
+        state.legacy.drafts.clear();
         state.legacy.resolutions.clear();
         state.legacy.selectedZonePaths.clear();
+        state.legacy.targetPaths.clear();
+        state.legacy.targetProfileId = "";
+        elements.legacyTargetProfile.value = "";
         state.legacy.widgetMappings.clear();
         if (elements.legacySurface.value) await refreshLegacyPreview();
         else {
             state.legacy.preview = null;
             renderLegacyPreview();
         }
+    } catch (error) { showError(error); }
+});
+
+elements.legacyTargetProfile.addEventListener("change", async () => {
+    try {
+        state.legacy.targetProfileId = elements.legacyTargetProfile.value.trim();
+        state.legacy.targetPaths.clear();
+        if (elements.legacySurface.value) await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+    } catch (error) { showError(error); }
+});
+
+elements.legacyDraftCheck.addEventListener("click", async () => {
+    try { await refreshLegacyPreview([...state.legacy.selectedZonePaths]); } catch (error) { showError(error); }
+});
+
+elements.legacyDraftDiscard.addEventListener("click", async () => {
+    try {
+        const sourcePath = state.legacy.activeDraftPath;
+        state.legacy.drafts.delete(sourcePath);
+        await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+        const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === sourcePath);
+        if (item) openLegacyDraft(item);
     } catch (error) { showError(error); }
 });
 
@@ -857,10 +1088,13 @@ elements.legacyImport.addEventListener("click", async () => {
         const result = await api("/api/legacy/import", {
             method: "POST",
             body: JSON.stringify({
+                drafts: legacyDraftsForRequest(),
                 includeSurface: elements.legacyIncludeSurface.checked,
                 resolutions,
                 selectedZonePaths: [...state.legacy.selectedZonePaths],
                 surfaceName: elements.legacySurface.value,
+                targetPaths: legacyTargetPathsForRequest(),
+                targetProfileId: state.legacy.targetProfileId,
                 widgetMappings: widgetMappingsForRequest(),
             }),
         });
@@ -872,6 +1106,7 @@ elements.legacyImport.addEventListener("click", async () => {
 
 for (const select of [elements.snippetSource, elements.snippetSurface, elements.snippetZone]) select.addEventListener("change", async () => {
     try {
+        if (select === elements.snippetZone) await loadSnippetTarget(elements.snippetZone.value);
         state.snippet.choices.clear();
         state.snippet.conflictAction = "";
         state.snippet.preview = null;
@@ -897,13 +1132,35 @@ elements.snippetApply.addEventListener("click", async () => {
     try {
         await refreshSnippetPreview();
         const preview = state.snippet.preview;
-        if (!preview?.valid) return;
-        const confirmed = window.confirm(translate("snippet.confirmApply", { snippet: elements.snippetSource.selectedOptions[0]?.textContent || elements.snippetSource.value, zone: elements.snippetZone.selectedOptions[0]?.textContent || elements.snippetZone.value }));
-        if (!confirmed) return;
-        const result = await api("/api/snippet/apply", { method: "POST", body: JSON.stringify({ ...snippetApplicationBody(), snippetHash: preview.snippetHash, surfaceHash: preview.surfaceHash, targetHash: preview.targetHash }) });
+        if (!preview?.valid || preview.conflict.action === "skip") return;
+        state.snippet.targetDiagnostics = [];
+        state.snippet.targetDirty = preview.source !== preview.targetSource;
+        state.snippet.targetHash = preview.targetHash;
+        state.snippet.targetPath = preview.targetZonePath;
+        snippetTargetEditor.setValue(preview.source);
+        renderSnippetTarget();
+        showReport(translate("status.appliedSnippetDraft", { path: preview.targetZonePath }));
+    } catch (error) { showError(error); }
+});
+
+elements.snippetTargetSave.addEventListener("click", async () => {
+    try {
+        if (!state.snippet.targetPath) return;
+        const source = snippetTargetEditor.getValue();
+        const validation = await api("/api/validate", { method: "POST", body: JSON.stringify({ path: state.snippet.targetPath, source }) });
+        state.snippet.targetDiagnostics = validation.document.diagnostics;
+        renderSnippetTarget();
+        if (state.snippet.targetDiagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+            showReport(translate("error.fixBeforeSave"));
+            return;
+        }
+        const result = await api("/api/save", { method: "POST", body: JSON.stringify({ originalHash: state.snippet.targetHash, path: state.snippet.targetPath, source }) });
+        state.snippet.targetDirty = false;
+        state.snippet.targetHash = result.hash;
+        if (state.snippet.preview) state.snippet.preview.valid = false;
+        renderSnippetApplication();
         await refreshTree();
-        await refreshSnippetPreview();
-        showReport({ message: translate("status.appliedSnippet", { path: preview.targetZonePath }), ...result.report });
+        showReport(translate("status.savedFile", { path: state.snippet.targetPath }));
     } catch (error) { showError(error); }
 });
 
@@ -1020,12 +1277,11 @@ for (const tab of document.querySelectorAll(".tab")) tab.addEventListener("click
         if (state.current) await validateCurrent();
         state.tab = tab.dataset.tab;
         for (const candidate of document.querySelectorAll(".tab")) candidate.classList.toggle("active", candidate === tab);
-        elements.rawEditor.hidden = state.tab !== "raw";
+        codeEditor.setVisible(state.tab === "raw");
         elements.structuredEditor.hidden = state.tab !== "structured";
     } catch (error) { showError(error); }
 });
 
-elements.rawEditor.addEventListener("input", () => { if (state.current) state.current.source = elements.rawEditor.value; });
 for (const taskButton of document.querySelectorAll(".task-card")) taskButton.addEventListener("click", () => showTask(taskButton.dataset.task));
 elements.backToTasks.addEventListener("click", showTaskHome);
 elements.snippetExportSource.addEventListener("change", () => { elements.snippetExportDownload.disabled = !elements.snippetExportSource.value; });
