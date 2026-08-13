@@ -22,6 +22,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <atomic>
 #include <math.h>
 #include <algorithm>
 #include <filesystem>
