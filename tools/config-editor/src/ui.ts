@@ -17,9 +17,10 @@ function escapeHtml(value: string): string {
     return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
-export function createEditorHtml(productName: string): string {
+export function createEditorHtml(productName: string, sessionToken: string): string {
     const specialValues = new Map<string, string>([
         ["displayLocale", DISPLAY_LOCALE],
+        ["sessionToken", sessionToken],
         ["title", t("app.title", { product: productName })],
         ["pending.count", t("pending.count", { count: 0 })],
     ]);

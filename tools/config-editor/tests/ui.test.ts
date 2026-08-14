@@ -3,7 +3,7 @@ import { createEditorHtml, EDITOR_CSS, EDITOR_JAVASCRIPT } from "../src/ui.ts";
 
 describe("browser UI bindings", () => {
     test("declares every used element and references an existing HTML ID", () => {
-        const html = createEditorHtml("Test Product");
+        const html = createEditorHtml("Test Product", "test-session-token");
         const htmlIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
         const declarations = new Map([...EDITOR_JAVASCRIPT.matchAll(/^\s+([A-Za-z][A-Za-z0-9]*): requiredElement\("([^"]+)"\),$/gm)].map((match) => [match[1], match[2]]));
         const usedNames = new Set([...EDITOR_JAVASCRIPT.matchAll(/\belements\.([A-Za-z][A-Za-z0-9]*)/g)].map((match) => match[1]));
@@ -13,6 +13,7 @@ describe("browser UI bindings", () => {
         expect([...declarations.values()].filter((id) => !htmlIds.has(id))).toEqual([]);
         expect(html).not.toContain("{{");
         expect(html).toContain('<link rel="stylesheet" href="/app.css">');
+        expect(html).toContain('<meta name="config-editor-session-token" content="test-session-token">');
         expect(html).toContain('<script type="module" src="/app.js"></script>');
         expect(EDITOR_CSS).toContain(":root");
         expect(EDITOR_JAVASCRIPT).toContain("createConfigurationEditor");

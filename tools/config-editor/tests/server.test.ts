@@ -23,7 +23,10 @@ describe("local editor server", () => {
         try {
             expect(running.url.startsWith("http://127.0.0.1:")).toBeTrue();
             const page = await fetch(new URL("/", running.url));
-            expect(await page.text()).toContain("Test Product Conf Editor");
+            const pageText = await page.text();
+            expect(pageText).toContain("Test Product Conf Editor");
+            expect(pageText).toContain(`<meta name="config-editor-session-token" content="${running.token}">`);
+            expect(running.url).not.toContain(running.token);
             const translations = await fetch(new URL("/app-translations.json", running.url));
             expect(translations.status).toBe(200);
             expect((await translations.json())["app.title"]).toBe("{product} Conf Editor");

@@ -1,10 +1,8 @@
 import { createConfigurationEditor } from "./code-editor.js";
 
 let translations = {};
-const hashToken = new URLSearchParams(location.hash.slice(1)).get("token") || "";
-if (hashToken) sessionStorage.setItem("config-editor-token", hashToken);
-const token = hashToken || sessionStorage.getItem("config-editor-token") || "";
-history.replaceState(null, "", location.pathname);
+const sessionTokenElement = document.querySelector('meta[name="config-editor-session-token"]');
+const token = sessionTokenElement?.getAttribute("content") || "";
 
 function requiredElement(id) {
     const element = document.getElementById(id);

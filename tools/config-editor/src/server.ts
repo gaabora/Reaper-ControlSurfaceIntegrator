@@ -234,7 +234,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
     let origin = "";
     const fetchRequest = async (request: Request): Promise<Response> => {
         const requestUrl = new URL(request.url);
-        if (requestUrl.pathname === "/" && request.method === "GET") return contentResponse(createEditorHtml(options.identity.displayName), "text/html; charset=utf-8");
+        if (requestUrl.pathname === "/" && request.method === "GET") return contentResponse(createEditorHtml(options.identity.displayName, token), "text/html; charset=utf-8");
         if (requestUrl.pathname === "/app.css" && request.method === "GET") return contentResponse(EDITOR_CSS, "text/css; charset=utf-8");
         if (requestUrl.pathname === "/app.js" && request.method === "GET") return contentResponse(options.editorJavascript, "text/javascript; charset=utf-8");
         if (requestUrl.pathname === "/app-translations.json" && request.method === "GET") return contentResponse(createEditorTranslationsJson(), "application/json; charset=utf-8");
@@ -312,5 +312,5 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
     }
     if (!server) throw new Error("Unable to allocate a local editor port");
     origin = `http://127.0.0.1:${server.port}`;
-    return { server, token, url: `${origin}/#token=${token}` };
+    return { server, token, url: `${origin}/` };
 }
