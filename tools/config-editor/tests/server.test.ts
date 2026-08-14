@@ -76,6 +76,21 @@ describe("local editor server", () => {
             const contextResponse = await fetch(new URL("/api/snippet/context?zonePath=Zones%2FUser%2Ftest-profile%2FMain%2FHome.zon", running.url), { headers });
             expect(contextResponse.status).toBe(200);
             expect(await contextResponse.json()).toEqual({ automatic: true, surfaces: [{ path: "Surfaces/Vendor/test-surface.txt" }] });
+
+            const validateAllResponse = await fetch(new URL("/api/validate-all", running.url), { body: JSON.stringify({ changes: [] }), headers, method: "POST" });
+            expect(validateAllResponse.status).toBe(200);
+            const validateAllPayload = await validateAllResponse.json();
+            expect(validateAllPayload.checkedPaths).toContain("Zones/User/test-profile/Main/Home.zon");
+            expect(validateAllPayload.files.find((file: { path: string }) => file.path === "Zones/User/test-profile/Main/Home.zon").diagnostics).toEqual([]);
+
+            const missingMarkerSource = "Zone Home\n  Play Play\nZoneEnd\n";
+            const quickFixResponse = await fetch(new URL("/api/quick-fix", running.url), {
+                body: JSON.stringify({ diagnostic: { code: "zone.format.missing", message: "Zone has no // @format zone 1 marker" }, fix: { id: "zone.format.add" }, path: "Zones/User/test-profile/Main/Home.zon", source: missingMarkerSource }),
+                headers,
+                method: "POST",
+            });
+            expect(quickFixResponse.status).toBe(200);
+            expect((await quickFixResponse.json()).source).toStartWith("// @format zone 1\nZone Home");
         } finally {
             running.server.stop(true);
             if (temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}config-editor-server-snippet-`)) await rm(temporaryRoot, { force: true, recursive: true });

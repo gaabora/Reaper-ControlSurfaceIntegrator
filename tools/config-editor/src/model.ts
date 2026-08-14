@@ -2,8 +2,15 @@ export type FormatId = "product-config" | "surface" | "zone" | "snippet";
 export type DiagnosticSeverity = "error" | "warning";
 export type SourceLineKind = "blank" | "comment" | "format" | "header" | "block-start" | "block-end" | "entry" | "unknown";
 
+export interface DiagnosticQuickFix {
+    data?: Record<string, string>;
+    id: string;
+    label: string;
+}
+
 export interface Diagnostic {
     code: string;
+    fixes?: DiagnosticQuickFix[];
     line?: number;
     message: string;
     path?: string;

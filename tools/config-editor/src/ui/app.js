@@ -11,14 +11,23 @@ function requiredElement(id) {
 }
 
 const elements = {
+    allDiagnostics: requiredElement("all-diagnostics"),
+    allProblemCount: requiredElement("all-problem-count"),
+    allProblemsGroup: requiredElement("all-problems-group"),
     backToTasks: requiredElement("back-to-tasks"),
     bottomPanelContent: requiredElement("bottom-panel-content"),
     clone: requiredElement("clone"),
+    checkAll: requiredElement("check-all"),
+    currentProblemCount: requiredElement("current-problem-count"),
     dataPath: requiredElement("data-path"),
     dataPathCandidates: requiredElement("data-path-candidates"),
     dataPathFeedback: requiredElement("data-path-feedback"),
     detailsPanel: requiredElement("details-panel"),
     diagnostics: requiredElement("diagnostics"),
+    discardCancel: requiredElement("discard-cancel"),
+    discardChanges: requiredElement("discard-changes"),
+    discardConfirm: requiredElement("discard-confirm"),
+    discardDialog: requiredElement("discard-dialog"),
     documentMode: requiredElement("document-mode"),
     documentPath: requiredElement("document-path"),
     draftConflict: requiredElement("draft-conflict"),
@@ -36,7 +45,6 @@ const elements = {
     legacyDraftPath: requiredElement("legacy-draft-path"),
     legacyImport: requiredElement("legacy-import"),
     legacyIncludeSurface: requiredElement("legacy-include-surface"),
-    legacyFeedback: requiredElement("legacy-feedback"),
     legacyOperationReport: requiredElement("legacy-operation-report"),
     legacyPath: requiredElement("legacy-path"),
     legacyPathFeedback: requiredElement("legacy-path-feedback"),
@@ -53,6 +61,7 @@ const elements = {
     homeHeader: requiredElement("home-header"),
     openDataPath: requiredElement("open-data-path"),
     openLegacy: requiredElement("open-legacy"),
+    notifications: requiredElement("notifications"),
     problemCount: requiredElement("problem-count"),
     problemsPanel: requiredElement("problems-panel"),
     rawEditor: requiredElement("raw-editor"),
@@ -82,7 +91,6 @@ const elements = {
     validate: requiredElement("validate"),
     workflowDescription: requiredElement("workflow-description"),
     workflowEdit: requiredElement("workflow-edit"),
-    workflowFeedback: requiredElement("workflow-feedback"),
     workflowLegacy: requiredElement("workflow-legacy"),
     workflowTitle: requiredElement("workflow-title"),
     workspace: requiredElement("workspace"),
@@ -92,7 +100,9 @@ const state = {
     bottomPanel: "problems",
     current: null,
     draftConflicts: new Set(),
+    globalProblems: [],
     legacy: { activeDraftPath: "", drafts: new Map(), preview: null, resolutions: new Map(), selectedZonePaths: new Set(), targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
+    problemFiles: new Map(),
     snippet: { choices: new Map(), conflictAction: "", insertionLine: 1, preview: null, treeEntries: [] },
     renderedDocumentPath: "",
     task: "",
@@ -134,12 +144,31 @@ function setFeedback(element, value, tone = "info") {
     element.textContent = value || "";
 }
 
-function showReport(value, target = elements.workflowFeedback) {
-    setFeedback(target, typeof value === "string" ? value : JSON.stringify(value, null, 2), "info");
+function showNotification(value, tone) {
+    const notification = document.createElement("div");
+    notification.className = `notification ${tone}`;
+    notification.setAttribute("role", tone === "danger" ? "alert" : "status");
+    const message = document.createElement("span");
+    message.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    const close = document.createElement("button");
+    close.className = "notification-close";
+    close.title = translate("notification.close");
+    close.setAttribute("aria-label", translate("notification.close"));
+    close.textContent = "×";
+    close.addEventListener("click", () => notification.remove());
+    notification.append(message, close);
+    elements.notifications.append(notification);
+    if (tone === "success") window.setTimeout(() => notification.remove(), 5000);
 }
 
-function showError(error, target = elements.workflowFeedback) {
-    setFeedback(target, error.details ? error.message + "\n" + JSON.stringify(error.details, null, 2) : error.message, "danger");
+function showReport(value, tone = "success") {
+    showNotification(value, tone);
+}
+
+function showError(error, target) {
+    const message = error.details ? error.message + "\n" + JSON.stringify(error.details, null, 2) : error.message;
+    if (target) setFeedback(target, message, "danger");
+    else showNotification(message, "danger");
 }
 
 function setTaskAvailability(available) {
@@ -153,13 +182,13 @@ function showTask(task) {
     elements.taskHome.hidden = true;
     elements.editorMain.hidden = false;
     elements.filePanel.hidden = task !== "edit";
+    elements.checkAll.hidden = task !== "edit";
     elements.saveAll.hidden = task !== "edit";
     elements.editorBody.classList.toggle("file-task", task === "edit");
     elements.workspace.classList.toggle("document-task", task === "edit");
     for (const workflow of Object.values(workflows)) workflow.hidden = workflow !== workflows[task];
     elements.workflowTitle.textContent = translate(`task.${task}.title`);
     elements.workflowDescription.textContent = translate(`task.${task}.description`);
-    setFeedback(elements.workflowFeedback, "");
     codeEditor.setVisible(task === "edit");
 }
 
@@ -167,6 +196,7 @@ function showTaskHome() {
     state.task = "";
     elements.homeHeader.hidden = false;
     elements.editorMain.hidden = true;
+    elements.checkAll.hidden = true;
     elements.saveAll.hidden = true;
     elements.taskHome.hidden = false;
 }
@@ -181,20 +211,61 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
     container.className = "";
     for (const diagnostic of diagnostics) {
         const actionable = Boolean(diagnostic.path || diagnostic.line);
-        const row = document.createElement(actionable ? "button" : "div");
+        const row = document.createElement("div");
         row.className = "diagnostic " + (diagnostic.severity === "error" ? "danger" : diagnostic.severity);
         if (actionable) {
-            row.classList.add("diagnostic-link");
-            row.addEventListener("click", () => navigate(diagnostic));
+            const location = document.createElement("a");
+            location.className = "diagnostic-location";
+            location.href = "#";
+            location.textContent = (diagnostic.path || "") + (diagnostic.path && diagnostic.line ? ": " : "") + (diagnostic.line ? translate("diagnostic.line", { line: diagnostic.line }).replace(/:\s*$/, "") : "");
+            location.addEventListener("click", (event) => {
+                event.preventDefault();
+                void navigate(diagnostic);
+            });
+            row.append(location, document.createTextNode(" "));
         }
-        row.textContent = (diagnostic.path ? diagnostic.path + ": " : "") + (diagnostic.line ? translate("diagnostic.line", { line: diagnostic.line }) : "") + diagnostic.severity.toUpperCase() + " " + diagnostic.code + ": " + diagnostic.message;
+        const message = document.createElement("span");
+        message.textContent = diagnostic.severity.toUpperCase() + " " + diagnostic.code + ": " + diagnostic.message;
+        row.append(message);
+        if (diagnostic.fixes?.length) {
+            const fixes = document.createElement("span");
+            fixes.className = "diagnostic-fixes";
+            for (const fix of diagnostic.fixes) {
+                const button = document.createElement("button");
+                button.className = "diagnostic-fix";
+                button.textContent = fix.label;
+                button.addEventListener("click", () => { void applyDiagnosticQuickFix(diagnostic, fix); });
+                fixes.append(button);
+            }
+            row.append(fixes);
+        }
         container.append(row);
     }
 }
 
-function renderDiagnostics(diagnostics = []) {
-    renderDiagnosticsIn(elements.diagnostics, diagnostics);
-    elements.problemCount.textContent = String(diagnostics.length);
+function diagnosticsForAllFiles() {
+    return [...state.problemFiles.values()].flat().concat(state.globalProblems);
+}
+
+function recordFileProblems(relativePath, diagnostics) {
+    state.problemFiles.set(relativePath, diagnostics.map((diagnostic) => diagnostic.path ? diagnostic : { ...diagnostic, path: relativePath }));
+}
+
+function renderProblems() {
+    const currentDiagnostics = state.current?.document.diagnostics || [];
+    const allDiagnostics = diagnosticsForAllFiles();
+    renderDiagnosticsIn(elements.diagnostics, currentDiagnostics);
+    renderDiagnosticsIn(elements.allDiagnostics, allDiagnostics);
+    elements.currentProblemCount.textContent = String(currentDiagnostics.length);
+    elements.allProblemCount.textContent = String(allDiagnostics.length);
+    elements.problemCount.textContent = String(allDiagnostics.length);
+}
+
+function replaceAllProblems(files, diagnostics) {
+    state.problemFiles.clear();
+    for (const file of files) recordFileProblems(file.path, file.diagnostics);
+    state.globalProblems = diagnostics;
+    renderProblems();
 }
 
 function renderBottomPanel() {
@@ -276,8 +347,10 @@ function renderDocument() {
     state.renderedDocumentPath = documentPath;
     elements.validate.disabled = !current;
     elements.save.disabled = !current || !current.writable || !state.batch.has(current.path);
+    elements.discardChanges.disabled = !current || !current.writable || !state.batch.has(current.path) || Boolean(current.draftConflict);
     elements.clone.hidden = !current || current.writable || !["surface", "zone", "snippet"].includes(current.document.format);
-    renderDiagnostics(current?.document.diagnostics);
+    if (current) recordFileProblems(current.path, current.document.diagnostics);
+    renderProblems();
     elements.semantic.textContent = JSON.stringify(current?.document.semantic || {}, null, 2);
     renderDraftConflict();
     renderSnippetToolbar();
@@ -291,6 +364,29 @@ async function validateCurrent() {
     state.current = { ...state.current, document: result.document, source };
     renderDocument();
     return result.document;
+}
+
+async function validateAllConfigurations() {
+    await flushPendingDraft();
+    const result = await api("/api/validate-all", { method: "POST", body: JSON.stringify({ changes: [...state.batch.values()] }) });
+    const currentResult = result.files.find((file) => file.path === state.current?.path);
+    if (currentResult && state.current) state.current.document = { ...state.current.document, diagnostics: currentResult.diagnostics };
+    replaceAllProblems(result.files, result.diagnostics);
+    state.bottomPanel = "problems";
+    elements.allProblemsGroup.open = true;
+    renderBottomPanel();
+    showReport(translate("status.checkedAll", { files: result.checkedPaths.length, problems: diagnosticsForAllFiles().length }), "info");
+}
+
+async function discardCurrentChanges() {
+    if (!state.current?.writable || !state.batch.has(state.current.path)) return;
+    await flushPendingDraft();
+    const relativePath = state.current.path;
+    await api("/api/draft/discard", { method: "POST", body: JSON.stringify({ path: relativePath }) });
+    state.batch.delete(relativePath);
+    state.draftConflicts.delete(relativePath);
+    await openDocument(relativePath);
+    showReport(translate("status.discardedChanges", { path: relativePath }));
 }
 
 async function openDocument(path, line) {
@@ -335,6 +431,20 @@ async function navigateDiagnostic(diagnostic) {
     codeEditor.setVisible(true);
     if (diagnostic.path && diagnostic.path !== state.current?.path) await openDocument(diagnostic.path, diagnostic.line);
     else if (diagnostic.line) requestAnimationFrame(() => codeEditor.goToLine(diagnostic.line));
+}
+
+async function applyDiagnosticQuickFix(diagnostic, fix) {
+    try {
+        if (diagnostic.path && diagnostic.path !== state.current?.path) await openDocument(diagnostic.path, diagnostic.line);
+        if (!state.current?.writable || diagnostic.path && diagnostic.path !== state.current.path) throw new Error(translate("error.quickFixEditable"));
+        const result = await api("/api/quick-fix", { method: "POST", body: JSON.stringify({ diagnostic: { code: diagnostic.code, line: diagnostic.line, message: diagnostic.message }, fix: { data: fix.data, id: fix.id }, path: state.current.path, source: state.current.source }) });
+        state.current.document = result.document;
+        state.current.source = result.source;
+        codeEditor.setValue(result.source);
+        handleEditorChange(result.source);
+        renderDocument();
+        showReport(translate("status.appliedQuickFix", { fix: fix.label }));
+    } catch (error) { showError(error); }
 }
 
 function hasWritableTreeEntry(entry) {
@@ -409,6 +519,7 @@ function updateBatch() {
     elements.saveAll.disabled = state.batch.size === 0 || state.draftConflicts.size > 0;
     elements.saveAll.title = state.draftConflicts.size ? translate("draft.conflictsSave") : translate("pending.count", { count: state.batch.size });
     if (state.current) elements.save.disabled = !state.current.writable || !state.batch.has(state.current.path) || Boolean(state.current.draftConflict);
+    if (state.current) elements.discardChanges.disabled = !state.current.writable || !state.batch.has(state.current.path) || Boolean(state.current.draftConflict);
 }
 
 function flattenConfigFiles(entries, result = []) {
@@ -920,7 +1031,6 @@ async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = uses
 
 function renderLegacySelection(selection) {
     closeLegacyDraft();
-    setFeedback(elements.legacyFeedback, "");
     elements.legacyOperationReport.hidden = true;
     elements.legacyOperationReport.textContent = "";
     state.legacy.drafts.clear();
@@ -959,6 +1069,8 @@ async function applyDataPath(dataPath) {
     elements.dataPath.value = result.dataPath;
     setFeedback(elements.dataPathFeedback, "");
     state.current = null;
+    state.globalProblems = [];
+    state.problemFiles.clear();
     state.snippet.choices.clear();
     state.snippet.conflictAction = "";
     state.snippet.preview = null;
@@ -1119,11 +1231,16 @@ elements.legacyImport.addEventListener("click", async () => {
         await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
         elements.legacyOperationReport.hidden = false;
         elements.legacyOperationReport.textContent = JSON.stringify({ message: translate("status.importedLegacy", { count: result.report.changed.length + result.report.created.length }), ...result.report }, null, 2);
-    } catch (error) { showError(error, elements.legacyFeedback); }
+        showReport(translate("status.importedLegacy", { count: result.report.changed.length + result.report.created.length }));
+    } catch (error) { showError(error); }
 });
 
 elements.validate.addEventListener("click", async () => {
-    try { await validateCurrent(); showReport(translate("status.checked")); } catch (error) { showError(error); }
+    try { await validateCurrent(); showReport(translate("status.checked"), "info"); } catch (error) { showError(error); }
+});
+
+elements.checkAll.addEventListener("click", async () => {
+    try { await validateAllConfigurations(); } catch (error) { showError(error); }
 });
 
 elements.save.addEventListener("click", async () => {
@@ -1188,18 +1305,15 @@ elements.draftRestore.addEventListener("click", async () => {
 elements.draftDiscard.addEventListener("click", async () => {
     try {
         if (!state.current?.draftConflict) return;
-        await api("/api/draft/discard", { method: "POST", body: JSON.stringify({ path: state.current.path }) });
-        const validation = await api("/api/validate", { method: "POST", body: JSON.stringify({ path: state.current.path, source: state.current.diskSource }) });
-        state.batch.delete(state.current.path);
-        state.draftConflicts.delete(state.current.path);
-        state.current.draftConflict = null;
-        state.current.document = validation.document;
-        state.current.source = state.current.diskSource;
-        codeEditor.setValue(state.current.diskSource);
-        updateBatch();
-        updateTreeDraftState();
-        renderDocument();
+        await discardCurrentChanges();
     } catch (error) { showError(error); }
+});
+
+elements.discardChanges.addEventListener("click", () => elements.discardDialog.showModal());
+elements.discardCancel.addEventListener("click", () => elements.discardDialog.close());
+elements.discardConfirm.addEventListener("click", async () => {
+    elements.discardDialog.close();
+    try { await discardCurrentChanges(); } catch (error) { showError(error); }
 });
 
 for (const button of document.querySelectorAll(".bottom-tab")) button.addEventListener("click", () => {

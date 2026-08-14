@@ -29,8 +29,8 @@
   <main id="editor-main" hidden>
     <div class="workflow-topbar">
       <button id="back-to-tasks" class="back-button" title="{{action.backToTasks}}" aria-label="{{action.backToTasks}}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <div class="workflow-heading"><h2 id="workflow-title"></h2><p id="workflow-description" class="secondary"></p><div id="workflow-feedback" class="feedback" hidden></div></div>
-      <button id="save-all" class="primary" disabled hidden>{{action.saveAll}}</button>
+      <div class="workflow-heading"><h2 id="workflow-title"></h2><p id="workflow-description" class="secondary"></p></div>
+      <div class="actions"><button id="check-all" hidden>{{action.checkAll}}</button><button id="save-all" class="primary" disabled hidden>{{action.saveAll}}</button></div>
     </div>
     <div id="editor-body" class="editor-body">
       <aside id="file-panel" hidden>
@@ -49,7 +49,6 @@
         </div>
         <div class="legacy-profile-field"><label class="legacy-profile-control"><span>{{legacy.targetProfile}}</span><input id="legacy-target-profile" placeholder="{{legacy.targetProfile.placeholder}}"></label><div id="legacy-target-feedback" class="feedback danger" hidden></div></div>
         <p id="legacy-status" class="secondary">{{legacy.preview.empty}}</p>
-        <div id="legacy-feedback" class="feedback" hidden></div>
         <details class="advanced-panel legacy-path-panel">
           <summary>{{legacy.path.advanced}}</summary>
           <div class="legacy-path-controls"><input id="legacy-path" placeholder="{{legacy.path.placeholder}}"><button id="open-legacy">{{action.open}}</button></div>
@@ -83,6 +82,7 @@
           <div class="actions">
             <button id="clone" hidden>{{action.makeEditable}}</button>
             <button id="validate" disabled>{{action.check}}</button>
+            <button id="discard-changes" disabled>{{action.discardChanges}}</button>
             <button id="save" disabled>{{action.save}}</button>
           </div>
         </div>
@@ -102,7 +102,10 @@
             <button class="bottom-tab" data-bottom-tab="details">{{details.title}}</button>
           </div>
           <div id="bottom-panel-content" class="bottom-panel-content">
-            <div id="problems-panel"><div id="diagnostics" class="secondary">{{problems.none}}</div></div>
+            <div id="problems-panel" class="problems-panel">
+              <section class="problem-group"><h3>{{problems.currentFile}} <span id="current-problem-count" class="badge">0</span></h3><div id="diagnostics" class="secondary">{{problems.none}}</div></section>
+              <details id="all-problems-group" class="problem-group"><summary>{{problems.allFound}} <span id="all-problem-count" class="badge">0</span></summary><div id="all-diagnostics" class="secondary">{{problems.none}}</div></details>
+            </div>
             <div id="details-panel" hidden><pre id="semantic">{}</pre></div>
           </div>
         </div>
@@ -125,6 +128,14 @@
       <div class="dialog-actions"><button id="snippet-cancel">{{action.cancel}}</button><button id="snippet-insert" class="primary" disabled>{{action.insertSnippet}}</button></div>
     </div>
   </dialog>
+  <dialog id="discard-dialog">
+    <div class="dialog-panel confirm-dialog">
+      <h2>{{discard.title}}</h2>
+      <p>{{discard.message}}</p>
+      <div class="dialog-actions"><button id="discard-cancel">{{action.cancel}}</button><button id="discard-confirm" class="danger-button">{{action.discardChanges}}</button></div>
+    </div>
+  </dialog>
+  <div id="notifications" class="notification-stack" aria-live="polite"></div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

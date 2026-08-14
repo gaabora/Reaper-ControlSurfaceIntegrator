@@ -212,6 +212,9 @@ Ready when every vendor MIDI surface has an installable layout and ReaPack canno
 - ✅ Insert resolved lines after the current cursor line, or before `ZoneEnd` when the cursor is on line 1. Change only the unsaved editor draft.
 - ✅ Store shipped snippets in `Snippets/BuiltIn` and editable copies in `Snippets/User`.
 - ✅ Add every changed file to Save all automatically, restore it when switching files, and keep one debounced recovery file per logical configuration path in the system temp directory.
+- ✅ Keep current-file diagnostics separate from a retained, collapsible All found index. Add Check all with unsaved draft overlays and cross-file validation.
+- ✅ Add a registry-based quick-fix workflow that changes only the current draft, starting with the missing zone format marker.
+- ✅ Keep the editor inside the viewport, add confirmed Discard changes, keep diagnostic text selectable, and use dismissible semantic notifications outside the workflow header.
 - [ ] Verify the focused parser, workflow, draft recovery, server, and browser UI checks after explicit approval.
 
 Ready when a function group can move between compatible surfaces without fixed vendor widget names or partial file changes.

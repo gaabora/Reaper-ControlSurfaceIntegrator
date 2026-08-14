@@ -21,7 +21,7 @@ let productRoot = "";
 
 async function createStore(beforeCommit?: (relativePath: string, commitIndex: number) => void): Promise<ConfigurationStore> {
     const guard = await ProductRootGuard.create(productRoot, identity);
-    return new ConfigurationStore(guard, new Set(["Play", "Stop"]), { beforeCommit });
+    return new ConfigurationStore(guard, new Set(["GoZone", "Play", "Stop"]), { beforeCommit });
 }
 
 beforeEach(async () => {
@@ -42,6 +42,22 @@ afterEach(async () => {
 });
 
 describe("configuration store", () => {
+    test("checks every file, uses draft sources, and keeps cross-file diagnostics separate", async () => {
+        const relativePath = "Zones/User/profile/Main/alpha.zon";
+        const absolutePath = path.join(productRoot, ...relativePath.split("/"));
+        await mkdir(path.dirname(absolutePath), { recursive: true });
+        await writeFile(absolutePath, "Zone alpha\n  Play UnknownAction\n  Next GoZone missing\nZoneEnd\n", "utf8");
+        const store = await createStore();
+        const opened = await store.openDocument(relativePath);
+        const draftSource = "Zone alpha\n  Play Stop\n  Next GoZone missing\nZoneEnd\n";
+        const result = await store.validateAll([{ originalHash: opened.hash, path: relativePath, source: draftSource }]);
+        const fileResult = result.files.find((file) => file.path === relativePath);
+
+        expect(fileResult?.diagnostics.some((diagnostic) => diagnostic.code === "zone.action.unknown")).toBeFalse();
+        expect(fileResult?.diagnostics.find((diagnostic) => diagnostic.code === "zone.format.missing")?.fixes?.[0].id).toBe("zone.format.add");
+        expect(result.diagnostics.some((diagnostic) => diagnostic.code === "zones.dependency.missing" && diagnostic.path === relativePath)).toBeTrue();
+    });
+
     test("single save uses the opened hash and rejects an external change", async () => {
         const relativePath = "Zones/User/alpha/Main/alpha.zon";
         const absolutePath = path.join(productRoot, ...relativePath.split("/"));

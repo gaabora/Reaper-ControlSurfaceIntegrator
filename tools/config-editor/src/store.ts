@@ -5,6 +5,7 @@ import type { AnyDocument } from "./formats.ts";
 import { parseByPath } from "./formats.ts";
 import type { Diagnostic } from "./model.ts";
 import type { ProductRootGuard, ProductTreeEntry } from "./paths.ts";
+import { applyQuickFix as applyRegisteredQuickFix, diagnosticsWithQuickFixes, type QuickFixRequest } from "./quick-fixes.ts";
 import { validateDocumentSet } from "./validation.ts";
 
 export interface DocumentView {
@@ -27,6 +28,12 @@ export interface SaveChange {
     originalHash: string | null;
     path: string;
     source: string;
+}
+
+export interface ValidationSetResult {
+    checkedPaths: string[];
+    diagnostics: Diagnostic[];
+    files: Array<{ diagnostics: Diagnostic[]; path: string }>;
 }
 
 export interface FileState {
@@ -82,14 +89,22 @@ function jsonValue(value: unknown): unknown {
     return value;
 }
 
-function documentView(document: AnyDocument, extraDiagnostics: Diagnostic[] = []): DocumentView {
+function documentView(document: AnyDocument, knownActions: Set<string>, writable: boolean, extraDiagnostics: Diagnostic[] = []): DocumentView {
     return {
-        diagnostics: [...document.diagnostics, ...extraDiagnostics],
+        diagnostics: [...diagnosticsWithQuickFixes(document, knownActions, writable), ...extraDiagnostics],
         format: document.format,
         lines: document.lines.map((line) => ({ ending: line.ending, kind: line.kind, lineNumber: line.lineNumber, text: line.text })),
         semantic: jsonValue(document.semantic),
         version: document.version,
     };
+}
+
+function flattenFileEntries(entries: ProductTreeEntry[], result: ProductTreeEntry[] = []): ProductTreeEntry[] {
+    for (const entry of entries) {
+        if (entry.kind === "file") result.push(entry);
+        else if (entry.kind === "directory") flattenFileEntries(entry.children ?? [], result);
+    }
+    return result;
 }
 
 function operationId(): string {
@@ -122,7 +137,7 @@ export class ConfigurationStore {
         const data = await readFile(absolutePath);
         const source = data.toString("utf8");
         const document = parseByPath(source, relativePath, this.knownActions);
-        return { document: documentView(document), hash: sha256(data), path: relativePath, source, writable: info.writable };
+        return { document: documentView(document, this.knownActions, info.writable), hash: sha256(data), path: relativePath, source, writable: info.writable };
     }
 
     async fileState(relativePath: string): Promise<FileState> {
@@ -139,8 +154,38 @@ export class ConfigurationStore {
     }
 
     validateSource(relativePath: string, source: string): DocumentView {
-        this.guard.getPathInfo(relativePath);
-        return documentView(parseByPath(source, relativePath, this.knownActions));
+        const info = this.guard.getPathInfo(relativePath);
+        return documentView(parseByPath(source, relativePath, this.knownActions), this.knownActions, info.writable);
+    }
+
+    applyQuickFix(relativePath: string, source: string, request: QuickFixRequest): { document: DocumentView; source: string } {
+        const info = this.guard.getPathInfo(relativePath);
+        if (!info.writable) throw new EditorOperationError("quick-fix.read-only", `Cannot apply a quick fix to a read-only file: ${relativePath}`);
+        const result = applyRegisteredQuickFix(source, relativePath, this.knownActions, request);
+        return { document: documentView(result.document, this.knownActions, true), source: result.source };
+    }
+
+    async validateAll(changes: SaveChange[]): Promise<ValidationSetResult> {
+        const sources = new Map<string, string>();
+        for (const change of changes) {
+            this.guard.getPathInfo(change.path);
+            if (sources.has(change.path.toLowerCase())) throw new EditorOperationError("validation.duplicate", `Validation paths must be unique case-insensitively: ${change.path}`);
+            sources.set(change.path.toLowerCase(), change.source);
+        }
+        const entries = flattenFileEntries(await this.tree()).filter((entry) => entry.path);
+        const checkedPaths = entries.map((entry) => entry.path);
+        const checkedPathKeys = new Set(checkedPaths.map((relativePath) => relativePath.toLowerCase()));
+        for (const change of changes) if (!checkedPathKeys.has(change.path.toLowerCase())) throw new EditorOperationError("validation.path", `Validation path is not available in the configuration tree: ${change.path}`);
+        const documents: AnyDocument[] = [];
+        const files: Array<{ diagnostics: Diagnostic[]; path: string }> = [];
+        for (const entry of entries) {
+            const opened = await this.openDocument(entry.path);
+            const source = sources.get(entry.path.toLowerCase()) ?? opened.source;
+            const document = parseByPath(source, entry.path, this.knownActions);
+            documents.push(document);
+            files.push({ diagnostics: diagnosticsWithQuickFixes(document, this.knownActions, opened.writable), path: entry.path });
+        }
+        return { checkedPaths, diagnostics: validateDocumentSet(documents), files };
     }
 
     async saveOne(change: SaveChange): Promise<{ hash: string; report: OperationReport }> {

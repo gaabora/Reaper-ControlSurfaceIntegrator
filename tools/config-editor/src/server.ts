@@ -8,6 +8,7 @@ import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
 import { ProductPathError, ProductRootGuard } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
+import { QuickFixError, type QuickFixRequest } from "./quick-fixes.ts";
 import { previewSnippetApplication, snippetSurfaceContext, type SnippetApplicationRequest, type SnippetBindingChoice, type SnippetConflictAction } from "./snippet-workflow.ts";
 import type { SaveChange } from "./store.ts";
 import { ConfigurationStore, EditorOperationError } from "./store.ts";
@@ -210,9 +211,29 @@ function snippetApplicationRequest(body: Record<string, unknown>): SnippetApplic
     };
 }
 
+function objectField(body: Record<string, unknown>, key: string): Record<string, unknown> {
+    const value = body[key];
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.field", `${key} must be an object`);
+    return value as Record<string, unknown>;
+}
+
+function quickFixRequest(body: Record<string, unknown>): QuickFixRequest {
+    const diagnosticBody = objectField(body, "diagnostic");
+    const fixBody = objectField(body, "fix");
+    const line = diagnosticBody.line;
+    if (line !== undefined && (typeof line !== "number" || !Number.isInteger(line) || line < 1)) throw new EditorOperationError("request.field", "diagnostic.line must be a positive integer when provided");
+    const dataValue = fixBody.data;
+    if (dataValue !== undefined && (!dataValue || typeof dataValue !== "object" || Array.isArray(dataValue) || Object.values(dataValue).some((value) => typeof value !== "string"))) throw new EditorOperationError("request.field", "fix.data must contain only string values");
+    return {
+        diagnostic: { code: stringField(diagnosticBody, "code"), line: line as number | undefined, message: stringField(diagnosticBody, "message") },
+        fix: { data: dataValue as Record<string, string> | undefined, id: stringField(fixBody, "id") },
+    };
+}
+
 function errorResponse(error: unknown): Response {
     if (error instanceof SyntaxError) return jsonResponse({ error: { code: "request.json", message: "Request body is not valid JSON" } }, 400);
     if (error instanceof ProductPathError) return jsonResponse({ error: { code: "path.invalid", message: error.message } }, 400);
+    if (error instanceof QuickFixError) return jsonResponse({ error: { code: error.code, message: error.message } }, 400);
     if (error instanceof EditorOperationError) {
         const status = error.code.startsWith("conflict.") ? 409 : error.code.startsWith("validation.") || error.code.startsWith("save.validate") ? 422 : 400;
         return jsonResponse({ error: { code: error.code, details: error.details, message: error.message } }, status);
@@ -277,6 +298,15 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             }
             if (requestUrl.pathname === "/api/snippet/preview" && request.method === "POST") return jsonResponse({ preview: await previewSnippetApplication(store, knownActions, snippetApplicationRequest(await requestBody(request))) });
             if (requestUrl.pathname === "/api/tree" && request.method === "GET") return jsonResponse({ entries: await store.tree() });
+            if (requestUrl.pathname === "/api/validate-all" && request.method === "POST") {
+                const body = await requestBody(request);
+                if (!Array.isArray(body.changes)) throw new EditorOperationError("request.changes", "changes must be an array");
+                return jsonResponse(await store.validateAll(body.changes.map(saveChange)));
+            }
+            if (requestUrl.pathname === "/api/quick-fix" && request.method === "POST") {
+                const body = await requestBody(request);
+                return jsonResponse(store.applyQuickFix(stringField(body, "path"), stringField(body, "source"), quickFixRequest(body)));
+            }
             if (requestUrl.pathname === "/api/drafts" && request.method === "GET") {
                 const drafts = await draftStore.list();
                 const availableDrafts = (await Promise.all(drafts.map(async (draft) => {

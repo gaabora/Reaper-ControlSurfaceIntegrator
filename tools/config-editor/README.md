@@ -52,6 +52,10 @@ bun run start -- --data-path "/absolute/REAPER/resource/Data"
 
 The browser opens the first valid discovered REAPER data path automatically. The main page shows the selected path above the `Edit configuration` and `Import old CSI` tasks. It keeps `Open` as a fallback when the discovered path is wrong or a different REAPER installation is needed. The tree marks vendor surfaces, vendor zone profiles, and built-in snippets with a dim read-only style. Use `Make editable copy` before editing them. A vendor zone copy includes its complete profile.
 
+The text editor stays inside the available viewport and scrolls independently. `Problems` separates diagnostics for the current file from the collapsible `All found` index. Opening or checking a file updates its entry without removing previously found problems from other files. `Check all` validates every available configuration file, uses unsaved drafts for changed files, and adds cross-file dependency and duplicate diagnostics. File and line links navigate without turning the diagnostic text into a button, so the message remains selectable.
+
+Some diagnostics offer one or more quick-fix links. A quick fix is validated against the current source, changes only the unsaved draft, and still requires Save or Save all. Quick fixes are registered by stable IDs in `src/quick-fixes.ts`; the first registered fix adds a missing `// @format zone 1` marker.
+
 The editor follows linked files and directories. This lets a development product root link `Surfaces`, `Zones`, and `Snippets` directly to repository resources. Access and write permissions still use the logical configuration path, so linked vendor content remains read-only and only supported paths below `User` are writable. Directory link cycles are shown as unavailable instead of being traversed.
 
 ## Legacy CSI import
@@ -87,6 +91,8 @@ The repository rule requires explicit permission before running tests or build c
 Each opened file includes a SHA-256 hash. Save fails with a conflict when the file changed after it opened. A single save writes and validates a complete temporary file beside its target before atomic rename.
 
 Every text change automatically enters the Save all set. Changed files use bold text and `*` in the tree. Switching files restores their unsaved text. The browser writes each changed source after a 300 ms debounce to `<system-temp>/<product-id>-conf-editor/drafts/<path-sha256>.json`. The hash includes the full logical product root and relative configuration path. Drafts survive browser and editor restarts, but the operating system can clean temporary files. If the source file changed outside the editor, choose whether to use or discard the recovered draft.
+
+`Discard changes` asks for confirmation, restores the current file from disk, and removes its recovery draft. Successful operations use green notifications that close after five seconds. Info, warning, and error notifications stay visible until closed. Errors related to a specific input stay below that input.
 
 `Save all` stages and validates every draft, then writes `Backups/<operation-id>/manifest.json`, copies original files into the operation backup, and commits each staged file. A commit failure restores every file already changed and records the rollback in the manifest and operation report. A successful `Save` or `Save all` removes the related recovery draft.
 

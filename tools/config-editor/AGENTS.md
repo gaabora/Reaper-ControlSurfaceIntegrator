@@ -30,10 +30,14 @@
 - Show the snippet selector only while a writable user zone is open in the text editor. Resolve its surface from the zone profile and the main product config, and show the mapping dialog only when surface selection, manual widget confirmation, or an application conflict needs input.
 - Insert a new resolved snippet block after the current cursor line. Insert it before `ZoneEnd` when the cursor is on line 1 or outside the zone body. Change only the current unsaved draft.
 - Require `Replace`, `Rename`, or `Skip` when an application marker already exists.
-- Keep CodeMirror text mode as the only configuration editing mode. Show Problems and File details as collapsible bottom tabs with an open height of 20 percent of the viewport.
+- Keep CodeMirror text mode as the only configuration editing mode. Constrain it to the available viewport and keep its own scrolling. Show Problems and File details as collapsible bottom tabs with an open height of 20 percent of the viewport.
+- Keep Current file problems separate from the collapsible All found index. Update the index when a file opens, retain other indexed files during navigation, and let Check all replace it with complete file and cross-file validation results that include unsaved drafts.
+- Render diagnostic messages as selectable text. Use separate navigation links for file and line targets, and separate quick-fix links for writable sources.
+- Register quick fixes in the TypeScript quick-fix registry. Give every fix a stable ID, calculate its available variants from the current diagnostic and source, validate it again before applying it, and change only the unsaved draft.
 - Add every writable text change to Save all automatically. Preserve each unsaved file as one debounced temporary draft keyed by the SHA-256 of its full logical path, restore it across browser and editor restarts, mark it with bold text and `*` in the tree, and remove it after a successful save or a return to the saved source.
+- Let Discard changes restore the current file from disk and remove its recovery draft only after confirmation.
 - Reject automatic recovery when the source hash changed after draft creation. Require an explicit Use draft or Discard draft choice.
-- Show field errors directly below their related path controls with semantic `danger` styling. Use `primary`, `secondary`, `success`, `warning`, `danger`, and `info` for visual state names, and keep operation reports inside their workflow instead of a global status footer.
+- Show field errors directly below their related path controls with semantic `danger` styling. Show other operation messages as dismissible notifications outside the workflow header. Remove success notifications after five seconds, and keep info, warning, and danger notifications until the user closes them. Use `primary`, `secondary`, `success`, `warning`, `danger`, and `info` for visual state names, and keep operation reports inside their workflow instead of a global status footer.
 - Read action names from `src/shared/types.h` `ACTION_TYPE_LIST`. Do not add a manual action-name list.
 - Keep parsers independent from the browser UI and file-writing service.
 - Bind the editor server only to `127.0.0.1` and require a random session token for every API request. Deliver the token in the generated initial HTML, not in the URL or persistent browser storage.
@@ -75,6 +79,7 @@
 - Run focused legacy import tests for source discovery, `Zones` and `FXZones` mapping, backup-file filtering, dependency selection, semantic widget mapping, repeat conflicts, source immutability, and transactional writes.
 - Run focused snippet workflow tests for semantic widget filtering, surface resolution, explicit confirmation, mismatch override, cursor insertion, and repeat application conflicts.
 - Run focused temporary draft tests for path isolation, recovery, discard, source-hash conflicts, and save cleanup.
+- Run focused validation-set and quick-fix registry tests for draft overlays, cross-file diagnostics, writable ownership, stale diagnostics, and lossless source changes.
 - Start the server with `--no-open` and confirm unauthenticated API access fails.
 - Build and launch each standalone target in its matching operating system before release.
 
