@@ -11,21 +11,21 @@ function requiredElement(id) {
 }
 
 const elements = {
-    addBatch: requiredElement("add-batch"),
     backToTasks: requiredElement("back-to-tasks"),
-    batchControls: requiredElement("batch-controls"),
-    batchCount: requiredElement("batch-count"),
+    bottomPanelContent: requiredElement("bottom-panel-content"),
     clone: requiredElement("clone"),
-    commitBatch: requiredElement("commit-batch"),
     dataPath: requiredElement("data-path"),
     dataPathCandidates: requiredElement("data-path-candidates"),
-    dataPathStatus: requiredElement("data-path-status"),
+    dataPathFeedback: requiredElement("data-path-feedback"),
+    detailsPanel: requiredElement("details-panel"),
     diagnostics: requiredElement("diagnostics"),
     documentMode: requiredElement("document-mode"),
     documentPath: requiredElement("document-path"),
+    draftConflict: requiredElement("draft-conflict"),
+    draftDiscard: requiredElement("draft-discard"),
+    draftRestore: requiredElement("draft-restore"),
     editorBody: requiredElement("editor-body"),
     editorMain: requiredElement("editor-main"),
-    exportSnippet: requiredElement("export-snippet"),
     filePanel: requiredElement("file-panel"),
     legacyDependencies: requiredElement("legacy-dependencies"),
     legacyDiagnostics: requiredElement("legacy-diagnostics"),
@@ -36,86 +36,78 @@ const elements = {
     legacyDraftPath: requiredElement("legacy-draft-path"),
     legacyImport: requiredElement("legacy-import"),
     legacyIncludeSurface: requiredElement("legacy-include-surface"),
+    legacyFeedback: requiredElement("legacy-feedback"),
+    legacyOperationReport: requiredElement("legacy-operation-report"),
     legacyPath: requiredElement("legacy-path"),
+    legacyPathFeedback: requiredElement("legacy-path-feedback"),
     legacyPreview: requiredElement("legacy-preview"),
     legacyRefresh: requiredElement("legacy-refresh"),
     legacySelectAll: requiredElement("legacy-select-all"),
     legacySelectNone: requiredElement("legacy-select-none"),
     legacyStatus: requiredElement("legacy-status"),
     legacySurface: requiredElement("legacy-surface"),
+    legacyTargetFeedback: requiredElement("legacy-target-feedback"),
     legacyTargetProfile: requiredElement("legacy-target-profile"),
     legacyWidgetMappings: requiredElement("legacy-widget-mappings"),
     legacyZones: requiredElement("legacy-zones"),
     homeHeader: requiredElement("home-header"),
     openDataPath: requiredElement("open-data-path"),
     openLegacy: requiredElement("open-legacy"),
+    problemCount: requiredElement("problem-count"),
+    problemsPanel: requiredElement("problems-panel"),
     rawEditor: requiredElement("raw-editor"),
-    report: requiredElement("report"),
     save: requiredElement("save"),
+    saveAll: requiredElement("save-all"),
     semantic: requiredElement("semantic"),
     snippetApplicationId: requiredElement("snippet-application-id"),
-    snippetApply: requiredElement("snippet-apply"),
     snippetBindings: requiredElement("snippet-bindings"),
+    snippetCancel: requiredElement("snippet-cancel"),
+    snippetClose: requiredElement("snippet-close"),
     snippetConflict: requiredElement("snippet-conflict"),
     snippetConflictAction: requiredElement("snippet-conflict-action"),
+    snippetDialog: requiredElement("snippet-dialog"),
     snippetDiagnostics: requiredElement("snippet-diagnostics"),
-    snippetImportAction: requiredElement("snippet-import-action"),
-    snippetImportApply: requiredElement("snippet-import-apply"),
-    snippetImportConflict: requiredElement("snippet-import-conflict"),
-    snippetImportDiagnostics: requiredElement("snippet-import-diagnostics"),
-    snippetImportFile: requiredElement("snippet-import-file"),
-    snippetImportSource: requiredElement("snippet-import-source"),
-    snippetImportTarget: requiredElement("snippet-import-target"),
-    snippetExportDownload: requiredElement("snippet-export-download"),
-    snippetExportSource: requiredElement("snippet-export-source"),
-    snippetMappingStep: requiredElement("snippet-mapping-step"),
+    snippetInsert: requiredElement("snippet-insert"),
+    snippetOpen: requiredElement("snippet-open"),
     snippetRenameId: requiredElement("snippet-rename-id"),
     snippetSource: requiredElement("snippet-source"),
-    snippetStatus: requiredElement("snippet-status"),
     snippetSurface: requiredElement("snippet-surface"),
-    snippetTargetDiagnostics: requiredElement("snippet-target-diagnostics"),
-    snippetTargetEditor: requiredElement("snippet-target-editor"),
+    snippetSurfaceFeedback: requiredElement("snippet-surface-feedback"),
+    snippetSurfaceField: requiredElement("snippet-surface-field"),
     snippetTargetPath: requiredElement("snippet-target-path"),
-    snippetTargetSave: requiredElement("snippet-target-save"),
-    snippetZone: requiredElement("snippet-zone"),
-    structuredEditor: requiredElement("structured-editor"),
+    snippetToolbar: requiredElement("snippet-toolbar"),
     taskHome: requiredElement("task-home"),
-    taskHomeStatus: requiredElement("task-home-status"),
     title: requiredElement("title"),
     tree: requiredElement("tree"),
     validate: requiredElement("validate"),
     workflowDescription: requiredElement("workflow-description"),
     workflowEdit: requiredElement("workflow-edit"),
+    workflowFeedback: requiredElement("workflow-feedback"),
     workflowLegacy: requiredElement("workflow-legacy"),
-    workflowShare: requiredElement("workflow-share"),
-    workflowSnippet: requiredElement("workflow-snippet"),
     workflowTitle: requiredElement("workflow-title"),
     workspace: requiredElement("workspace"),
 };
 const state = {
     batch: new Map(),
+    bottomPanel: "problems",
     current: null,
+    draftConflicts: new Set(),
     legacy: { activeDraftPath: "", drafts: new Map(), preview: null, resolutions: new Map(), selectedZonePaths: new Set(), targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
-    snippet: { choices: new Map(), conflictAction: "", importAction: "", importFile: null, importPreview: null, preview: null, targetDiagnostics: [], targetDirty: false, targetHash: "", targetPath: "", treeEntries: [] },
+    snippet: { choices: new Map(), conflictAction: "", insertionLine: 1, preview: null, treeEntries: [] },
     renderedDocumentPath: "",
-    tab: "raw",
     task: "",
 };
-const codeEditor = createConfigurationEditor(elements.rawEditor, (source) => { if (state.current) state.current.source = source; });
+let draftTimer = 0;
+let pendingDraft = null;
+let draftWriteActive = false;
+let draftWritePromise = Promise.resolve();
+const codeEditor = createConfigurationEditor(elements.rawEditor, handleEditorChange);
 const legacyDraftEditor = createConfigurationEditor(elements.legacyDraftEditor, (source) => {
     const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === state.legacy.activeDraftPath);
     if (item) state.legacy.drafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source });
 });
-const snippetTargetEditor = createConfigurationEditor(elements.snippetTargetEditor, () => {
-    if (!state.snippet.targetPath) return;
-    state.snippet.targetDiagnostics = [];
-    state.snippet.targetDirty = true;
-    renderSnippetTarget();
-});
 legacyDraftEditor.setReadOnly(false);
 legacyDraftEditor.setVisible(false);
-snippetTargetEditor.setReadOnly(false);
-snippetTargetEditor.setVisible(false);
 
 function translate(key, params = {}) {
     let text = translations[key] ?? key;
@@ -129,56 +121,60 @@ async function api(url, options = {}) {
     const payload = await response.json().catch(() => ({ error: { message: response.statusText } }));
     if (!response.ok) {
         const error = new Error(payload.error?.message || translate("error.request"));
+        error.code = payload.error?.code;
         error.details = payload.error?.details;
         throw error;
     }
     return payload;
 }
 
-function showReport(value) {
-    elements.report.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+function setFeedback(element, value, tone = "info") {
+    element.hidden = !value;
+    element.className = `feedback ${tone}`;
+    element.textContent = value || "";
 }
 
-function showError(error) {
-    showReport(error.details ? error.message + "\n" + JSON.stringify(error.details, null, 2) : error.message);
+function showReport(value, target = elements.workflowFeedback) {
+    setFeedback(target, typeof value === "string" ? value : JSON.stringify(value, null, 2), "info");
+}
+
+function showError(error, target = elements.workflowFeedback) {
+    setFeedback(target, error.details ? error.message + "\n" + JSON.stringify(error.details, null, 2) : error.message, "danger");
 }
 
 function setTaskAvailability(available) {
     for (const button of document.querySelectorAll(".task-card")) button.disabled = !available;
-    elements.taskHomeStatus.textContent = translate(available ? "tasks.ready" : "tasks.openDataFirst");
 }
 
 function showTask(task) {
-    const workflows = { edit: elements.workflowEdit, legacy: elements.workflowLegacy, share: elements.workflowShare, snippet: elements.workflowSnippet };
-    const translationTask = task === "snippet" ? "apply" : task;
+    const workflows = { edit: elements.workflowEdit, legacy: elements.workflowLegacy };
     state.task = task;
     elements.homeHeader.hidden = true;
     elements.taskHome.hidden = true;
     elements.editorMain.hidden = false;
     elements.filePanel.hidden = task !== "edit";
-    elements.batchControls.hidden = task !== "edit";
+    elements.saveAll.hidden = task !== "edit";
     elements.editorBody.classList.toggle("file-task", task === "edit");
     elements.workspace.classList.toggle("document-task", task === "edit");
-    elements.workspace.classList.toggle("snippet-task", task === "snippet");
     for (const workflow of Object.values(workflows)) workflow.hidden = workflow !== workflows[task];
-    elements.workflowTitle.textContent = translate(`task.${translationTask}.title`);
-    elements.workflowDescription.textContent = translate(`task.${translationTask}.description`);
-    if (task === "edit") codeEditor.setVisible(state.tab === "raw");
-    snippetTargetEditor.setVisible(task === "snippet");
+    elements.workflowTitle.textContent = translate(`task.${task}.title`);
+    elements.workflowDescription.textContent = translate(`task.${task}.description`);
+    setFeedback(elements.workflowFeedback, "");
+    codeEditor.setVisible(task === "edit");
 }
 
 function showTaskHome() {
     state.task = "";
     elements.homeHeader.hidden = false;
     elements.editorMain.hidden = true;
-    elements.batchControls.hidden = true;
+    elements.saveAll.hidden = true;
     elements.taskHome.hidden = false;
 }
 
 function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDiagnostic) {
     container.replaceChildren();
     if (!diagnostics.length) {
-        container.className = "muted";
+        container.className = "secondary";
         container.textContent = translate("problems.none");
         return;
     }
@@ -186,7 +182,7 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
     for (const diagnostic of diagnostics) {
         const actionable = Boolean(diagnostic.path || diagnostic.line);
         const row = document.createElement(actionable ? "button" : "div");
-        row.className = "diagnostic " + diagnostic.severity;
+        row.className = "diagnostic " + (diagnostic.severity === "error" ? "danger" : diagnostic.severity);
         if (actionable) {
             row.classList.add("diagnostic-link");
             row.addEventListener("click", () => navigate(diagnostic));
@@ -198,31 +194,76 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
 
 function renderDiagnostics(diagnostics = []) {
     renderDiagnosticsIn(elements.diagnostics, diagnostics);
+    elements.problemCount.textContent = String(diagnostics.length);
 }
 
-function rebuildSourceFromStructured() {
-    if (!state.current) return "";
-    const replacements = new Map([...elements.structuredEditor.querySelectorAll("input[data-line]")].map((input) => [Number(input.dataset.line), input.value]));
-    return state.current.document.lines.map((line) => (replacements.get(line.lineNumber) ?? line.text) + line.ending).join("");
+function renderBottomPanel() {
+    const activePanel = state.bottomPanel;
+    elements.bottomPanelContent.hidden = !activePanel;
+    elements.problemsPanel.hidden = activePanel !== "problems";
+    elements.detailsPanel.hidden = activePanel !== "details";
+    for (const button of document.querySelectorAll(".bottom-tab")) button.classList.toggle("active", button.dataset.bottomTab === activePanel);
 }
 
-function renderStructured() {
-    elements.structuredEditor.replaceChildren();
-    if (!state.current) return;
-    for (const line of state.current.document.lines.filter((candidate) => !["blank", "comment"].includes(candidate.kind))) {
-        const row = document.createElement("label");
-        row.className = "structured-line";
-        const lineNumber = document.createElement("span");
-        lineNumber.className = "line-number";
-        lineNumber.textContent = String(line.lineNumber);
-        const input = document.createElement("input");
-        input.dataset.line = String(line.lineNumber);
-        input.disabled = !state.current.writable;
-        input.value = line.text;
-        input.addEventListener("input", () => { codeEditor.setValue(rebuildSourceFromStructured()); });
-        row.append(lineNumber, input);
-        elements.structuredEditor.append(row);
-    }
+function renderDraftConflict() {
+    elements.draftConflict.hidden = !state.current?.draftConflict;
+}
+
+function handleEditorChange(source) {
+    if (!state.current?.writable) return;
+    state.current.source = source;
+    const change = { originalHash: state.current.hash, path: state.current.path, source };
+    if (source === state.current.diskSource) state.batch.delete(state.current.path);
+    else state.batch.set(state.current.path, change);
+    pendingDraft = { ...change, discard: source === state.current.diskSource };
+    window.clearTimeout(draftTimer);
+    draftTimer = window.setTimeout(() => { void flushPendingDraft(); }, 300);
+    updateBatch();
+    updateTreeDraftState();
+}
+
+async function flushPendingDraft() {
+    window.clearTimeout(draftTimer);
+    draftTimer = 0;
+    const draft = pendingDraft;
+    pendingDraft = null;
+    if (!draft) return draftWritePromise;
+    draftWritePromise = draftWritePromise.then(async () => {
+        draftWriteActive = true;
+        try {
+            if (draft.discard) await api("/api/draft/discard", { method: "POST", body: JSON.stringify({ path: draft.path }) });
+            else await api("/api/draft", { method: "POST", body: JSON.stringify({ originalHash: draft.originalHash, path: draft.path, source: draft.source }) });
+        } finally {
+            draftWriteActive = false;
+        }
+    }).catch((error) => {
+        if (error.code === "conflict.draft") {
+            state.draftConflicts.add(draft.path);
+            if (state.current?.path === draft.path) {
+                state.current.draftConflict = { ...draft, conflict: true, document: state.current.document };
+                renderDraftConflict();
+            }
+            updateBatch();
+        }
+        showError(error);
+    });
+    return draftWritePromise;
+}
+
+async function refreshDrafts() {
+    const result = await api("/api/drafts");
+    state.batch = new Map(result.drafts.map((draft) => [draft.path, { originalHash: draft.originalHash, path: draft.path, source: draft.source }]));
+    state.draftConflicts = new Set(result.drafts.filter((draft) => draft.conflict).map((draft) => draft.path));
+    updateBatch();
+}
+
+function currentIsEditableZone() {
+    return Boolean(state.current?.writable && state.current.document.format === "zone");
+}
+
+function renderSnippetToolbar() {
+    elements.snippetToolbar.hidden = !currentIsEditableZone();
+    elements.snippetOpen.disabled = !currentIsEditableZone() || !elements.snippetSource.value;
 }
 
 function renderDocument() {
@@ -234,13 +275,13 @@ function renderDocument() {
     codeEditor.setValue(current?.source || "", documentPath !== state.renderedDocumentPath);
     state.renderedDocumentPath = documentPath;
     elements.validate.disabled = !current;
-    elements.addBatch.disabled = !current || !current.writable;
-    elements.save.disabled = !current || !current.writable;
+    elements.save.disabled = !current || !current.writable || !state.batch.has(current.path);
     elements.clone.hidden = !current || current.writable || !["surface", "zone", "snippet"].includes(current.document.format);
-    elements.exportSnippet.hidden = !current || current.document.format !== "snippet";
     renderDiagnostics(current?.document.diagnostics);
     elements.semantic.textContent = JSON.stringify(current?.document.semantic || {}, null, 2);
-    renderStructured();
+    renderDraftConflict();
+    renderSnippetToolbar();
+    renderBottomPanel();
 }
 
 async function validateCurrent() {
@@ -254,11 +295,28 @@ async function validateCurrent() {
 
 async function openDocument(path, line) {
     try {
-        state.current = await api("/api/file?path=" + encodeURIComponent(path));
+        await flushPendingDraft();
+        const opened = await api("/api/file?path=" + encodeURIComponent(path));
+        const memoryDraft = state.batch.get(path);
+        const usableDraft = memoryDraft?.originalHash === opened.hash ? { ...opened.draft, ...memoryDraft } : opened.draft && !opened.draft.conflict ? opened.draft : null;
+        if (usableDraft && (!usableDraft.document || Boolean(memoryDraft && memoryDraft.source !== opened.draft?.source))) {
+            const validation = await api("/api/validate", { method: "POST", body: JSON.stringify({ path, source: usableDraft.source }) });
+            usableDraft.document = validation.document;
+        }
+        let draftConflict = !usableDraft && memoryDraft ? { ...memoryDraft, conflict: true } : !usableDraft && opened.draft?.conflict ? opened.draft : null;
+        if (draftConflict && !draftConflict.document) {
+            const validation = await api("/api/validate", { method: "POST", body: JSON.stringify({ path, source: draftConflict.source }) });
+            draftConflict = { ...draftConflict, document: validation.document };
+        }
+        state.current = { ...opened, diskSource: opened.source, document: usableDraft?.document || opened.document, draftConflict, source: usableDraft?.source || opened.source };
+        if (usableDraft) state.batch.set(path, { originalHash: usableDraft.originalHash, path, source: usableDraft.source });
+        if (draftConflict) state.draftConflicts.add(path);
+        else state.draftConflicts.delete(path);
+        updateBatch();
         updateTreeSelection(path);
+        updateTreeDraftState();
         renderDocument();
         if (line) requestAnimationFrame(() => codeEditor.goToLine(line));
-        showReport(translate("status.openedFile", { path }));
     } catch (error) {
         showError(error);
     }
@@ -274,10 +332,7 @@ async function navigateDiagnostic(diagnostic) {
     }
     if (!diagnostic.path && !state.current) return;
     showTask("edit");
-    state.tab = "raw";
-    for (const tab of document.querySelectorAll(".tab")) tab.classList.toggle("active", tab.dataset.tab === "raw");
     codeEditor.setVisible(true);
-    elements.structuredEditor.hidden = true;
     if (diagnostic.path && diagnostic.path !== state.current?.path) await openDocument(diagnostic.path, diagnostic.line);
     else if (diagnostic.line) requestAnimationFrame(() => codeEditor.goToLine(diagnostic.line));
 }
@@ -309,8 +364,10 @@ function treeList(entries) {
             item.textContent = entry.name + " (" + translate("files.blocked") + ")";
         } else {
             const button = document.createElement("button");
+            button.dataset.name = entry.name;
             button.dataset.path = entry.path;
-            button.textContent = entry.name;
+            button.textContent = entry.name + (state.batch.has(entry.path) ? " *" : "");
+            button.classList.toggle("dirty", state.batch.has(entry.path));
             button.classList.toggle("read-only", !entry.writable);
             button.classList.toggle("selected", entry.path === state.current?.path);
             if (entry.path === state.current?.path) button.setAttribute("aria-current", "page");
@@ -340,9 +397,18 @@ async function refreshTree() {
     renderSnippetPathOptions();
 }
 
+function updateTreeDraftState() {
+    for (const button of elements.tree.querySelectorAll("button[data-path]")) {
+        const dirty = state.batch.has(button.dataset.path);
+        button.classList.toggle("dirty", dirty);
+        button.textContent = (button.dataset.name || "") + (dirty ? " *" : "");
+    }
+}
+
 function updateBatch() {
-    elements.batchCount.textContent = translate("pending.count", { count: state.batch.size });
-    elements.commitBatch.disabled = state.batch.size === 0;
+    elements.saveAll.disabled = state.batch.size === 0 || state.draftConflicts.size > 0;
+    elements.saveAll.title = state.draftConflicts.size ? translate("draft.conflictsSave") : translate("pending.count", { count: state.batch.size });
+    if (state.current) elements.save.disabled = !state.current.writable || !state.batch.has(state.current.path) || Boolean(state.current.draftConflict);
 }
 
 function flattenConfigFiles(entries, result = []) {
@@ -372,17 +438,8 @@ function fillPathSelect(select, files, placeholderKey) {
 
 function renderSnippetPathOptions() {
     const files = flattenConfigFiles(state.snippet.treeEntries);
-    const snippets = files.filter((file) => file.type === "snippet");
-    fillPathSelect(elements.snippetSource, snippets, "snippet.source.choose");
-    fillPathSelect(elements.snippetExportSource, snippets, "snippet.source.choose");
-    fillPathSelect(elements.snippetSurface, files.filter((file) => file.type === "surface"), "snippet.surface.choose");
-    fillPathSelect(elements.snippetZone, files.filter((file) => file.type === "zone" && file.writable), "snippet.zone.choose");
-    elements.snippetApply.disabled = !snippetPathsReady();
-    elements.snippetExportDownload.disabled = !elements.snippetExportSource.value;
-}
-
-function snippetPathsReady() {
-    return Boolean(elements.snippetSource.value && elements.snippetSurface.value && elements.snippetZone.value);
+    fillPathSelect(elements.snippetSource, files.filter((file) => file.type === "snippet"), "snippet.source.choose");
+    renderSnippetToolbar();
 }
 
 function snippetChoicesForRequest() {
@@ -394,18 +451,13 @@ function snippetApplicationBody() {
         applicationId: elements.snippetApplicationId.value,
         bindingChoices: snippetChoicesForRequest(),
         conflictAction: state.snippet.conflictAction,
+        insertionLine: state.snippet.insertionLine,
         renamedApplicationId: elements.snippetRenameId.value,
         snippetPath: elements.snippetSource.value,
         surfacePath: elements.snippetSurface.value,
-        targetZonePath: elements.snippetZone.value,
+        targetSource: state.current.source,
+        targetZonePath: state.current.path,
     };
-}
-
-function invalidateSnippetPreview() {
-    if (state.snippet.preview) state.snippet.preview.valid = false;
-    elements.snippetApply.disabled = !snippetPathsReady();
-    elements.snippetStatus.className = "muted";
-    elements.snippetStatus.textContent = translate("snippet.preview.invalid");
 }
 
 function renderSnippetConflict() {
@@ -429,11 +481,10 @@ function selectedSnippetCandidate(binding, widgetName) {
 }
 
 function renderSnippetBindings() {
-    const bindings = state.snippet.preview?.bindings || [];
+    const bindings = (state.snippet.preview?.bindings || []).filter((binding) => !binding.automatic);
     elements.snippetBindings.replaceChildren();
+    elements.snippetBindings.hidden = bindings.length === 0;
     if (!bindings.length) {
-        elements.snippetBindings.className = "snippet-bindings muted";
-        elements.snippetBindings.textContent = translate("snippet.bindings.empty");
         return;
     }
     elements.snippetBindings.className = "snippet-bindings";
@@ -478,7 +529,7 @@ function renderSnippetBindings() {
             const confirm = document.createElement("input");
             confirm.type = "checkbox";
             confirm.checked = choice.confirmed;
-            confirm.addEventListener("change", () => { choice.confirmed = confirm.checked; invalidateSnippetPreview(); });
+            confirm.addEventListener("change", async () => { choice.confirmed = confirm.checked; await refreshSnippetPreviewSafely(); });
             confirmLabel.append(confirm, document.createTextNode(" " + translate("snippet.binding.confirm")));
             options.append(confirmLabel);
         }
@@ -490,138 +541,105 @@ function renderSnippetBindings() {
             const override = document.createElement("input");
             override.type = "checkbox";
             override.checked = choice.allowIncompatible;
-            override.addEventListener("change", () => { choice.allowIncompatible = override.checked; invalidateSnippetPreview(); });
+            override.addEventListener("change", async () => { choice.allowIncompatible = override.checked; await refreshSnippetPreviewSafely(); });
             overrideLabel.append(override, document.createTextNode(" " + translate("snippet.binding.allowIncompatible")));
             options.append(mismatch, overrideLabel);
         }
-        select.addEventListener("change", () => {
+        select.addEventListener("change", async () => {
             choice.widgetName = select.value;
             const selectedCandidate = selectedSnippetCandidate(binding, choice.widgetName);
             choice.confirmed = Boolean(selectedCandidate?.compatible && selectedCandidate.name.toLowerCase() === binding.id.toLowerCase());
             choice.allowIncompatible = false;
-            invalidateSnippetPreview();
-            renderSnippetBindings();
+            await refreshSnippetPreviewSafely();
         });
         row.append(identity, select, options);
         elements.snippetBindings.append(row);
     }
 }
 
-function renderSnippetApplication() {
+function renderSnippetDialog() {
     const preview = state.snippet.preview;
-    elements.snippetMappingStep.hidden = !preview?.bindings.length;
     renderSnippetBindings();
     renderSnippetConflict();
     renderDiagnosticsIn(elements.snippetDiagnostics, preview?.diagnostics);
-    elements.snippetStatus.className = preview ? (preview.valid ? "" : "diagnostic error") : "muted";
-    elements.snippetStatus.textContent = preview ? translate(preview.valid ? "snippet.preview.valid" : "snippet.preview.invalid") : translate("snippet.preview.empty");
-    elements.snippetApply.disabled = !preview?.valid || preview.conflict.action === "skip";
-    renderSnippetTarget();
-}
-
-function renderSnippetTarget() {
-    elements.snippetTargetPath.textContent = state.snippet.targetPath || translate("snippet.target.empty");
-    elements.snippetTargetSave.disabled = !state.snippet.targetPath || !state.snippet.targetDirty;
-    snippetTargetEditor.setReadOnly(!state.snippet.targetPath);
-    renderDiagnosticsIn(elements.snippetTargetDiagnostics, state.snippet.targetDiagnostics, (diagnostic) => {
-        snippetTargetEditor.goToLine(diagnostic.line || 1);
-    });
-}
-
-function resetSnippetTarget() {
-    state.snippet.targetDiagnostics = [];
-    state.snippet.targetDirty = false;
-    state.snippet.targetHash = "";
-    state.snippet.targetPath = "";
-    snippetTargetEditor.setValue("", true);
-    renderSnippetTarget();
-}
-
-async function loadSnippetTarget(targetPath) {
-    resetSnippetTarget();
-    if (!targetPath) return;
-    const opened = await api("/api/file?path=" + encodeURIComponent(targetPath));
-    state.snippet.targetHash = opened.hash;
-    state.snippet.targetPath = opened.path;
-    state.snippet.targetDiagnostics = opened.document.diagnostics;
-    snippetTargetEditor.setValue(opened.source, true);
-    renderSnippetTarget();
-}
-
-function syncSnippetTarget(preview) {
-    const changedTarget = preview.targetZonePath !== state.snippet.targetPath;
-    if (!changedTarget && state.snippet.targetDirty) return;
-    if (changedTarget) state.snippet.targetDiagnostics = [];
-    state.snippet.targetDirty = false;
-    state.snippet.targetHash = preview.targetHash;
-    state.snippet.targetPath = preview.targetZonePath;
-    snippetTargetEditor.setValue(preview.targetSource, changedTarget);
+    elements.snippetInsert.disabled = !preview?.valid;
+    elements.snippetInsert.textContent = translate(preview?.conflict.action === "skip" ? "action.skip" : "action.insertSnippet");
 }
 
 async function refreshSnippetPreview() {
-    const result = await api("/api/snippet/apply-preview", { method: "POST", body: JSON.stringify(snippetApplicationBody()) });
+    const result = await api("/api/snippet/preview", { method: "POST", body: JSON.stringify(snippetApplicationBody()) });
     state.snippet.preview = result.preview;
     if (!elements.snippetApplicationId.value) elements.snippetApplicationId.value = result.preview.applicationId;
     state.snippet.conflictAction = result.preview.conflict.action;
-    syncSnippetTarget(result.preview);
-    renderSnippetApplication();
+    renderSnippetDialog();
 }
 
-function renderSnippetImport() {
-    const preview = state.snippet.importPreview;
-    renderDiagnosticsIn(elements.snippetImportDiagnostics, preview?.diagnostics);
-    elements.snippetImportSource.textContent = preview?.source || translate("snippet.import.empty");
-    elements.snippetImportAction.replaceChildren();
-    elements.snippetImportConflict.hidden = !preview?.targetExists;
-    if (!preview) {
-        elements.snippetImportAction.disabled = true;
-        elements.snippetImportApply.disabled = true;
+async function refreshSnippetPreviewSafely() {
+    try { await refreshSnippetPreview(); } catch (error) { showError(error, elements.snippetDiagnostics); }
+}
+
+function fillSnippetSurfaces(candidates, automatic) {
+    setFeedback(elements.snippetSurfaceFeedback, "");
+    elements.snippetSurface.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = translate("snippet.surface.choose");
+    elements.snippetSurface.append(placeholder);
+    for (const candidate of candidates) {
+        const option = document.createElement("option");
+        option.value = candidate.path;
+        option.textContent = candidate.path;
+        elements.snippetSurface.append(option);
+    }
+    elements.snippetSurface.value = candidates.length === 1 ? candidates[0].path : "";
+    elements.snippetSurface.disabled = candidates.length === 0;
+    elements.snippetSurfaceField.hidden = automatic;
+}
+
+async function applySnippetPreview() {
+    await refreshSnippetPreview();
+    const preview = state.snippet.preview;
+    if (!preview?.valid) return;
+    if (preview.conflict.action === "skip") {
+        if (elements.snippetDialog.open) elements.snippetDialog.close();
         return;
     }
-    const actions = preview.targetExists
-        ? [["", "legacy.conflict.choose"], ["replace", "legacy.conflict.replace"], ["rename", "legacy.conflict.rename"], ["skip", "legacy.conflict.skip"]]
-        : preview.targetPath === preview.defaultTargetPath ? [["create", "legacy.conflict.create"]] : [["rename", "legacy.conflict.rename"]];
-    for (const [value, key] of actions) {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = translate(key);
-        elements.snippetImportAction.append(option);
-    }
-    if (!actions.some(([value]) => value === state.snippet.importAction)) state.snippet.importAction = actions.length === 1 ? actions[0][0] : "";
-    elements.snippetImportAction.value = state.snippet.importAction;
-    elements.snippetImportAction.disabled = actions.length === 1;
-    elements.snippetImportApply.disabled = !preview.valid || !state.snippet.importAction || preview.targetPath !== elements.snippetImportTarget.value;
+    codeEditor.setValue(preview.source);
+    handleEditorChange(preview.source);
+    await validateCurrent();
+    if (elements.snippetDialog.open) elements.snippetDialog.close();
+    showReport(translate("status.appliedSnippetDraft", { path: state.current.path }));
 }
 
-async function refreshSnippetImportPreview() {
-    if (!state.snippet.importFile) return;
-    const result = await api("/api/snippet/import-preview", { method: "POST", body: JSON.stringify({ fileName: state.snippet.importFile.name, source: state.snippet.importFile.source, targetPath: elements.snippetImportTarget.value }) });
-    state.snippet.importPreview = result.preview;
-    elements.snippetImportTarget.value = result.preview.targetPath;
-    renderSnippetImport();
+async function openSnippetDialog() {
+    if (!currentIsEditableZone() || !elements.snippetSource.value) return;
+    await flushPendingDraft();
+    state.snippet.choices.clear();
+    state.snippet.conflictAction = "";
+    state.snippet.insertionLine = codeEditor.getCursorLine();
+    state.snippet.preview = null;
+    elements.snippetApplicationId.value = "";
+    elements.snippetRenameId.value = "";
+    elements.snippetTargetPath.textContent = state.current.path;
+    const result = await api("/api/snippet/context?zonePath=" + encodeURIComponent(state.current.path));
+    fillSnippetSurfaces(result.surfaces, result.automatic);
+    if (!result.automatic) {
+        renderSnippetDialog();
+        elements.snippetDialog.showModal();
+        if (!result.surfaces.length) showError(new Error(translate("snippet.surface.none")), elements.snippetSurfaceFeedback);
+        else if (result.surfaces.length === 1) await refreshSnippetPreview();
+        return;
+    }
+    await refreshSnippetPreview();
+    const needsInput = state.snippet.preview.bindings.some((binding) => !binding.automatic) || Boolean(state.snippet.preview.conflict.existingApplicationId) || !state.snippet.preview.valid;
+    if (needsInput) elements.snippetDialog.showModal();
+    else await applySnippetPreview();
 }
 
 function renameSuggestion(targetPath) {
     const extensionPosition = targetPath.lastIndexOf(".");
     if (extensionPosition < 0) return targetPath + "-imported";
     return targetPath.slice(0, extensionPosition) + "-imported" + targetPath.slice(extensionPosition);
-}
-
-function downloadSource(fileName, source) {
-    const downloadUrl = URL.createObjectURL(new Blob([source], { type: "text/plain;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.download = fileName;
-    link.href = downloadUrl;
-    link.click();
-    URL.revokeObjectURL(downloadUrl);
-}
-
-async function downloadSnippetPath(relativePath) {
-    const opened = await api("/api/file?path=" + encodeURIComponent(relativePath));
-    if (opened.document.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error(translate("error.fixBeforeSave"));
-    const fileName = relativePath.split("/").at(-1);
-    downloadSource(fileName, opened.source);
-    showReport(translate("status.exportedSnippet", { name: fileName }));
 }
 
 function legacyDraftsForRequest() {
@@ -678,7 +696,7 @@ function renderLegacyZones() {
     const zones = (preview?.items || []).filter((item) => item.kind === "zone");
     elements.legacyZones.replaceChildren();
     if (!zones.length) {
-        elements.legacyZones.className = "legacy-list muted";
+        elements.legacyZones.className = "legacy-list secondary";
         elements.legacyZones.textContent = translate("legacy.zones.empty");
         return;
     }
@@ -720,7 +738,7 @@ function renderLegacyDependencies() {
     const dependencies = (preview?.dependencies || []).filter((dependency) => dependency.selected);
     elements.legacyDependencies.replaceChildren();
     if (!dependencies.length) {
-        elements.legacyDependencies.className = "legacy-list muted";
+        elements.legacyDependencies.className = "legacy-list secondary";
         elements.legacyDependencies.textContent = translate("legacy.dependencies.empty");
         return;
     }
@@ -753,7 +771,7 @@ function renderLegacyWidgetMappings() {
     const issues = state.legacy.preview?.widgetMappings || [];
     elements.legacyWidgetMappings.replaceChildren();
     if (!issues.length) {
-        elements.legacyWidgetMappings.className = "legacy-widget-mappings muted";
+        elements.legacyWidgetMappings.className = "legacy-widget-mappings secondary";
         elements.legacyWidgetMappings.textContent = translate("legacy.widgetMappings.empty");
         return;
     }
@@ -799,19 +817,19 @@ function renderLegacyPreview() {
     renderLegacyWidgetMappings();
     elements.legacyPreview.replaceChildren();
     if (!preview) {
-        elements.legacyPreview.className = "legacy-preview muted";
+        elements.legacyPreview.className = "legacy-preview secondary";
         elements.legacyPreview.textContent = translate("legacy.preview.empty");
         renderDiagnosticsIn(elements.legacyDiagnostics);
         closeLegacyDraft();
         updateLegacyImportButton();
         return;
     }
-    elements.legacyStatus.className = preview.valid ? "" : "diagnostic error";
+    elements.legacyStatus.className = preview.valid ? "" : "diagnostic danger";
     elements.legacyStatus.textContent = translate(preview.valid ? "legacy.preview.valid" : "legacy.preview.invalid");
     renderDiagnosticsIn(elements.legacyDiagnostics, preview.diagnostics);
     const selectedItems = selectedLegacyItems();
     if (!selectedItems.length) {
-        elements.legacyPreview.className = "legacy-preview muted";
+        elements.legacyPreview.className = "legacy-preview secondary";
         elements.legacyPreview.textContent = translate("legacy.preview.empty");
         updateLegacyImportButton();
         return;
@@ -902,6 +920,9 @@ async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = uses
 
 function renderLegacySelection(selection) {
     closeLegacyDraft();
+    setFeedback(elements.legacyFeedback, "");
+    elements.legacyOperationReport.hidden = true;
+    elements.legacyOperationReport.textContent = "";
     state.legacy.drafts.clear();
     state.legacy.preview = null;
     state.legacy.resolutions.clear();
@@ -911,6 +932,7 @@ function renderLegacySelection(selection) {
     state.legacy.widgetMappings.clear();
     elements.legacyPath.value = selection?.path || "";
     elements.legacyTargetProfile.value = "";
+    setFeedback(elements.legacyTargetFeedback, "");
     elements.legacySurface.replaceChildren();
     const placeholder = document.createElement("option");
     placeholder.value = "";
@@ -926,32 +948,26 @@ function renderLegacySelection(selection) {
     elements.legacySelectAll.disabled = true;
     elements.legacySelectNone.disabled = true;
     elements.legacyRefresh.disabled = true;
-    elements.legacyStatus.className = "muted";
+    elements.legacyStatus.className = "secondary";
     elements.legacyStatus.textContent = selection?.root ? translate("legacy.status.opened", { path: selection.root }) : translate("legacy.status.notFound", { path: selection?.path || "CSI" });
     renderLegacyPreview();
 }
 
-async function applyDataPath(dataPath, showOpenedReport) {
+async function applyDataPath(dataPath) {
+    await flushPendingDraft();
     const result = await api("/api/select-data-path", { method: "POST", body: JSON.stringify({ path: dataPath }) });
-    elements.dataPathStatus.textContent = result.dataPath;
     elements.dataPath.value = result.dataPath;
+    setFeedback(elements.dataPathFeedback, "");
     state.current = null;
-    state.batch.clear();
     state.snippet.choices.clear();
     state.snippet.conflictAction = "";
-    state.snippet.importAction = "";
-    state.snippet.importPreview = null;
     state.snippet.preview = null;
-    resetSnippetTarget();
-    updateBatch();
+    await refreshDrafts();
     renderDocument();
-    renderSnippetApplication();
-    renderSnippetImport();
     renderLegacySelection(result.legacy);
     await refreshTree();
     setTaskAvailability(true);
     showTaskHome();
-    if (showOpenedReport) showReport(translate("status.openedDataPath", { path: result.dataPath }));
 }
 
 async function initialize() {
@@ -961,7 +977,7 @@ async function initialize() {
         translations = await translationsResponse.json();
         setTaskAvailability(false);
         if (!token) {
-            showReport(translate("error.missingToken"));
+            showError(new Error(translate("error.missingToken")), elements.dataPathFeedback);
             return;
         }
         const status = await api("/api/status");
@@ -976,9 +992,9 @@ async function initialize() {
             elements.dataPathCandidates.append(option);
         }
         if (status.dataPath) {
-            elements.dataPathStatus.textContent = status.dataPath;
             elements.dataPath.value = status.dataPath;
             renderLegacySelection(status.legacy);
+            await refreshDrafts();
             await refreshTree();
             setTaskAvailability(true);
             return;
@@ -989,32 +1005,34 @@ async function initialize() {
             let lastError;
             for (const candidate of existingCandidates) {
                 try {
-                    await applyDataPath(candidate.path, false);
+                    await applyDataPath(candidate.path);
                     return;
                 } catch (error) {
                     lastError = error;
                 }
             }
-            if (lastError) showReport(translate("error.configLoad") + "\n" + lastError.message);
+            if (lastError) showError(new Error(translate("error.configLoad") + "\n" + lastError.message), elements.dataPathFeedback);
         } else if (status.candidates.length) {
             elements.dataPath.value = status.candidates[0].path;
-        }
+            showError(new Error(translate("tasks.openDataFirst")), elements.dataPathFeedback);
+        } else showError(new Error(translate("tasks.openDataFirst")), elements.dataPathFeedback);
     } catch (error) {
-        showReport(translate("error.configLoad") + "\n" + error.message);
+        showError(new Error(translate("error.configLoad") + "\n" + error.message), elements.dataPathFeedback);
     }
 }
 
 elements.openDataPath.addEventListener("click", async () => {
     try {
-        await applyDataPath(elements.dataPath.value, true);
-    } catch (error) { showError(error); }
+        await applyDataPath(elements.dataPath.value);
+    } catch (error) { showError(error, elements.dataPathFeedback); }
 });
 
 elements.openLegacy.addEventListener("click", async () => {
     try {
         const result = await api("/api/legacy/select", { method: "POST", body: JSON.stringify({ path: elements.legacyPath.value }) });
         renderLegacySelection(result);
-    } catch (error) { showError(error); }
+        setFeedback(elements.legacyPathFeedback, "");
+    } catch (error) { showError(error, elements.legacyPathFeedback); }
 });
 
 elements.legacySurface.addEventListener("change", async () => {
@@ -1037,10 +1055,11 @@ elements.legacySurface.addEventListener("change", async () => {
 
 elements.legacyTargetProfile.addEventListener("change", async () => {
     try {
+        setFeedback(elements.legacyTargetFeedback, "");
         state.legacy.targetProfileId = elements.legacyTargetProfile.value.trim();
         state.legacy.targetPaths.clear();
         if (elements.legacySurface.value) await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
-    } catch (error) { showError(error); }
+    } catch (error) { showError(error, elements.legacyTargetFeedback); }
 });
 
 elements.legacyDraftCheck.addEventListener("click", async () => {
@@ -1098,120 +1117,9 @@ elements.legacyImport.addEventListener("click", async () => {
         });
         await refreshTree();
         await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
-        showReport({ message: translate("status.importedLegacy", { count: result.report.changed.length + result.report.created.length }), ...result.report });
-    } catch (error) { showError(error); }
-});
-
-for (const select of [elements.snippetSource, elements.snippetSurface, elements.snippetZone]) select.addEventListener("change", async () => {
-    try {
-        if (select === elements.snippetZone) await loadSnippetTarget(elements.snippetZone.value);
-        state.snippet.choices.clear();
-        state.snippet.conflictAction = "";
-        state.snippet.preview = null;
-        elements.snippetApplicationId.value = "";
-        elements.snippetRenameId.value = "";
-        renderSnippetPathOptions();
-        renderSnippetApplication();
-        if (snippetPathsReady()) await refreshSnippetPreview();
-    } catch (error) { showError(error); }
-});
-
-elements.snippetApplicationId.addEventListener("input", invalidateSnippetPreview);
-elements.snippetRenameId.addEventListener("input", invalidateSnippetPreview);
-
-elements.snippetConflictAction.addEventListener("change", () => {
-    state.snippet.conflictAction = elements.snippetConflictAction.value;
-    elements.snippetRenameId.hidden = state.snippet.conflictAction !== "rename";
-    if (state.snippet.conflictAction === "rename" && !elements.snippetRenameId.value) elements.snippetRenameId.value = elements.snippetApplicationId.value + "-copy";
-    invalidateSnippetPreview();
-});
-
-elements.snippetApply.addEventListener("click", async () => {
-    try {
-        await refreshSnippetPreview();
-        const preview = state.snippet.preview;
-        if (!preview?.valid || preview.conflict.action === "skip") return;
-        state.snippet.targetDiagnostics = [];
-        state.snippet.targetDirty = preview.source !== preview.targetSource;
-        state.snippet.targetHash = preview.targetHash;
-        state.snippet.targetPath = preview.targetZonePath;
-        snippetTargetEditor.setValue(preview.source);
-        renderSnippetTarget();
-        showReport(translate("status.appliedSnippetDraft", { path: preview.targetZonePath }));
-    } catch (error) { showError(error); }
-});
-
-elements.snippetTargetSave.addEventListener("click", async () => {
-    try {
-        if (!state.snippet.targetPath) return;
-        const source = snippetTargetEditor.getValue();
-        const validation = await api("/api/validate", { method: "POST", body: JSON.stringify({ path: state.snippet.targetPath, source }) });
-        state.snippet.targetDiagnostics = validation.document.diagnostics;
-        renderSnippetTarget();
-        if (state.snippet.targetDiagnostics.some((diagnostic) => diagnostic.severity === "error")) {
-            showReport(translate("error.fixBeforeSave"));
-            return;
-        }
-        const result = await api("/api/save", { method: "POST", body: JSON.stringify({ originalHash: state.snippet.targetHash, path: state.snippet.targetPath, source }) });
-        state.snippet.targetDirty = false;
-        state.snippet.targetHash = result.hash;
-        if (state.snippet.preview) state.snippet.preview.valid = false;
-        renderSnippetApplication();
-        await refreshTree();
-        showReport(translate("status.savedFile", { path: state.snippet.targetPath }));
-    } catch (error) { showError(error); }
-});
-
-elements.snippetImportFile.addEventListener("change", async () => {
-    try {
-        const file = elements.snippetImportFile.files?.[0];
-        state.snippet.importAction = "";
-        state.snippet.importPreview = null;
-        state.snippet.importFile = file ? { name: file.name, source: await file.text() } : null;
-        elements.snippetImportTarget.value = "";
-        renderSnippetImport();
-        if (file) await refreshSnippetImportPreview();
-    } catch (error) { showError(error); }
-});
-
-elements.snippetImportTarget.addEventListener("input", () => {
-    state.snippet.importPreview = null;
-    elements.snippetImportApply.disabled = true;
-    renderSnippetImport();
-});
-elements.snippetImportTarget.addEventListener("change", async () => {
-    try { await refreshSnippetImportPreview(); } catch (error) { showError(error); }
-});
-
-elements.snippetImportAction.addEventListener("change", async () => {
-    try {
-        state.snippet.importAction = elements.snippetImportAction.value;
-        if (state.snippet.importAction === "rename" && state.snippet.importPreview) {
-            elements.snippetImportTarget.value = renameSuggestion(state.snippet.importPreview.defaultTargetPath);
-            state.snippet.importPreview = null;
-            await refreshSnippetImportPreview();
-        } else renderSnippetImport();
-    } catch (error) { showError(error); }
-});
-
-elements.snippetImportApply.addEventListener("click", async () => {
-    try {
-        const importFile = state.snippet.importFile;
-        if (!importFile) return;
-        await refreshSnippetImportPreview();
-        const preview = state.snippet.importPreview;
-        if (!preview?.valid || !importFile) throw new Error(translate("snippet.preview.invalid"));
-        if (!state.snippet.importAction) return;
-        const result = await api("/api/snippet/import", { method: "POST", body: JSON.stringify({ action: state.snippet.importAction, fileName: importFile.name, source: importFile.source, sourceHash: preview.sourceHash, targetHash: preview.targetHash, targetPath: preview.targetPath }) });
-        await refreshTree();
-        state.snippet.importAction = "";
-        state.snippet.importFile = null;
-        state.snippet.importPreview = null;
-        elements.snippetImportFile.value = "";
-        elements.snippetImportTarget.value = "";
-        renderSnippetImport();
-        showReport({ message: translate("status.importedSnippet", { count: result.report.changed.length + result.report.created.length }), ...result.report });
-    } catch (error) { showError(error); }
+        elements.legacyOperationReport.hidden = false;
+        elements.legacyOperationReport.textContent = JSON.stringify({ message: translate("status.importedLegacy", { count: result.report.changed.length + result.report.created.length }), ...result.report }, null, 2);
+    } catch (error) { showError(error, elements.legacyFeedback); }
 });
 
 elements.validate.addEventListener("click", async () => {
@@ -1220,34 +1128,36 @@ elements.validate.addEventListener("click", async () => {
 
 elements.save.addEventListener("click", async () => {
     try {
+        await flushPendingDraft();
         const documentView = await validateCurrent();
-        if (documentView.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error(translate("error.fixBeforeSave"));
+        if (documentView.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+            state.bottomPanel = "problems";
+            renderBottomPanel();
+            return;
+        }
         const result = await api("/api/save", { method: "POST", body: JSON.stringify({ originalHash: state.current.hash, path: state.current.path, source: state.current.source }) });
         state.current.hash = result.hash;
+        state.current.diskSource = state.current.source;
+        state.current.draftConflict = null;
         state.batch.delete(state.current.path);
+        state.draftConflicts.delete(state.current.path);
         updateBatch();
+        updateTreeDraftState();
+        renderDocument();
         showReport(translate("status.savedFile", { path: state.current.path }));
     } catch (error) { showError(error); }
 });
 
-elements.addBatch.addEventListener("click", async () => {
+elements.saveAll.addEventListener("click", async () => {
     try {
-        const documentView = await validateCurrent();
-        if (documentView.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error(translate("error.fixBeforeSaveAll"));
-        state.batch.set(state.current.path, { originalHash: state.current.hash, path: state.current.path, source: state.current.source });
-        updateBatch();
-        showReport(translate("status.addedToSaveAll", { path: state.current.path }));
-    } catch (error) { showError(error); }
-});
-
-elements.commitBatch.addEventListener("click", async () => {
-    try {
+        await flushPendingDraft();
+        const currentPath = state.current?.path;
         const result = await api("/api/transaction", { method: "POST", body: JSON.stringify({ changes: [...state.batch.values()] }) });
         state.batch.clear();
-        state.current = null;
+        state.draftConflicts.clear();
         updateBatch();
-        renderDocument();
         await refreshTree();
+        if (currentPath) await openDocument(currentPath);
         showReport(translate("status.savedAll", { count: result.report.changed.length + result.report.created.length }));
     } catch (error) { showError(error); }
 });
@@ -1260,31 +1170,81 @@ elements.clone.addEventListener("click", async () => {
     } catch (error) { showError(error); }
 });
 
-elements.exportSnippet.addEventListener("click", async () => {
+elements.draftRestore.addEventListener("click", async () => {
     try {
-        const documentView = await validateCurrent();
-        if (!state.current || documentView.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error(translate("error.fixBeforeSave"));
-        const fileName = state.current.path.split("/").at(-1);
-        downloadSource(fileName, state.current.source);
-        showReport(translate("status.exportedSnippet", { name: fileName }));
+        const draft = state.current?.draftConflict;
+        if (!draft) return;
+        state.current.source = draft.source;
+        state.current.document = draft.document;
+        state.current.draftConflict = null;
+        state.draftConflicts.delete(state.current.path);
+        codeEditor.setValue(draft.source);
+        handleEditorChange(draft.source);
+        await flushPendingDraft();
+        renderDocument();
     } catch (error) { showError(error); }
 });
 
-for (const tab of document.querySelectorAll(".tab")) tab.addEventListener("click", async () => {
+elements.draftDiscard.addEventListener("click", async () => {
     try {
-        if (state.current) await validateCurrent();
-        state.tab = tab.dataset.tab;
-        for (const candidate of document.querySelectorAll(".tab")) candidate.classList.toggle("active", candidate === tab);
-        codeEditor.setVisible(state.tab === "raw");
-        elements.structuredEditor.hidden = state.tab !== "structured";
+        if (!state.current?.draftConflict) return;
+        await api("/api/draft/discard", { method: "POST", body: JSON.stringify({ path: state.current.path }) });
+        const validation = await api("/api/validate", { method: "POST", body: JSON.stringify({ path: state.current.path, source: state.current.diskSource }) });
+        state.batch.delete(state.current.path);
+        state.draftConflicts.delete(state.current.path);
+        state.current.draftConflict = null;
+        state.current.document = validation.document;
+        state.current.source = state.current.diskSource;
+        codeEditor.setValue(state.current.diskSource);
+        updateBatch();
+        updateTreeDraftState();
+        renderDocument();
     } catch (error) { showError(error); }
 });
+
+for (const button of document.querySelectorAll(".bottom-tab")) button.addEventListener("click", () => {
+    state.bottomPanel = state.bottomPanel === button.dataset.bottomTab ? "" : button.dataset.bottomTab;
+    renderBottomPanel();
+});
+
+elements.snippetSource.addEventListener("change", () => {
+    state.snippet.preview = null;
+    renderSnippetToolbar();
+});
+elements.snippetOpen.addEventListener("click", async () => {
+    try { await openSnippetDialog(); } catch (error) { showError(error); }
+});
+elements.snippetSurface.addEventListener("change", async () => {
+    setFeedback(elements.snippetSurfaceFeedback, "");
+    state.snippet.choices.clear();
+    state.snippet.preview = null;
+    if (elements.snippetSurface.value) await refreshSnippetPreviewSafely();
+});
+elements.snippetApplicationId.addEventListener("change", refreshSnippetPreviewSafely);
+elements.snippetRenameId.addEventListener("change", refreshSnippetPreviewSafely);
+elements.snippetConflictAction.addEventListener("change", async () => {
+    state.snippet.conflictAction = elements.snippetConflictAction.value;
+    elements.snippetRenameId.hidden = state.snippet.conflictAction !== "rename";
+    if (state.snippet.conflictAction === "rename" && !elements.snippetRenameId.value) elements.snippetRenameId.value = elements.snippetApplicationId.value + "-copy";
+    await refreshSnippetPreviewSafely();
+});
+elements.snippetInsert.addEventListener("click", async () => {
+    try { await applySnippetPreview(); } catch (error) { showError(error, elements.snippetDiagnostics); }
+});
+for (const button of [elements.snippetCancel, elements.snippetClose]) button.addEventListener("click", () => elements.snippetDialog.close());
 
 for (const taskButton of document.querySelectorAll(".task-card")) taskButton.addEventListener("click", () => showTask(taskButton.dataset.task));
-elements.backToTasks.addEventListener("click", showTaskHome);
-elements.snippetExportSource.addEventListener("change", () => { elements.snippetExportDownload.disabled = !elements.snippetExportSource.value; });
-elements.snippetExportDownload.addEventListener("click", async () => {
-    try { await downloadSnippetPath(elements.snippetExportSource.value); } catch (error) { showError(error); }
+elements.backToTasks.addEventListener("click", async () => {
+    await flushPendingDraft();
+    showTaskHome();
+});
+elements.dataPath.addEventListener("input", () => setFeedback(elements.dataPathFeedback, ""));
+elements.legacyPath.addEventListener("input", () => setFeedback(elements.legacyPathFeedback, ""));
+elements.legacyTargetProfile.addEventListener("input", () => setFeedback(elements.legacyTargetFeedback, ""));
+window.addEventListener("beforeunload", (event) => {
+    if (!pendingDraft && !draftWriteActive) return;
+    event.preventDefault();
+    event.returnValue = "";
 });
 setTaskAvailability(false);
 showTaskHome();

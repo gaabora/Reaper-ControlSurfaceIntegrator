@@ -39,7 +39,7 @@ describe("local editor server", () => {
         }
     });
 
-    test("serves functional snippet preview and import APIs", async () => {
+    test("serves the inline functional snippet preview API", async () => {
         const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "config-editor-server-snippet-"));
         const dataRoot = path.join(temporaryRoot, "Data");
         const productRoot = path.join(dataRoot, identity.resourceDirectory);
@@ -51,7 +51,7 @@ describe("local editor server", () => {
         await mkdir(path.dirname(surfacePath), { recursive: true });
         await mkdir(path.dirname(zonePath), { recursive: true });
         await mkdir(path.dirname(legacySurfacePath), { recursive: true });
-        await writeFile(path.join(productRoot, identity.configFilename), "Version=7.0\n", "utf8");
+        await writeFile(path.join(productRoot, identity.configFilename), "Version=7.0\n  Surface=test SurfaceFolder=test-surface ZoneFolder=test-profile FXZoneFolder=test-profile StartChannel=0\n", "utf8");
         await writeFile(snippetPath, "Snippet Version=1 Id=transport Name=Transport\n  Binding Id=play Role=Button Input=Press Feedback=Toggle Required=Yes\n    Action NoMod Play\n  BindingEnd\nSnippetEnd\n", "utf8");
         await writeFile(surfacePath, "// @format surface 1\nWidget Play\n  Press 90 5e 7f 90 5e 00\n  FB_TwoState 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
         await writeFile(zonePath, "// @format zone 1\nZone Home\n  Play Play\nZoneEnd\n", "utf8");
@@ -65,17 +65,17 @@ describe("local editor server", () => {
             expect(selectedPayload.legacy.path).toBe(path.join(temporaryRoot, "CSI"));
             expect(selectedPayload.legacy.surfaces.map((surface: { name: string }) => surface.name)).toEqual(["LegacySurface"]);
 
-            const previewResponse = await fetch(new URL("/api/snippet/apply-preview", running.url), {
-                body: JSON.stringify({ applicationId: "transport", bindingChoices: [{ allowIncompatible: false, bindingId: "play", confirmed: true, widgetName: "Play" }], conflictAction: "", snippetPath: "Snippets/BuiltIn/transport.snippet", surfacePath: "Surfaces/Vendor/test-surface.txt", targetZonePath: "Zones/User/test-profile/Main/Home.zon" }),
+            const previewResponse = await fetch(new URL("/api/snippet/preview", running.url), {
+                body: JSON.stringify({ applicationId: "transport", bindingChoices: [{ allowIncompatible: false, bindingId: "play", confirmed: true, widgetName: "Play" }], conflictAction: "", insertionLine: 1, snippetPath: "Snippets/BuiltIn/transport.snippet", surfacePath: "Surfaces/Vendor/test-surface.txt", targetSource: await Bun.file(zonePath).text(), targetZonePath: "Zones/User/test-profile/Main/Home.zon" }),
                 headers,
                 method: "POST",
             });
             expect(previewResponse.status).toBe(200);
             expect((await previewResponse.json()).preview.valid).toBeTrue();
 
-            const importResponse = await fetch(new URL("/api/snippet/import-preview", running.url), { body: JSON.stringify({ fileName: "transport.snippet", source: await Bun.file(snippetPath).text() }), headers, method: "POST" });
-            expect(importResponse.status).toBe(200);
-            expect((await importResponse.json()).preview.targetPath).toBe("Snippets/User/transport.snippet");
+            const contextResponse = await fetch(new URL("/api/snippet/context?zonePath=Zones%2FUser%2Ftest-profile%2FMain%2FHome.zon", running.url), { headers });
+            expect(contextResponse.status).toBe(200);
+            expect(await contextResponse.json()).toEqual({ automatic: true, surfaces: [{ path: "Surfaces/Vendor/test-surface.txt" }] });
         } finally {
             running.server.stop(true);
             if (temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}config-editor-server-snippet-`)) await rm(temporaryRoot, { force: true, recursive: true });

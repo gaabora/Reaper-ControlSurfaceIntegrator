@@ -22,7 +22,6 @@ export function createEditorHtml(productName: string, sessionToken: string): str
         ["displayLocale", DISPLAY_LOCALE],
         ["sessionToken", sessionToken],
         ["title", t("app.title", { product: productName })],
-        ["pending.count", t("pending.count", { count: 0 })],
     ]);
     return editorHtml.replace(/\{\{([^{}]+)\}\}/g, (_match, key: string) => {
         const specialValue = specialValues.get(key);

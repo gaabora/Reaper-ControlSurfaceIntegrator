@@ -10,7 +10,7 @@
 - Bun package and TypeScript configuration in this directory.
 - Lossless source model, tokenization, parsers, semantic views, and diagnostics under `src/`.
 - Runtime action catalog generation from C++ registry and documentation source.
-- REAPER data path discovery, contained configuration access, safe saves, transactions, backups, rollback, and operation reports.
+- REAPER data path discovery, contained configuration access, temporary recovery drafts, safe saves, transactions, backups, rollback, and operation reports.
 - Read-only legacy CSI discovery, dependency preview, conflict resolution, and transactional import.
 - Loopback HTTP API under `src/`, browser asset sources and CodeMirror configuration language support under `src/ui/`, and their loader and browser bundle entry in `src/ui.ts`.
 - Standalone executable generation under `scripts/`.
@@ -25,16 +25,18 @@
 - Functional snippets use semantic bindings and must not store fixed hardware widget names.
 - Functional snippet `Role`, `Input`, and `Feedback` requirements use the same capability rules as runtime OSK metadata. Formal layout metadata overrides inferred surface metadata when present.
 - Resolve an exact compatible semantic-slot and widget-name match automatically. Require explicit confirmation for a different manual choice. Allow an incompatible choice only after showing its role or capability mismatch and receiving an explicit override.
-- Keep the browser editor task-based. Show one main workflow at a time and keep file paths, application IDs, and generated source below an advanced-details control when they are not needed for the normal workflow.
-- Keep REAPER data path controls on the main task page. Use the compact task title, task instructions, and back button in each task workflow.
+- Keep the browser editor task-based with only `Edit configuration` and `Import old CSI` on the main page. Keep the REAPER data path control above these tasks, and use the compact task title, task instructions, and SVG back arrow inside each workflow.
 - Generate resolved snippets only for writable user zones. Use stable application IDs and the `// @snippet Application=<id> Source=<snippet-id>` and matching `// @snippet-end Application=<id>` markers.
-- Show the complete selected target zone in the lower CodeMirror panel. Apply a resolved snippet only to this in-memory draft, preserve manual edits until the user explicitly applies another generated result, and never write from the browser Apply action.
-- Save the final target-zone draft through the validated single-file atomic save. Check its open hash and do not create a transaction backup.
-- Require `Replace`, `Rename`, or `Skip` when an application marker or snippet import target already exists. Recheck preview hashes before generating a draft.
-- Import snippet files only below `Snippets/User`. Keep browser export independent from file writes so checked unsaved source can be downloaded.
+- Show the snippet selector only while a writable user zone is open in the text editor. Resolve its surface from the zone profile and the main product config, and show the mapping dialog only when surface selection, manual widget confirmation, or an application conflict needs input.
+- Insert a new resolved snippet block after the current cursor line. Insert it before `ZoneEnd` when the cursor is on line 1 or outside the zone body. Change only the current unsaved draft.
+- Require `Replace`, `Rename`, or `Skip` when an application marker already exists.
+- Keep CodeMirror text mode as the only configuration editing mode. Show Problems and File details as collapsible bottom tabs with an open height of 20 percent of the viewport.
+- Add every writable text change to Save all automatically. Preserve each unsaved file as one debounced temporary draft keyed by the SHA-256 of its full logical path, restore it across browser and editor restarts, mark it with bold text and `*` in the tree, and remove it after a successful save or a return to the saved source.
+- Reject automatic recovery when the source hash changed after draft creation. Require an explicit Use draft or Discard draft choice.
+- Show field errors directly below their related path controls with semantic `danger` styling. Use `primary`, `secondary`, `success`, `warning`, `danger`, and `info` for visual state names, and keep operation reports inside their workflow instead of a global status footer.
 - Read action names from `src/shared/types.h` `ACTION_TYPE_LIST`. Do not add a manual action-name list.
 - Keep parsers independent from the browser UI and file-writing service.
-- Bind the editor server only to `127.0.0.1` and require a random session token for every API request.
+- Bind the editor server only to `127.0.0.1` and require a random session token for every API request. Deliver the token in the generated initial HTML, not in the URL or persistent browser storage.
 - Let the user select only the REAPER `Data` directory. Derive the internal product configuration folder from product identity before file access.
 - Open the first valid discovered REAPER `Data` directory automatically. Derive the old CSI default as the sibling `CSI` directory and keep manual path selection as an advanced fallback.
 - Reject absolute child paths, `..`, and unsupported logical locations. Follow configuration file and directory links while applying ownership and write permissions to their logical paths.
@@ -61,6 +63,7 @@
 - Keep browser assets embedded so compiled executables do not need adjacent UI files.
 - Keep HTML, CSS, and browser JavaScript in their native file types under `src/ui/`. Bundle the browser JavaScript and CodeMirror dependencies through `src/ui.ts` so standalone builds still embed them.
 - Generate standalone identity and action data from repository contracts during compile. Do not source-control generated compile input or `dist/` output.
+- Build tagged standalone release archives for Windows x64, macOS Intel, macOS ARM, and Linux x64 independently from the C++ build. Do not install the editor through ReaPack.
 
 ## Verification
 
@@ -70,7 +73,8 @@
 - Run `bun run actions` and compare the catalog count with `ACTION_TYPE_LIST`.
 - Run focused store tests for conflicts, rollback, cloning, symlink traversal, and directory link cycles.
 - Run focused legacy import tests for source discovery, `Zones` and `FXZones` mapping, backup-file filtering, dependency selection, semantic widget mapping, repeat conflicts, source immutability, and transactional writes.
-- Run focused snippet workflow tests for semantic widget filtering, explicit confirmation, mismatch override, repeat application conflicts, import conflicts, hash conflicts, and transactional writes.
+- Run focused snippet workflow tests for semantic widget filtering, surface resolution, explicit confirmation, mismatch override, cursor insertion, and repeat application conflicts.
+- Run focused temporary draft tests for path isolation, recovery, discard, source-hash conflicts, and save cleanup.
 - Start the server with `--no-open` and confirm unauthenticated API access fails.
 - Build and launch each standalone target in its matching operating system before release.
 

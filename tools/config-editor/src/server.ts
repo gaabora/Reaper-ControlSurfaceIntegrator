@@ -2,12 +2,13 @@ import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { actionNameSet } from "./action-catalog.ts";
+import { ConfigurationDraftStore } from "./draft-store.ts";
 import type { LegacyImportConflictAction, LegacyImportDraft, LegacyImportRequest, LegacyImportResolution, LegacyImportTargetPath, LegacySurfaceSummary, LegacyWidgetMapping } from "./legacy-import.ts";
 import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
 import { ProductPathError, ProductRootGuard } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
-import { applySnippetApplication, importSnippet, previewSnippetApplication, previewSnippetImport, type SnippetApplicationRequest, type SnippetApplyRequest, type SnippetBindingChoice, type SnippetConflictAction, type SnippetImportRequest } from "./snippet-workflow.ts";
+import { previewSnippetApplication, snippetSurfaceContext, type SnippetApplicationRequest, type SnippetBindingChoice, type SnippetConflictAction } from "./snippet-workflow.ts";
 import type { SaveChange } from "./store.ts";
 import { ConfigurationStore, EditorOperationError } from "./store.ts";
 import { createEditorHtml, createEditorTranslationsJson, EDITOR_CSS } from "./ui.ts";
@@ -99,6 +100,12 @@ function optionalBooleanField(body: Record<string, unknown>, key: string, defaul
     return booleanField(body, key);
 }
 
+function positiveIntegerField(body: Record<string, unknown>, key: string): number {
+    const value = body[key];
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1) throw new EditorOperationError("request.field", `${key} must be a positive integer`);
+    return value;
+}
+
 function stringArrayField(body: Record<string, unknown>, key: string, optional = false): string[] | undefined {
     const value = body[key];
     if (optional && value === undefined) return undefined;
@@ -176,8 +183,8 @@ function saveChange(value: unknown): SaveChange {
     return { originalHash, path: stringField(body, "path"), source: stringField(body, "source") };
 }
 
-function snippetConflictAction(body: Record<string, unknown>, key = "conflictAction"): SnippetConflictAction {
-    const action = optionalStringField(body, key) as SnippetConflictAction;
+function snippetConflictAction(body: Record<string, unknown>): SnippetConflictAction {
+    const action = optionalStringField(body, "conflictAction") as SnippetConflictAction;
     if (!["", "create", "rename", "replace", "skip"].includes(action)) throw new EditorOperationError("request.snippet.action", `Unsupported snippet conflict action: ${action}`);
     return action;
 }
@@ -194,21 +201,13 @@ function snippetApplicationRequest(body: Record<string, unknown>): SnippetApplic
         applicationId: optionalStringField(body, "applicationId"),
         bindingChoices: body.bindingChoices.map(snippetBindingChoice),
         conflictAction: snippetConflictAction(body),
+        insertionLine: positiveIntegerField(body, "insertionLine"),
         renamedApplicationId: optionalStringField(body, "renamedApplicationId") || undefined,
         snippetPath: stringField(body, "snippetPath"),
         surfacePath: stringField(body, "surfacePath"),
+        targetSource: stringField(body, "targetSource"),
         targetZonePath: stringField(body, "targetZonePath"),
     };
-}
-
-function snippetApplyRequest(body: Record<string, unknown>): SnippetApplyRequest {
-    return { ...snippetApplicationRequest(body), snippetHash: stringField(body, "snippetHash"), surfaceHash: stringField(body, "surfaceHash"), targetHash: stringField(body, "targetHash") };
-}
-
-function snippetImportRequest(body: Record<string, unknown>): SnippetImportRequest {
-    const targetHash = body.targetHash;
-    if (targetHash !== null && typeof targetHash !== "string") throw new EditorOperationError("request.snippet.hash", "targetHash must be a string or null");
-    return { action: snippetConflictAction(body, "action"), fileName: stringField(body, "fileName"), source: stringField(body, "source"), sourceHash: stringField(body, "sourceHash"), targetHash, targetPath: stringField(body, "targetPath") };
 }
 
 function errorResponse(error: unknown): Response {
@@ -230,6 +229,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
     const knownActions = actionNameSet(options.actions);
     let legacySelection: LegacySourceSelection | undefined;
     let legacySource: LegacyCsiSource | undefined;
+    let draftStore: ConfigurationDraftStore | undefined;
     let store: ConfigurationStore | undefined;
     let origin = "";
     const fetchRequest = async (request: Request): Promise<Response> => {
@@ -248,6 +248,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 const body = await requestBody(request);
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);
                 store = new ConfigurationStore(guard, knownActions);
+                draftStore = new ConfigurationDraftStore(options.identity.productId, store.getRoot());
                 const automaticLegacy = await trySelectLegacySource(path.join(path.dirname(store.getReaperDataPath()), "CSI"));
                 legacySelection = automaticLegacy.selection;
                 legacySource = automaticLegacy.source;
@@ -261,6 +262,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 return jsonResponse(legacySelection);
             }
             if (!store) throw new EditorOperationError("data-path.required", "Open a REAPER data path first");
+            if (!draftStore) throw new EditorOperationError("draft.store.required", "Draft storage is unavailable");
             if (requestUrl.pathname.startsWith("/api/legacy/") && !legacySource) throw new EditorOperationError("legacy.path.required", "Open a legacy CSI path first");
             if (requestUrl.pathname === "/api/legacy/preview" && request.method === "POST") {
                 const body = await requestBody(request);
@@ -268,28 +270,73 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 return jsonResponse({ preview: await legacySource!.preview(store, knownActions, stringField(body, "surfaceName"), booleanField(body, "includeSurface"), selectedZonePaths, legacyWidgetMappings(body, true), optionalBooleanField(body, "useExistingSurface"), legacyDrafts(body), optionalStringField(body, "targetProfileId") || undefined, legacyTargetPaths(body)) });
             }
             if (requestUrl.pathname === "/api/legacy/import" && request.method === "POST") return jsonResponse({ report: await legacySource!.import(store, knownActions, legacyImportRequest(await requestBody(request))) });
-            if (requestUrl.pathname === "/api/snippet/apply-preview" && request.method === "POST") return jsonResponse({ preview: await previewSnippetApplication(store, knownActions, snippetApplicationRequest(await requestBody(request))) });
-            if (requestUrl.pathname === "/api/snippet/apply" && request.method === "POST") return jsonResponse({ report: await applySnippetApplication(store, knownActions, snippetApplyRequest(await requestBody(request))) });
-            if (requestUrl.pathname === "/api/snippet/import-preview" && request.method === "POST") {
-                const body = await requestBody(request);
-                return jsonResponse({ preview: await previewSnippetImport(store, knownActions, stringField(body, "fileName"), stringField(body, "source"), optionalStringField(body, "targetPath") || undefined) });
+            if (requestUrl.pathname === "/api/snippet/context" && request.method === "GET") {
+                const zonePath = requestUrl.searchParams.get("zonePath");
+                if (!zonePath) throw new EditorOperationError("request.path", "Zone path is required");
+                return jsonResponse(await snippetSurfaceContext(store, knownActions, options.identity.configFilename, zonePath));
             }
-            if (requestUrl.pathname === "/api/snippet/import" && request.method === "POST") return jsonResponse({ report: await importSnippet(store, knownActions, snippetImportRequest(await requestBody(request))) });
+            if (requestUrl.pathname === "/api/snippet/preview" && request.method === "POST") return jsonResponse({ preview: await previewSnippetApplication(store, knownActions, snippetApplicationRequest(await requestBody(request))) });
             if (requestUrl.pathname === "/api/tree" && request.method === "GET") return jsonResponse({ entries: await store.tree() });
+            if (requestUrl.pathname === "/api/drafts" && request.method === "GET") {
+                const drafts = await draftStore.list();
+                const availableDrafts = (await Promise.all(drafts.map(async (draft) => {
+                    try {
+                        const opened = await store.openDocument(draft.path);
+                        return { ...draft, conflict: opened.hash !== draft.originalHash };
+                    } catch {
+                        return undefined;
+                    }
+                }))).filter((draft) => draft !== undefined);
+                return jsonResponse({ drafts: availableDrafts });
+            }
+            if (requestUrl.pathname === "/api/draft" && request.method === "POST") {
+                const body = await requestBody(request);
+                const relativePath = stringField(body, "path");
+                const originalHash = stringField(body, "originalHash");
+                const source = stringField(body, "source");
+                const opened = await store.openDocument(relativePath);
+                if (!opened.writable) throw new EditorOperationError("draft.read-only", `Cannot create a draft for a read-only file: ${relativePath}`);
+                if (opened.hash !== originalHash) throw new EditorOperationError("conflict.draft", `Configuration changed after the draft was created: ${relativePath}`, { currentHash: opened.hash, originalHash });
+                if (opened.source === source) {
+                    await draftStore.discard(relativePath);
+                    return jsonResponse({ dirty: false });
+                }
+                return jsonResponse({ dirty: true, draft: await draftStore.write(relativePath, originalHash, source) });
+            }
+            if (requestUrl.pathname === "/api/draft/discard" && request.method === "POST") {
+                const relativePath = stringField(await requestBody(request), "path");
+                await store.openDocument(relativePath);
+                await draftStore.discard(relativePath);
+                return jsonResponse({ discarded: relativePath });
+            }
             if (requestUrl.pathname === "/api/file" && request.method === "GET") {
                 const relativePath = requestUrl.searchParams.get("path");
                 if (!relativePath) throw new EditorOperationError("request.path", "File path is required");
-                return jsonResponse(await store.openDocument(relativePath));
+                const opened = await store.openDocument(relativePath);
+                let draft = await draftStore.read(relativePath);
+                if (draft?.source === opened.source) {
+                    await draftStore.discard(relativePath);
+                    draft = undefined;
+                }
+                return jsonResponse({ ...opened, draft: draft ? { ...draft, conflict: draft.originalHash !== opened.hash, document: store.validateSource(relativePath, draft.source) } : undefined });
             }
             if (requestUrl.pathname === "/api/validate" && request.method === "POST") {
                 const body = await requestBody(request);
                 return jsonResponse({ document: store.validateSource(stringField(body, "path"), stringField(body, "source")) });
             }
-            if (requestUrl.pathname === "/api/save" && request.method === "POST") return jsonResponse(await store.saveOne(saveChange(await requestBody(request))));
+            if (requestUrl.pathname === "/api/save" && request.method === "POST") {
+                const change = saveChange(await requestBody(request));
+                const result = await store.saveOne(change);
+                await draftStore.discard(change.path);
+                return jsonResponse(result);
+            }
             if (requestUrl.pathname === "/api/transaction" && request.method === "POST") {
                 const body = await requestBody(request);
                 if (!Array.isArray(body.changes)) throw new EditorOperationError("request.changes", "changes must be an array");
-                return jsonResponse({ report: await store.saveTransaction(body.changes.map(saveChange)) });
+                const changes = body.changes.map(saveChange);
+                const report = await store.saveTransaction(changes);
+                for (const change of changes) await draftStore.discard(change.path);
+                return jsonResponse({ report });
             }
             if (requestUrl.pathname === "/api/clone" && request.method === "POST") {
                 const body = await requestBody(request);

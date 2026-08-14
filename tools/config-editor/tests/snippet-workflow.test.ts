@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
-import { applySnippetApplication, importSnippet, previewSnippetApplication, previewSnippetImport, type SnippetApplicationRequest } from "../src/snippet-workflow.ts";
-import { ConfigurationStore, EditorOperationError } from "../src/store.ts";
+import { previewSnippetApplication, type SnippetApplicationRequest } from "../src/snippet-workflow.ts";
+import { ConfigurationStore } from "../src/store.ts";
 
 const identity: EditorProductIdentity = {
     configFilename: "TestProduct.ini",
@@ -51,8 +51,8 @@ function choices(playWidget = "Play", allowIncompatible = false): SnippetApplica
     ];
 }
 
-function applicationRequest(bindingChoices = choices()): SnippetApplicationRequest {
-    return { applicationId: "transport", bindingChoices, conflictAction: "", snippetPath, surfacePath, targetZonePath };
+function applicationRequest(bindingChoices = choices(), targetSource = zoneSource): SnippetApplicationRequest {
+    return { applicationId: "transport", bindingChoices, conflictAction: "", insertionLine: 1, snippetPath, surfacePath, targetSource, targetZonePath };
 }
 
 async function createStore(): Promise<ConfigurationStore> {
@@ -78,7 +78,7 @@ afterEach(async () => {
 });
 
 describe("functional snippet workflow", () => {
-    test("previews and applies confirmed semantic bindings in one transaction", async () => {
+    test("previews confirmed semantic bindings without writing the target", async () => {
         const store = await createStore();
         const unresolved = await previewSnippetApplication(store, knownActions, applicationRequest([]));
         expect(unresolved.valid).toBeTrue();
@@ -87,12 +87,8 @@ describe("functional snippet workflow", () => {
 
         const preview = await previewSnippetApplication(store, knownActions, applicationRequest());
         expect(preview.valid).toBeTrue();
-        expect(preview.targetSource).toBe(zoneSource);
         expect(preview.source).toContain("// @snippet Application=transport Source=transport\n  Play Play\n  Stop Stop\n  // @snippet-end Application=transport");
-        const report = await applySnippetApplication(store, knownActions, { ...applicationRequest(), snippetHash: preview.snippetHash, surfaceHash: preview.surfaceHash, targetHash: preview.targetHash });
-
-        expect(report.changed).toEqual([targetZonePath]);
-        expect(await readFile(path.join(productRoot, ...targetZonePath.split("/")), "utf8")).toBe(preview.source);
+        expect(await readFile(path.join(productRoot, ...targetZonePath.split("/")), "utf8")).toBe(zoneSource);
     });
 
     test("requires an explained override for an incompatible widget", async () => {
@@ -119,59 +115,33 @@ describe("functional snippet workflow", () => {
     test("requires Replace, Rename, or Skip when an application ID already exists", async () => {
         const store = await createStore();
         const firstPreview = await previewSnippetApplication(store, knownActions, applicationRequest());
-        await applySnippetApplication(store, knownActions, { ...applicationRequest(), snippetHash: firstPreview.snippetHash, surfaceHash: firstPreview.surfaceHash, targetHash: firstPreview.targetHash });
+        const existingRequest = applicationRequest(choices(), firstPreview.source);
 
-        const conflict = await previewSnippetApplication(store, knownActions, applicationRequest());
+        const conflict = await previewSnippetApplication(store, knownActions, existingRequest);
         expect(conflict.valid).toBeFalse();
         expect(conflict.conflict).toEqual({ action: "", existingApplicationId: "transport" });
 
-        const replaceRequest = { ...applicationRequest(), conflictAction: "replace" as const };
+        const replaceRequest = { ...existingRequest, conflictAction: "replace" as const };
         const replacement = await previewSnippetApplication(store, knownActions, replaceRequest);
         expect(replacement.valid).toBeTrue();
         expect(replacement.source.match(/@snippet Application=transport/g) ?? []).toHaveLength(1);
 
-        const renameRequest = { ...applicationRequest(), conflictAction: "rename" as const, renamedApplicationId: "transport-copy" };
+        const renameRequest = { ...existingRequest, conflictAction: "rename" as const, renamedApplicationId: "transport-copy" };
         const renamed = await previewSnippetApplication(store, knownActions, renameRequest);
         expect(renamed.valid).toBeTrue();
         expect(renamed.source).toContain("@snippet Application=transport-copy Source=transport");
 
-        const skipRequest = { ...applicationRequest([]), conflictAction: "skip" as const };
+        const skipRequest = { ...applicationRequest([], firstPreview.source), conflictAction: "skip" as const };
         const skipped = await previewSnippetApplication(store, knownActions, skipRequest);
         expect(skipped.valid).toBeTrue();
-        const report = await applySnippetApplication(store, knownActions, { ...skipRequest, snippetHash: skipped.snippetHash, surfaceHash: skipped.surfaceHash, targetHash: skipped.targetHash });
-        expect(report.skipped).toEqual([targetZonePath]);
+        expect(skipped.source).toBe(firstPreview.source);
     });
 
-    test("imports user snippets with explicit create, replace, rename, and skip actions", async () => {
+    test("inserts after the cursor line", async () => {
         const store = await createStore();
-        const firstPreview = await previewSnippetImport(store, knownActions, "transport.snippet", snippetSource);
-        const created = await importSnippet(store, knownActions, { action: "create", fileName: "transport.snippet", source: snippetSource, sourceHash: firstPreview.sourceHash, targetHash: firstPreview.targetHash, targetPath: firstPreview.targetPath });
-        expect(created.created).toEqual(["Snippets/User/transport.snippet"]);
-
-        const existing = await previewSnippetImport(store, knownActions, "transport.snippet", snippetSource);
-        const skipped = await importSnippet(store, knownActions, { action: "skip", fileName: "transport.snippet", source: snippetSource, sourceHash: existing.sourceHash, targetHash: existing.targetHash, targetPath: existing.targetPath });
-        expect(skipped.skipped).toEqual(["Snippets/User/transport.snippet"]);
-
-        const renamedPreview = await previewSnippetImport(store, knownActions, "transport.snippet", snippetSource, "Snippets/User/transport-copy.snippet");
-        const renamed = await importSnippet(store, knownActions, { action: "rename", fileName: "transport.snippet", source: snippetSource, sourceHash: renamedPreview.sourceHash, targetHash: renamedPreview.targetHash, targetPath: renamedPreview.targetPath });
-        expect(renamed.created).toEqual(["Snippets/User/transport-copy.snippet"]);
-
-        const changedSource = snippetSource.replace("Name=\"Transport controls\"", "Name=\"Changed transport\"");
-        const replacePreview = await previewSnippetImport(store, knownActions, "transport.snippet", changedSource);
-        const replaced = await importSnippet(store, knownActions, { action: "replace", fileName: "transport.snippet", source: changedSource, sourceHash: replacePreview.sourceHash, targetHash: replacePreview.targetHash, targetPath: replacePreview.targetPath });
-        expect(replaced.changed).toEqual(["Snippets/User/transport.snippet"]);
-    });
-
-    test("rejects apply when a source changes after preview", async () => {
-        const store = await createStore();
-        const preview = await previewSnippetApplication(store, knownActions, applicationRequest());
-        await writeFile(path.join(productRoot, ...snippetPath.split("/")), snippetSource.replace("Transport controls", "Changed transport"), "utf8");
-        try {
-            await applySnippetApplication(store, knownActions, { ...applicationRequest(), snippetHash: preview.snippetHash, surfaceHash: preview.surfaceHash, targetHash: preview.targetHash });
-            throw new Error("Expected a snippet source hash conflict");
-        } catch (error) {
-            expect(error).toBeInstanceOf(EditorOperationError);
-            expect((error as EditorOperationError).code).toBe("conflict.snippet-source");
-        }
+        const request = { ...applicationRequest(), insertionLine: 3 };
+        const preview = await previewSnippetApplication(store, knownActions, request);
+        expect(preview.source.indexOf("Record Record")).toBeLessThan(preview.source.indexOf("@snippet Application=transport"));
+        expect(preview.source.indexOf("@snippet-end Application=transport")).toBeLessThan(preview.source.indexOf("ZoneEnd"));
     });
 });

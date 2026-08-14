@@ -1,9 +1,10 @@
-import { createHash } from "node:crypto";
 import path from "node:path";
 import { parseByPath, type AnyDocument } from "./formats.ts";
 import { addDiagnostic, type Diagnostic } from "./model.ts";
+import type { ProductTreeEntry } from "./paths.ts";
+import type { ProductConfigSemantic } from "./product-config.ts";
 import { snippetBindingCapabilities, snippetBindingRole, type SnippetBinding, type SnippetSemantic } from "./snippet.ts";
-import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
+import type { ConfigurationStore } from "./store.ts";
 import { EditorOperationError } from "./store.ts";
 import { isStableId } from "./text.ts";
 import { normalizedWidgetName, surfaceWidgetSlots, type WidgetCandidate, type WidgetCapability } from "./widget-capabilities.ts";
@@ -22,16 +23,12 @@ export interface SnippetApplicationRequest {
     applicationId: string;
     bindingChoices: SnippetBindingChoice[];
     conflictAction: SnippetConflictAction;
+    insertionLine: number;
     renamedApplicationId?: string;
     snippetPath: string;
     surfacePath: string;
+    targetSource: string;
     targetZonePath: string;
-}
-
-export interface SnippetApplyRequest extends SnippetApplicationRequest {
-    snippetHash: string;
-    surfaceHash: string;
-    targetHash: string;
 }
 
 export interface SnippetWidgetCandidate extends WidgetCandidate {
@@ -56,42 +53,18 @@ export interface SnippetApplicationPreview {
     bindings: SnippetBindingPreview[];
     conflict: { action: SnippetConflictAction; existingApplicationId?: string };
     diagnostics: Diagnostic[];
-    snippetHash: string;
     source: string;
-    surfaceHash: string;
-    targetHash: string;
-    targetSource: string;
-    targetZonePath: string;
     valid: boolean;
 }
 
-export interface SnippetImportPreview {
-    defaultTargetPath: string;
-    diagnostics: Diagnostic[];
-    source: string;
-    sourceHash: string;
-    targetExists: boolean;
-    targetHash: string | null;
-    targetPath: string;
-    valid: boolean;
-}
-
-export interface SnippetImportRequest {
-    action: SnippetConflictAction;
-    fileName: string;
-    source: string;
-    sourceHash: string;
-    targetHash: string | null;
-    targetPath: string;
+export interface SnippetSurfaceContext {
+    automatic: boolean;
+    surfaces: Array<{ path: string }>;
 }
 
 interface ApplicationBlock {
     endIndex: number;
     startIndex: number;
-}
-
-function sha256(source: string): string {
-    return createHash("sha256").update(source).digest("hex");
 }
 
 function uniqueChoices(choices: SnippetBindingChoice[]): Map<string, SnippetBindingChoice> {
@@ -162,7 +135,7 @@ function findApplicationBlock(document: AnyDocument, applicationId: string, diag
     return matches[0];
 }
 
-function applicationSource(document: AnyDocument, block: ApplicationBlock | undefined, applicationId: string, snippetId: string, actionLines: string[]): string {
+function applicationSource(document: AnyDocument, block: ApplicationBlock | undefined, applicationId: string, snippetId: string, actionLines: string[], insertionLine: number): string {
     const lineEnding = document.lines.find((line) => line.ending)?.ending ?? "\n";
     const indentation = block ? document.lines[block.startIndex].text.match(/^\s*/)?.[0] ?? "  " : (document.semantic as ZoneSemantic).bindings[0] ? document.lines[(document.semantic as ZoneSemantic).bindings[0].line - 1].text.match(/^\s*/)?.[0] ?? "  " : "  ";
     const generatedLines = [
@@ -175,8 +148,12 @@ function applicationSource(document: AnyDocument, block: ApplicationBlock | unde
     else {
         const zoneEndIndex = document.lines.findIndex((line) => line.tokens[0] === "ZoneEnd");
         if (zoneEndIndex < 0) return document.source;
-        if (zoneEndIndex > 0 && document.lines[zoneEndIndex - 1].text.trim()) generatedLines.unshift(lineEnding);
-        sourceLines.splice(zoneEndIndex, 0, ...generatedLines);
+        const zoneStartIndex = document.lines.findIndex((line) => line.tokens[0] === "Zone");
+        const requestedIndex = insertionLine > 1 ? Math.min(insertionLine, zoneEndIndex) : zoneEndIndex;
+        const insertionIndex = requestedIndex > zoneStartIndex && requestedIndex <= zoneEndIndex ? requestedIndex : zoneEndIndex;
+        if (insertionIndex > 0 && document.lines[insertionIndex - 1].text.trim()) generatedLines.unshift(lineEnding);
+        if (document.lines[insertionIndex]?.text.trim()) generatedLines.push(lineEnding);
+        sourceLines.splice(insertionIndex, 0, ...generatedLines);
     }
     return sourceLines.join("");
 }
@@ -189,7 +166,7 @@ export async function previewSnippetApplication(store: ConfigurationStore, known
 
     const snippetDocument = parseByPath(openedSnippet.source, request.snippetPath, knownActions);
     const surfaceDocument = parseByPath(openedSurface.source, request.surfacePath, knownActions);
-    const zoneDocument = parseByPath(openedZone.source, request.targetZonePath, knownActions);
+    const zoneDocument = parseByPath(request.targetSource, request.targetZonePath, knownActions);
     const snippet = snippetDocument.semantic as SnippetSemantic;
     const diagnostics = [...snippetDocument.diagnostics, ...surfaceDocument.diagnostics, ...zoneDocument.diagnostics];
     const requestedApplicationId = request.applicationId || snippet.id || "";
@@ -207,7 +184,7 @@ export async function previewSnippetApplication(store: ConfigurationStore, known
     if (!existingBlock && !["", "create"].includes(request.conflictAction)) addDiagnostic(diagnostics, "error", "snippet.application.action", `New application must use Create: ${requestedApplicationId}`, undefined, request.targetZonePath);
 
     const bindingPreviews: SnippetBindingPreview[] = [];
-    let source = openedZone.source;
+    let source = request.targetSource;
     if (conflictAction !== "skip") {
         const choices = uniqueChoices(request.bindingChoices);
         const actionLines: string[] = [];
@@ -243,7 +220,7 @@ export async function previewSnippetApplication(store: ConfigurationStore, known
             actionLines.push(...resolvedActionLines(binding, selectedCandidate.name));
         }
         for (const choice of choices.values()) if (!snippet.bindings.some((binding) => binding.id.toLowerCase() === choice.bindingId.toLowerCase())) addDiagnostic(diagnostics, "error", "snippet.binding.unknown", `Widget choice does not match a snippet binding: ${choice.bindingId}`, undefined, request.snippetPath);
-        if (snippet.id && isStableId(applicationId) && (!existingBlock || conflictAction === "replace" || conflictAction === "rename")) source = applicationSource(zoneDocument, existingBlock && conflictAction === "replace" ? existingBlock : undefined, applicationId, snippet.id, actionLines);
+        if (snippet.id && isStableId(applicationId) && (!existingBlock || conflictAction === "replace" || conflictAction === "rename")) source = applicationSource(zoneDocument, existingBlock && conflictAction === "replace" ? existingBlock : undefined, applicationId, snippet.id, actionLines, request.insertionLine);
         const resolvedZone = parseByPath(source, request.targetZonePath, knownActions);
         diagnostics.push(...resolvedZone.diagnostics.filter((diagnostic) => diagnostic.severity === "error"));
     }
@@ -253,60 +230,48 @@ export async function previewSnippetApplication(store: ConfigurationStore, known
         bindings: bindingPreviews,
         conflict: { action: conflictAction, existingApplicationId: existingBlock ? requestedApplicationId : undefined },
         diagnostics,
-        snippetHash: openedSnippet.hash,
         source,
-        surfaceHash: openedSurface.hash,
-        targetHash: openedZone.hash,
-        targetSource: openedZone.source,
-        targetZonePath: request.targetZonePath,
         valid: !diagnostics.some((diagnostic) => diagnostic.severity === "error"),
     };
 }
 
-export async function applySnippetApplication(store: ConfigurationStore, knownActions: Set<string>, request: SnippetApplyRequest): Promise<OperationReport> {
-    const preview = await previewSnippetApplication(store, knownActions, request);
-    if (request.snippetHash !== preview.snippetHash) throw new EditorOperationError("conflict.snippet-source", "Snippet changed after preview");
-    if (request.surfaceHash !== preview.surfaceHash) throw new EditorOperationError("conflict.snippet-surface", "Surface changed after preview");
-    if (request.targetHash !== preview.targetHash) throw new EditorOperationError("conflict.snippet-zone", "Target zone changed after preview");
-    if (!preview.valid) throw new EditorOperationError("validation.failed", "Snippet application contains errors", preview.diagnostics);
-    if (preview.conflict.action === "skip") return { changed: [], created: [], failed: [], restored: [], skipped: [request.targetZonePath] };
-    return store.saveTransaction([{ originalHash: preview.targetHash, path: request.targetZonePath, source: preview.source }]);
-}
-
-function defaultSnippetTarget(fileName: string): string {
-    const baseName = path.posix.basename(fileName);
-    const snippetId = baseName.endsWith(".snippet") ? baseName.slice(0, -8) : "";
-    if (baseName !== fileName || !isStableId(snippetId)) throw new EditorOperationError("snippet.import.name", "Snippet filename must use a stable lowercase ID and the .snippet extension");
-    return `Snippets/User/${baseName}`;
-}
-
-function validateSnippetTarget(targetPath: string): void {
-    if (!/^Snippets\/User\/[a-z0-9][a-z0-9_-]*\.snippet$/.test(targetPath)) throw new EditorOperationError("snippet.import.target", "Snippet import target must be Snippets/User/<stable-id>.snippet");
-}
-
-export async function previewSnippetImport(store: ConfigurationStore, knownActions: Set<string>, fileName: string, source: string, targetPath?: string): Promise<SnippetImportPreview> {
-    const defaultTargetPath = defaultSnippetTarget(fileName);
-    const resolvedTargetPath = targetPath || defaultTargetPath;
-    validateSnippetTarget(resolvedTargetPath);
-    const document = parseByPath(source, resolvedTargetPath, knownActions);
-    const targetState = await store.fileState(resolvedTargetPath);
-    return { defaultTargetPath, diagnostics: document.diagnostics, source, sourceHash: sha256(source), targetExists: targetState.exists, targetHash: targetState.hash, targetPath: resolvedTargetPath, valid: !document.diagnostics.some((diagnostic) => diagnostic.severity === "error") };
-}
-
-export async function importSnippet(store: ConfigurationStore, knownActions: Set<string>, request: SnippetImportRequest): Promise<OperationReport> {
-    const preview = await previewSnippetImport(store, knownActions, request.fileName, request.source, request.targetPath);
-    if (request.sourceHash !== preview.sourceHash) throw new EditorOperationError("conflict.snippet-import-source", "Imported snippet changed after preview");
-    if (request.targetHash !== preview.targetHash) throw new EditorOperationError("conflict.snippet-import-target", "Snippet import target changed after preview");
-    if (!preview.valid) throw new EditorOperationError("validation.failed", "Imported snippet contains errors", preview.diagnostics);
-    if (request.action === "skip") {
-        if (!preview.targetExists) throw new EditorOperationError("snippet.import.skip", "Skip requires an existing target");
-        return { changed: [], created: [], failed: [], restored: [], skipped: [preview.targetPath] };
+function flattenSurfacePaths(entries: ProductTreeEntry[], paths: string[] = []): string[] {
+    for (const entry of entries) {
+        if (entry.kind === "file" && entry.type === "surface") paths.push(entry.path);
+        else if (entry.kind === "directory") flattenSurfacePaths(entry.children || [], paths);
     }
-    if (request.action === "replace" && !preview.targetExists) throw new EditorOperationError("snippet.import.replace", "Replace requires an existing target");
-    if (request.action === "create" && preview.targetExists) throw new EditorOperationError("snippet.import.create", "Create cannot overwrite an existing target");
-    if (request.action === "rename" && (preview.targetPath === preview.defaultTargetPath || preview.targetExists)) throw new EditorOperationError("snippet.import.rename", "Rename requires a different unused user snippet path");
-    if (preview.targetExists && request.action !== "replace") throw new EditorOperationError("snippet.import.conflict", "Existing snippet import requires Replace, Rename, or Skip");
-    if (!preview.targetExists && !["create", "rename"].includes(request.action)) throw new EditorOperationError("snippet.import.action", "New snippet import requires Create or Rename");
-    const change: SaveChange = { originalHash: preview.targetHash, path: preview.targetPath, source: request.source };
-    return store.saveTransaction([change]);
+    return paths;
+}
+
+async function existingSurfacePath(store: ConfigurationStore, surfaceId: string): Promise<string | undefined> {
+    for (const owner of ["User", "Vendor"]) {
+        const surfacePath = `Surfaces/${owner}/${surfaceId}.txt`;
+        try {
+            await store.openDocument(surfacePath);
+            return surfacePath;
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+    }
+    return undefined;
+}
+
+export async function snippetSurfaceContext(store: ConfigurationStore, knownActions: Set<string>, configFilename: string, zonePath: string): Promise<SnippetSurfaceContext> {
+    const match = zonePath.match(/^Zones\/User\/([a-z0-9][a-z0-9_-]*)\/(Main|FX)\//);
+    if (!match) throw new EditorOperationError("snippet.zone.target", "Choose an editable user zone before inserting a snippet");
+    const profileId = match[1];
+    const profileProperty = match[2] === "FX" ? "FXZoneFolder" : "ZoneFolder";
+    const productConfig = await store.openDocument(configFilename);
+    const document = parseByPath(productConfig.source, configFilename, knownActions);
+    const records = (document.semantic as ProductConfigSemantic).records.filter((record) => record.kind === "surface-assignment" && record.properties.get(profileProperty) === profileId);
+    const configuredIds = [...new Set(records.map((record) => record.properties.get("SurfaceFolder")).filter((surfaceId): surfaceId is string => Boolean(surfaceId)))];
+    const configuredPaths = (await Promise.all(configuredIds.map((surfaceId) => existingSurfacePath(store, surfaceId)))).filter((surfacePath): surfacePath is string => Boolean(surfacePath));
+    if (configuredPaths.length) return { automatic: configuredPaths.length === 1, surfaces: configuredPaths.map((surfacePath) => ({ path: surfacePath })) };
+    const availablePaths = flattenSurfacePaths(await store.tree());
+    const preferredPaths = new Map<string, string>();
+    for (const surfacePath of availablePaths.sort((left, right) => Number(right.includes("/User/")) - Number(left.includes("/User/")))) {
+        const surfaceId = path.posix.basename(surfacePath, ".txt");
+        if (!preferredPaths.has(surfaceId)) preferredPaths.set(surfaceId, surfacePath);
+    }
+    return { automatic: false, surfaces: [...preferredPaths.values()].sort().map((surfacePath) => ({ path: surfacePath })) };
 }

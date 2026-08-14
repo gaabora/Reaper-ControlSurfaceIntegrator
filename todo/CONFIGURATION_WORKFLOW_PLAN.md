@@ -2,7 +2,7 @@
 
 ## Goal
 
-Provide safe tools to create, edit, import, export, validate, and distribute surface, zone, and snippet configurations.
+Provide safe tools to create, edit, migrate, validate, and distribute surface, zone, and snippet configurations.
 
 Large configuration changes belong in a local Bun and TypeScript editor. The Lua OSK remains a live fine-tuning tool for MIDI surfaces and gains only small zone-file creation support.
 
@@ -12,7 +12,7 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 - Keep runtime names, paths, ExtState sections, script paths, and package names in one product identity manifest that Lua reads directly and CMake consumes.
 - Keep OSK layout data in a formal block inside the `<surface-id>.txt` file.
 - Support OSK layouts for MIDI surfaces only. Do not add OSK mirroring for OSC surfaces in this plan.
-- Use the Bun editor for full surface, zone, snippet, import, export, and batch workflows.
+- Use the Bun editor for full surface, zone, snippet, legacy import, and batch workflows.
 - Keep Lua OSK focused on live behavior editing and small zone-file creation.
 - Treat old CSI installations as read-only import sources. Do not add legacy CSI path fallback to the runtime plugin.
 - Keep pseudo-modifier work independent in [PSEUDO_MODIFIER_PLAN.md](PSEUDO_MODIFIER_PLAN.md).
@@ -72,10 +72,10 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 
 ### Lossless document editing
 
-- Use one lossless document model with a semantic view for structured editing.
+- Use one lossless document model with a semantic view for validation and file details.
 - Preserve comments, line order, whitespace that has user meaning, unknown properties, and unsupported lines.
 - Report unknown data as a warning. Never silently remove it during a structured edit.
-- Make raw and structured editors operate on the same in-memory document.
+- Keep one syntax-highlighted text editor as the configuration editing mode.
 - Use shared fixture files to keep the TypeScript authoring parser and C++ runtime parser consistent.
 - Generate the editor action catalog from the runtime action registry instead of maintaining a second manual list.
 
@@ -163,7 +163,7 @@ Ready when valid files round-trip without data loss and malformed fixtures produ
 ### Phase 4. Local browser editor and safe saving
 
 - ✅ Start with REAPER data path selection, discovery, confirmation, and a read-only file tree. Derive the internal product folder from product identity.
-- ✅ Add structured and raw editing for surfaces, all supported zone forms, and snippets.
+- ✅ Add syntax-highlighted text editing for surfaces, all supported zone forms, and snippets.
 - ✅ Run the backend only on `127.0.0.1` with a random session token and internal configuration-folder access restrictions.
 - ✅ Add hash conflict detection, single-file atomic save, multi-file transactions, backups, rollback, and operation reports.
 - ✅ Add standalone compile targets that embed generated product identity and runtime actions.
@@ -204,14 +204,15 @@ Ready when every vendor MIDI surface has an installable layout and ReaPack canno
 ### Phase 7. Reusable functional snippets
 
 - ✅ Define semantic slots with required widget roles, inputs, feedback, and target surface widgets.
-- ✅ Present the editor as four task entry points: apply functionality, edit configuration, import old CSI, and import or export a snippet. Show only the selected workflow.
-- ✅ Keep the normal apply workflow to three steps: choose the snippet, surface, and user zone; check only unresolved mappings; then apply. Keep the application ID and generated source under advanced details.
+- ✅ Keep only Edit configuration and Import old CSI as task entry points. Show the snippet selector only when an editable user zone is selected.
+- ✅ Resolve the target surface from the selected zone profile and the main config. Show a popup only when the surface, widget mapping, or application conflict needs input.
 - ✅ Show a filtered widget dropdown for every binding. Resolve exact compatible name matches automatically and require confirmation for different manual choices.
 - ✅ Permit manual selection only when validation explains any capability mismatch and the user enables an explicit override.
-- ✅ Support preview, `Rename`, `Replace`, `Skip`, raw editing, import, export, and a small built-in transport starter.
-- ✅ Apply a resolved snippet as one validated transaction after rechecking the snippet, surface, and target-zone hashes.
-- ✅ Store shipped snippets in `Snippets/BuiltIn` and imported or editable copies in `Snippets/User`. Browser export downloads the checked current source.
-- Verify the focused parser, workflow, server, and browser UI checks after explicit approval.
+- ✅ Support inline preview, `Rename`, `Replace`, `Skip`, text editing, and a small built-in transport starter. Do not provide separate browser snippet import or export workflows.
+- ✅ Insert resolved lines after the current cursor line, or before `ZoneEnd` when the cursor is on line 1. Change only the unsaved editor draft.
+- ✅ Store shipped snippets in `Snippets/BuiltIn` and editable copies in `Snippets/User`.
+- ✅ Add every changed file to Save all automatically, restore it when switching files, and keep one debounced recovery file per logical configuration path in the system temp directory.
+- [ ] Verify the focused parser, workflow, draft recovery, server, and browser UI checks after explicit approval.
 
 Ready when a function group can move between compatible surfaces without fixed vendor widget names or partial file changes.
 

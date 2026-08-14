@@ -11,13 +11,13 @@ This Bun and TypeScript application provides a local browser editor and its loss
 - Runtime action catalog loaded from C++ `ACTION_TYPE_LIST` and `//!` metadata, including short descriptions where available.
 - CLI validation and JSON action-catalog generation.
 - Automatic REAPER data path discovery and manual selection.
-- CodeMirror text editing with line numbers and configuration syntax highlighting, plus guided editing with the same lossless document.
+- CodeMirror text editing with line numbers and configuration syntax highlighting.
+- Debounced recovery drafts stored as one temporary file per logical configuration path.
 - Hash conflict checks, atomic single-file saves, and multi-file transactions.
 - Backup manifests, rollback, and operation reports.
 - Repeatable read-only import from legacy `Surface.txt`, `Zones/**/*.zon`, and `FXZones/**/*.zon` files.
 - Legacy dependency preview, semantic widget mapping, selected-zone import, and required `Rename`, `Replace`, or `Skip` conflict resolution.
-- Reusable functional snippet application with semantic widget filtering, automatic exact matches, confirmed manual mappings, mismatch explanations, conflict resolution, and transactional zone updates.
-- Snippet file import into `Snippets/User`, raw editing, editable built-in copies, and browser download export.
+- Inline functional snippet insertion with semantic widget filtering, automatic exact matches, confirmed manual mappings, mismatch explanations, and application conflict resolution.
 - A loopback-only browser server with a random session token.
 - A typed English UI text catalog with parameter replacement.
 - Standalone compile targets for Windows, macOS, and Linux.
@@ -50,7 +50,7 @@ Enter only the REAPER `Data` directory. The editor adds the product configuratio
 bun run start -- --data-path "/absolute/REAPER/resource/Data"
 ```
 
-The browser opens the first valid discovered REAPER data path automatically. The main page keeps `Open` as a fallback when the discovered path is wrong or a different REAPER installation is needed. The tree marks vendor surfaces, vendor zone profiles, and built-in snippets with a dim read-only style. Use `Make editable copy` before editing them. A vendor zone copy includes its complete profile.
+The browser opens the first valid discovered REAPER data path automatically. The main page shows the selected path above the `Edit configuration` and `Import old CSI` tasks. It keeps `Open` as a fallback when the discovered path is wrong or a different REAPER installation is needed. The tree marks vendor surfaces, vendor zone profiles, and built-in snippets with a dim read-only style. Use `Make editable copy` before editing them. A vendor zone copy includes its complete profile.
 
 The editor follows linked files and directories. This lets a development product root link `Surfaces`, `Zones`, and `Snippets` directly to repository resources. Access and write permissions still use the logical configuration path, so linked vendor content remains read-only and only supported paths below `User` are writable. Directory link cycles are shown as unavailable instead of being traversed.
 
@@ -70,13 +70,13 @@ Every existing target requires `Rename`, `Replace`, or `Skip`. Import is disable
 
 ## Functional snippets
 
-Open the target REAPER `Data` directory first, choose `Apply functionality`, then choose a built-in or user snippet, a surface, and an editable zone below `Zones/User`. The complete selected target zone appears in the lower editor. The upper controls list each semantic binding and recommend a widget that has the required role, input, and feedback capabilities. An exact compatible name match is accepted automatically. Confirm a different manual choice. To skip a binding with `Required=No`, leave its widget empty and confirm the skip.
+Choose `Edit configuration` and open an editable zone below `Zones/User`. The snippet selector appears only for this zone file. Choose a built-in or user snippet and click `Insert snippet`. The editor resolves the surface through the selected zone profile and the matching `ZoneFolder` or `FXZoneFolder` assignment in the main product config. If no unique assignment exists, the mapping dialog shows a surface selector.
 
-An incompatible widget is not accepted by default. If the manual choice is intentional, read the displayed mismatch, enable the mismatch override, and confirm the widget. `Apply to draft` refreshes the mapping preview and places the generated result in the lower editor. It does not write a file. Mapping changes do not replace manual draft edits until you press `Apply to draft` again. The application ID is available under `Advanced details`.
+An exact compatible widget name is accepted automatically, and the generated block is inserted without opening the dialog. The dialog opens when a surface, widget mapping, or existing application decision is required. To skip a binding with `Required=No`, leave its widget empty and confirm the skip. An incompatible widget is not accepted by default. If the manual choice is intentional, read the displayed mismatch, enable the mismatch override, and confirm the widget.
 
-The application ID identifies one generated block inside the zone. Applying the same ID again requires `Replace`, `Rename`, or `Skip`. Replace updates only that block. Rename creates another block under a new ID. Skip does not change the draft. Edit any other zone text directly in the lower editor. `Save` validates the complete draft, checks that the zone did not change after it was opened, and performs one atomic file save without a transaction backup.
+The application ID identifies one generated block inside the zone. Inserting the same ID again requires `Replace`, `Rename`, or `Skip`. Replace updates only that block. Rename creates another block under a new ID. Skip does not change the draft. A new block is inserted after the current cursor line. When the cursor is on line 1 or outside the zone body, the block is inserted before `ZoneEnd`. Snippet insertion changes only the current recovery draft. It does not save the zone.
 
-Choose `Import or export snippet` to copy a local `.snippet` file into `Snippets/User` or download an existing snippet. Import validation starts when the file is selected. An existing destination requires `Replace`, `Rename`, or `Skip`. Choose `Edit configuration` to open any snippet for normal text or guided editing. `Export` in the editor downloads the currently checked source, including unsaved text changes. Built-in snippets stay read-only until `Make editable copy` creates the matching user file.
+Open a snippet from the configuration tree to edit its text. Built-in snippets stay read-only until `Make editable copy` creates the matching user file.
 
 `actions:generate` writes `generated/action-catalog.json`. Generated output is not source-controlled. The catalog is rebuilt from `src/shared/types.h` and action documentation, so action names are not duplicated in TypeScript.
 
@@ -86,13 +86,15 @@ The repository rule requires explicit permission before running tests or build c
 
 Each opened file includes a SHA-256 hash. Save fails with a conflict when the file changed after it opened. A single save writes and validates a complete temporary file beside its target before atomic rename.
 
-`Save all` stages and validates every file, then writes `Backups/<operation-id>/manifest.json`, copies original files into the operation backup, and commits each staged file. A commit failure restores every file already changed and records the rollback in the manifest and operation report.
+Every text change automatically enters the Save all set. Changed files use bold text and `*` in the tree. Switching files restores their unsaved text. The browser writes each changed source after a 300 ms debounce to `<system-temp>/<product-id>-conf-editor/drafts/<path-sha256>.json`. The hash includes the full logical product root and relative configuration path. Drafts survive browser and editor restarts, but the operating system can clean temporary files. If the source file changed outside the editor, choose whether to use or discard the recovered draft.
+
+`Save all` stages and validates every draft, then writes `Backups/<operation-id>/manifest.json`, copies original files into the operation backup, and commits each staged file. A commit failure restores every file already changed and records the rollback in the manifest and operation report. A successful `Save` or `Save all` removes the related recovery draft.
 
 Only the main config and files below `Surfaces/User`, `Zones/User`, and `Snippets/User` are writable. API paths are relative to the app configuration folder. Absolute paths, `..`, backslash separators, and unsupported logical locations are rejected. Symlink targets use the permissions of the logical API path.
 
 ## Local server
 
-The server binds to `127.0.0.1` on a random port. It creates a new 256-bit session token for every launch. The token starts in the URL fragment, moves into browser session storage, and is sent only in the `X-Session-Token` request header. API requests from another browser origin are rejected. CodeMirror and its configuration language support are bundled into the served JavaScript. The editor does not load browser code from a CDN.
+The server binds to `127.0.0.1` on a random port. It creates a new 256-bit session token for every launch. The initial HTML contains the token in a generated metadata value, and the browser sends it in the `X-Session-Token` request header. The token is not stored in the URL or persistent browser storage. API requests from another browser origin are rejected. CodeMirror and its configuration language support are bundled into the served JavaScript. The editor does not load browser code from a CDN.
 
 Use `--no-open` to prevent automatic browser launch and `--port <number>` to select a fixed loopback port.
 
@@ -121,6 +123,15 @@ bun run compile:linux-arm64
 ```
 
 Outputs go to `dist/`, which is not source-controlled. Cross-target compilation can require Bun to download the matching runtime. Release signing and archive packaging must run in the release environment after the executable checks pass.
+
+Tagged release CI builds and publishes these standalone ZIP archives:
+
+- `config-editor-<ProductId>-windows-x64.zip`
+- `config-editor-<ProductId>-darwin-x64.zip`
+- `config-editor-<ProductId>-darwin-arm64.zip`
+- `config-editor-<ProductId>-linux-x64.zip`
+
+The editor runs separately from REAPER and is not installed through ReaPack.
 
 ## Lossless model
 
