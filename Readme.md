@@ -1,6 +1,19 @@
 # ReaControlSurface
 
-ReaControlSurface is rewritten fork of the Control Surface Integrator ((CSI)[https://github.com/GeoffAWaddington/CSICode]) plugin for Reaper, designed to help you integrate hardware control surfaces with the DAW. In the original CSI, very little worked out of the box, which is why this fork was created. Since then, many issues have been fixed and new capabilities like OSK (interactive configurable on-screen [keyboard]/surface), and OSD (on-screen display) was added, together with dozens of new features, performance optimizations, and automated builds for Windows, macOS, and Linux. You can view the latest updates in the [releases](/releases).
+ReaControlSurface is rewritten fork of the Control Surface Integrator ((CSI)[https://github.com/GeoffAWaddington/CSICode]) plugin for Reaper, designed to help you integrate hardware control surfaces with the DAW. 
+The purpose of this separated fork is to make control surfaces in REAPER much more user friendly, intuitive, feature rich, accessible and configurable without need to have a degree in any kind of science, and ultimately without need to read/watch any docs/tutorials.
+Since then, many issues have been fixed and new capabilities like functional snippets, OSK (interactive configurable on-screen "keyboard"/surface), and OSD (on-screen display) was added, together with dozens of other features, performance optimizations, and ReaPack support with automated builds for Windows, macOS, and Linux (linux is yet untested). You can view the latest updates in the [releases](/releases).
+
+## Install with ReaPack
+
+1. Install [ReaPack](https://reapack.com/) if it is not installed.
+2. In REAPER, open `Extensions > ReaPack > Import repositories...`.
+3. Add `https://github.com/gaabora/Reaper-ControlSurfaceIntegrator/releases/latest/download/index.xml`.
+4. Open `Extensions > ReaPack > Browse packages...` and search for `ReaControlSurface`.
+5. Install the core extension and shared scripts, and your vendor surfaces with their zone profiles. The functional snippets are optional - its basically some common sets of widgets with assigned actions you can easily apply to any zone of any surface in a web-based configuration editor. //FIXME: describe functional snippets better, what, why, where to use and how, etc
+6. Apply the changes and restart REAPER.
+
+The standalone configuration editor is available as a platform ZIP in each [GitHub release](/releases). It runs separately from REAPER and is not installed through ReaPack.
 
 ## Documentation
 

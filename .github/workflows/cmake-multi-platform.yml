@@ -170,8 +170,132 @@ jobs:
             ${{ env.PRODUCT_PLUGIN_FILENAME }}-linux-x86_64.so
             ${{ env.PRODUCT_PACKAGE_PREFIX }}_${{ github.ref_name }}_linux.zip
 
+  build-config-editor:
+    name: Build config editor (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS Intel
+            runner: macos-15-intel
+            target: bun-darwin-x64
+          - label: macOS ARM
+            runner: macos-latest
+            target: bun-darwin-arm64
+          - label: Windows x64
+            runner: windows-2022
+            target: bun-windows-x64
+          - label: Linux x64
+            runner: ubuntu-24.04
+            target: bun-linux-x64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install configuration editor dependencies
+        working-directory: tools/config-editor
+        run: bun install --frozen-lockfile
+
+      - name: Compile standalone configuration editor
+        working-directory: tools/config-editor
+        run: bun run scripts/compile.ts ${{ matrix.target }}
+
+      - name: Check standalone configuration editor startup
+        if: runner.os != 'Windows'
+        working-directory: tools/config-editor
+        shell: bash
+        run: |
+          editor_path="$(find dist -maxdepth 1 -type f -perm -111 -name 'config-editor-*' -print -quit)"
+          test -n "${editor_path}"
+          editor_log="dist/config-editor-startup.log"
+          "${editor_path}" --no-open > "${editor_log}" 2>&1 &
+          editor_pid=$!
+          editor_started=0
+          for attempt_idx in {1..20}; do
+            if grep -q "http://127.0.0.1:" "${editor_log}"; then
+              editor_started=1
+              break
+            fi
+            if ! kill -0 "${editor_pid}" 2>/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          if kill -0 "${editor_pid}" 2>/dev/null; then
+            kill "${editor_pid}"
+          fi
+          if [ "${editor_started}" -ne 1 ]; then
+            cat "${editor_log}"
+            exit 1
+          fi
+
+      - name: Check standalone configuration editor startup on Windows
+        if: runner.os == 'Windows'
+        working-directory: tools/config-editor
+        shell: pwsh
+        run: |
+          $editorPath = Get-ChildItem -Path dist -File -Filter "config-editor-*.exe" | Select-Object -First 1
+          if (-not $editorPath) { throw "Compiled configuration editor was not found" }
+          $outputLog = Join-Path $editorPath.DirectoryName "config-editor-startup.log"
+          $errorLog = Join-Path $editorPath.DirectoryName "config-editor-startup-error.log"
+          $editorProcess = Start-Process -FilePath $editorPath.FullName -ArgumentList "--no-open" -PassThru -RedirectStandardOutput $outputLog -RedirectStandardError $errorLog
+          $editorStarted = $false
+          try {
+            for ($attemptIdx = 0; $attemptIdx -lt 20; $attemptIdx++) {
+              Start-Sleep -Milliseconds 250
+              if ($editorProcess.HasExited) { break }
+              if ((Get-Content $outputLog -Raw -ErrorAction SilentlyContinue) -match "http://127.0.0.1:") {
+                $editorStarted = $true
+                break
+              }
+            }
+            if (-not $editorStarted) {
+              Get-Content $outputLog -ErrorAction SilentlyContinue
+              Get-Content $errorLog -ErrorAction SilentlyContinue
+              throw "Compiled configuration editor did not start"
+            }
+          } finally {
+            if (-not $editorProcess.HasExited) {
+              Stop-Process -Id $editorProcess.Id
+              Wait-Process -Id $editorProcess.Id -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Package standalone configuration editor
+        if: runner.os != 'Windows'
+        working-directory: tools/config-editor
+        shell: bash
+        run: |
+          editor_path="$(find dist -maxdepth 1 -type f -perm -111 -name 'config-editor-*' -print -quit)"
+          test -n "${editor_path}"
+          editor_name="$(basename "${editor_path}")"
+          cd dist
+          zip "${editor_name}.zip" "${editor_name}"
+
+      - name: Package standalone configuration editor on Windows
+        if: runner.os == 'Windows'
+        working-directory: tools/config-editor
+        shell: pwsh
+        run: |
+          $editorPath = Get-ChildItem -Path dist -File -Filter "config-editor-*.exe" | Select-Object -First 1
+          if (-not $editorPath) { throw "Compiled configuration editor was not found" }
+          $archivePath = Join-Path $editorPath.DirectoryName "$($editorPath.BaseName).zip"
+          Compress-Archive -Path $editorPath.FullName -DestinationPath $archivePath
+
+      - name: Upload standalone configuration editor
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-config-editor-${{ matrix.target }}
+          if-no-files-found: error
+          path: tools/config-editor/dist/*.zip
+
   publish-release:
-    needs: [build-macos-intel, build-macos-arm, build-windows, build-linux]
+    needs: [build-macos-intel, build-macos-arm, build-windows, build-linux, build-config-editor]
     runs-on: ubuntu-24.04
 
     steps:

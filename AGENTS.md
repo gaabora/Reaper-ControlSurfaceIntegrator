@@ -74,6 +74,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Before you change code or documentation, briefly describe the planned changes. Make changes only after approval.
 - do not build anything and run tests until asked, and no need to notify about that it in every response
 - no need for backward compatibility, app is not yet released
+- when writing md plans, mark incomplete items/stages/phases with `[ ]` so user can easily find them using global search
 - when implementing tasks from md todo/fixme/plan document, mark completed sections or steps with ✅ emoji, and when the entire doc is completed, make its main header start with "# ✅ COMPLETED: "
 - do not do staging-unstaging/commiting until asked, user manages git himself. never push changes
 - never hard-wrap text at a fixed line width
