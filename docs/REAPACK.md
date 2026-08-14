@@ -2,9 +2,9 @@
 
 ## Status
 
-Tagged release CI generates a release-specific preview `index.xml`. It publishes the index, its SHA-256 checksum, platform extension files, and ZIP archives only after all builds and package checks pass.
+Tagged release CI generates a release-specific `index.xml`. It publishes the index, its SHA-256 checksum, platform extension files, and ZIP archives only after all builds and package checks pass.
 
-There is no stable ReaPack repository URL yet. Do not give users a release-specific index URL as a permanent repository. The stable URL stays blocked until clean portable REAPER install, update, downgrade, and uninstall checks are complete.
+Users import `https://github.com/gaabora/Reaper-ControlSurfaceIntegrator/releases/latest/download/index.xml`. GitHub redirects this stable entry URL to the index from the latest published release. Each generated index currently contains only its tagged version, so retained downgrade history is not available yet.
 
 ## Package ownership
 
@@ -30,14 +30,14 @@ All names before these suffixes come from `Scripts/product_identity.conf`.
 
 ## Generation and validation
 
-`tools/reapack/repository.py prepare` creates a temporary repository below `.reapack-build/`. Its category paths match the final `Scripts/` and `Data/` destinations. Source URLs point to the exact release tag and exact GitHub Release assets. The release workflow validates vendor surface files before package generation.
+`tools/reapack/repository.py prepare` creates a temporary repository below `.reapack-build/`. Data source target names contain their complete paths below `Data/`. The index name comes from `PRODUCT_SCRIPT_DIRECTORY`, and script source target names remove the package category component so scripts install directly below `Scripts/<ProductScriptDirectory>/`. Source URLs point to the exact release tag and exact GitHub Release assets. The release workflow validates vendor surface files before package generation.
 
 The release workflow then:
 
 1. Runs the configuration editor validator against every vendor surface.
 2. Runs official `reapack-index` 1.2.6 in strict check mode.
 3. Uses official `reapack-index` to generate `index.xml`.
-4. Runs `tools/reapack/repository.py finalize` to match every index source to a known local file.
+4. Runs `tools/reapack/repository.py finalize` to match every index source to a known local file and verify its actual ReaPack install path.
 5. Adds a SHA-256 multihash to every source.
 6. Writes `index.xml.sha256` and publishes all release files in one gated job.
 
@@ -53,7 +53,7 @@ git -C .reapack-build/repository add .
 git -C .reapack-build/repository commit -m "Generate preview package metadata"
 cd .reapack-build/repository
 reapack-index --check --strict .
-reapack-index --scan . --strict --no-commit --name "<ProductDisplayName> Preview" --output index.xml .
+reapack-index --scan . --strict --no-commit --name "<ProductScriptDirectory>" --output index.xml .
 cd ../..
 python3 tools/reapack/repository.py finalize --output-dir release-assets
 ```

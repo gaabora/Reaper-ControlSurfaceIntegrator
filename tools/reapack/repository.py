@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
 import re
 import shutil
 import sys
@@ -173,11 +174,12 @@ def prepare(args):
     core_provides = []
     for platform, asset_suffix, extension in PLUGIN_ASSETS:
         asset_name = f"{plugin_filename}-{asset_suffix}{extension}"
+        target_name = f"{plugin_filename}{extension}"
         local_path = asset_root / asset_name
         require_regular_file(local_path, f"{platform} extension asset")
         url = release_url(repository_url, args.tag, asset_name)
-        core_provides.append(f"[{platform}] {asset_name} {url}")
-        add_source(source_records, url, local_path.relative_to(root), asset_name, Path("UserPlugins") / asset_name, platform=platform)
+        core_provides.append(f"[{platform}] {target_name} {url}")
+        add_source(source_records, url, local_path.relative_to(root), target_name, Path("UserPlugins") / target_name, platform=platform)
 
     main_scripts = {identity["PRODUCT_OSK_SCRIPT_FILENAME"], identity["PRODUCT_OSD_SCRIPT_FILENAME"]}
     script_paths = sorted((root / "Scripts").glob("*.lua"))
@@ -188,9 +190,10 @@ def prepare(args):
         url = raw_url(owner, repository, args.tag, script_path.relative_to(root))
         main = "main" if source_file in main_scripts else None
         option = "[script main]" if main else "[script nomain]"
-        core_provides.append(f"{option} {source_file} {url}")
+        target_file = (Path("..") / source_file).as_posix()
+        core_provides.append(f"{option} {target_file} {url}")
         install_path = Path("Scripts") / script_directory / source_file
-        add_source(source_records, url, script_path.relative_to(root), source_file, install_path, source_type="script", main=main)
+        add_source(source_records, url, script_path.relative_to(root), target_file, install_path, source_type="script", main=main)
 
     core_manifest = stage_root / script_directory / f"{package_prefix} Core.ext"
     write_manifest(core_manifest, f"{display_name} core extension and shared scripts", owner, args.version, args.tag, repository_url, core_provides)
@@ -203,9 +206,10 @@ def prepare(args):
         require_regular_file(surface_path, "vendor surface")
         url = raw_url(owner, repository, args.tag, surface_path.relative_to(root))
         manifest_path = stage_root / resource_directory / "Surfaces" / "Vendor" / f"{package_prefix} Surface {surface_id}.data"
-        write_manifest(manifest_path, f"{display_name} vendor surface: {surface_id}", owner, args.version, args.tag, repository_url, [f"{surface_path.name} {url}"])
+        target_file = (Path(resource_directory) / "Surfaces" / "Vendor" / surface_path.name).as_posix()
+        write_manifest(manifest_path, f"{display_name} vendor surface: {surface_id}", owner, args.version, args.tag, repository_url, [f"{target_file} {url}"])
         install_path = Path("Data") / resource_directory / "Surfaces" / "Vendor" / surface_path.name
-        add_source(source_records, url, surface_path.relative_to(root), surface_path.name, install_path)
+        add_source(source_records, url, surface_path.relative_to(root), target_file, install_path)
 
     vendor_zones_root = root / "resources" / "Zones" / "Vendor"
     for profile_path in sorted(path for path in vendor_zones_root.iterdir() if path.is_dir()):
@@ -221,9 +225,10 @@ def prepare(args):
             require_regular_file(zone_path, "vendor zone source")
             source_file = zone_path.relative_to(profile_path).as_posix()
             url = raw_url(owner, repository, args.tag, zone_path.relative_to(root))
-            provides.append(f"{source_file} {url}")
+            target_file = (Path(resource_directory) / "Zones" / "Vendor" / profile_id / source_file).as_posix()
+            provides.append(f"{target_file} {url}")
             install_path = Path("Data") / resource_directory / "Zones" / "Vendor" / profile_id / source_file
-            add_source(source_records, url, zone_path.relative_to(root), source_file, install_path)
+            add_source(source_records, url, zone_path.relative_to(root), target_file, install_path)
         if not provides:
             fail(f"Vendor zone profile is empty: {profile_id}")
         manifest_path = stage_root / resource_directory / "Zones" / "Vendor" / profile_id / f"{package_prefix} Zones {profile_id}.data"
@@ -234,9 +239,10 @@ def prepare(args):
         require_regular_file(snippet_path, "built-in snippet")
         url = raw_url(owner, repository, args.tag, snippet_path.relative_to(root))
         manifest_path = stage_root / resource_directory / "Snippets" / "BuiltIn" / f"{package_prefix} Snippet {snippet_path.stem}.data"
-        write_manifest(manifest_path, f"{display_name} built-in snippet: {snippet_path.stem}", owner, args.version, args.tag, repository_url, [f"{snippet_path.name} {url}"])
+        target_file = (Path(resource_directory) / "Snippets" / "BuiltIn" / snippet_path.name).as_posix()
+        write_manifest(manifest_path, f"{display_name} built-in snippet: {snippet_path.stem}", owner, args.version, args.tag, repository_url, [f"{target_file} {url}"])
         install_path = Path("Data") / resource_directory / "Snippets" / "BuiltIn" / snippet_path.name
-        add_source(source_records, url, snippet_path.relative_to(root), snippet_path.name, install_path)
+        add_source(source_records, url, snippet_path.relative_to(root), target_file, install_path)
 
     verify_vendor_install_paths(source_records, resource_directory)
     source_map_path = stage_root.parent / "reapack-source-map.json"
@@ -246,6 +252,44 @@ def prepare(args):
 
 def source_elements(root_element):
     return [element for element in root_element.iter() if element.tag.rsplit("}", 1)[-1] == "source"]
+
+
+def source_contexts(root_element):
+    contexts = []
+    repository_name = root_element.attrib.get("name")
+    if not repository_name:
+        fail("Generated ReaPack index has no repository name")
+    for category_element in root_element:
+        if category_element.tag.rsplit("}", 1)[-1] != "category":
+            continue
+        category_name = category_element.attrib.get("name")
+        if not category_name:
+            fail("Generated ReaPack index has an unnamed category")
+        for package_element in category_element:
+            if package_element.tag.rsplit("}", 1)[-1] != "reapack":
+                continue
+            package_type = package_element.attrib.get("type")
+            for element in source_elements(package_element):
+                contexts.append((element, repository_name, category_name, package_type))
+    return contexts
+
+
+def reapack_install_path(element, repository_name, category_name, package_type):
+    source_file = element.attrib.get("file")
+    if not source_file:
+        fail("Generated ReaPack source has no target file")
+    source_type = element.attrib.get("type") or package_type
+    if source_type == "script":
+        install_path = posixpath.normpath(posixpath.join("Scripts", repository_name, category_name, source_file))
+    elif source_type == "extension":
+        install_path = posixpath.normpath(posixpath.join("UserPlugins", source_file))
+    elif source_type == "data":
+        install_path = posixpath.normpath(posixpath.join("Data", source_file))
+    else:
+        fail(f"Generated ReaPack source has an unsupported type: {source_type}")
+    if install_path.startswith("../") or install_path.startswith("/"):
+        fail(f"Generated ReaPack source escapes the REAPER resource directory: {install_path}")
+    return install_path
 
 
 def verify_attribute(element, attribute, expected, source_url):
@@ -272,7 +316,7 @@ def finalize(args):
 
     xml_tree = ElementTree.parse(index_path)
     seen_urls = set()
-    for element in source_elements(xml_tree.getroot()):
+    for element, repository_name, category_name, package_type in source_contexts(xml_tree.getroot()):
         source_url = (element.text or "").strip()
         record = records_by_url.get(source_url)
         if not record:
@@ -284,6 +328,9 @@ def finalize(args):
         verify_attribute(element, "platform", record["platform"], source_url)
         verify_attribute(element, "type", record["type"], source_url)
         verify_attribute(element, "main", record["main"], source_url)
+        actual_install_path = reapack_install_path(element, repository_name, category_name, package_type)
+        if actual_install_path != record["installPath"]:
+            fail(f"Unexpected install path for {source_url}: expected {record['installPath']!r}, got {actual_install_path!r}")
         local_path = root / record["localPath"]
         require_regular_file(local_path, "source used for index checksum")
         digest = hashlib.sha256(local_path.read_bytes()).hexdigest()

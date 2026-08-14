@@ -214,10 +214,10 @@ jobs:
 
       - name: Validate and generate preview ReaPack index
         run: |
-          product_display_name="$(sed -n 's/^PRODUCT_DISPLAY_NAME=//p' Scripts/product_identity.conf)"
+          product_script_directory="$(sed -n 's/^PRODUCT_SCRIPT_DIRECTORY=//p' Scripts/product_identity.conf)"
           cd .reapack-build/repository
           reapack-index --check --strict .
-          reapack-index --scan . --strict --no-commit --name "${product_display_name} Preview" --output index.xml .
+          reapack-index --scan . --strict --no-commit --name "${product_script_directory}" --output index.xml .
 
       - name: Add checksums and verify index ownership
         run: python3 tools/reapack/repository.py finalize --output-dir release-assets
