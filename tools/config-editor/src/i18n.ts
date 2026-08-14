@@ -38,6 +38,7 @@ const english = {
     "error.missingToken": "The editor session is missing. Start the editor again.",
     "error.quickFixEditable": "Quick fixes require an editable current file.",
     "error.request": "The request failed.",
+    "error.validationProblems": "{message} Found {count} problems. See Problems.",
     "error.start": "Could not start the editor: {message}",
     "files.blocked": "Unavailable",
     "files.empty": "Open a REAPER data path to see configuration files.",

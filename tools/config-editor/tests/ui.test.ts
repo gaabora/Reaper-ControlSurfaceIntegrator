@@ -28,6 +28,8 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain('api("/api/validate-all"');
         expect(EDITOR_JAVASCRIPT).toContain('api("/api/quick-fix"');
         expect(EDITOR_JAVASCRIPT).toContain("window.setTimeout(() => notification.remove(), 5000)");
+        expect(EDITOR_JAVASCRIPT).toContain("mergeErrorDiagnostics(diagnostics)");
+        expect(EDITOR_JAVASCRIPT).not.toContain("JSON.stringify(error.details");
         expect(html).toContain('id="task-home"');
         expect(html).toContain('id="workflow-edit"');
         expect(html).toContain('id="raw-editor" class="code-editor"');

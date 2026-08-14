@@ -54,6 +54,8 @@ The browser opens the first valid discovered REAPER data path automatically. The
 
 The text editor stays inside the available viewport and scrolls independently. `Problems` separates diagnostics for the current file from the collapsible `All found` index. Opening or checking a file updates its entry without removing previously found problems from other files. `Check all` validates every available configuration file, uses unsaved drafts for changed files, and adds cross-file dependency and duplicate diagnostics. File and line links navigate without turning the diagnostic text into a button, so the message remains selectable.
 
+The browser URL stores the current task, open configuration file, diagnostic line, and bottom panel. Reload restores that editor state and its recovery draft. Browser Back and Forward move between previously opened tasks and files. The REAPER data path and session token are not stored in the URL.
+
 Some diagnostics offer one or more quick-fix links. A quick fix is validated against the current source, changes only the unsaved draft, and still requires Save or Save all. Quick fixes are registered by stable IDs in `src/quick-fixes.ts`; the first registered fix adds a missing `// @format zone 1` marker.
 
 The editor follows linked files and directories. This lets a development product root link `Surfaces`, `Zones`, and `Snippets` directly to repository resources. Access and write permissions still use the logical configuration path, so linked vendor content remains read-only and only supported paths below `User` are writable. Directory link cycles are shown as unavailable instead of being traversed.

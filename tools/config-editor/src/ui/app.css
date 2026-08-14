@@ -141,7 +141,7 @@ dialog::backdrop { background: #07080bcc; }
 #discard-dialog { width: min(460px, calc(100vw - 24px)); }
 .confirm-dialog p { margin: 0 0 8px; }
 .notification-stack { position: fixed; right: 12px; bottom: 12px; z-index: 1000; display: grid; width: min(390px, calc(100vw - 24px)); gap: 7px; pointer-events: none; }
-.notification { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 9px; padding: 9px 10px; border: 1px solid #4a5060; border-left-width: 4px; border-radius: 5px; background: #20242c; box-shadow: 0 5px 18px #0008; color: #e7e9ee; pointer-events: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.notification { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 9px; max-height: min(45vh, 360px); overflow: auto; padding: 9px 10px; border: 1px solid #4a5060; border-left-width: 4px; border-radius: 5px; background: #20242c; box-shadow: 0 5px 18px #0008; color: #e7e9ee; pointer-events: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .notification.success { border-left-color: var(--success); }
 .notification.info { border-left-color: var(--info); }
 .notification.warning { border-left-color: var(--warning); }

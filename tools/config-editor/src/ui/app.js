@@ -1,4 +1,5 @@
 import { createConfigurationEditor } from "./code-editor.js";
+import { onEditorRouteChange, readEditorRoute, updateEditorRoute } from "./router.js";
 
 let translations = {};
 const sessionTokenElement = document.querySelector('meta[name="config-editor-session-token"]');
@@ -165,8 +166,45 @@ function showReport(value, tone = "success") {
     showNotification(value, tone);
 }
 
+function diagnosticDetails(value) {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item) => item && typeof item === "object" && typeof item.code === "string" && typeof item.message === "string" && ["error", "warning"].includes(item.severity));
+}
+
+function diagnosticIdentity(diagnostic) {
+    return [diagnostic.path || "", diagnostic.line || "", diagnostic.severity, diagnostic.code, diagnostic.message].join("\u0000");
+}
+
+function mergeErrorDiagnostics(diagnostics) {
+    const grouped = new Map();
+    for (const diagnostic of diagnostics) {
+        const relativePath = diagnostic.path || state.current?.path || "";
+        const group = grouped.get(relativePath) || [];
+        group.push(relativePath && !diagnostic.path ? { ...diagnostic, path: relativePath } : diagnostic);
+        grouped.set(relativePath, group);
+    }
+    for (const [relativePath, newDiagnostics] of grouped) {
+        if (!relativePath) {
+            const existing = new Map(state.globalProblems.map((diagnostic) => [diagnosticIdentity(diagnostic), diagnostic]));
+            for (const diagnostic of newDiagnostics) existing.set(diagnosticIdentity(diagnostic), diagnostic);
+            state.globalProblems = [...existing.values()];
+            continue;
+        }
+        const existing = new Map((state.problemFiles.get(relativePath) || []).map((diagnostic) => [diagnosticIdentity(diagnostic), diagnostic]));
+        for (const diagnostic of newDiagnostics) existing.set(diagnosticIdentity(diagnostic), diagnostic);
+        state.problemFiles.set(relativePath, [...existing.values()]);
+    }
+    state.bottomPanel = "problems";
+    elements.allProblemsGroup.open = true;
+    renderProblems();
+    renderBottomPanel();
+    if (state.task === "edit") writeEditorRoute({}, true);
+}
+
 function showError(error, target) {
-    const message = error.details ? error.message + "\n" + JSON.stringify(error.details, null, 2) : error.message;
+    const diagnostics = diagnosticDetails(error.details);
+    if (diagnostics.length) mergeErrorDiagnostics(diagnostics);
+    const message = diagnostics.length ? translate("error.validationProblems", { count: diagnostics.length, message: error.message }) : error.message;
     if (target) setFeedback(target, message, "danger");
     else showNotification(message, "danger");
 }
@@ -175,7 +213,19 @@ function setTaskAvailability(available) {
     for (const button of document.querySelectorAll(".task-card")) button.disabled = !available;
 }
 
-function showTask(task) {
+function currentEditorRoute(overrides = {}) {
+    const view = state.task || "home";
+    const file = view === "edit" ? state.current?.path || "" : "";
+    const browserRoute = readEditorRoute();
+    const line = browserRoute.view === "edit" && browserRoute.file === file ? browserRoute.line : undefined;
+    return { file, line, panel: state.bottomPanel, view, ...overrides };
+}
+
+function writeEditorRoute(overrides = {}, replace = false) {
+    updateEditorRoute(currentEditorRoute(overrides), replace);
+}
+
+function showTask(task, updateRoute = true) {
     const workflows = { edit: elements.workflowEdit, legacy: elements.workflowLegacy };
     state.task = task;
     elements.homeHeader.hidden = true;
@@ -190,15 +240,17 @@ function showTask(task) {
     elements.workflowTitle.textContent = translate(`task.${task}.title`);
     elements.workflowDescription.textContent = translate(`task.${task}.description`);
     codeEditor.setVisible(task === "edit");
+    if (updateRoute) writeEditorRoute({ line: undefined, view: task });
 }
 
-function showTaskHome() {
+function showTaskHome(updateRoute = true) {
     state.task = "";
     elements.homeHeader.hidden = false;
     elements.editorMain.hidden = true;
     elements.checkAll.hidden = true;
     elements.saveAll.hidden = true;
     elements.taskHome.hidden = false;
+    if (updateRoute) writeEditorRoute({ file: "", line: undefined, view: "home" });
 }
 
 function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDiagnostic) {
@@ -375,6 +427,7 @@ async function validateAllConfigurations() {
     state.bottomPanel = "problems";
     elements.allProblemsGroup.open = true;
     renderBottomPanel();
+    if (state.task === "edit") writeEditorRoute({}, true);
     showReport(translate("status.checkedAll", { files: result.checkedPaths.length, problems: diagnosticsForAllFiles().length }), "info");
 }
 
@@ -389,7 +442,7 @@ async function discardCurrentChanges() {
     showReport(translate("status.discardedChanges", { path: relativePath }));
 }
 
-async function openDocument(path, line) {
+async function openDocument(path, line, updateRoute = true) {
     try {
         await flushPendingDraft();
         const opened = await api("/api/file?path=" + encodeURIComponent(path));
@@ -413,9 +466,49 @@ async function openDocument(path, line) {
         updateTreeDraftState();
         renderDocument();
         if (line) requestAnimationFrame(() => codeEditor.goToLine(line));
+        if (updateRoute) updateEditorRoute(currentEditorRoute({ file: path, line, view: "edit" }));
+        return true;
     } catch (error) {
         showError(error);
+        return false;
     }
+}
+
+function clearCurrentDocument() {
+    state.current = null;
+    updateTreeSelection("");
+    renderDocument();
+}
+
+async function restoreEditorRoute(route) {
+    await flushPendingDraft();
+    state.bottomPanel = route.panel;
+    if (route.view === "legacy") {
+        showTask("legacy", false);
+        renderBottomPanel();
+        updateEditorRoute({ file: "", line: undefined, panel: state.bottomPanel, view: "legacy" }, true);
+        return;
+    }
+    if (route.view === "edit") {
+        showTask("edit", false);
+        renderBottomPanel();
+        if (!route.file) {
+            clearCurrentDocument();
+            updateEditorRoute({ file: "", line: undefined, panel: state.bottomPanel, view: "edit" }, true);
+            return;
+        }
+        const opened = await openDocument(route.file, route.line, false);
+        if (!opened) {
+            clearCurrentDocument();
+            updateEditorRoute({ file: "", line: undefined, panel: state.bottomPanel, view: "edit" }, true);
+            return;
+        }
+        updateEditorRoute({ file: route.file, line: route.line, panel: state.bottomPanel, view: "edit" }, true);
+        return;
+    }
+    showTaskHome(false);
+    renderBottomPanel();
+    updateEditorRoute({ file: "", line: undefined, panel: state.bottomPanel, view: "home" }, true);
 }
 
 async function navigateDiagnostic(diagnostic) {
@@ -427,10 +520,13 @@ async function navigateDiagnostic(diagnostic) {
         }
     }
     if (!diagnostic.path && !state.current) return;
-    showTask("edit");
+    showTask("edit", false);
     codeEditor.setVisible(true);
     if (diagnostic.path && diagnostic.path !== state.current?.path) await openDocument(diagnostic.path, diagnostic.line);
-    else if (diagnostic.line) requestAnimationFrame(() => codeEditor.goToLine(diagnostic.line));
+    else {
+        if (diagnostic.line) requestAnimationFrame(() => codeEditor.goToLine(diagnostic.line));
+        writeEditorRoute({ file: state.current?.path || "", line: diagnostic.line, view: "edit" });
+    }
 }
 
 async function applyDiagnosticQuickFix(diagnostic, fix) {
@@ -1063,7 +1159,7 @@ function renderLegacySelection(selection) {
     renderLegacyPreview();
 }
 
-async function applyDataPath(dataPath) {
+async function applyDataPath(dataPath, updateRoute = true) {
     await flushPendingDraft();
     const result = await api("/api/select-data-path", { method: "POST", body: JSON.stringify({ path: dataPath }) });
     elements.dataPath.value = result.dataPath;
@@ -1079,10 +1175,10 @@ async function applyDataPath(dataPath) {
     renderLegacySelection(result.legacy);
     await refreshTree();
     setTaskAvailability(true);
-    showTaskHome();
+    showTaskHome(updateRoute);
 }
 
-async function initialize() {
+async function initialize(initialRoute) {
     try {
         const translationsResponse = await fetch("/app-translations.json");
         if (!translationsResponse.ok) throw new Error(translationsResponse.statusText);
@@ -1109,6 +1205,7 @@ async function initialize() {
             await refreshDrafts();
             await refreshTree();
             setTaskAvailability(true);
+            await restoreEditorRoute(initialRoute);
             return;
         }
         const existingCandidates = status.candidates.filter((candidate) => candidate.exists);
@@ -1117,7 +1214,8 @@ async function initialize() {
             let lastError;
             for (const candidate of existingCandidates) {
                 try {
-                    await applyDataPath(candidate.path);
+                    await applyDataPath(candidate.path, false);
+                    await restoreEditorRoute(initialRoute);
                     return;
                 } catch (error) {
                     lastError = error;
@@ -1135,7 +1233,9 @@ async function initialize() {
 
 elements.openDataPath.addEventListener("click", async () => {
     try {
-        await applyDataPath(elements.dataPath.value);
+        const requestedRoute = readEditorRoute();
+        await applyDataPath(elements.dataPath.value, false);
+        await restoreEditorRoute(requestedRoute);
     } catch (error) { showError(error, elements.dataPathFeedback); }
 });
 
@@ -1250,6 +1350,7 @@ elements.save.addEventListener("click", async () => {
         if (documentView.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
             state.bottomPanel = "problems";
             renderBottomPanel();
+            writeEditorRoute({}, true);
             return;
         }
         const result = await api("/api/save", { method: "POST", body: JSON.stringify({ originalHash: state.current.hash, path: state.current.path, source: state.current.source }) });
@@ -1319,6 +1420,7 @@ elements.discardConfirm.addEventListener("click", async () => {
 for (const button of document.querySelectorAll(".bottom-tab")) button.addEventListener("click", () => {
     state.bottomPanel = state.bottomPanel === button.dataset.bottomTab ? "" : button.dataset.bottomTab;
     renderBottomPanel();
+    if (state.task === "edit") writeEditorRoute({}, true);
 });
 
 elements.snippetSource.addEventListener("change", () => {
@@ -1361,5 +1463,7 @@ window.addEventListener("beforeunload", (event) => {
     event.returnValue = "";
 });
 setTaskAvailability(false);
-showTaskHome();
-initialize();
+const initialRoute = readEditorRoute();
+showTaskHome(false);
+onEditorRouteChange((route) => { void restoreEditorRoute(route); });
+initialize(initialRoute);
