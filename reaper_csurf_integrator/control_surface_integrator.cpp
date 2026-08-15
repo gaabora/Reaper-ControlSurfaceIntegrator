@@ -164,8 +164,7 @@ void GetParamStepsValues(vector<double> &outputVector, int numSteps)
         outputVector.push_back(EnumSteppedValues(numSteps, i));
 }
 
-void TrimLine(string &line)
-{
+void TrimLine(string &line) {
     const string tmp = line;
     const char *p = tmp.c_str();
 
@@ -173,24 +172,31 @@ void TrimLine(string &line)
     // condense whitespace to single whitespace
     // stop copying at "//" (comment)
     line.clear();
-    for (;;)
-    {
+    bool firstToken = true;
+    bool reachedComment = false;
+    for (;;) {
         // advance over whitespace
-        while (*p > 0 && isspace(*p))
-            p++;
+        while (*p > 0 && isspace(*p)) p++;
 
         // a single / at the beginning of a line indicates a comment
-        if (!*p || p[0] == '/') break;
+        if (!*p || (firstToken && p[0] == '/')) break;
 
-        if (line.length())
-            line.append(" ",1);
+        // double slash indicates a comment after the first token
+        if (p[0] == '/' && p[1] == '/') break;
+
+        if (line.length()) line.append(" ",1);
 
         // copy non-whitespace to output
-        while (*p && (*p < 0 || !isspace(*p)))
-        {
-           if (p[0] == '/' && p[1] == '/') break; // existing behavior, maybe not ideal, but a comment can start anywhere
+        while (*p && (*p < 0 || !isspace(*p))) {
+           if (p[0] == '/' && p[1] == '/') {
+               reachedComment = true;
+               break; // existing behavior, maybe not ideal, but a comment can start anywhere
+           }
            line.append(p++,1);
         }
+
+        if (reachedComment) break;
+        firstToken = false;
     }
     if (!line.empty() && g_debugLevel > DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] %s\n", line.c_str());
 }
