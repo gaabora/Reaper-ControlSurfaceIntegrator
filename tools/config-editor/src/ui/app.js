@@ -41,6 +41,7 @@ const elements = {
     legacyDiagnostics: requiredElement("legacy-diagnostics"),
     legacyDraftCheck: requiredElement("legacy-draft-check"),
     legacyDraftDiscard: requiredElement("legacy-draft-discard"),
+    legacyDraftEmpty: requiredElement("legacy-draft-empty"),
     legacyDraftEditor: requiredElement("legacy-draft-editor"),
     legacyDraftPanel: requiredElement("legacy-draft-panel"),
     legacyDraftPath: requiredElement("legacy-draft-path"),
@@ -50,6 +51,7 @@ const elements = {
     legacyPath: requiredElement("legacy-path"),
     legacyPathFeedback: requiredElement("legacy-path-feedback"),
     legacyPreview: requiredElement("legacy-preview"),
+    legacyReload: requiredElement("legacy-reload"),
     legacyRefresh: requiredElement("legacy-refresh"),
     legacySelectAll: requiredElement("legacy-select-all"),
     legacySelectNone: requiredElement("legacy-select-none"),
@@ -236,6 +238,7 @@ function showTask(task, updateRoute = true) {
     elements.saveAll.hidden = task !== "edit";
     elements.editorBody.classList.toggle("file-task", task === "edit");
     elements.workspace.classList.toggle("document-task", task === "edit");
+    elements.workspace.classList.toggle("legacy-task", task === "legacy");
     for (const workflow of Object.values(workflows)) workflow.hidden = workflow !== workflows[task];
     elements.workflowTitle.textContent = translate(`task.${task}.title`);
     elements.workflowDescription.textContent = translate(`task.${task}.description`);
@@ -861,11 +864,13 @@ function closeLegacyDraft() {
     state.legacy.activeDraftPath = "";
     legacyDraftEditor.setVisible(false);
     elements.legacyDraftPanel.hidden = true;
+    elements.legacyDraftEmpty.hidden = false;
 }
 
 function openLegacyDraft(item, line) {
     const changedItem = state.legacy.activeDraftPath !== item.sourcePath;
     state.legacy.activeDraftPath = item.sourcePath;
+    elements.legacyDraftEmpty.hidden = true;
     elements.legacyDraftPanel.hidden = false;
     legacyDraftEditor.setVisible(true);
     elements.legacyDraftPath.textContent = item.sourcePath + " → " + item.targetPath;
@@ -1125,6 +1130,29 @@ async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = uses
     renderLegacyPreview();
 }
 
+function renderLegacySource(selection, selectedSurfaceName = "") {
+    elements.legacyPath.value = selection?.path || "";
+    elements.legacySurface.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = translate("legacy.surface.placeholder");
+    elements.legacySurface.append(placeholder);
+    let selectedSurfaceAvailable = false;
+    for (const surface of selection?.surfaces || []) {
+        const option = document.createElement("option");
+        option.value = surface.name;
+        option.textContent = translate("legacy.surface.option", { count: surface.zoneCount, fxCount: surface.fxZoneCount, name: surface.name });
+        elements.legacySurface.append(option);
+        if (surface.name === selectedSurfaceName) selectedSurfaceAvailable = true;
+    }
+    elements.legacySurface.value = selectedSurfaceAvailable ? selectedSurfaceName : "";
+    elements.legacySurface.disabled = !selection?.surfaces?.length;
+    elements.legacyReload.disabled = !selection?.path;
+    elements.legacyStatus.className = "secondary";
+    elements.legacyStatus.textContent = selection?.root ? translate("legacy.status.opened", { path: selection.root }) : translate("legacy.status.notFound", { path: selection?.path || "CSI" });
+    return selectedSurfaceAvailable;
+}
+
 function renderLegacySelection(selection) {
     closeLegacyDraft();
     elements.legacyOperationReport.hidden = true;
@@ -1136,26 +1164,12 @@ function renderLegacySelection(selection) {
     state.legacy.targetPaths.clear();
     state.legacy.targetProfileId = "";
     state.legacy.widgetMappings.clear();
-    elements.legacyPath.value = selection?.path || "";
     elements.legacyTargetProfile.value = "";
     setFeedback(elements.legacyTargetFeedback, "");
-    elements.legacySurface.replaceChildren();
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = translate("legacy.surface.placeholder");
-    elements.legacySurface.append(placeholder);
-    for (const surface of selection?.surfaces || []) {
-        const option = document.createElement("option");
-        option.value = surface.name;
-        option.textContent = translate("legacy.surface.option", { count: surface.zoneCount, fxCount: surface.fxZoneCount, name: surface.name });
-        elements.legacySurface.append(option);
-    }
-    elements.legacySurface.disabled = !selection?.surfaces?.length;
+    renderLegacySource(selection);
     elements.legacySelectAll.disabled = true;
     elements.legacySelectNone.disabled = true;
     elements.legacyRefresh.disabled = true;
-    elements.legacyStatus.className = "secondary";
-    elements.legacyStatus.textContent = selection?.root ? translate("legacy.status.opened", { path: selection.root }) : translate("legacy.status.notFound", { path: selection?.path || "CSI" });
     renderLegacyPreview();
 }
 
@@ -1245,6 +1259,26 @@ elements.openLegacy.addEventListener("click", async () => {
         renderLegacySelection(result);
         setFeedback(elements.legacyPathFeedback, "");
     } catch (error) { showError(error, elements.legacyPathFeedback); }
+});
+
+elements.legacyReload.addEventListener("click", async () => {
+    try {
+        const selectedSurfaceName = elements.legacySurface.value;
+        const selectedZonePaths = [...state.legacy.selectedZonePaths];
+        const result = await api("/api/legacy/select", { method: "POST", body: JSON.stringify({ path: elements.legacyPath.value }) });
+        const selectedSurfaceAvailable = renderLegacySource(result, selectedSurfaceName);
+        setFeedback(elements.legacyPathFeedback, "");
+        if (selectedSurfaceName && !selectedSurfaceAvailable) {
+            elements.legacyImport.disabled = true;
+            showReport(translate("legacy.reload.surfaceMissing", { name: selectedSurfaceName }), "warning");
+            return;
+        }
+        if (selectedSurfaceName) {
+            elements.legacyImport.disabled = true;
+            await refreshLegacyPreview(selectedZonePaths);
+        }
+        showReport(translate("status.reloadedLegacy"));
+    } catch (error) { showError(error); }
 });
 
 elements.legacySurface.addEventListener("change", async () => {

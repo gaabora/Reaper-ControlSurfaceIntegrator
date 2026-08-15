@@ -64,6 +64,10 @@ The editor follows linked files and directories. This lets a development product
 
 The editor checks the standard old `CSI` directory beside the selected `Data` directory automatically. For example, `/REAPER/Data` maps to `/REAPER/CSI`. If that folder is missing or the old installation is elsewhere, open `Advanced details`, enter either an old `CSI/` directory or its parent directory, and click `Open`. The source remains read-only and the importer follows linked files and directories.
 
+Use `Reload old CSI` after files or surface folders change on disk. Reload keeps the selected surface, selected zones, target and conflict choices, and in-memory import drafts. If a changed source cannot be refreshed safely, the existing preview and drafts remain available and the editor reports the conflict.
+
+The import workspace uses two columns. Open a source file from Import preview to edit its import draft in the left column. Problems stay below that editor. Target profile settings, target paths, conflict actions, Import, and the operation report stay in the independently scrolling right column. Narrow screens stack these columns.
+
 Choose a surface, include or exclude its `Surface.txt`, and select any `.zon` files from its legacy `Zones` and `FXZones` directories. Selecting a zone also selects its single unambiguous `GoZone`, `GoSubZone`, `IncludedZones`, and `SubZones` dependencies. You can clear a dependency after automatic selection. Files whose names do not end exactly in `.zon`, such as `.zon~20260101` and `.zon1` backup files, are not imported. A deprecated `GoZones.zon` manifest is not imported. When it assigns a navigator to a zone, the importer adds that navigator to the matching zone header as `NavType`.
 
 The preview shows migrated source text, target paths, syntax diagnostics, dependencies, widget mappings, and conflicts. Missing format markers are added as `// @format surface 1` or `// @format zone 1`. Click a source file or diagnostic to open its import draft at the related line. Draft changes stay in memory and are written only to the new target during import. The old CSI file is never changed.

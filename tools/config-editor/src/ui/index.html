@@ -38,40 +38,52 @@
         <div id="tree" class="tree secondary">{{files.empty}}</div>
       </aside>
       <section id="workspace" class="workspace">
-      <section id="workflow-legacy" class="workflow-panel" hidden>
-        <div class="workflow-step"><span class="step-number">1</span><div><h2>{{legacy.step.source.title}}</h2><p class="secondary">{{legacy.step.source.description}}</p></div></div>
-        <div class="legacy-controls">
-          <select id="legacy-surface" aria-label="{{legacy.surface.title}}" disabled><option value="">{{legacy.surface.placeholder}}</option></select>
-          <label><input id="legacy-include-surface" type="checkbox" checked> {{legacy.includeSurface}}</label>
-          <button id="legacy-select-all" disabled>{{legacy.selectAll}}</button>
-          <button id="legacy-select-none" disabled>{{legacy.selectNone}}</button>
-          <button id="legacy-refresh" disabled>{{action.preview}}</button>
-        </div>
-        <div class="legacy-profile-field"><label class="legacy-profile-control"><span>{{legacy.targetProfile}}</span><input id="legacy-target-profile" placeholder="{{legacy.targetProfile.placeholder}}"></label><div id="legacy-target-feedback" class="feedback danger" hidden></div></div>
-        <p id="legacy-status" class="secondary">{{legacy.preview.empty}}</p>
-        <details class="advanced-panel legacy-path-panel">
-          <summary>{{legacy.path.advanced}}</summary>
-          <div class="legacy-path-controls"><input id="legacy-path" placeholder="{{legacy.path.placeholder}}"><button id="open-legacy">{{action.open}}</button></div>
-          <div id="legacy-path-feedback" class="feedback danger" hidden></div>
-        </details>
-        <div class="legacy-columns">
-          <div><h2>{{legacy.zones.title}}</h2><div id="legacy-zones" class="legacy-list secondary">{{legacy.zones.empty}}</div></div>
-          <div><h2>{{legacy.dependencies.title}}</h2><div id="legacy-dependencies" class="legacy-list secondary">{{legacy.dependencies.empty}}</div></div>
-        </div>
-        <h2>{{legacy.widgetMappings.title}}</h2>
-        <div id="legacy-widget-mappings" class="legacy-widget-mappings secondary">{{legacy.widgetMappings.empty}}</div>
-        <h2>{{legacy.preview.title}}</h2>
-        <div id="legacy-diagnostics" class="secondary">{{problems.none}}</div>
-        <section id="legacy-draft-panel" class="legacy-draft-panel" hidden>
-          <div class="legacy-draft-header">
-            <div><strong>{{legacy.draft.title}}</strong><span id="legacy-draft-path"></span><p class="secondary">{{legacy.draft.description}}</p></div>
-            <div class="actions"><button id="legacy-draft-discard">{{legacy.draft.discard}}</button><button id="legacy-draft-check" class="primary">{{action.check}}</button></div>
+      <section id="workflow-legacy" class="workflow-panel legacy-workflow" hidden>
+        <div class="legacy-source-setup">
+          <div class="workflow-step"><span class="step-number">1</span><div><h2>{{legacy.step.source.title}}</h2><p class="secondary">{{legacy.step.source.description}}</p></div></div>
+          <div class="legacy-controls">
+            <select id="legacy-surface" aria-label="{{legacy.surface.title}}" disabled><option value="">{{legacy.surface.placeholder}}</option></select>
+            <button id="legacy-reload" disabled>{{action.reloadLegacy}}</button>
+            <label><input id="legacy-include-surface" type="checkbox" checked> {{legacy.includeSurface}}</label>
+            <button id="legacy-select-all" disabled>{{legacy.selectAll}}</button>
+            <button id="legacy-select-none" disabled>{{legacy.selectNone}}</button>
+            <button id="legacy-refresh" disabled>{{action.preview}}</button>
           </div>
-          <div id="legacy-draft-editor" class="code-editor"></div>
-        </section>
-        <div id="legacy-preview" class="legacy-preview secondary">{{legacy.preview.empty}}</div>
-        <button id="legacy-import" disabled>{{action.import}}</button>
-        <pre id="legacy-operation-report" class="operation-report" hidden></pre>
+          <details class="advanced-panel legacy-path-panel">
+            <summary>{{legacy.path.advanced}}</summary>
+            <div class="legacy-path-controls"><input id="legacy-path" placeholder="{{legacy.path.placeholder}}"><button id="open-legacy">{{action.open}}</button></div>
+            <div id="legacy-path-feedback" class="feedback danger" hidden></div>
+          </details>
+          <div class="legacy-columns">
+            <div><h2>{{legacy.zones.title}}</h2><div id="legacy-zones" class="legacy-list secondary">{{legacy.zones.empty}}</div></div>
+            <div><h2>{{legacy.dependencies.title}}</h2><div id="legacy-dependencies" class="legacy-list secondary">{{legacy.dependencies.empty}}</div></div>
+          </div>
+          <h2>{{legacy.widgetMappings.title}}</h2>
+          <div id="legacy-widget-mappings" class="legacy-widget-mappings secondary">{{legacy.widgetMappings.empty}}</div>
+        </div>
+        <div class="legacy-editor-layout">
+          <section class="legacy-draft-column">
+            <div class="legacy-draft-stage">
+              <div id="legacy-draft-empty" class="legacy-draft-empty secondary">{{legacy.draft.empty}}</div>
+              <section id="legacy-draft-panel" class="legacy-draft-panel" hidden>
+                <div class="legacy-draft-header">
+                  <div><strong>{{legacy.draft.title}}</strong><span id="legacy-draft-path"></span><p class="secondary">{{legacy.draft.description}}</p></div>
+                  <div class="actions"><button id="legacy-draft-discard">{{legacy.draft.discard}}</button><button id="legacy-draft-check" class="primary">{{action.check}}</button></div>
+                </div>
+                <div id="legacy-draft-editor" class="code-editor"></div>
+              </section>
+            </div>
+            <section class="legacy-problems-panel"><h2>{{problems.title}}</h2><div id="legacy-diagnostics" class="secondary">{{problems.none}}</div></section>
+          </section>
+          <section class="legacy-preview-column">
+            <div class="legacy-profile-field"><label class="legacy-profile-control"><span>{{legacy.targetProfile}}</span><input id="legacy-target-profile" placeholder="{{legacy.targetProfile.placeholder}}"></label><div id="legacy-target-feedback" class="feedback danger" hidden></div></div>
+            <p id="legacy-status" class="secondary">{{legacy.preview.empty}}</p>
+            <h2>{{legacy.preview.title}}</h2>
+            <div id="legacy-preview" class="legacy-preview secondary">{{legacy.preview.empty}}</div>
+            <button id="legacy-import" disabled>{{action.import}}</button>
+            <pre id="legacy-operation-report" class="operation-report" hidden></pre>
+          </section>
+        </div>
       </section>
       <section id="workflow-edit" class="document-workflow" hidden>
         <div class="document-header">

@@ -34,7 +34,9 @@ describe("browser UI bindings", () => {
         expect(html).toContain('id="workflow-edit"');
         expect(html).toContain('id="raw-editor" class="code-editor"');
         expect(html).toContain('id="legacy-draft-editor" class="code-editor"');
+        expect(html).toContain('id="legacy-draft-empty"');
         expect(html).toContain('id="legacy-target-profile"');
+        expect(html).toContain('id="legacy-reload"');
         expect(html).toContain('id="snippet-bindings"');
         expect(html).toContain('id="snippet-dialog"');
         expect(html).toContain('id="save-all"');
