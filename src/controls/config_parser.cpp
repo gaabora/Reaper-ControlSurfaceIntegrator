@@ -1,257 +1,227 @@
-// config_parser.cpp — CSurfIntegrator::Init()
-//
-// Reads the product configuration file and wires up MIDI/OSC surfaces to pages.
+// config_parser.cpp - CSurfIntegrator configuration application
 
 #include "integrator.h"
+#include "integrator_config_parser.h"
 
-// Free functions defined in integrator.cpp
-extern void TrimLine(string& line);
-extern void GetTokens(vector<string>& tokens, const string& line);
-extern void GetPropertiesFromTokens(int start, int finish, const vector<string>& tokens, PropertyList& properties);
+static void LogConfigIssue(const string& configPath, const IntegratorConfigIssue& issue) {
+    LogToConsole("[ERROR] Configuration issue in %s at line %d: %s\n", configPath.c_str(), issue.lineNumber, issue.message.c_str());
+}
+
+static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integrator, Page* page, const SurfaceAssignmentConfig& config, const ProductPaths& productPaths, const vector<unique_ptr<Midi_ControlSurfaceIO>>& midiIo, const vector<unique_ptr<OSC_ControlSurfaceIO>>& oscIo, string& errorMessage) {
+    std::optional<filesystem::path> surfaceFile;
+    try {
+        surfaceFile = productPaths.FindSurfaceFile(config.surfaceId);
+    } catch (const std::exception& error) {
+        errorMessage = "Invalid SurfaceFolder '" + config.surfaceId + "': " + error.what();
+        return nullptr;
+    }
+    if (!surfaceFile) {
+        errorMessage = "Missing surface '" + config.surfaceId + "'. Expected " + productPaths.UserSurfacesRoot().string() + "/" + config.surfaceId + ".txt or " + productPaths.VendorSurfacesRoot().string() + "/" + config.surfaceId + ".txt";
+        return nullptr;
+    }
+
+    std::optional<filesystem::path> mainZoneFolder;
+    try {
+        mainZoneFolder = productPaths.FindMainZones(config.mainZoneProfileId);
+    } catch (const std::exception& error) {
+        errorMessage = "Invalid ZoneFolder '" + config.mainZoneProfileId + "': " + error.what();
+        return nullptr;
+    }
+    if (!mainZoneFolder) {
+        errorMessage = "Missing Main zone profile '" + config.mainZoneProfileId + "'. Expected " + productPaths.MainZones(ZoneSource::User, config.mainZoneProfileId).string() + " or " + productPaths.MainZones(ZoneSource::Vendor, config.mainZoneProfileId).string();
+        return nullptr;
+    }
+
+    filesystem::path vendorFxZoneFolder;
+    filesystem::path userFxZoneFolder;
+    try {
+        vendorFxZoneFolder = productPaths.FxZones(ZoneSource::Vendor, config.fxZoneProfileId);
+        userFxZoneFolder = productPaths.FxZones(ZoneSource::User, config.fxZoneProfileId);
+    } catch (const std::exception& error) {
+        errorMessage = "Invalid FXZoneFolder '" + config.fxZoneProfileId + "': " + error.what();
+        return nullptr;
+    }
+    std::error_code createFxFolderError;
+    filesystem::create_directories(userFxZoneFolder, createFxFolderError);
+    if (createFxFolderError || !filesystem::is_directory(userFxZoneFolder)) {
+        errorMessage = "Unable to create User FX zone folder " + userFxZoneFolder.string() + ": " + createFxFolderError.message();
+        return nullptr;
+    }
+
+    const string surfaceFilePath = surfaceFile->string();
+    const string mainZoneFolderPath = mainZoneFolder->string();
+    const string vendorFxZoneFolderPath = vendorFxZoneFolder.string();
+    const string userFxZoneFolderPath = userFxZoneFolder.string();
+    for (const auto& io : midiIo) {
+        if (!IsSameString(config.surfaceName, io->GetName())) continue;
+        return make_unique<Midi_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get());
+    }
+    for (const auto& io : oscIo) {
+        if (!IsSameString(config.surfaceName, io->GetName())) continue;
+        return make_unique<OSC_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get());
+    }
+    errorMessage = "Surface '" + config.surfaceName + "' has no valid matching SurfaceType definition";
+    return nullptr;
+}
+
+static ControlSurface* FindConfiguredSurface(Page* page, const string& surfaceName) {
+    for (const auto& surface : page->GetSurfaces()) if (surface->GetName() == surfaceName) return surface.get();
+    return nullptr;
+}
+
+static bool ApplyListenerConfig(Page* page, const ListenerConfig& config, string& errorMessage) {
+    ControlSurface* broadcaster = FindConfiguredSurface(page, config.broadcasterName);
+    ControlSurface* listener = FindConfiguredSurface(page, config.listenerName);
+    if (!broadcaster || !listener) {
+        errorMessage = "Listener relationship '" + config.broadcasterName + "' -> '" + config.listenerName + "' requires both surfaces to load successfully";
+        return false;
+    }
+
+    PropertyList properties;
+    if (config.goHome) properties.set_prop(PropertyType_GoHome, "Yes");
+    if (config.modifiers) properties.set_prop(PropertyType_Modifiers, "Yes");
+    if (config.fxMenu) properties.set_prop(PropertyType_FXMenu, "Yes");
+    if (config.selectedTrackFx) properties.set_prop(PropertyType_SelectedTrackFX, "Yes");
+    if (config.selectedTrackSends) properties.set_prop(PropertyType_SelectedTrackSends, "Yes");
+    if (config.selectedTrackReceives) properties.set_prop(PropertyType_SelectedTrackReceives, "Yes");
+    broadcaster->GetZoneManager()->AddListener(listener);
+    listener->GetZoneManager()->SetListenerCategories(properties);
+    return true;
+}
+
+struct ConfigLoadSummary {
+    int issueCount = 0;
+    int loadedSurfaceCount = 0;
+    int skippedSurfaceCount = 0;
+};
+
+static void CreateConfiguredIo(CSurfIntegrator* integrator, const IntegratorConfig& config, vector<unique_ptr<Midi_ControlSurfaceIO>>& midiIo, vector<unique_ptr<OSC_ControlSurfaceIO>>& oscIo, const string& configPath, ConfigLoadSummary& summary) {
+    for (const MidiIoConfig& io : config.midiIo) {
+        try {
+            midiIo.push_back(make_unique<Midi_ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.inputPort, io.outputPort, io.refreshRate, io.maxMessagesPerRun));
+        } catch (const std::exception& error) {
+            summary.issueCount++;
+            LogToConsole("[ERROR] Skipping MIDI SurfaceType '%s' from %s at line %d: %s\n", io.name.c_str(), configPath.c_str(), io.lineNumber, error.what());
+        }
+    }
+    for (const OscIoConfig& io : config.oscIo) {
+        try {
+            if (IsSameString(io.type, s_OSCSurfaceToken)) oscIo.push_back(make_unique<OSC_ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.receiveOnPort.c_str(), io.transmitToPort.c_str(), io.transmitToIpAddress.c_str(), io.maxPacketsPerRun));
+            else oscIo.push_back(make_unique<OSC_X32ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.receiveOnPort.c_str(), io.transmitToPort.c_str(), io.transmitToIpAddress.c_str(), io.maxPacketsPerRun));
+        } catch (const std::exception& error) {
+            summary.issueCount++;
+            LogToConsole("[ERROR] Skipping OSC SurfaceType '%s' from %s at line %d: %s\n", io.name.c_str(), configPath.c_str(), io.lineNumber, error.what());
+        }
+    }
+}
+
+static void CreateConfiguredPages(CSurfIntegrator* integrator, const IntegratorConfig& config, vector<unique_ptr<Page>>& pages) {
+    for (const PageConfig& page : config.pages) pages.push_back(make_unique<Page>(integrator, page.name.c_str(), page.followsMcp, page.synchPages, page.scrollLink, page.scrollSynch));
+    if (pages.empty()) pages.push_back(make_unique<Page>(integrator, "Home", false, false, false, false));
+}
+
+static void CreateConfiguredSurfaces(CSurfIntegrator* integrator, const IntegratorConfig& config, const ProductPaths& productPaths, const vector<unique_ptr<Midi_ControlSurfaceIO>>& midiIo, const vector<unique_ptr<OSC_ControlSurfaceIO>>& oscIo, vector<unique_ptr<Page>>& pages, const string& configPath, ConfigLoadSummary& summary) {
+    for (size_t pageIdx = 0; pageIdx < config.pages.size(); pageIdx++) {
+        Page* page = pages[pageIdx].get();
+        for (const SurfaceAssignmentConfig& surfaceConfig : config.pages[pageIdx].surfaces) {
+            string errorMessage;
+            try {
+                unique_ptr<ControlSurface> surface = CreateConfiguredSurface(integrator, page, surfaceConfig, productPaths, midiIo, oscIo, errorMessage);
+                if (!surface) {
+                    summary.issueCount++;
+                    summary.skippedSurfaceCount++;
+                    LogToConsole("[ERROR] Skipping Surface '%s' from %s at line %d: %s\n", surfaceConfig.surfaceName.c_str(), configPath.c_str(), surfaceConfig.lineNumber, errorMessage.c_str());
+                    continue;
+                }
+                page->GetSurfaces().push_back(std::move(surface));
+                summary.loadedSurfaceCount++;
+            } catch (const std::exception& error) {
+                summary.issueCount++;
+                summary.skippedSurfaceCount++;
+                LogToConsole("[ERROR] Skipping Surface '%s' from %s at line %d: %s\n", surfaceConfig.surfaceName.c_str(), configPath.c_str(), surfaceConfig.lineNumber, error.what());
+            }
+        }
+    }
+}
+
+static void ApplyConfiguredListeners(const IntegratorConfig& config, vector<unique_ptr<Page>>& pages, const string& configPath, ConfigLoadSummary& summary) {
+    for (size_t pageIdx = 0; pageIdx < config.pages.size(); pageIdx++) {
+        for (const ListenerConfig& listenerConfig : config.pages[pageIdx].listeners) {
+            string errorMessage;
+            try {
+                if (ApplyListenerConfig(pages[pageIdx].get(), listenerConfig, errorMessage)) continue;
+                summary.issueCount++;
+                LogToConsole("[ERROR] Skipping Listener from %s at line %d: %s\n", configPath.c_str(), listenerConfig.lineNumber, errorMessage.c_str());
+            } catch (const std::exception& error) {
+                summary.issueCount++;
+                LogToConsole("[ERROR] Skipping Listener from %s at line %d: %s\n", configPath.c_str(), listenerConfig.lineNumber, error.what());
+            }
+        }
+    }
+}
+
+static void InitializeConfiguredPages(vector<unique_ptr<Page>>& pages, ConfigLoadSummary& summary) {
+    for (auto& page : pages) {
+        for (auto& surface : page->GetSurfaces()) {
+            try {
+                surface->ForceClear();
+                surface->OnInitialization();
+            } catch (const std::exception& error) {
+                summary.issueCount++;
+                LogToConsole("[ERROR] Surface '%s' initialization failed on Page '%s': %s\n", surface->GetName(), page->GetName(), error.what());
+            }
+        }
+    }
+}
 
 void CSurfIntegrator::Init() {
-    pages_.clear();
-    midiSurfacesIO_.clear();
-    oscSurfacesIO_.clear();
-    string currentBroadcaster;
-    Page* currentPage = NULL;
+    this->pages_.clear();
+    this->midiSurfacesIO_.clear();
+    this->oscSurfacesIO_.clear();
     const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
     const string productRootPath = productPaths.ProductRoot().string();
-
-    if (!filesystem::exists(productRootPath)) {
+    if (!filesystem::is_directory(productRootPath)) {
         LogToConsole("[ERROR] Missing %s resource folder. Please check your installation, cannot find %s\n", ProductIdentity::DisplayName, productRootPath.c_str());
         return;
     }
 
-    const string iniFilePath = productPaths.ConfigFile().string();
-
-    if (!filesystem::exists(iniFilePath)) {
-        LogToConsole("[ERROR] Missing %s. Please check your installation, cannot find %s\n", ProductIdentity::ConfigFilename, iniFilePath.c_str());
+    const string configPath = productPaths.ConfigFile().string();
+    if (!filesystem::is_regular_file(configPath)) {
+        LogToConsole("[ERROR] Missing %s. Please check your installation, cannot find %s\n", ProductIdentity::ConfigFilename, configPath.c_str());
         return;
     }
 
-    int lineNumber = 0;
-
+    IntegratorConfig config;
     try {
-        ifstream iniFile(iniFilePath);
-
-        for (string line; getline(iniFile, line);) {
-            TrimLine(line);
-
-            if (lineNumber == 0) {
-                PropertyList pList;
-                vector<string> properties;
-                properties.push_back(line.c_str());
-                GetPropertiesFromTokens(0, 1, properties, pList);
-
-                const char* versionProp = pList.get_prop(PropertyType_Version);
-                if (versionProp) {
-                    if (!IsSameString(versionProp, s_MajorVersionToken)) {
-                        LogToConsole("[ERROR] %s version mismatch. The configuration version is not %s.\n", ProductIdentity::ConfigFilename, s_MajorVersionToken);
-                        //FIXME: so what? make backup and generate new, or at least prompt to confirm
-                        iniFile.close();
-                        return;
-                    } else {
-                        lineNumber++;
-                        continue;
-                    }
-                } else {
-                    LogToConsole("[ERROR] %s has no version.\n", ProductIdentity::ConfigFilename);
-                    //FIXME: so what? generate new, or at least prompt to confirm
-                    iniFile.close();
-                    return;
-                }
-            }
-
-            if (!line.empty() && line[0] == '#') continue;
-            if (IsCommentedOrEmpty(line)) continue;
-
-            vector<string> tokens;
-            GetTokens(tokens, line.c_str());
-
-            if (tokens.size() > 0) {
-                PropertyList pList;
-                GetPropertiesFromTokens(0, (int) tokens.size(), tokens, pList);
-
-                if (const char* typeProp = pList.get_prop(PropertyType_SurfaceType)) {
-                    if (const char* nameProp = pList.get_prop(PropertyType_SurfaceName)) {
-                        if (const char* channelCountProp = pList.get_prop(PropertyType_SurfaceChannelCount)) {
-                            int channelCount = atoi(channelCountProp);
-
-                            if (IsSameString(typeProp, s_MidiSurfaceToken) && tokens.size() == 7) {
-                                if (pList.get_prop(PropertyType_MidiInput) != NULL && pList.get_prop(PropertyType_MidiOutput) != NULL && pList.get_prop(PropertyType_MIDISurfaceRefreshRate) != NULL && pList.get_prop(PropertyType_MaxMIDIMesssagesPerRun) != NULL) {
-                                    int midiIn = atoi(pList.get_prop(PropertyType_MidiInput));
-                                    int midiOut = atoi(pList.get_prop(PropertyType_MidiOutput));
-                                    int surfaceRefreshRate = atoi(pList.get_prop(PropertyType_MIDISurfaceRefreshRate));
-                                    int maxMIDIMesssagesPerRun = atoi(pList.get_prop(PropertyType_MaxMIDIMesssagesPerRun));
-
-                                    midiSurfacesIO_.push_back(make_unique<Midi_ControlSurfaceIO>(this, nameProp, channelCount, midiIn, midiOut, surfaceRefreshRate, maxMIDIMesssagesPerRun));
-                                }
-                            } else if ((IsSameString(typeProp, s_OSCSurfaceToken) || IsSameString(typeProp, s_OSCX32SurfaceToken)) && tokens.size() == 7) {
-                                if (pList.get_prop(PropertyType_ReceiveOnPort) != NULL && pList.get_prop(PropertyType_TransmitToPort) != NULL && pList.get_prop(PropertyType_TransmitToIPAddress) != NULL && pList.get_prop(PropertyType_MaxPacketsPerRun) != NULL) {
-                                    const char* receiveOnPort = pList.get_prop(PropertyType_ReceiveOnPort);
-                                    const char* transmitToPort = pList.get_prop(PropertyType_TransmitToPort);
-                                    const char* transmitToIPAddress = pList.get_prop(PropertyType_TransmitToIPAddress);
-                                    int maxPacketsPerRun = atoi(pList.get_prop(PropertyType_MaxPacketsPerRun));
-
-                                    if (IsSameString(typeProp, s_OSCSurfaceToken))
-                                        oscSurfacesIO_.push_back(make_unique<OSC_ControlSurfaceIO>(this, nameProp, channelCount, receiveOnPort, transmitToPort, transmitToIPAddress, maxPacketsPerRun));
-                                    else if (IsSameString(typeProp, s_OSCX32SurfaceToken))
-                                        oscSurfacesIO_.push_back(make_unique<OSC_X32ControlSurfaceIO>(this, nameProp, channelCount, receiveOnPort, transmitToPort, transmitToIPAddress, maxPacketsPerRun));
-                                }
-                            }
-                        }
-                    }
-                } else if (const char* pageNameProp = pList.get_prop(PropertyType_PageName)) {
-                    bool followMCP = true;
-                    bool synchPages = true;
-                    bool isScrollLinkEnabled = false;
-                    bool isScrollSynchEnabled = false;
-
-                    currentPage = NULL;
-
-                    if (tokens.size() > 1) {
-                        if (const char* pageFollowsMCPProp = pList.get_prop(PropertyType_PageFollowsMCP)) if (IsSameString(pageFollowsMCPProp, "No")) followMCP = false;
-                        if (const char* synchPagesProp = pList.get_prop(PropertyType_SynchPages)) if (IsSameString(synchPagesProp, "No")) synchPages = false;
-                        if (const char* scrollLinkProp = pList.get_prop(PropertyType_ScrollLink)) if (IsSameString(scrollLinkProp, "Yes")) isScrollLinkEnabled = true;
-                        if (const char* scrollSynchProp = pList.get_prop(PropertyType_ScrollSynch)) if (IsSameString(scrollSynchProp, "Yes")) isScrollSynchEnabled = true;
-                        pages_.push_back(make_unique<Page>(this, pageNameProp, followMCP, synchPages, isScrollLinkEnabled, isScrollSynchEnabled));
-                        currentPage = pages_.back().get();
-                    }
-                } else if (const char* broadcasterProp = pList.get_prop(PropertyType_Broadcaster)) {
-                    currentBroadcaster = broadcasterProp;
-                } else if (currentPage && tokens.size() > 2 && currentBroadcaster != "" && pList.get_prop(PropertyType_Listener) != NULL) {
-                    if (currentPage && tokens.size() > 2 && currentBroadcaster != "") {
-                        ControlSurface* broadcaster = NULL;
-                        ControlSurface* listener = NULL;
-
-                        const vector<unique_ptr<ControlSurface>>& surfaces = currentPage->GetSurfaces();
-
-                        string currentSurface = string(pList.get_prop(PropertyType_Listener));
-
-                        for (int i = 0; i < surfaces.size(); ++i) {
-                            if (surfaces[i]->GetName() == currentBroadcaster)
-                                broadcaster = surfaces[i].get();
-                            if (surfaces[i]->GetName() == currentSurface)
-                                listener = surfaces[i].get();
-                        }
-
-                        if (broadcaster != NULL && listener != NULL) {
-                            broadcaster->GetZoneManager()->AddListener(listener);
-                            listener->GetZoneManager()->SetListenerCategories(pList);
-                        }
-                    }
-                } else if (currentPage && tokens.size() == 5) {
-                    if (const char* surfaceProp = pList.get_prop(PropertyType_Surface)) {
-                        if (const char* surfaceFolderProp = pList.get_prop(PropertyType_SurfaceFolder)) {
-                            if (const char* startChannelProp = pList.get_prop(PropertyType_StartChannel)) {
-                                int startChannel = atoi(startChannelProp);
-
-                                if (surfaceFolderProp[0] == '\0') {
-                                    LogToConsole("[ERROR] SurfaceFolder must contain a stable surface ID\n");
-                                    return;
-                                }
-
-                                std::optional<filesystem::path> resolvedSurfaceFile;
-                                try {
-                                    resolvedSurfaceFile = productPaths.FindSurfaceFile(surfaceFolderProp);
-                                } catch (const std::exception& error) {
-                                    LogToConsole("[ERROR] Invalid SurfaceFolder '%s': %s\n", surfaceFolderProp, error.what());
-                                    return;
-                                }
-
-                                if (!resolvedSurfaceFile) {
-                                    LogToConsole("[ERROR] Missing surface '%s'. Expected %s/%s.txt or %s/%s.txt\n", surfaceFolderProp, productPaths.UserSurfacesRoot().string().c_str(), surfaceFolderProp, productPaths.VendorSurfacesRoot().string().c_str(), surfaceFolderProp);
-                                    return;
-                                }
-                                const string surfaceFile = resolvedSurfaceFile->string();
-
-                                string zoneProfileId = surfaceFolderProp;
-                                if (const char* zoneFolderProp = pList.get_prop(PropertyType_ZoneFolder)) if (zoneFolderProp[0] != '\0') zoneProfileId = zoneFolderProp;
-                                std::optional<filesystem::path> resolvedMainZones;
-                                try {
-                                    resolvedMainZones = productPaths.FindMainZones(zoneProfileId);
-                                } catch (const std::exception& error) {
-                                    LogToConsole("[ERROR] Invalid ZoneFolder '%s': %s\n", zoneProfileId.c_str(), error.what());
-                                    return;
-                                }
-                                if (!resolvedMainZones) {
-                                    LogToConsole("[ERROR] Missing Main zone folder for profile '%s'. Expected %s or %s\n", zoneProfileId.c_str(), productPaths.MainZones(ZoneSource::User, zoneProfileId).string().c_str(), productPaths.MainZones(ZoneSource::Vendor, zoneProfileId).string().c_str());
-                                    return;
-                                }
-                                const string zoneFolder = resolvedMainZones->string();
-
-                                string fxZoneProfileId = surfaceFolderProp;
-                                if (const char* fxZoneFolderProp = pList.get_prop(PropertyType_FXZoneFolder)) if (fxZoneFolderProp[0] != '\0') fxZoneProfileId = fxZoneFolderProp;
-                                filesystem::path vendorFxZoneFolder;
-                                filesystem::path userFxZoneFolder;
-                                try {
-                                    vendorFxZoneFolder = productPaths.FxZones(ZoneSource::Vendor, fxZoneProfileId);
-                                    userFxZoneFolder = productPaths.FxZones(ZoneSource::User, fxZoneProfileId);
-                                } catch (const std::exception& error) {
-                                    LogToConsole("[ERROR] Invalid FXZoneFolder '%s': %s\n", fxZoneProfileId.c_str(), error.what());
-                                    return;
-                                }
-                                std::error_code createFxFolderError;
-                                filesystem::create_directories(userFxZoneFolder, createFxFolderError);
-                                if (createFxFolderError || !filesystem::is_directory(userFxZoneFolder)) {
-                                    LogToConsole("[ERROR] Unable to create User FX zone folder %s: %s\n", userFxZoneFolder.string().c_str(), createFxFolderError.message().c_str());
-                                    return;
-                                }
-                                const string vendorFxZoneFolderPath = vendorFxZoneFolder.string();
-                                const string userFxZoneFolderPath = userFxZoneFolder.string();
-
-                                bool foundIt = false;
-
-                                for (auto& io : midiSurfacesIO_) {
-                                    if (IsSameString(surfaceProp, io->GetName())) {
-                                        foundIt = true;
-                                        currentPage->GetSurfaces().push_back(make_unique<Midi_ControlSurface>(this, currentPage, surfaceProp, startChannel, surfaceFile.c_str(), zoneFolder.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get()));
-                                        break;
-                                    }
-                                }
-
-                                if (!foundIt) {
-                                    for (auto& io : oscSurfacesIO_) {
-                                        if (IsSameString(surfaceProp, io->GetName())) {
-                                            foundIt = true;
-                                            currentPage->GetSurfaces().push_back(make_unique<OSC_ControlSurface>(this, currentPage, surfaceProp, startChannel, surfaceFile.c_str(), zoneFolder.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get()));
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            lineNumber++;
-        }
-    } catch (const std::exception& e) {
-        LogToConsole("[ERROR] FAILED to Init in %s, around line %d\n", iniFilePath.c_str(), lineNumber);
-        LogToConsole("Exception: %s\n", e.what());
+        config = ParseIntegratorConfig(configPath);
+    } catch (const std::exception& error) {
+        LogToConsole("[ERROR] FAILED to parse %s: %s\n", configPath.c_str(), error.what());
+        return;
+    }
+    if (!config.fatalError.empty()) {
+        LogToConsole("[ERROR] FAILED to initialize configuration: %s\n", config.fatalError.c_str());
+        return;
     }
 
-    if (pages_.size() == 0)
-        pages_.push_back(make_unique<Page>(this, "Home", false, false, false, false));
+    ConfigLoadSummary summary { static_cast<int>(config.issues.size()), 0, config.skippedSurfaceCount };
+    for (const IntegratorConfigIssue& issue : config.issues) LogConfigIssue(configPath, issue);
+    CreateConfiguredIo(this, config, this->midiSurfacesIO_, this->oscSurfacesIO_, configPath, summary);
+    CreateConfiguredPages(this, config, this->pages_);
+    CreateConfiguredSurfaces(this, config, productPaths, this->midiSurfacesIO_, this->oscSurfacesIO_, this->pages_, configPath, summary);
+    ApplyConfiguredListeners(config, this->pages_, configPath, summary);
+    InitializeConfiguredPages(this->pages_, summary);
 
-    for (auto& page : pages_) {
-        for (auto& surface : page->GetSurfaces())
-            surface->ForceClear();
-        page->OnInitialization();
-    }
-
-    if (HasAnyOSKEnabled()) {
-        PublishOSKSurfacesList();
-        if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
-            for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+    LogToConsole("[NOTICE] Configuration loaded: %d page(s), %d surface(s), %d skipped surface(s), %d issue(s)\n", static_cast<int>(this->pages_.size()), summary.loadedSurfaceCount, summary.skippedSurfaceCount, summary.issueCount);
+    if (this->HasAnyOSKEnabled()) {
+        this->PublishOSKSurfacesList();
+        if (this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_]) {
+            for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) {
                 if (!surface->GetOskEnabled()) continue;
                 surface->PublishOSKLayout();
                 surface->PublishOSKLabels();
                 surface->PublishOSKState();
             }
         }
-        OpenOSKPanel();
+        this->OpenOSKPanel();
     }
 }

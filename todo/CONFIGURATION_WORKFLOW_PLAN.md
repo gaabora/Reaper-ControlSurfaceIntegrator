@@ -45,9 +45,9 @@ Large configuration changes belong in a local Bun and TypeScript editor. The Lua
 
 - ReaPack owns `Surfaces/Vendor`, `Zones/Vendor`, and `Snippets/BuiltIn`.
 - Users own `Surfaces/User`, `Zones/User`, and `Snippets/User`.
-- The editor must clone a vendor surface or zone profile into its matching `User` root before allowing user changes.
-- OSK and FX Learn must request confirmation and clone a complete vendor zone profile before writing zone files.
-- A user surface or zone profile with the same ID overrides its vendor source at runtime.
+- The editor copies a Vendor surface before editing it, copies only Vendor Main before editing Main, and copies only the selected Vendor FX file before editing it.
+- OSK requests confirmation before copying Vendor Main or one Vendor FX file. FX Learn and new FX zones write directly to User FX.
+- A User surface with the same ID overrides Vendor. User Main is selected as a complete layer when present. Vendor and User FX load together, with an exact User `Zone` name overriding Vendor.
 - ReaPack updates must never write to user-owned directories.
 - Users own `Generated`; ReaPack must never write to it.
 - Local development may link `Surfaces`, `Zones`, and `Snippets` from the product root to the repository resource tree. It may also link the repository `Scripts/` directory to `REAPER/Scripts/<ProductScriptDirectory>`. Installers and ReaPack packages must contain normal files and directories.
@@ -197,7 +197,7 @@ Ready when legacy content can be imported repeatedly without runtime legacy supp
 - ✅ Add a validated `OSKLayout` block to every vendor MIDI surface file. Runtime support, editor validation, and the first formal `FaderPortV2` layout are verified.
 - ✅ Generate versioned surface and matching zone-profile packages through the preview ReaPack foundation from Phase 2. Stable publication remains gated by the clean-install checks documented in `docs/REAPACK.md`.
 - ✅ Verify that generated install and update paths touch only `Surfaces/Vendor` and `Zones/Vendor`. Two local preview versions produced identical targets and no user-owned targets.
-- ✅ Require the editor to clone a vendor surface or zone profile before customization.
+- ✅ Require the editor to copy a Vendor surface, a Vendor Main directory, or one selected Vendor FX file before customization.
 
 Ready when every vendor MIDI surface has an installable layout and ReaPack cannot overwrite user content.
 

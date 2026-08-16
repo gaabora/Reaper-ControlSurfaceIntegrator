@@ -321,25 +321,22 @@ Widget WidgetName /fader1 fader
 Widget WidgetName2 /button1 button
 ```
 
-### CSI Configuration File (CSI.ini)
+### Product Configuration File
 
-Main plugin configuration in REAPER resource path.
+The product INI is stored below `Data/<ProductResourceDirectory>` and uses the filename from `Scripts/product_identity.conf`.
 
-**Sections**:
-- `[CSI]`: Global settings
-- `[Pages]`: Page definitions
-- `[Surfaces]`: Surface configurations
-- MIDI device mappings
-- OSC network settings
+The loader first parses MIDI and OSC IO, Pages, Surface assignments, and Listener relationships into value-only records. It then creates runtime objects in separate passes. A missing file or incompatible version stops initialization. An invalid individual entry is logged with its line number and skipped without stopping other Surfaces.
 
 ## Execution Model
 
 ### Initialization
 1. REAPER loads plugin via `ReaperPluginEntry()`
 2. `CSurfIntegrator::Init()` called
-3. Zones indexed via `PreProcessZones()`
-4. Surfaces and Pages loaded from config
-5. Home zone activated
+3. Product INI parsed without runtime side effects
+4. IO and Pages created
+5. Valid Surfaces created independently and their zones indexed
+6. Listener relationships applied after Surfaces
+7. Home zones activated
 
 ### Main Loop (30x/sec)
 ```cpp
