@@ -5,7 +5,7 @@ import { parseByPath, type AnyDocument } from "./formats.ts";
 import { addDiagnostic, serializeDocument, type Diagnostic } from "./model.ts";
 import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
 import { EditorOperationError } from "./store.ts";
-import { diagnosticWithQuickFixes } from "./quick-fixes.ts";
+import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
@@ -409,7 +409,7 @@ export class LegacyCsiSource {
         const items: LegacyImportItem[] = [];
         const appendItem = async (kind: LegacyImportKind, sourcePath: string, originalSourceHash: string, targetPath: string, source: string, document: AnyDocument, selected: boolean, zoneName?: string): Promise<void> => {
             const targetState = await store.fileState(targetPath);
-            items.push({ diagnostics: document.diagnostics, id: `${kind}:${sourcePath}`, kind, originalSourceHash, selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, zoneName });
+            items.push({ diagnostics: diagnosticsWithQuickFixes(document, knownActions, true), id: `${kind}:${sourcePath}`, kind, originalSourceHash, selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, zoneName });
         };
         await appendItem("surface", files.surface.sourcePath, files.surface.originalSourceHash, surfaceTargetPath, migratedSurface, surfaceDocument, includeSurface);
         for (const zone of files.zones) {
@@ -425,7 +425,7 @@ export class LegacyCsiSource {
             const document = diagnostic.path ? selectedDocumentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
             return document ? diagnosticWithQuickFixes(document, diagnostic, knownActions, true) : diagnostic;
         });
-        const diagnostics = selectedDocuments.flatMap((document) => document.diagnostics).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
+        const diagnostics = selectedDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, true)).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
         const selectedTargetPaths = new Map<string, string>();
         for (const item of items.filter((candidate) => candidate.selected)) {
             const targetKey = item.targetPath.toLowerCase();

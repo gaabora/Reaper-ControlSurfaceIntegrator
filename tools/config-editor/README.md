@@ -58,6 +58,8 @@ The browser URL stores the current task, open configuration file, diagnostic lin
 
 Some diagnostics offer one or more quick-fix links. A quick fix is validated against the current source, changes only the unsaved draft, and still requires Save or Save all. Quick fixes are registered by stable IDs in `src/quick-fixes.ts`; the first registered fix adds a missing `// @format zone 1` marker.
 
+An unknown Zone action can offer up to three similar runtime actions. Selecting one replaces only the action token in the unsaved file or import draft.
+
 The editor follows linked files and directories. This lets a development product root link `Surfaces`, `Zones`, and `Snippets` directly to repository resources. Access and write permissions still use the logical configuration path, so linked vendor content remains read-only and only supported paths below `User` are writable. Directory link cycles are shown as unavailable instead of being traversed.
 
 ## Legacy CSI import

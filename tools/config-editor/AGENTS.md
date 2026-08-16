@@ -37,6 +37,7 @@
 - Report a zone dependency cycle on the exact dependency line that closes it. Offer a quick fix that comments out only that line in the unsaved configuration or legacy import draft, then revalidate the legacy preview.
 - Render diagnostic messages as selectable text. Use separate navigation links for file and line targets, and separate quick-fix links for writable sources.
 - Register quick fixes in the TypeScript quick-fix registry. Give every fix a stable ID, calculate its available variants from the current diagnostic and source, validate it again before applying it, and change only the unsaved draft.
+- Suggest no more than three runtime action replacements whose case-insensitive normalized Levenshtein distance is at most `0.4`. Keep each suggestion as a separate quick fix in current Zone files and legacy import drafts.
 - Add every writable text change to Save all automatically. Preserve each unsaved file as one debounced temporary draft keyed by the SHA-256 of its full logical path, restore it across browser and editor restarts, mark it with bold text and `*` in the tree, and remove it after a successful save or a return to the saved source.
 - Let Discard changes restore the current file from disk and remove its recovery draft only after confirmation.
 - Reject automatic recovery when the source hash changed after draft creation. Require an explicit Use draft or Discard draft choice.

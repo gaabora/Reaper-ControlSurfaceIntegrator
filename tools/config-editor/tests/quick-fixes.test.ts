@@ -3,7 +3,7 @@ import { parseByPath } from "../src/formats.ts";
 import { applyQuickFix, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, QuickFixError } from "../src/quick-fixes.ts";
 import { validateDocumentSet } from "../src/validation.ts";
 
-const knownActions = new Set(["GoZone", "Play"]);
+const knownActions = new Set(["GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
 
 describe("diagnostic quick fix registry", () => {
     test("offers and applies the zone format marker fix without saving", () => {
@@ -48,6 +48,18 @@ describe("diagnostic quick fix registry", () => {
         const result = applyQuickFix(source, relativePath, knownActions, { diagnostic: { code: diagnostic!.code, line: diagnostic!.line, message: diagnostic!.message }, fix: { id: diagnostic!.fixes![0].id } });
         expect(result.source).toContain("\n  // disabled binding\n");
         expect(result.document.diagnostics.some((candidate) => candidate.code === "comment.hash.unsupported")).toBeFalse();
+    });
+
+    test("offers and applies several similar runtime action fixes without changing spacing", () => {
+        const relativePath = "Zones/User/test/Main/Channel.zon";
+        const source = "// @format zone 1\nZone Channel\n  Rotary1    MCUTrackPan    NoFeedback=Yes // keep\nZoneEnd\n";
+        const document = parseByPath(source, relativePath, knownActions);
+        const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "zone.action.unknown");
+
+        expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["TrackPan", "TrackPanL", "TrackPanR"]);
+        const result = applyQuickFix(source, relativePath, knownActions, { diagnostic: { code: diagnostic!.code, line: diagnostic!.line, message: diagnostic!.message }, fix: diagnostic!.fixes![0] });
+        expect(result.source).toContain("  Rotary1    TrackPan    NoFeedback=Yes // keep\n");
+        expect(result.document.diagnostics.some((candidate) => candidate.code === "zone.action.unknown")).toBeFalse();
     });
 
     test("comments out the exact dependency line that closes a zone cycle", () => {

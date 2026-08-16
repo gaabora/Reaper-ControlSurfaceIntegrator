@@ -19,6 +19,7 @@
 - Treat only `//` as Surface and Zone comments. Preserve single slash tokens as data so OSC addresses such as `/ch/01/mix/fader` reach the OSC widget parser.
 - Treat the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives as metadata, not as comments.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
+- Register bundled OSK and OSD ReaScripts with their absolute resource paths. If REAPER reports an already registered script as an add failure, reuse one unique matching command from the Main action section and reject ambiguous matches.
 - Load configuration, surfaces, zones, logs, backups, snippets, and generated files through the generated product identity and `ProductPaths`; do not add runtime fallback to legacy CSI paths.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.
 - Vendor zone profiles are read-only. Resolve `Zones/User` before `Zones/Vendor`; OSK and FX Learn writes require confirmation and an atomic full-profile clone into `Zones/User`. OSK reloads from the user copy after saving.

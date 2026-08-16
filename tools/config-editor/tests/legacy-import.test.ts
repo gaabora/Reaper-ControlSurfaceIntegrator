@@ -14,7 +14,7 @@ const identity: EditorProductIdentity = {
     productId: "test-product",
     resourceDirectory: "TestProduct",
 };
-const knownActions = new Set(["GoZone", "Play", "TrackVolumeDisplay"]);
+const knownActions = new Set(["GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR", "TrackVolumeDisplay"]);
 const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
@@ -67,6 +67,17 @@ describe("legacy CSI import", () => {
         expect(preview.valid).toBeTrue();
         expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source).toStartWith("// @format zone 1\n// disabled binding\n");
         expect(await readFile(sourcePath, "utf8")).toBe(legacySource);
+    });
+
+    test("offers similar action fixes in an import draft", async () => {
+        const sourcePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        await writeFile(sourcePath, "Zone Home\n  Play MCUTrackPan\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const diagnostic = preview.diagnostics.find((candidate) => candidate.code === "zone.action.unknown");
+
+        expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["TrackPan", "TrackPanL", "TrackPanR"]);
+        expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.diagnostics.find((candidate) => candidate.code === "zone.action.unknown")?.fixes).toEqual(diagnostic?.fixes);
     });
 
     test("discovers a surface from a parent path and prepares a complete preview", async () => {

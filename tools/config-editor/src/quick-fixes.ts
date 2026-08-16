@@ -1,5 +1,6 @@
 import { parseByPath, type AnyDocument } from "./formats.ts";
 import { serializeDocument, type Diagnostic, type DiagnosticQuickFix } from "./model.ts";
+import { suggestSimilarStrings } from "./string-distance.ts";
 import { convertHashCommentLine, convertSingleSlashCommentLine } from "./text.ts";
 import type { ZoneSemantic } from "./zone.ts";
 
@@ -69,6 +70,26 @@ function commentOutDependency(context: QuickFixContext, fix: DiagnosticQuickFix)
     return serializeDocument(context.document);
 }
 
+function unknownZoneActionAtDiagnosticLine(context: QuickFixContext): string | undefined {
+    if (context.document.format !== "zone" || !context.diagnostic.line) return undefined;
+    const semantic = context.document.semantic as ZoneSemantic;
+    return semantic.bindings.find((binding) => binding.line === context.diagnostic.line)?.action;
+}
+
+function replaceUnknownZoneAction(context: QuickFixContext, fix: DiagnosticQuickFix): string {
+    const currentAction = unknownZoneActionAtDiagnosticLine(context);
+    const originalAction = fix.data?.originalAction;
+    const replacementAction = fix.data?.replacementAction;
+    if (!currentAction || currentAction !== originalAction) throw new QuickFixError("quick-fix.source", "The unknown action line no longer matches this suggestion");
+    if (!replacementAction || !context.knownActions.has(replacementAction)) throw new QuickFixError("quick-fix.action", "The suggested action is no longer available");
+    const line = context.document.lines[context.diagnostic.line! - 1];
+    if (!line) throw new QuickFixError("quick-fix.line", "The unknown action line is no longer available");
+    const bindingMatch = line.text.match(/^(\s*\S+\s+)(\S+)(.*)$/);
+    if (!bindingMatch || bindingMatch[2] !== originalAction) throw new QuickFixError("quick-fix.source", "The action token is no longer available at the expected position");
+    line.text = bindingMatch[1] + replacementAction + bindingMatch[3];
+    return serializeDocument(context.document);
+}
+
 const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
     {
         apply: (context) => convertSingleSlashComment(context),
@@ -84,6 +105,16 @@ const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
         apply: (context) => prependMarker(context.document.source, "// @format zone 1", context.document),
         fixes: (context) => context.diagnostic.code === "zone.format.missing" && context.document.format === "zone" ? [{ id: "zone.format.add", label: "Add // @format zone 1" }] : [],
         id: "zone.format.add",
+    },
+    {
+        apply: (context, fix) => replaceUnknownZoneAction(context, fix),
+        fixes: (context) => {
+            if (context.diagnostic.code !== "zone.action.unknown") return [];
+            const originalAction = unknownZoneActionAtDiagnosticLine(context);
+            if (!originalAction) return [];
+            return suggestSimilarStrings(originalAction, context.knownActions).map((replacementAction) => ({ data: { originalAction, replacementAction }, id: "zone.action.replace", label: replacementAction }));
+        },
+        id: "zone.action.replace",
     },
     {
         acceptsSetDiagnostic: true,

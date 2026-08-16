@@ -57,6 +57,8 @@ private:
     int projectMetronomeSecondaryVolumeOffs_; // for double -- if invalid, use fallbacks
 
     void InitActionsDictionary();
+    int FindRegisteredReaScriptCommandId(const filesystem::path& scriptPath) const;
+    int ResolveReaScriptCommandId(const char* relativeScriptPath, const char* operationName) const;
 
     void PollMidiDevices() {
         for (auto& midiSurfaceIO : this->midiSurfacesIO_) {
@@ -178,26 +180,14 @@ public:
     osd_data QueuedOSD;
     int osdCommandId_ = 0;
     void OpenOSDPanel() {
-        string scriptsPath = string(GetResourcePath()) + REASCRIPT_PATH__CSI_OSD;
         if (this->osdCommandId_ == 0) {
-            this->osdCommandId_ = AddRemoveReaScript(true, 0, scriptsPath.c_str(), true);
-            if (this->osdCommandId_ == 0) {
-                LogToConsole("[ERROR] FAILED to OpenOSDPanel. AddRemoveReaScript failed for '%s'\n", REASCRIPT_PATH__CSI_OSD);
-                return;
-            }
-            if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ReaScript %s was loaded: commandId=%d\n", REASCRIPT_PATH__CSI_OSD, this->osdCommandId_);
+            this->osdCommandId_ = this->ResolveReaScriptCommandId(REASCRIPT_PATH__CSI_OSD, "OpenOSDPanel");
+            if (this->osdCommandId_ == 0) return;
         }
         int runningState;
         for (int attempt = 1; attempt <= 2; ++attempt) {
             runningState = GetToggleCommandState(this->osdCommandId_);
             if (runningState == 1) return;
-            if (attempt == 2) {
-                this->osdCommandId_ = AddRemoveReaScript(true, 0, scriptsPath.c_str(), true);
-                if (this->osdCommandId_ == 0) {
-                    LogToConsole("[ERROR] FAILED to OpenOSDPanel. AddRemoveReaScript failed for '%s'\n", REASCRIPT_PATH__CSI_OSD);
-                    return;
-                }
-            }
             DAW::SendCommandMessage(this->osdCommandId_);
         }
         runningState = GetToggleCommandState(this->osdCommandId_);
@@ -495,18 +485,13 @@ public:
 
     int oskCommandId_ = 0;
     void OpenOSKPanel() {
-        string scriptsPath = string(GetResourcePath()) + REASCRIPT_PATH__CSI_OSK;
-        if (oskCommandId_ == 0) {
-            oskCommandId_ = AddRemoveReaScript(true, 0, scriptsPath.c_str(), true);
-            if (oskCommandId_ == 0) {
-                LogToConsole("[ERROR] FAILED to OpenOSKPanel. AddRemoveReaScript failed for '%s'\n", REASCRIPT_PATH__CSI_OSK);
-                return;
-            }
-            if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ReaScript %s was loaded: commandId=%d\n", REASCRIPT_PATH__CSI_OSK, oskCommandId_);
+        if (this->oskCommandId_ == 0) {
+            this->oskCommandId_ = this->ResolveReaScriptCommandId(REASCRIPT_PATH__CSI_OSK, "OpenOSKPanel");
+            if (this->oskCommandId_ == 0) return;
         }
-        int runningState = GetToggleCommandState(oskCommandId_);
+        int runningState = GetToggleCommandState(this->oskCommandId_);
         if (runningState == 1) return;
-        DAW::SendCommandMessage(oskCommandId_);
+        DAW::SendCommandMessage(this->oskCommandId_);
     }
 
     void CloseOSKPanel() {
