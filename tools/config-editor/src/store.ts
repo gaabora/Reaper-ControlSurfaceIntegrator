@@ -313,8 +313,9 @@ export class ConfigurationStore {
             const targetPath = `Snippets/User/${segments[2]}`;
             return this.cloneFile(relativePath, targetPath);
         }
-        if (info.owner === "vendor" && info.kind === "zone") return this.cloneZoneProfile(segments[2]);
-        throw new EditorOperationError("clone.unsupported", "Only vendor surfaces, vendor zone profiles, and built-in snippets can be cloned");
+        if (info.owner === "vendor" && info.kind === "zone" && segments[3] === "FX") return this.cloneFile(relativePath, `Zones/User/${segments.slice(2).join("/")}`);
+        if (info.owner === "vendor" && info.kind === "zone" && segments[3] === "Main") return this.cloneMainZones(segments[2]);
+        throw new EditorOperationError("clone.unsupported", "Only vendor surfaces, vendor Main zones, individual vendor FX zones, and built-in snippets can be cloned");
     }
 
     private async cloneFile(sourceRelativePath: string, targetRelativePath: string): Promise<OperationReport> {
@@ -323,15 +324,15 @@ export class ConfigurationStore {
         return this.saveTransaction([{ originalHash: null, path: targetRelativePath, source }]);
     }
 
-    private async cloneZoneProfile(profileId: string): Promise<OperationReport> {
+    private async cloneMainZones(profileId: string): Promise<OperationReport> {
         if (!/^[a-z0-9][a-z0-9_-]*$/.test(profileId)) throw new EditorOperationError("clone.profile-id", `Invalid vendor profile ID: ${profileId}`);
-        const sourceRelativePath = `Zones/Vendor/${profileId}`;
-        const targetRelativePath = `Zones/User/${profileId}`;
+        const sourceRelativePath = `Zones/Vendor/${profileId}/Main`;
+        const targetRelativePath = `Zones/User/${profileId}/Main`;
         const sourceRoot = await this.guard.resolveExisting(sourceRelativePath);
         const targetRoot = await this.guard.resolveForWrite(targetRelativePath);
         try {
             await lstat(targetRoot);
-            throw new EditorOperationError("conflict.exists", `User zone profile already exists: ${profileId}`);
+            throw new EditorOperationError("conflict.exists", `User Main zone folder already exists: ${profileId}`);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
@@ -352,7 +353,7 @@ export class ConfigurationStore {
 
     private async copyDirectory(sourceDirectory: string, targetDirectory: string, sourceRelativeDirectory: string, report: OperationReport, ancestorDirectories: Set<string>): Promise<void> {
         const canonicalDirectory = await realpath(sourceDirectory);
-        if (ancestorDirectories.has(canonicalDirectory)) throw new EditorOperationError("clone.cycle", `Vendor profile contains a directory link cycle: ${sourceRelativeDirectory}`);
+        if (ancestorDirectories.has(canonicalDirectory)) throw new EditorOperationError("clone.cycle", `Vendor Main zone folder contains a directory link cycle: ${sourceRelativeDirectory}`);
         const currentAncestors = new Set(ancestorDirectories);
         currentAncestors.add(canonicalDirectory);
         for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
@@ -367,7 +368,7 @@ export class ConfigurationStore {
                 await copyFile(sourcePath, targetPath);
                 report.created.push(sourceRelativePath.replace("Zones/Vendor/", "Zones/User/"));
             } else {
-                throw new EditorOperationError("clone.file-type", `Vendor profile contains an unsupported file: ${sourceRelativePath}`);
+                throw new EditorOperationError("clone.file-type", `Vendor Main zone folder contains an unsupported file: ${sourceRelativePath}`);
             }
         }
     }

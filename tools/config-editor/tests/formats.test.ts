@@ -105,6 +105,29 @@ describe("configuration formats", () => {
         expect(validateDocumentSet([alpha, beta]).some((diagnostic) => diagnostic.code === "zones.dependency.cycle" && diagnostic.severity === "error" && diagnostic.path === "/zones/beta.zon" && diagnostic.line === 3)).toBeTrue();
     });
 
+    test("User FX zones override same-name Vendor FX zones", () => {
+        const vendor = parseByPath("// @format zone 1\nZone Compressor\n  Play GoZone MissingVendorDependency\nZoneEnd\n", "/config/Zones/Vendor/faderportv2/FX/Compressor.zon");
+        const user = parseByPath("// @format zone 1\nZone Compressor\n  Play Play\nZoneEnd\n", "/config/Zones/User/faderportv2/FX/Compressor.zon");
+        const diagnostics = validateDocumentSet([user, vendor]);
+        expect(diagnostics.some((diagnostic) => diagnostic.code === "zones.name.duplicate")).toBeFalse();
+        expect(diagnostics.some((diagnostic) => diagnostic.code === "zones.dependency.missing" && diagnostic.path === vendor.path)).toBeFalse();
+    });
+
+    test("User Main selects the whole Main layer", () => {
+        const vendor = parseByPath("// @format zone 1\nZone Home\n  Play GoZone MissingVendorDependency\nZoneEnd\n", "/config/Zones/Vendor/faderportv2/Main/Home.zon");
+        const user = parseByPath("// @format zone 1\nZone Home\n  Play Play\nZoneEnd\n", "/config/Zones/User/faderportv2/Main/Home.zon");
+        const diagnostics = validateDocumentSet([vendor, user]);
+        expect(diagnostics.some((diagnostic) => diagnostic.code === "zones.name.duplicate")).toBeFalse();
+        expect(diagnostics.some((diagnostic) => diagnostic.code === "zones.dependency.missing" && diagnostic.path === vendor.path)).toBeFalse();
+    });
+
+    test("same-layer FX zone names remain duplicates", () => {
+        const override = parseByPath("// @format zone 1\nZone Compressor\nZoneEnd\n", "/config/Zones/User/faderportv2/FX/Compressor.zon");
+        const first = parseByPath("// @format zone 1\nZone Compressor\nZoneEnd\n", "/config/Zones/Vendor/faderportv2/FX/Compressor.zon");
+        const second = parseByPath("// @format zone 1\nZone Compressor\nZoneEnd\n", "/config/Zones/Vendor/faderportv2/FX/Other.zon");
+        expect(validateDocumentSet([override, first, second]).some((diagnostic) => diagnostic.code === "zones.name.duplicate" && diagnostic.severity === "error")).toBeTrue();
+    });
+
     test("runtime action catalog comes from ACTION_TYPE_LIST", async () => {
         const catalog = await loadActionCatalog(repositoryRoot);
         const names = actionNameSet(catalog);

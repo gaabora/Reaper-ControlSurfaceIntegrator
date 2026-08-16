@@ -3,9 +3,36 @@ import { addDiagnostic, type Diagnostic } from "./model.ts";
 import type { AnyDocument } from "./formats.ts";
 import type { ZoneDependencyReference, ZoneSemantic } from "./zone.ts";
 
+interface ZoneLayerLocation {
+    collection: "FX" | "Main";
+    profileId: string;
+    source: "User" | "Vendor";
+}
+
+function zoneLayerLocation(documentPath?: string): ZoneLayerLocation | undefined {
+    if (!documentPath) return undefined;
+    const match = documentPath.replaceAll("\\", "/").match(/(?:^|\/)Zones\/(Vendor|User)\/([^/]+)\/(Main|FX)(?:\/|$)/);
+    if (!match) return undefined;
+    return { collection: match[3] as "FX" | "Main", profileId: match[2], source: match[1] as "User" | "Vendor" };
+}
+
+function isFxLayerOverride(existing: AnyDocument, incoming: AnyDocument): boolean {
+    const existingLocation = zoneLayerLocation(existing.path);
+    const incomingLocation = zoneLayerLocation(incoming.path);
+    const existingName = (existing.semantic as ZoneSemantic).name;
+    const incomingName = (incoming.semantic as ZoneSemantic).name;
+    return existingName === incomingName && existingLocation?.collection === "FX" && incomingLocation?.collection === "FX" && existingLocation.profileId === incomingLocation.profileId && existingLocation.source !== incomingLocation.source;
+}
+
 export function validateDocumentSet(documents: AnyDocument[]): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
     const zonesByName = new Map<string, AnyDocument>();
+    const fxZonesByLayer = new Map<string, AnyDocument>();
+    const userMainProfiles = new Set<string>();
+    for (const document of documents) {
+        const location = zoneLayerLocation(document.path);
+        if (location?.collection === "Main" && location.source === "User") userMainProfiles.add(location.profileId);
+    }
     const documentsByPath = new Map<string, AnyDocument>();
     for (const document of documents) {
         if (!document.path) continue;
@@ -19,12 +46,23 @@ export function validateDocumentSet(documents: AnyDocument[]): Diagnostic[] {
         const semantic = document.semantic as ZoneSemantic;
         if (!semantic.name) continue;
         const lowercaseName = semantic.name.toLowerCase();
+        const location = zoneLayerLocation(document.path);
+        if (location?.collection === "Main" && location.source === "Vendor" && userMainProfiles.has(location.profileId)) continue;
+        if (location?.collection === "FX") {
+            const layerKey = `${location.profileId}\0${location.source}\0${lowercaseName}`;
+            if (fxZonesByLayer.has(layerKey)) {
+                addDiagnostic(diagnostics, "error", "zones.name.duplicate", `Zone name is duplicated case-insensitively in the same FX layer: ${semantic.name}`, undefined, document.path);
+                continue;
+            }
+            fxZonesByLayer.set(layerKey, document);
+        }
         const existing = zonesByName.get(lowercaseName);
-        if (existing) addDiagnostic(diagnostics, "error", "zones.name.duplicate", `Zone name is duplicated case-insensitively: ${semantic.name}`, undefined, document.path);
+        if (existing && isFxLayerOverride(existing, document)) {
+            if (location?.source === "User") zonesByName.set(lowercaseName, document);
+        } else if (existing) addDiagnostic(diagnostics, "error", "zones.name.duplicate", `Zone name is duplicated case-insensitively: ${semantic.name}`, undefined, document.path);
         else zonesByName.set(lowercaseName, document);
     }
-    for (const document of documents) {
-        if (document.format !== "zone") continue;
+    for (const document of zonesByName.values()) {
         const semantic = document.semantic as ZoneSemantic;
         for (const dependency of semantic.dependencies) if (!zonesByName.has(dependency.toLowerCase())) addDiagnostic(diagnostics, "warning", "zones.dependency.missing", `Referenced zone was not included in this validation set: ${dependency}`, undefined, document.path);
     }

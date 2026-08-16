@@ -22,7 +22,7 @@
 - Register bundled OSK and OSD ReaScripts with their absolute resource paths. If REAPER reports an already registered script as an add failure, reuse one unique matching command from the Main action section and reject ambiguous matches.
 - Load configuration, surfaces, zones, logs, backups, snippets, and generated files through the generated product identity and `ProductPaths`; do not add runtime fallback to legacy CSI paths.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.
-- Vendor zone profiles are read-only. Resolve `Zones/User` before `Zones/Vendor`; OSK and FX Learn writes require confirmation and an atomic full-profile clone into `Zones/User`. OSK reloads from the user copy after saving.
+- Vendor zones are read-only. Use User Main when its directory exists, otherwise use Vendor Main. Load Vendor and User FX zones together, with an exact User `Zone` name overriding Vendor. Create the User FX directory during initialization. A Vendor Main edit requires confirmation and an atomic Main-only copy. A Vendor FX edit copies only that file to the matching User FX path. Reload zones after activating either User copy.
 - Keep OSK zone creation in `zone_file_creator.*`. Accept only the supported fixed scaffold destinations, create one complete temporary file before rename, reject case-insensitive file or zone-name duplicates, and never edit a parent zone as part of creation.
 - Route OSK wheel acceleration through indexed relative actions using the current structured scroll payload only.
 - Resolve OSK display labels in this order: explicit KeyLabel, meaningful OSD text, action title, then the surface label or widget name.

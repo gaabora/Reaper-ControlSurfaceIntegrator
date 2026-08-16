@@ -168,48 +168,45 @@ void CSurfIntegrator::Init() {
 
                                 string zoneProfileId = surfaceFolderProp;
                                 if (const char* zoneFolderProp = pList.get_prop(PropertyType_ZoneFolder)) if (zoneFolderProp[0] != '\0') zoneProfileId = zoneFolderProp;
-                                std::optional<filesystem::path> resolvedZoneProfile;
+                                std::optional<filesystem::path> resolvedMainZones;
                                 try {
-                                    resolvedZoneProfile = productPaths.FindZoneProfileDirectory(zoneProfileId);
+                                    resolvedMainZones = productPaths.FindMainZones(zoneProfileId);
                                 } catch (const std::exception& error) {
                                     LogToConsole("[ERROR] Invalid ZoneFolder '%s': %s\n", zoneProfileId.c_str(), error.what());
                                     return;
                                 }
-                                if (!resolvedZoneProfile) {
-                                    LogToConsole("[ERROR] Missing zone profile '%s'. Expected under %s or %s\n", zoneProfileId.c_str(), productPaths.UserZonesRoot().string().c_str(), productPaths.VendorZonesRoot().string().c_str());
+                                if (!resolvedMainZones) {
+                                    LogToConsole("[ERROR] Missing Main zone folder for profile '%s'. Expected %s or %s\n", zoneProfileId.c_str(), productPaths.MainZones(ZoneSource::User, zoneProfileId).string().c_str(), productPaths.MainZones(ZoneSource::Vendor, zoneProfileId).string().c_str());
                                     return;
                                 }
-                                const string zoneFolder = (*resolvedZoneProfile / "Main").string();
-                                if (!filesystem::is_directory(zoneFolder)) {
-                                    LogToConsole("[ERROR] Missing Main zone folder %s\n", zoneFolder.c_str());
-                                    return;
-                                }
+                                const string zoneFolder = resolvedMainZones->string();
 
                                 string fxZoneProfileId = surfaceFolderProp;
                                 if (const char* fxZoneFolderProp = pList.get_prop(PropertyType_FXZoneFolder)) if (fxZoneFolderProp[0] != '\0') fxZoneProfileId = fxZoneFolderProp;
-                                std::optional<filesystem::path> resolvedFxZoneProfile;
+                                filesystem::path vendorFxZoneFolder;
+                                filesystem::path userFxZoneFolder;
                                 try {
-                                    resolvedFxZoneProfile = productPaths.FindZoneProfileDirectory(fxZoneProfileId);
+                                    vendorFxZoneFolder = productPaths.FxZones(ZoneSource::Vendor, fxZoneProfileId);
+                                    userFxZoneFolder = productPaths.FxZones(ZoneSource::User, fxZoneProfileId);
                                 } catch (const std::exception& error) {
                                     LogToConsole("[ERROR] Invalid FXZoneFolder '%s': %s\n", fxZoneProfileId.c_str(), error.what());
                                     return;
                                 }
-                                if (!resolvedFxZoneProfile) {
-                                    LogToConsole("[ERROR] Missing FX zone profile '%s'. Expected under %s or %s\n", fxZoneProfileId.c_str(), productPaths.UserZonesRoot().string().c_str(), productPaths.VendorZonesRoot().string().c_str());
-                                    return;//FIXME: create folder in user no matter if it exist in vendor, but ALSO in other places where using, to not overduplicate but still use vendor fx zones together with user fx zones, if user did not try make changes to vendor fx zone 
-                                }
-                                const string fxZoneFolder = (*resolvedFxZoneProfile / "FX").string();
-                                if (!filesystem::is_directory(fxZoneFolder)) {
-                                    LogToConsole("[ERROR] Missing FX zone folder %s\n", fxZoneFolder.c_str());
+                                std::error_code createFxFolderError;
+                                filesystem::create_directories(userFxZoneFolder, createFxFolderError);
+                                if (createFxFolderError || !filesystem::is_directory(userFxZoneFolder)) {
+                                    LogToConsole("[ERROR] Unable to create User FX zone folder %s: %s\n", userFxZoneFolder.string().c_str(), createFxFolderError.message().c_str());
                                     return;
                                 }
+                                const string vendorFxZoneFolderPath = vendorFxZoneFolder.string();
+                                const string userFxZoneFolderPath = userFxZoneFolder.string();
 
                                 bool foundIt = false;
 
                                 for (auto& io : midiSurfacesIO_) {
                                     if (IsSameString(surfaceProp, io->GetName())) {
                                         foundIt = true;
-                                        currentPage->GetSurfaces().push_back(make_unique<Midi_ControlSurface>(this, currentPage, surfaceProp, startChannel, surfaceFile.c_str(), zoneFolder.c_str(), fxZoneFolder.c_str(), io.get()));
+                                        currentPage->GetSurfaces().push_back(make_unique<Midi_ControlSurface>(this, currentPage, surfaceProp, startChannel, surfaceFile.c_str(), zoneFolder.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get()));
                                         break;
                                     }
                                 }
@@ -218,7 +215,7 @@ void CSurfIntegrator::Init() {
                                     for (auto& io : oscSurfacesIO_) {
                                         if (IsSameString(surfaceProp, io->GetName())) {
                                             foundIt = true;
-                                            currentPage->GetSurfaces().push_back(make_unique<OSC_ControlSurface>(this, currentPage, surfaceProp, startChannel, surfaceFile.c_str(), zoneFolder.c_str(), fxZoneFolder.c_str(), io.get()));
+                                            currentPage->GetSurfaces().push_back(make_unique<OSC_ControlSurface>(this, currentPage, surfaceProp, startChannel, surfaceFile.c_str(), zoneFolder.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get()));
                                             break;
                                         }
                                     }

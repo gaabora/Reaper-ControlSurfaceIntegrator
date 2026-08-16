@@ -140,14 +140,14 @@ bool Midi_ControlSurfaceIO::PollForDeviceReconnect() {
 void Midi_ControlSurface::ProcessMIDIWidgetFile(const string& filePath, Midi_ControlSurface* surface) { SurfaceTemplateParser::ParseMidiTemplate(filePath, this); }
 void Midi_ControlSurface::ProcessMidiWidget(int& lineNumber, ifstream& surfaceTemplateFile, const vector<string>& in_tokens) { SurfaceTemplateParser::ParseMidiWidget(lineNumber, surfaceTemplateFile, in_tokens, this); }
 
-Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* fxZoneFolder, Midi_ControlSurfaceIO* surfaceIO)
+Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, Midi_ControlSurfaceIO* surfaceIO)
     : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO) {
     MidiWidgetRegistry::EnsureRegistered();
     ProcessMIDIWidgetFile(surfaceFile, this);
     InitHardwiredWidgets(this);
     InitializeMeters();
     ParseOSKLayout(surfaceFile);
-    InitZoneManager(csi_, this, zoneFolder, fxZoneFolder);
+    InitZoneManager(csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
 }
 
 void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t* evt) {

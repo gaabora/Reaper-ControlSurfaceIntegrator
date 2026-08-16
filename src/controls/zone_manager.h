@@ -14,7 +14,8 @@ private:
     CSurfIntegrator* const csi_;
     ControlSurface* const surface_;
     string zoneFolder_;
-    string fxZoneFolder_;
+    string vendorFxZoneFolder_;
+    string userFxZoneFolder_;
 
     vector<unique_ptr<ActionContext>> emptyContexts_;
 
@@ -218,7 +219,7 @@ private:
     }
 
 public:
-    ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& fxZoneFolder);
+    ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& vendorFxZoneFolder, const string& userFxZoneFolder);
 
     ~ZoneManager() {
         focusedFXZone_ = NULL;
@@ -257,7 +258,7 @@ public:
     int GetNumChannels();
 
     void PreProcessZones();
-    void PreProcessZoneFile(const string& filePath);
+    void PreProcessZoneFile(const string& filePath, bool isFxZone, bool isUserZone);
     void LoadZoneFile(Zone* zone, const char* widgetSuffix);
     void LoadZoneFile(Zone* zone, const char* filePath, const char* widgetSuffix);
 
@@ -270,7 +271,7 @@ public:
     void DoTouch(Widget* widget, double value);
 
     const string& GetZoneFolder() { return zoneFolder_; }
-    const char* GetFXZoneFolder() { return fxZoneFolder_.c_str(); }
+    const char* GetFXZoneFolder() { return userFxZoneFolder_.c_str(); }
     map<const string, ZoneInfo>& GetZoneInfo() { return zoneInfo_; }
 
     CSurfIntegrator* GetCSI() { return csi_; }
@@ -442,7 +443,7 @@ public:
             string editableFxZoneFolder;
             string preparationError;
             bool activatedUserProfile = false;
-            if (!this->PrepareZonePathForWrite(this->fxZoneFolder_, editableFxZoneFolder, activatedUserProfile, preparationError)) {
+            if (!this->PrepareZonePathForWrite(this->userFxZoneFolder_, editableFxZoneFolder, activatedUserProfile, preparationError)) {
                 LogToConsole("[ERROR] Unable to prepare FX zone profile for writing: %s\n", preparationError.c_str());
                 return;
             }
@@ -630,7 +631,14 @@ public:
         } else {
             ZoneInfo& info = zoneInfo_[name];
             if (!IsSameRelativePath(zoneInfo.filePath.c_str(), zoneInfo_[name].filePath.c_str())) {
-                if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Skipping file '%s': A zone named '%s' has already been loaded. Duplicate zones are not allowed.\n", GetRelativePath(zoneInfo_[name].filePath.c_str()).c_str(), name.c_str());
+                if (info.isFxZone && zoneInfo.isFxZone && info.isUserZone != zoneInfo.isUserZone) {
+                    if (zoneInfo.isUserZone) {
+                        if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] User FX zone '%s' overrides vendor file '%s'\n", GetRelativePath(zoneInfo.filePath.c_str()).c_str(), GetRelativePath(info.filePath.c_str()).c_str());
+                        info = zoneInfo;
+                    }
+                    return;
+                }
+                if (g_debugLevel >= DEBUG_LEVEL_WARNING) LogToConsole("[WARNING] Skipping file '%s': A zone named '%s' has already been loaded from the same layer. Duplicate zones are not allowed.\n", GetRelativePath(zoneInfo.filePath.c_str()).c_str(), name.c_str());
                 return;
             }
             info.alias = zoneInfo.alias;

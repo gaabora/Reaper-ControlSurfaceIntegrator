@@ -4,11 +4,22 @@
 extern void WidgetMoved(ZoneManager* zoneManager, Widget* widget, int modifier);
 
 static void collectFilesOfType(const string& type, const string& searchPath, vector<string>& results) {
+    const size_t startingResultCount = results.size();
     filesystem::path zonePath { searchPath };
     if (filesystem::exists(searchPath) && filesystem::is_directory(searchPath))
         for (auto& file : filesystem::recursive_directory_iterator(searchPath))
             if (file.path().extension() == type)
                 results.push_back(file.path().string());
+    sort(results.begin() + startingResultCount, results.end());
+}
+
+static bool IsContainedZonePath(const filesystem::path& root, const filesystem::path& candidate) {
+    const filesystem::path canonicalRoot = filesystem::weakly_canonical(filesystem::absolute(root));
+    const filesystem::path canonicalCandidate = filesystem::weakly_canonical(filesystem::absolute(candidate));
+    const filesystem::path relativePath = canonicalCandidate.lexically_relative(canonicalRoot);
+    if (relativePath.empty() || relativePath.is_absolute()) return false;
+    for (const filesystem::path& pathPart : relativePath) if (pathPart == "..") return false;
+    return true;
 }
 
 static bool RemapZoneFolderPath(string& configuredPath, const filesystem::path& vendorProfileRoot, const filesystem::path& userProfileRoot) {
@@ -24,8 +35,8 @@ static bool RemapZoneFolderPath(string& configuredPath, const filesystem::path& 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ZoneManager
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-ZoneManager::ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& fxZoneFolder)
-    : csi_(csi), surface_(surface), zoneFolder_(zoneFolder), fxZoneFolder_(fxZoneFolder == "" ? zoneFolder : fxZoneFolder) {
+ZoneManager::ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& vendorFxZoneFolder, const string& userFxZoneFolder)
+    : csi_(csi), surface_(surface), zoneFolder_(zoneFolder), vendorFxZoneFolder_(vendorFxZoneFolder), userFxZoneFolder_(userFxZoneFolder) {
 }
 
 Navigator* ZoneManager::GetNavigatorForTrack(MediaTrack* track) { return surface_->GetPage()->GetTrackNavigationManager()->GetNavigatorForTrack(track); }
@@ -101,7 +112,6 @@ void ZoneManager::ReloadFromDisk() {
 
 void ZoneManager::ReplaceZoneProfileRoot(const filesystem::path& vendorProfileRoot, const filesystem::path& userProfileRoot) {
     RemapZoneFolderPath(this->zoneFolder_, vendorProfileRoot, userProfileRoot);
-    RemapZoneFolderPath(this->fxZoneFolder_, vendorProfileRoot, userProfileRoot);
 }
 
 bool ZoneManager::PrepareZonePathForWrite(const string& sourcePath, string& editablePath, bool& activatedUserProfile, string& errorMessage) {
@@ -114,19 +124,41 @@ bool ZoneManager::PrepareZonePathForWrite(const string& sourcePath, string& edit
         const std::optional<string> vendorProfileId = productPaths.VendorZoneProfileIdForPath(sourcePath);
         if (!vendorProfileId) return true;
 
-        const filesystem::path vendorProfileRoot = productPaths.ZoneProfileDirectory(ZoneSource::Vendor, *vendorProfileId);
-        const filesystem::path userProfileRoot = productPaths.ZoneProfileDirectory(ZoneSource::User, *vendorProfileId);
-        if (!filesystem::is_directory(userProfileRoot)) {
-            const string prompt = "Zone profile '" + *vendorProfileId + "' is provided by the vendor and is read-only. Create an editable user copy?";
-            if (MessageBox(g_hwnd, prompt.c_str(), ProductIdentity::DisplayName, MB_YESNO) != IDYES) {
-                errorMessage = "Operation cancelled. Vendor zone profile was not changed";
+        const filesystem::path vendorFxRoot = productPaths.FxZones(ZoneSource::Vendor, *vendorProfileId);
+        if (IsContainedZonePath(vendorFxRoot, sourcePath)) {
+            if (!filesystem::is_regular_file(sourcePath)) {
+                errorMessage = "Only individual vendor FX zone files can be copied for editing";
                 return false;
             }
-            productPaths.CloneVendorZoneProfileToUser(*vendorProfileId);
+            const string prompt = "FX zone '" + filesystem::path(sourcePath).filename().string() + "' is provided by the vendor and is read-only. Create an editable user override?";
+            if (MessageBox(g_hwnd, prompt.c_str(), ProductIdentity::DisplayName, MB_YESNO) != IDYES) {
+                errorMessage = "Operation cancelled. Vendor FX zone was not changed";
+                return false;
+            }
+            editablePath = productPaths.CopyVendorFxZoneToUser(*vendorProfileId, sourcePath).string();
+            activatedUserProfile = true;
+            return true;
         }
 
+        const filesystem::path vendorMainRoot = productPaths.MainZones(ZoneSource::Vendor, *vendorProfileId);
+        if (!IsContainedZonePath(vendorMainRoot, sourcePath)) {
+            errorMessage = "Vendor zone path is outside the Main and FX folders for profile '" + *vendorProfileId + "'";
+            return false;
+        }
+        if (!filesystem::is_directory(productPaths.MainZones(ZoneSource::User, *vendorProfileId))) {
+            const string prompt = "Main zone configuration '" + *vendorProfileId + "' is provided by the vendor and is read-only. Create an editable user copy?";
+            if (MessageBox(g_hwnd, prompt.c_str(), ProductIdentity::DisplayName, MB_YESNO) != IDYES) {
+                errorMessage = "Operation cancelled. Vendor Main zones were not changed";
+                return false;
+            }
+            productPaths.CloneVendorMainZonesToUser(*vendorProfileId);
+        }
         editablePath = productPaths.UserZonePathForVendorPath(*vendorProfileId, sourcePath).string();
-        this->ReplaceZoneProfileRoot(vendorProfileRoot, userProfileRoot);
+        if (!filesystem::exists(editablePath)) {
+            errorMessage = "The matching file or folder does not exist in the User Main zone copy";
+            return false;
+        }
+        this->ReplaceZoneProfileRoot(vendorMainRoot, productPaths.MainZones(ZoneSource::User, *vendorProfileId));
         activatedUserProfile = true;
         return true;
     } catch (const std::exception& error) {
@@ -135,16 +167,16 @@ bool ZoneManager::PrepareZonePathForWrite(const string& sourcePath, string& edit
     }
 }
 
-void ZoneManager::PreProcessZoneFile(const string& filePath) {
+void ZoneManager::PreProcessZoneFile(const string& filePath, bool isFxZone, bool isUserZone) {
     try {
         ifstream file(filePath);
 
         ZoneInfo info;
         info.filePath = filePath;
+        info.isFxZone = isFxZone;
+        info.isUserZone = isUserZone;
 
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] PreProcessZoneFile: %s\n", GetRelativePath(filePath.c_str()).c_str());
-
-        info.isFxZone = 0 == strncmp(fxZoneFolder_.c_str(), filePath.c_str(), fxZoneFolder_.length());
 
         for (string line; getline(file, line);) {
             TrimLine(line);
@@ -411,19 +443,26 @@ void ZoneManager::UpdateCurrentActionContextModifiers() {
 }
 
 void ZoneManager::PreProcessZones() {
-    if (zoneFolder_[0] == 0)
-        return LogToConsole("[ERROR] Please check %s. Cannot find the Zone folder for %s under %s", ProductIdentity::ConfigFilename, GetSurface()->GetName(), ProductPaths::FromReaperResourcePath().ZonesRoot().string().c_str());
+    if (this->zoneFolder_.empty())
+        return LogToConsole("[ERROR] Please check %s. Cannot find the Zone folder for %s under %s", ProductIdentity::ConfigFilename, this->GetSurface()->GetName(), ProductPaths::FromReaperResourcePath().ZonesRoot().string().c_str());
 
-    vector<string> zoneFilesToProcess;
-    collectFilesOfType(".zon", zoneFolder_, zoneFilesToProcess);
+    vector<string> mainZoneFiles;
+    collectFilesOfType(".zon", this->zoneFolder_, mainZoneFiles);
 
-    if (zoneFilesToProcess.size() == 0)
-        return LogToConsole("[ERROR] Cannot find Zone files for %s in: %s", GetSurface()->GetName(), zoneFolder_.c_str());
+    if (mainZoneFiles.empty())
+        return LogToConsole("[ERROR] Cannot find Zone files for %s in: %s", this->GetSurface()->GetName(), this->zoneFolder_.c_str());
 
-    collectFilesOfType(".zon", fxZoneFolder_, zoneFilesToProcess);
+    const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
+    const bool mainZonesAreUserZones = productPaths.UserZoneProfileIdForPath(this->zoneFolder_).has_value();
+    for (const string& zoneFile : mainZoneFiles) this->PreProcessZoneFile(zoneFile, false, mainZonesAreUserZones);
 
-    for (const string& zoneFile : zoneFilesToProcess)
-        PreProcessZoneFile(zoneFile);
+    vector<string> vendorFxZoneFiles;
+    collectFilesOfType(".zon", this->vendorFxZoneFolder_, vendorFxZoneFiles);
+    for (const string& zoneFile : vendorFxZoneFiles) this->PreProcessZoneFile(zoneFile, true, false);
+
+    vector<string> userFxZoneFiles;
+    collectFilesOfType(".zon", this->userFxZoneFolder_, userFxZoneFiles);
+    for (const string& zoneFile : userFxZoneFiles) this->PreProcessZoneFile(zoneFile, true, true);
 }
 
 void ZoneManager::DoAction(Widget* widget, double value) {

@@ -15,7 +15,8 @@
 - Surface files use `Surfaces/Vendor/<surface-id>.txt` or `Surfaces/User/<surface-id>.txt`.
 - A user surface with the same stable ID overrides its vendor file.
 - Zone profiles use `Zones/Vendor/<profile-id>/Main`, `Zones/Vendor/<profile-id>/FX`, and matching paths under `Zones/User`.
-- A user zone profile with the same stable ID fully overrides its vendor profile.
+- Use `User/<profile-id>/Main` when that directory exists. Otherwise use `Vendor/<profile-id>/Main`.
+- Load Vendor and User FX zones together. A User FX zone overrides a Vendor FX zone only when both have the same exact `Zone` name. Duplicate zone names in one layer are invalid.
 - Stable IDs match `[a-z0-9][a-z0-9_-]*`.
 - Use `//` for comments in Surface and Zone files. Do not use a single leading `/` or `#` to disable a configuration line.
 - Write Learn template directives as the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` metadata keywords.

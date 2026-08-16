@@ -59,9 +59,9 @@ Data/
     Generated/ZoneRawFXFiles/
 ```
 
-Surface, profile, and operation IDs use lowercase ASCII letters, digits, `_`, and `-`. A surface filename is its stable ID plus `.txt`. When the same surface or zone-profile ID exists in both `Vendor` and `User`, the runtime uses the user source. Existing symlinks must not resolve outside the typed root.
+Surface, profile, and operation IDs use lowercase ASCII letters, digits, `_`, and `-`. A surface filename is its stable ID plus `.txt`. A User surface with the same ID overrides its Vendor file. For zones, User Main overrides Vendor Main only when the User Main directory exists. Vendor and User FX directories are loaded together. A User FX zone with the same exact `Zone` name overrides its Vendor zone. Existing symlinks must not resolve outside the typed root.
 
-Vendor zone profiles are read-only at runtime. Before OSK or FX Learn writes into a vendor profile, it requests confirmation and atomically clones the complete profile into `Zones/User`. OSK then reloads the user profile. All file writes use the user copy.
+Vendor zones are read-only at runtime. The runtime creates `Zones/User/<profile-id>/FX` when it initializes a configured FX profile. FX Learn and new FX zone files always write there. Before OSK edits Vendor Main, it requests confirmation and atomically copies only Main into the matching User profile. Before OSK edits a Vendor FX zone, it requests confirmation and copies only that file to the same relative User FX path. OSK then reloads the layered zones.
 
 The runtime does not read the old `CSI/` root. Legacy names and layouts belong only in the future import workflow.
 

@@ -207,7 +207,7 @@ private:
     void ProcessOSCWidgetFile(const string& filePath);
 
 public:
-    OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* fxZoneFolder, OSC_ControlSurfaceIO* surfaceIO);
+    OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, OSC_ControlSurfaceIO* surfaceIO);
 
     virtual ~OSC_ControlSurface() {}
 

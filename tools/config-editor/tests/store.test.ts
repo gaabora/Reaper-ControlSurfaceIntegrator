@@ -110,12 +110,30 @@ describe("configuration store", () => {
         expect(manifest.status).toBe("rolled-back");
     });
 
-    test("vendor zone clone copies the complete profile", async () => {
+    test("vendor Main clone preserves User FX and does not copy other vendor content", async () => {
         await writeFile(path.join(productRoot, "Zones", "Vendor", "faderportv2", "notes.txt"), "profile notes\n", "utf8");
+        await mkdir(path.join(productRoot, "Zones", "Vendor", "faderportv2", "FX"), { recursive: true });
+        await writeFile(path.join(productRoot, "Zones", "Vendor", "faderportv2", "FX", "VendorFx.zon"), alphaSource, "utf8");
+        await mkdir(path.join(productRoot, "Zones", "User", "faderportv2", "FX"), { recursive: true });
+        await writeFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "UserFx.zon"), betaSource, "utf8");
         const store = await createStore();
         const report = await store.cloneForEditing("Zones/Vendor/faderportv2/Main/Home.zon");
         expect(report.created).toContain("Zones/User/faderportv2/Main/Home.zon");
-        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "notes.txt"), "utf8")).toBe("profile notes\n");
+        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "UserFx.zon"), "utf8")).toBe(betaSource);
+        await expect(lstat(path.join(productRoot, "Zones", "User", "faderportv2", "notes.txt"))).rejects.toThrow();
+        await expect(lstat(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "VendorFx.zon"))).rejects.toThrow();
+    });
+
+    test("vendor FX clone copies only the selected file", async () => {
+        const vendorFxRoot = path.join(productRoot, "Zones", "Vendor", "faderportv2", "FX", "Nested");
+        await mkdir(vendorFxRoot, { recursive: true });
+        await writeFile(path.join(vendorFxRoot, "Selected.zon"), alphaSource, "utf8");
+        await writeFile(path.join(vendorFxRoot, "Other.zon"), betaSource, "utf8");
+        const store = await createStore();
+        const report = await store.cloneForEditing("Zones/Vendor/faderportv2/FX/Nested/Selected.zon");
+        expect(report.created).toContain("Zones/User/faderportv2/FX/Nested/Selected.zon");
+        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "Nested", "Selected.zon"), "utf8")).toBe(alphaSource);
+        await expect(lstat(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "Nested", "Other.zon"))).rejects.toThrow();
     });
 
     test("symbolic link files are followed", async () => {

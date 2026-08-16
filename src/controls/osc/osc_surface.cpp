@@ -188,12 +188,12 @@ void OSC_X32ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface* surface) {
 void OSC_ControlSurface::ProcessOSCWidgetFile(const string& filePath) { SurfaceTemplateParser::ParseOSCTemplate(filePath, this); }
 void OSC_ControlSurface::ProcessOSCWidget(int& lineNumber, ifstream& surfaceTemplateFile, const vector<string>& in_tokens) { SurfaceTemplateParser::ParseOSCWidget(lineNumber, surfaceTemplateFile, in_tokens, this); }
 
-OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* fxZoneFolder, OSC_ControlSurfaceIO* surfaceIO)
+OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, OSC_ControlSurfaceIO* surfaceIO)
     : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset), surfaceIO_(surfaceIO) 
 {
     ProcessOSCWidgetFile(templateFilename);
     InitHardwiredWidgets(this);
-    InitZoneManager(csi_, this, zoneFolder, fxZoneFolder);
+    InitZoneManager(csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
 }
 
 void OSC_ControlSurface::ProcessOSCMessage(const char* message, double value) {

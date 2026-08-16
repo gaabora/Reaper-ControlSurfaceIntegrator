@@ -142,6 +142,7 @@ struct ZoneInfo {
     bool isReferenced = false;
     bool isSubZone = false;
     bool isFxZone = false;
+    bool isUserZone = false;
     string navigator;
     string alias;
     string filePath;

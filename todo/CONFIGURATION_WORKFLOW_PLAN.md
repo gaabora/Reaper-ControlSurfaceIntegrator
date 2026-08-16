@@ -128,7 +128,7 @@ OSKLayoutEnd
 - Add the canonical product identity manifest, read it directly from Lua, and generate other language-specific constants.
 - Replace hardcoded runtime, script, installer, CPack, CI, release archive, and ReaPack names and paths.
 - Add typed path resolution for vendor surfaces, user surfaces, zone profiles, snippets, backups, and legacy import roots.
-- Resolve user zone profiles before vendor profiles, keep vendor profiles read-only, and clone a full vendor profile before an OSK or FX Learn write.
+- Resolve User Main before Vendor Main. Load Vendor and User FX zones together, with exact User `Zone` names overriding Vendor. Keep Vendor zones read-only, copy only Main before a Main edit, copy only one Vendor FX file before editing it, and write new FX zones directly to User.
 - Document manual development resource and Lua runtime links in the main README. Do not create these links during build or install.
 - Keep `<ProductRoot>` usable before the final product name is selected.
 

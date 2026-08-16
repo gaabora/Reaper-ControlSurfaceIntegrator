@@ -49,13 +49,14 @@ public:
     std::filesystem::path VendorZonesRoot() const;
     std::filesystem::path UserZonesRoot() const;
     std::filesystem::path ZoneProfileDirectory(ZoneSource source, const std::string& profileId) const;
-    std::optional<std::filesystem::path> FindZoneProfileDirectory(const std::string& profileId) const;
+    std::optional<std::filesystem::path> FindMainZones(const std::string& profileId) const;
     std::filesystem::path MainZones(ZoneSource source, const std::string& profileId) const;
     std::filesystem::path FxZones(ZoneSource source, const std::string& profileId) const;
     std::optional<std::string> UserZoneProfileIdForPath(const std::filesystem::path& zonePath) const;
     std::optional<std::string> VendorZoneProfileIdForPath(const std::filesystem::path& zonePath) const;
     std::filesystem::path UserZonePathForVendorPath(const std::string& profileId, const std::filesystem::path& vendorZonePath) const;
-    void CloneVendorZoneProfileToUser(const std::string& profileId) const;
+    void CloneVendorMainZonesToUser(const std::string& profileId) const;
+    std::filesystem::path CopyVendorFxZoneToUser(const std::string& profileId, const std::filesystem::path& vendorZonePath) const;
     std::filesystem::path SnippetsRoot() const;
     std::filesystem::path BuiltInSnippetsRoot() const;
     std::filesystem::path UserSnippetsRoot() const;

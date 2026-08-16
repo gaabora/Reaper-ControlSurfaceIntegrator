@@ -124,9 +124,9 @@ std::filesystem::path ProductPaths::ZoneProfileDirectory(ZoneSource source, cons
     return ProductPaths::StableIdChild(root, profileId);
 }
 
-std::optional<std::filesystem::path> ProductPaths::FindZoneProfileDirectory(const std::string& profileId) const {
-    const std::filesystem::path userDirectory = this->ZoneProfileDirectory(ZoneSource::User, profileId);
-    const std::filesystem::path vendorDirectory = this->ZoneProfileDirectory(ZoneSource::Vendor, profileId);
+std::optional<std::filesystem::path> ProductPaths::FindMainZones(const std::string& profileId) const {
+    const std::filesystem::path userDirectory = this->MainZones(ZoneSource::User, profileId);
+    const std::filesystem::path vendorDirectory = this->MainZones(ZoneSource::Vendor, profileId);
     if (std::filesystem::is_directory(userDirectory)) return userDirectory;
     if (std::filesystem::is_directory(vendorDirectory)) return vendorDirectory;
     return std::nullopt;
@@ -162,35 +162,61 @@ std::filesystem::path ProductPaths::UserZonePathForVendorPath(const std::string&
     return userZonePath;
 }
 
-void ProductPaths::CloneVendorZoneProfileToUser(const std::string& profileId) const {
-    const std::filesystem::path vendorProfile = this->ZoneProfileDirectory(ZoneSource::Vendor, profileId);
+void ProductPaths::CloneVendorMainZonesToUser(const std::string& profileId) const {
+    const std::filesystem::path vendorMain = this->MainZones(ZoneSource::Vendor, profileId);
+    const std::filesystem::path userMain = this->MainZones(ZoneSource::User, profileId);
     const std::filesystem::path userProfile = this->ZoneProfileDirectory(ZoneSource::User, profileId);
-    if (std::filesystem::exists(userProfile)) {
-        if (!std::filesystem::is_directory(userProfile)) throw std::runtime_error("User zone profile path is not a directory: " + userProfile.string());
+    if (std::filesystem::exists(userMain)) {
+        if (!std::filesystem::is_directory(userMain)) throw std::runtime_error("User Main zone path is not a directory: " + userMain.string());
         return;
     }
-    if (!std::filesystem::is_directory(vendorProfile)) throw std::runtime_error("Vendor zone profile does not exist: " + vendorProfile.string());
+    if (!std::filesystem::is_directory(vendorMain)) throw std::runtime_error("Vendor Main zone directory does not exist: " + vendorMain.string());
 
-    std::filesystem::create_directories(this->UserZonesRoot());
+    std::filesystem::create_directories(userProfile);
     const auto uniqueValue = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-    const std::filesystem::path temporaryProfile = this->UserZonesRoot() / (profileId + ".tmp." + std::to_string(uniqueValue));
+    const std::filesystem::path temporaryMain = userProfile / ("Main.tmp." + std::to_string(uniqueValue));
 
     try {
-        if (!std::filesystem::create_directory(temporaryProfile)) throw std::runtime_error("Unable to create temporary zone profile: " + temporaryProfile.string());
-        for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(vendorProfile)) {
-            if (entry.is_symlink()) throw std::runtime_error("Vendor zone profile contains a symlink: " + entry.path().string());
-            const std::filesystem::path relativePath = entry.path().lexically_relative(vendorProfile);
-            const std::filesystem::path destinationPath = temporaryProfile / relativePath;
+        if (!std::filesystem::create_directory(temporaryMain)) throw std::runtime_error("Unable to create temporary Main zone directory: " + temporaryMain.string());
+        for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(vendorMain)) {
+            if (entry.is_symlink()) throw std::runtime_error("Vendor Main zone directory contains a symlink: " + entry.path().string());
+            const std::filesystem::path relativePath = entry.path().lexically_relative(vendorMain);
+            const std::filesystem::path destinationPath = temporaryMain / relativePath;
             if (entry.is_directory()) std::filesystem::create_directories(destinationPath);
             else if (entry.is_regular_file()) std::filesystem::copy_file(entry.path(), destinationPath);
-            else throw std::runtime_error("Vendor zone profile contains an unsupported file: " + entry.path().string());
+            else throw std::runtime_error("Vendor Main zone directory contains an unsupported file: " + entry.path().string());
         }
-        std::filesystem::rename(temporaryProfile, userProfile);
+        std::filesystem::rename(temporaryMain, userMain);
     } catch (...) {
         std::error_code cleanupError;
-        std::filesystem::remove_all(temporaryProfile, cleanupError);
+        std::filesystem::remove_all(temporaryMain, cleanupError);
         throw;
     }
+}
+
+std::filesystem::path ProductPaths::CopyVendorFxZoneToUser(const std::string& profileId, const std::filesystem::path& vendorZonePath) const {
+    const std::filesystem::path vendorFxRoot = std::filesystem::weakly_canonical(std::filesystem::absolute(this->FxZones(ZoneSource::Vendor, profileId)));
+    const std::filesystem::path canonicalVendorPath = std::filesystem::weakly_canonical(std::filesystem::absolute(vendorZonePath));
+    if (!ProductPaths::IsContainedPath(vendorFxRoot, canonicalVendorPath) || !std::filesystem::is_regular_file(canonicalVendorPath)) throw std::invalid_argument("Vendor FX zone path is not a file inside profile '" + profileId + "'");
+
+    const std::filesystem::path userZonePath = this->UserZonePathForVendorPath(profileId, canonicalVendorPath);
+    if (std::filesystem::exists(userZonePath)) {
+        if (!std::filesystem::is_regular_file(userZonePath)) throw std::runtime_error("User FX zone path is not a file: " + userZonePath.string());
+        return userZonePath;
+    }
+
+    std::filesystem::create_directories(userZonePath.parent_path());
+    const auto uniqueValue = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    const std::filesystem::path temporaryPath = userZonePath.string() + ".tmp." + std::to_string(uniqueValue);
+    try {
+        std::filesystem::copy_file(canonicalVendorPath, temporaryPath);
+        std::filesystem::rename(temporaryPath, userZonePath);
+    } catch (...) {
+        std::error_code cleanupError;
+        std::filesystem::remove(temporaryPath, cleanupError);
+        throw;
+    }
+    return userZonePath;
 }
 
 std::filesystem::path ProductPaths::SnippetsRoot() const { return this->ProductRoot() / "Snippets"; }
