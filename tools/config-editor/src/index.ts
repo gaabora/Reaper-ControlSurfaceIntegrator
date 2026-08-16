@@ -1,6 +1,7 @@
 export * from "./action-catalog.ts";
 export * from "./formats.ts";
 export * from "./i18n.ts";
+export * from "./settings-schema.ts";
 export * from "./launch.ts";
 export * from "./legacy-import.ts";
 export * from "./model.ts";

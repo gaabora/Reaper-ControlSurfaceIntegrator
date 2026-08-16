@@ -10,6 +10,7 @@ end
 
 local CHECK_MODULES = {
     "action_line",
+    "settings_schema",
     "layout_parser",
     "label_replacements",
 }

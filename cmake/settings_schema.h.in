@@ -1,0 +1,28 @@
+#pragma once
+
+#include <cstddef>
+
+namespace Settings {
+enum class ValueType {
+    Enum,
+    Integer,
+};
+
+struct Definition {
+    const char* name;
+    ValueType type;
+    const char* defaultValue;
+    int minValue;
+    int maxValue;
+    const char* enumValues;
+    const char* scopes;
+    const char* category;
+    const char* unit;
+    const char* greaterThan;
+};
+
+inline constexpr int SchemaVersion = @SETTINGS_SCHEMA_VERSION@;
+inline constexpr Definition Definitions[] = {
+@SETTINGS_SCHEMA_ROWS@};
+inline constexpr std::size_t DefinitionCount = sizeof(Definitions) / sizeof(Definitions[0]);
+}

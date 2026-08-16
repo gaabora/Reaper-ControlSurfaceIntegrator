@@ -1,5 +1,6 @@
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { EditorSettingsStore } from "./editor-settings.ts";
+import type { SettingsSchema } from "./settings-schema.ts";
 import { t } from "./i18n.ts";
 import { discoverReaperDataPaths } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
@@ -10,6 +11,7 @@ export interface EditorLaunchOptions {
     actions: ActionCatalogEntry[];
     args: string[];
     identity: EditorProductIdentity;
+    settingsSchema: SettingsSchema;
     editorJavascript?: string;
 }
 
@@ -44,7 +46,7 @@ export async function launchEditor(options: EditorLaunchOptions): Promise<void> 
     const settings = new EditorSettingsStore(options.identity.productId);
     const candidates = await discoverReaperDataPaths(explicitDataPath, await settings.readLastDataPath());
     const editorJavascript = options.editorJavascript ?? await bundleEditorJavascript();
-    const running = startEditorServer({ actions: options.actions, candidates, editorJavascript, identity: options.identity, port, settings });
+    const running = startEditorServer({ actions: options.actions, candidates, editorJavascript, identity: options.identity, port, settings, settingsSchema: options.settingsSchema });
     console.log(t("app.title", { product: options.identity.displayName }));
     console.log(t("server.local", { url: running.url }));
     console.log(t("server.stop"));

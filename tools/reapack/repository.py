@@ -184,6 +184,7 @@ def prepare(args):
     main_scripts = {identity["PRODUCT_OSK_SCRIPT_FILENAME"], identity["PRODUCT_OSD_SCRIPT_FILENAME"]}
     script_paths = sorted((root / "Scripts").glob("*.lua"))
     script_paths.append(root / "Scripts" / "product_identity.conf")
+    script_paths.append(root / "Scripts" / "settings_schema.conf")
     for script_path in script_paths:
         require_regular_file(script_path, "shared script source")
         source_file = script_path.name

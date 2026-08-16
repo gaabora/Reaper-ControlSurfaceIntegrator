@@ -150,7 +150,8 @@ Report a warning for:
 
 ### [ ] 1. Grammar and declarations
 
-- Define `PseudoModifier`, its optional `Mode=Momentary|Latch|Hybrid` override, `DefaultPseudoModifierMode=Latch`, and bracketed selector grammar.
+- ✅ Define `DefaultPseudoModifierMode=Latch` in the shared settings metadata source and expose it to C++, Lua, and TypeScript consumers.
+- [ ] Define `PseudoModifier`, its optional `Mode=Momentary|Latch|Hybrid` override, and bracketed selector grammar.
 - Parse each Zone in two passes so declarations can appear before or after their bindings.
 - Remove physical widget alias behavior from the new grammar.
 

@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadActionCatalog } from "../src/action-catalog.ts";
+import { loadSettingsSchema } from "../src/settings-schema.ts";
 import { loadProductIdentity } from "../src/product-identity.ts";
 import { bundleEditorJavascript } from "../src/ui.ts";
 
@@ -16,6 +17,7 @@ if (process.argv.length > 3) throw new Error("compile accepts zero or one Bun ta
 if (target && !supportedTargets.has(target)) throw new Error(`Unsupported Bun compile target: ${target}`);
 
 const identity = await loadProductIdentity(path.join(repositoryRoot, "Scripts", "product_identity.conf"));
+const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
 const actions = await loadActionCatalog(repositoryRoot);
 const editorJavascript = await bundleEditorJavascript();
 const generatedRoot = path.join(editorRoot, "generated");
@@ -27,9 +29,10 @@ const entryPath = path.join(generatedRoot, "standalone-entry.ts");
 const entrySource = [
     "import { launchEditor } from '../src/launch.ts';",
     `const identity = ${JSON.stringify(identity)};`,
+    `const settingsSchema = ${JSON.stringify(settingsSchema)};`,
     `const actions = ${JSON.stringify(actions)};`,
     `const editorJavascript = ${JSON.stringify(editorJavascript)};`,
-    "await launchEditor({ actions, args: process.argv.slice(2), editorJavascript, identity });",
+    "await launchEditor({ actions, args: process.argv.slice(2), editorJavascript, identity, settingsSchema });",
     "",
 ].join("\n");
 await Bun.write(entryPath, entrySource);

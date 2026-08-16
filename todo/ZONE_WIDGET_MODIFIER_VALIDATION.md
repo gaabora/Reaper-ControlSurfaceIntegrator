@@ -214,8 +214,8 @@ The behavior schema includes:
 
 - `DefaultModifierMode=Momentary|Latch|Hybrid`, with `Latch` as the compiled and initial product default.
 - `DefaultPseudoModifierMode=Momentary|Latch|Hybrid`, with `Latch` as the compiled and initial product default.
-- `DefaultButtonTrigger=Press|Tap`.
-- `DoublePressPolicy=Additive|Exclusive`.
+- `DefaultButtonTrigger=Press|Tap`, with `Press` as the compiled and initial product default.
+- `DoublePressPolicy=Additive|Exclusive`, with `Exclusive` as the compiled and initial product default.
 
 Timing settings use this precedence, from lowest to highest:
 
@@ -227,11 +227,13 @@ Default behavior and user timing preferences belong to product configuration and
 
 The timing schema includes:
 
-- `HoldDelayMs`
-- `LongHoldDelayMs`
-- `DoublePressWindowMs`
-- `ModifierTapWindowMs` for Hybrid modifier behavior
-- `HoldRepeatIntervalMs`
+- `HoldDelayMs=1000`, range 50 to 10000.
+- `LongHoldDelayMs=2000`, range 100 to 30000 and greater than the effective `HoldDelayMs`.
+- `DoublePressWindowMs=400`, range 100 to 2000.
+- `ModifierTapWindowMs=100`, range 50 to 5000, for Hybrid modifier behavior.
+- `HoldRepeatIntervalMs=100`, range 25 to 5000.
+
+`HoldRepeatIntervalMs` defines the default interval only. It does not enable repetition for every Hold action. A binding must explicitly request repetition. A positive binding `RepeatIntervalMs` both requests repetition and overrides the configured default interval.
 
 Binding overrides use generic event properties:
 
@@ -409,8 +411,11 @@ Run profile-level checks after applying the same User and Vendor layer override 
 
 C++ is the authority for effective timing values, ranges, gesture semantics, and runtime validation.
 
+- [`settings_schema.conf`](../Scripts/settings_schema.conf) is the canonical metadata source for setting names, types, compiled defaults, ranges, scopes, categories, and cross-setting constraints. It currently defines input behavior and timing settings and can later define other product configuration metadata. It does not store user values.
 - Product configuration stores global values and configured Surface overrides.
-- Lua queries and changes settings through structured C++ ExtState commands. Lua must not keep an independent timing source of truth.
+- The Bun editor reads schema metadata and user-selected values from the product INI.
+- Lua reads schema metadata for its settings interface, but it queries and changes effective values through structured C++ ExtState commands. Lua must not read or write the product INI directly or keep an independent timing source of truth.
+- A Lua settings change is validated, applied live, and saved atomically by C++. A manual or Bun editor file change becomes active only after explicit Apply or Reload, or after CSI restarts.
 - C++ validates product configuration, Zone loading, and OSK live apply before changing runtime state.
 - The Bun editor validates the same grammar, settings, surface capabilities, action traits, and cross-file relationships.
 - The legacy converter translates old unwrapped expressions and timing actions into the explicit grammar and persistent settings.
@@ -449,7 +454,8 @@ Add Bun tests for parsing, normalization, validation, quick fixes, conversion, V
 
 ## Short Implementation Plan
 
-- [ ] Define the explicit grammar, normalized binding types, modifier modes, timing schema, action traits, and generated cross-component metadata.
+- ✅ Define the shared product and Surface behavior and timing metadata source, defaults, ranges, scopes, cross-setting constraints, C++ generation input, Lua loader, and TypeScript loader.
+- [ ] Define the explicit binding grammar, normalized binding types, declaration and binding overrides, modifier modes, action traits, and remaining generated cross-component metadata.
 - [ ] Implement the deterministic C++ gesture recognizer, scoped modifier state, configuration precedence, runtime validation, and persistent settings.
 - [ ] Update Zone parsing, OSK live apply, ExtState settings commands, Lua settings UI, labels, tooltips, and serialization.
 - [ ] Update the Bun editor, complete-set validator, quick fixes, snippets, legacy converter, and Vendor configuration migration.

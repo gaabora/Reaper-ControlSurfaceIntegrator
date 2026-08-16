@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ProductIdentity.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SettingsSchema.cmake")
 
 # Enable policy for INTERPROCEDURAL_OPTIMIZATION if supported
 if(POLICY CMP0069)
@@ -252,10 +253,12 @@ endif()
 
 set(PRODUCT_GENERATED_DIRECTORY "${PROJECT_BINARY_DIR}/generated")
 
+configure_file("${SETTINGS_SCHEMA_FILE}" "${PRODUCT_GENERATED_DIRECTORY}/settings_schema.conf" COPYONLY)
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.h.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.h" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.ts.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.ts" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/product_identity.env.in" "${PRODUCT_GENERATED_DIRECTORY}/product_identity.env" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/settings_schema.h.in" "${PRODUCT_GENERATED_DIRECTORY}/settings_schema.h" @ONLY)
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${PRODUCT_GENERATED_DIRECTORY}")
 
@@ -409,6 +412,7 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/Scripts/"
   COMPONENT ${PROJECT_NAME}
   FILES_MATCHING PATTERN "*.lua"
   PATTERN "product_identity.conf"
+  PATTERN "settings_schema.conf"
 )
 
 # Install PDB files on Windows

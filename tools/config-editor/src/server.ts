@@ -4,6 +4,7 @@ import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { actionNameSet } from "./action-catalog.ts";
 import { ConfigurationDraftStore } from "./draft-store.ts";
 import type { EditorSettingsStore } from "./editor-settings.ts";
+import type { SettingsSchema } from "./settings-schema.ts";
 import type { LegacyImportConflictAction, LegacyImportDraft, LegacyImportRequest, LegacyImportResolution, LegacyImportTargetPath, LegacySurfaceSummary, LegacyWidgetMapping } from "./legacy-import.ts";
 import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
@@ -20,6 +21,7 @@ export interface EditorServerOptions {
     candidates: ReaperDataPathCandidate[];
     editorJavascript: string;
     identity: EditorProductIdentity;
+    settingsSchema: SettingsSchema;
     port?: number;
     settings?: EditorSettingsStore;
 }
@@ -266,7 +268,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
         const requestOrigin = request.headers.get("origin");
         if (requestOrigin && requestOrigin !== origin) return jsonResponse({ error: { code: "auth.origin", message: "Invalid request origin" } }, 403);
         try {
-            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity, legacy: legacySelection });
+            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity, legacy: legacySelection, settingsSchema: options.settingsSchema });
             if (requestUrl.pathname === "/api/select-data-path" && request.method === "POST") {
                 const body = await requestBody(request);
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);
