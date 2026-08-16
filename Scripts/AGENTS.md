@@ -15,6 +15,7 @@
 ## Local Contracts
 
 - Scripts execute inside REAPER and depend on the `reaper` API and ReaImGui.
+- Shared startup must treat a missing ReaImGui API, Lua module, or compatible shim as a missing dependency, show a clear recovery message, and open the filtered ReaPack package browser when ReaPack is available.
 - `Scripts/` is the source runtime directory. Developers may link it to `REAPER/Scripts/<ProductScriptDirectory>`; CMake install copies normal files for packages and must not create the link.
 - Load public display names, paths, and ExtState sections through `product_identity.lua`, which reads `product_identity.conf`; do not duplicate identity values in Lua modules.
 - Keep ExtState payloads compatible with `CSurfIntegrator` and `ControlSurface` command handling.

@@ -12,10 +12,21 @@ local function prependPackagePath(pathEntry)
     package.path = pathEntry .. ";" .. package.path
 end
 
+local function reportMissingImGui(details)
+    local message = identity.displayName .. " needs ReaImGui."
+    if r.ReaPack_BrowsePackages then
+        message = message .. "\n\nReaPack will open with ReaImGui selected. Install or reinstall it, apply the changes, and then start this script again."
+    else
+        message = message .. "\n\nInstall ReaPack, then install ReaImGui from the ReaTeam Extensions repository."
+    end
+    r.ShowMessageBox(message, "MISSING DEPENDENCY", 0)
+    if details and r.ShowConsoleMsg then r.ShowConsoleMsg("[" .. identity.displayName .. " script_host] ReaImGui load failed: " .. tostring(details) .. "\n") end
+    if r.ReaPack_BrowsePackages then r.ReaPack_BrowsePackages("^ReaImGui:") end
+end
+
 function M.RequireImGui(scriptDir)
     if not r.ImGui_GetBuiltinPath then
-        r.ShowMessageBox("Script needs ReaImGui.\nPlease install it in the next window.", "MISSING DEPENDENCY", 0)
-        r.ReaPack_BrowsePackages('^ReaImGui:')
+        reportMissingImGui("ImGui_GetBuiltinPath is not available")
         return nil
     end
 
@@ -23,7 +34,19 @@ function M.RequireImGui(scriptDir)
     prependPackagePath(scriptDir .. "?.lua")
     prependPackagePath(builtInPath)
 
-    imguiModule = require "imgui" "0.9.3"
+    local moduleLoaded, moduleLoader = pcall(require, "imgui")
+    if not moduleLoaded then
+        reportMissingImGui(moduleLoader)
+        return nil
+    end
+
+    local versionLoaded, loadedModule = pcall(moduleLoader, "0.9.3")
+    if not versionLoaded then
+        reportMissingImGui(loadedModule)
+        return nil
+    end
+
+    imguiModule = loadedModule
     return imguiModule
 end
 
