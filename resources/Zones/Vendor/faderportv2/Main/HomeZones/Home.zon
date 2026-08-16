@@ -134,7 +134,7 @@ Zone Home
   Control+RotaryBig        LastTouchedFXParam 
   Control+RotaryBigPush    Reaper 973 OSD="Reset" // Adjust last touched FX parameter (MIDI CC/OSC only)
   
-  /Hold+Control             ClearLastTouchedFXParam
+  //Hold+Control             ClearLastTouchedFXParam
   
   //  Control+Loop               LearnFocusedFX {  40 0 0 120  0 0 }
    // 
@@ -158,7 +158,7 @@ Zone Home
       // Pan                    GoSubZone PanControls                //  { 0 1 8 10 10 255 }
       // Pan                 GoZone Pan                     {  0  7 10   0 120 120 }
       //Pan                        GoSubZone Paning   HoldDelay=1000 Feedback=Yes {  0 120 0  0 120 0 }
-      /Shift+Pan                  GoSubZone Paning  { 0 0 20   0 0 120 }
+      //Shift+Pan                  GoSubZone Paning  { 0 0 20   0 0 120 }
 
        Channel                   GoZone SelectedTrackSend      {  7 10 10   0 240 120 }
       // Channel                   GoZone SelectedTrackSend      {  7 10 10 }
@@ -193,7 +193,7 @@ Zone Home
   Hold+Click                 Reaper 41745      Feedback=No HoldDelay=900 // Options: Enable metronome //FIXME: delay is 100ms less to avoid wrong order of updates bug that cause hold button light to became force ON after GoSubZone if button was hold when it's state was ON
   Hold+Click                 GoZone Metronome  Feedback=No HoldDelay=1000
   Shift+Click                Reaper 41819 // Pre-roll: Toggle pre-roll on record
-  /Shift+Click                Reaper _SWS_AWCOUNTRECTOG // Toggle count-in before recording
+  //Shift+Click                Reaper _SWS_AWCOUNTRECTOG // Toggle count-in before recording
 
 // -------------------------------------------
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { LegacyCsiSource } from "../src/legacy-import.ts";
+import { LegacyCsiSource, migrateLegacyCommentSyntax } from "../src/legacy-import.ts";
 import { ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { ConfigurationStore, EditorOperationError } from "../src/store.ts";
@@ -53,6 +53,22 @@ afterEach(async () => {
 });
 
 describe("legacy CSI import", () => {
+    test("converts legacy comments and Learn directives at the start of a physical line", () => {
+        const source = "\uFEFF/ disabled surface line\r\n  /OnZoneActivation NoAction\r\n# disabled hash line\r\n#WidgetType Fader\r\n# OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n";
+        expect(migrateLegacyCommentSyntax(source)).toBe("\uFEFF// disabled surface line\r\n  //OnZoneActivation NoAction\r\n// disabled hash line\r\n#WidgetType Fader\r\n// OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n");
+    });
+
+    test("shows migrated comments in the import preview without changing the old file", async () => {
+        const sourcePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        const legacySource = "/ disabled binding\n" + homeSource;
+        await writeFile(sourcePath, legacySource, "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        expect(preview.valid).toBeTrue();
+        expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source).toStartWith("// @format zone 1\n// disabled binding\n");
+        expect(await readFile(sourcePath, "utf8")).toBe(legacySource);
+    });
+
     test("discovers a surface from a parent path and prepares a complete preview", async () => {
         const source = await LegacyCsiSource.create(temporaryRoot);
         expect(await source.listSurfaces()).toEqual([{ fxZoneCount: 1, name: "FaderPortV2", stableId: "faderportv2", zoneCount: 3 }]);

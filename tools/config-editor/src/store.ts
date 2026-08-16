@@ -5,7 +5,7 @@ import type { AnyDocument } from "./formats.ts";
 import { parseByPath } from "./formats.ts";
 import type { Diagnostic } from "./model.ts";
 import type { ProductRootGuard, ProductTreeEntry } from "./paths.ts";
-import { applyQuickFix as applyRegisteredQuickFix, diagnosticsWithQuickFixes, type QuickFixRequest } from "./quick-fixes.ts";
+import { applyQuickFix as applyRegisteredQuickFix, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, type QuickFixRequest } from "./quick-fixes.ts";
 import { validateDocumentSet } from "./validation.ts";
 
 export interface DocumentView {
@@ -177,15 +177,22 @@ export class ConfigurationStore {
         const checkedPathKeys = new Set(checkedPaths.map((relativePath) => relativePath.toLowerCase()));
         for (const change of changes) if (!checkedPathKeys.has(change.path.toLowerCase())) throw new EditorOperationError("validation.path", `Validation path is not available in the configuration tree: ${change.path}`);
         const documents: AnyDocument[] = [];
+        const writableByPath = new Map<string, boolean>();
         const files: Array<{ diagnostics: Diagnostic[]; path: string }> = [];
         for (const entry of entries) {
             const opened = await this.openDocument(entry.path);
             const source = sources.get(entry.path.toLowerCase()) ?? opened.source;
             const document = parseByPath(source, entry.path, this.knownActions);
             documents.push(document);
+            writableByPath.set(entry.path.toLowerCase(), opened.writable);
             files.push({ diagnostics: diagnosticsWithQuickFixes(document, this.knownActions, opened.writable), path: entry.path });
         }
-        return { checkedPaths, diagnostics: validateDocumentSet(documents), files };
+        const documentsByPath = new Map<string, AnyDocument>(documents.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
+        const diagnostics = validateDocumentSet(documents).map((diagnostic) => {
+            const document = diagnostic.path ? documentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
+            return document ? diagnosticWithQuickFixes(document, diagnostic, this.knownActions, writableByPath.get(diagnostic.path!.toLowerCase()) ?? false) : diagnostic;
+        });
+        return { checkedPaths, diagnostics, files };
     }
 
     async saveOne(change: SaveChange): Promise<{ hash: string; report: OperationReport }> {

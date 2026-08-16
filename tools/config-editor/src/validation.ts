@@ -1,7 +1,7 @@
 import path from "node:path";
 import { addDiagnostic, type Diagnostic } from "./model.ts";
 import type { AnyDocument } from "./formats.ts";
-import type { ZoneSemantic } from "./zone.ts";
+import type { ZoneDependencyReference, ZoneSemantic } from "./zone.ts";
 
 export function validateDocumentSet(documents: AnyDocument[]): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -32,7 +32,7 @@ export function validateDocumentSet(documents: AnyDocument[]): Diagnostic[] {
     const states = new Map<string, "done" | "visiting">();
     const stack: string[] = [];
     const reportedCycles = new Set<string>();
-    const visitZone = (zoneName: string): void => {
+    const visitZone = (zoneName: string, incoming?: { document: AnyDocument; reference: ZoneDependencyReference }): void => {
         if (states.get(zoneName) === "done") return;
         if (states.get(zoneName) === "visiting") {
             const cycleStart = stack.indexOf(zoneName);
@@ -40,7 +40,7 @@ export function validateDocumentSet(documents: AnyDocument[]): Diagnostic[] {
             const cycleKey = [...new Set(cycle)].sort().join("\0");
             if (!reportedCycles.has(cycleKey)) {
                 reportedCycles.add(cycleKey);
-                addDiagnostic(diagnostics, "error", "zones.dependency.cycle", `Zone dependency cycle: ${cycle.map((name) => (zonesByName.get(name)?.semantic as ZoneSemantic | undefined)?.name ?? name).join(" -> ")}`, undefined, zonesByName.get(zoneName)?.path);
+                addDiagnostic(diagnostics, "error", "zones.dependency.cycle", `Zone dependency cycle: ${cycle.map((name) => (zonesByName.get(name)?.semantic as ZoneSemantic | undefined)?.name ?? name).join(" -> ")}`, incoming?.reference.line, incoming?.document.path ?? zonesByName.get(zoneName)?.path);
             }
             return;
         }
@@ -49,7 +49,7 @@ export function validateDocumentSet(documents: AnyDocument[]): Diagnostic[] {
         states.set(zoneName, "visiting");
         stack.push(zoneName);
         const semantic = document.semantic as ZoneSemantic;
-        for (const dependency of semantic.dependencies) visitZone(dependency.toLowerCase());
+        for (const reference of semantic.dependencyReferences) visitZone(reference.name.toLowerCase(), { document, reference });
         stack.pop();
         states.set(zoneName, "done");
     };

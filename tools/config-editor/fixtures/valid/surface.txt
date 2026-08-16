@@ -9,7 +9,7 @@ AccelerationValues
   RotaryWidgetClass Val 0.005 0.01
 AccelerationValuesEnd
 
-Widget Play # Shape=Round Color=55ff55
+Widget Play
   Press 90 5e 7f 90 5e 00
   FB_TwoState 90 5e 7f 90 5e 00
 WidgetEnd
@@ -24,7 +24,7 @@ WidgetEnd
 
 OSKLayout Version=1
   Row
-    Widget Play Width=1.5 Height=1.5
+    Widget Play Width=1.5 Height=1.5 Shape=Round Color=55ff55
     Spacer Width=0.25
     Widget Rotary Width=1.5 Height=1.5 PressTarget=RotaryPush
   RowEnd

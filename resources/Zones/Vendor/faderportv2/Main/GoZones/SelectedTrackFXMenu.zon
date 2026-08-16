@@ -1,12 +1,12 @@
 Zone "SelectedTrackFXMenu"
      Channel             FixedRGBColorDisplay { 120   0 240 }
 
-     / Fader               TrackReceiveVolume
-     / Mute                TrackReceiveMute
-     / RotaryBig              TrackReceivePan
+     // Fader               TrackReceiveVolume
+     // Mute                TrackReceiveMute
+     // RotaryBig              TrackReceivePan
 
-     / RotaryBigPush          TrackReceivePan     [ 0.5 ]
-     / Shift+RotaryBigPush    TrackReceiveVolume  [ 0.716 ]
+     // RotaryBigPush          TrackReceivePan     [ 0.5 ]
+     // Shift+RotaryBigPush    TrackReceiveVolume  [ 0.716 ]
 
 
 

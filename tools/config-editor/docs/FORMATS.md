@@ -7,7 +7,7 @@
 - Stable file and semantic IDs match `[a-z0-9][a-z0-9_-]*`.
 - Names shown to users may contain spaces and Unicode when the owning field permits them.
 - Parsers preserve all source text. Unknown data is a warning, not a reason to remove a line.
-- A line whose first non-space character is `/` or `#` is a runtime comment. `// @format` remains an editor-readable runtime comment.
+- Only `//` starts a comment in current Surface and Zone files. A single leading `/` and a leading `#` are not comments. The exact Learn FX directives listed below are reserved metadata lines that start with `#`. The legacy importer converts old single-slash and other hash comment lines to `//` without changing OSC address tokens such as `X32Fader /ch/01/mix/fader`.
 - Syntax errors prevent later apply or save operations.
 
 ## Product config 7.0
@@ -22,6 +22,7 @@ PageName=Home PageFollowsMCP=No SynchPages=No ScrollLink=No ScrollSynch=No
 ```
 
 - `Version=7.0` must be the first physical line because the current C++ runtime checks line zero.
+- After the version line, `#` starts a full-line comment in this INI file.
 - `SurfaceFolder`, non-empty `ZoneFolder`, and non-empty `FXZoneFolder` values are stable IDs, not paths.
 - `SurfaceFolder` is required for a surface assignment.
 - Unknown property-list records are preserved with a warning.
@@ -51,7 +52,7 @@ OSKLayout Version=1
 OSKLayoutEnd
 ```
 
-Layout widget names and `PressTarget`, `ScrollTarget`, `ValueTarget`, and `TouchTarget` values must exist in hardware `Widget` blocks. Every target must provide the required input type. The MIDI runtime loads the formal block and ignores its layout cells during hardware parsing. Current `# OSKRow` and `# OSKSpacer` data remains lossless legacy import input.
+Layout widget names and `PressTarget`, `ScrollTarget`, `ValueTarget`, and `TouchTarget` values must exist in hardware `Widget` blocks. Every target must provide the required input type. The MIDI runtime loads the formal block and ignores its layout cells during hardware parsing.
 
 ## Zone 1
 
@@ -73,6 +74,7 @@ ZoneEnd
 - Unknown runtime actions are warnings because external or future data must remain editable.
 - Zone names and dependencies are checked case-insensitively across the validation set.
 - Zone dependency cycles are errors.
+- An `FXWidgetLayout` file can place the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives after `ZoneEnd`. These are metadata keywords, not comments.
 
 ## Functional snippet 1
 

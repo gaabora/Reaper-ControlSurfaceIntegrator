@@ -10,9 +10,16 @@ export interface ZoneBinding {
     widget: string;
 }
 
+export interface ZoneDependencyReference {
+    line: number;
+    name: string;
+    type: "GoSubZone" | "GoZone" | "IncludedZones" | "SubZones";
+}
+
 export interface ZoneSemantic {
     alias?: string;
     bindings: ZoneBinding[];
+    dependencyReferences: ZoneDependencyReference[];
     dependencies: string[];
     includedZones: string[];
     name?: string;
@@ -25,10 +32,16 @@ function parseWidgetExpression(expression: string): { modifiers: string[]; widge
     return { modifiers: parts.slice(0, -1), widget: parts.at(-1) ?? "" };
 }
 
+const LEARN_TEMPLATE_DIRECTIVES = new Set(["#WidgetType", "#DisplayRow", "#RingStyle", "#DisplayFont", "#SupportsColor"]);
+
+export function isLearnTemplateDirective(keyword: string | undefined): boolean {
+    return Boolean(keyword && LEARN_TEMPLATE_DIRECTIVES.has(keyword));
+}
+
 export function parseZone(source: string, documentPath?: string, knownActions?: Set<string>): LosslessDocument<ZoneSemantic> {
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
-    const semantic: ZoneSemantic = { bindings: [], dependencies: [], includedZones: [], subZones: [] };
+    const semantic: ZoneSemantic = { bindings: [], dependencies: [], dependencyReferences: [], includedZones: [], subZones: [] };
     let version = "unversioned";
     let markerLine: number | undefined;
     let zoneLine: number | undefined;
@@ -85,6 +98,11 @@ export function parseZone(source: string, documentPath?: string, knownActions?: 
             section = undefined;
             continue;
         }
+        if (isLearnTemplateDirective(keyword)) {
+            line.kind = "entry";
+            if (keyword !== "#SupportsColor" && !line.tokens[1]) addDiagnostic(diagnostics, "error", "zone.learn-template.value", `${keyword} requires a value`, line.lineNumber, documentPath);
+            continue;
+        }
         if (section) {
             line.kind = "entry";
             const dependency = line.tokens[0];
@@ -92,6 +110,7 @@ export function parseZone(source: string, documentPath?: string, knownActions?: 
                 if (section === "included") semantic.includedZones.push(dependency);
                 else semantic.subZones.push(dependency);
                 semantic.dependencies.push(dependency);
+                semantic.dependencyReferences.push({ line: line.lineNumber, name: dependency, type: section === "included" ? "IncludedZones" : "SubZones" });
             }
             continue;
         }
@@ -115,7 +134,10 @@ export function parseZone(source: string, documentPath?: string, knownActions?: 
         line.kind = "entry";
         if (!widgetExpression.widget) addDiagnostic(diagnostics, "error", "zone.binding.widget", "Binding requires a widget", line.lineNumber, documentPath);
         if (knownActions && !knownActions.has(action)) addDiagnostic(diagnostics, "warning", "zone.action.unknown", `Unknown runtime action: ${action}`, line.lineNumber, documentPath);
-        if ((action === "GoZone" || action === "GoSubZone") && params[0]) semantic.dependencies.push(params[0]);
+        if ((action === "GoZone" || action === "GoSubZone") && params[0]) {
+            semantic.dependencies.push(params[0]);
+            semantic.dependencyReferences.push({ line: line.lineNumber, name: params[0], type: action });
+        }
     }
 
     if (!markerLine) addDiagnostic(diagnostics, "warning", "zone.format.missing", "Zone has no // @format zone 1 marker", undefined, documentPath);

@@ -1,0 +1,4 @@
+// @format surface 1
+Widget ChannelFader
+  X32Fader /ch/01/mix/fader
+WidgetEnd

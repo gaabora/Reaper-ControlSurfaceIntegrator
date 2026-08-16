@@ -63,6 +63,7 @@ void CSurfIntegrator::Init() {
                 }
             }
 
+            if (!line.empty() && line[0] == '#') continue;
             if (IsCommentedOrEmpty(line)) continue;
 
             vector<string> tokens;
@@ -175,7 +176,7 @@ void CSurfIntegrator::Init() {
                                     return;
                                 }
                                 if (!resolvedZoneProfile) {
-                                    LogToConsole("[ERROR] Missing zone profile '%s'. Expected it under %s or %s\n", zoneProfileId.c_str(), productPaths.UserZonesRoot().string().c_str(), productPaths.VendorZonesRoot().string().c_str());
+                                    LogToConsole("[ERROR] Missing zone profile '%s'. Expected under %s or %s\n", zoneProfileId.c_str(), productPaths.UserZonesRoot().string().c_str(), productPaths.VendorZonesRoot().string().c_str());
                                     return;
                                 }
                                 const string zoneFolder = (*resolvedZoneProfile / "Main").string();
@@ -194,8 +195,8 @@ void CSurfIntegrator::Init() {
                                     return;
                                 }
                                 if (!resolvedFxZoneProfile) {
-                                    LogToConsole("[ERROR] Missing FX zone profile '%s'. Expected it under %s or %s\n", fxZoneProfileId.c_str(), productPaths.UserZonesRoot().string().c_str(), productPaths.VendorZonesRoot().string().c_str());
-                                    return;
+                                    LogToConsole("[ERROR] Missing FX zone profile '%s'. Expected under %s or %s\n", fxZoneProfileId.c_str(), productPaths.UserZonesRoot().string().c_str(), productPaths.VendorZonesRoot().string().c_str());
+                                    return;//FIXME: create folder in user no matter if it exist in vendor, but ALSO in other places where using, to not overduplicate but still use vendor fx zones together with user fx zones, if user did not try make changes to vendor fx zone 
                                 }
                                 const string fxZoneFolder = (*resolvedFxZoneProfile / "FX").string();
                                 if (!filesystem::is_directory(fxZoneFolder)) {

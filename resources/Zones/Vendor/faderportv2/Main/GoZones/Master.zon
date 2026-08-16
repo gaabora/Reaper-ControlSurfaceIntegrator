@@ -1,8 +1,8 @@
 Zone Master
 
-  /  OnZoneActivation          SendMIDIMessage  "90 3A 01" // Master button light BLINK
+  //  OnZoneActivation          SendMIDIMessage  "90 3A 01" // Master button light BLINK
   
-  /  OnZoneDeactivation        SendMIDIMessage  "90 3A 00" // Master button light Off
+  //  OnZoneDeactivation        SendMIDIMessage  "90 3A 00" // Master button light Off
 
   Solo                      Reaper 15     // Track: Toggle solo for master track
   Mute                      Reaper 14     // Track: Toggle mute for master track
@@ -37,8 +37,8 @@ Zone Master
    Shift+Write  TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
    Shift+Read   TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
 
-  /  Pan                       Flip {  7  0 10 120   0 120 }
+  //  Pan                       Flip {  7  0 10 120   0 120 }
 
-  /  Master                    GoHome Feedback=No
+  //  Master                    GoHome Feedback=No
   Master                    GoHome Blink
 ZoneEnd

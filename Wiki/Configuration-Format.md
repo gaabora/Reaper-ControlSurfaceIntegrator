@@ -497,16 +497,16 @@ Zone "MixerZone" NavType=TrackNavigator ListenToSends=1
 
 **Comments**:
 ```
-; This is a comment
-// This is also a comment
-# This is also a comment
+// This is a comment
 
 Zone "Mixer"
-  ; Widget commented out below
-  ; Widget Fader1 TrackVolume
+  // Widget commented out below
+  // Widget Fader1 TrackVolume
   Widget Fader2 TrackPan
 ZoneEnd
 ```
+
+A single leading `/` is not a comment. It remains part of a token, including OSC addresses such as `X32Fader /ch/01/mix/fader`.
 
 **Special Markers** (auto-generated sections):
 ```

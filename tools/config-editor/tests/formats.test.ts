@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { actionNameSet, loadActionCatalog } from "../src/action-catalog.ts";
 import { parseByPath } from "../src/formats.ts";
 import { serializeDocument } from "../src/model.ts";
+import { parseProductIdentity } from "../src/product-identity.ts";
 import { validateDocumentSet } from "../src/validation.ts";
 
 const editorRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -30,7 +31,9 @@ describe("configuration formats", () => {
         const catalog = await loadActionCatalog(repositoryRoot);
         const expectedErrorCodes = new Map([
             ["home.zon", "zone.end.missing"],
+            ["hash-comment.zon", "comment.hash.unsupported"],
             ["product.ini", "product.version.unsupported"],
+            ["single-slash.zon", "comment.single-slash.unsupported"],
             ["surface.txt", "surface.format.version"],
             ["transport.snippet", "snippet.id"],
         ]);
@@ -45,6 +48,39 @@ describe("configuration formats", () => {
     test("mixed line endings round-trip without normalization", () => {
         const source = "// @format zone 1\r\nZone Home\r\n  // keep this comment\n  Play Play\r\nZoneEnd";
         expect(serializeDocument(parseByPath(source, "Home.zon"))).toBe(source);
+    });
+
+    test("product identity accepts hash comments", async () => {
+        const source = await readFile(path.join(repositoryRoot, "Scripts", "product_identity.conf"), "utf8");
+        expect(parseProductIdentity(`# identity comment\n${source}`).productId).toBe("reacontrolsurface");
+        expect(() => parseProductIdentity(`// identity comment\n${source}`)).toThrow("Invalid product identity line 1");
+    });
+
+    test("keeps OSC address tokens and rejects legacy single-slash comments", () => {
+        const source = "// @format surface 1\nWidget Fader\n  X32Fader /ch/01/mix/fader\n  / disabled mapping\nWidgetEnd\n";
+        const document = parseByPath(source, "surface.txt");
+        expect(document.lines[2].tokens).toEqual(["X32Fader", "/ch/01/mix/fader"]);
+        expect(document.diagnostics.some((diagnostic) => diagnostic.code === "comment.single-slash.unsupported" && diagnostic.line === 4 && diagnostic.severity === "error")).toBeTrue();
+    });
+
+    test("rejects hash comments in current Surface files", () => {
+        const source = "// @format surface 1\n# disabled widget\nWidget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
+        const document = parseByPath(source, "surface.txt");
+        expect(document.diagnostics.some((diagnostic) => diagnostic.code === "comment.hash.unsupported" && diagnostic.line === 2 && diagnostic.severity === "error")).toBeTrue();
+    });
+
+    test("keeps hash comments in the product INI format", () => {
+        const source = "Version=7.0\n# product config comment\n";
+        const document = parseByPath(source, "product.ini");
+        expect(document.lines[1].kind).toBe("comment");
+        expect(document.diagnostics.some((diagnostic) => diagnostic.code === "comment.hash.unsupported")).toBeFalse();
+    });
+
+    test("keeps exact Learn FX hash directives as zone metadata", () => {
+        const source = "// @format zone 1\nZone FXWidgetLayout\nZoneEnd\n#WidgetType Fader\n#DisplayRow DisplayUpper\n#RingStyle Dot\n#DisplayFont Arial\n#SupportsColor\n";
+        const document = parseByPath(source, "FXWidgetLayout.zon");
+        expect(document.diagnostics.some((diagnostic) => diagnostic.code === "comment.hash.unsupported")).toBeFalse();
+        expect(document.diagnostics.some((diagnostic) => diagnostic.code === "zone.line.outside")).toBeFalse();
     });
 
     test("OSK targets must name widgets with the required input", () => {
@@ -66,7 +102,7 @@ describe("configuration formats", () => {
     test("zone dependency cycles report a stable error", () => {
         const alpha = parseByPath("// @format zone 1\nZone alpha\n  Play GoZone beta\nZoneEnd\n", "/zones/alpha.zon");
         const beta = parseByPath("// @format zone 1\nZone beta\n  Play GoZone alpha\nZoneEnd\n", "/zones/beta.zon");
-        expect(validateDocumentSet([alpha, beta]).some((diagnostic) => diagnostic.code === "zones.dependency.cycle" && diagnostic.severity === "error")).toBeTrue();
+        expect(validateDocumentSet([alpha, beta]).some((diagnostic) => diagnostic.code === "zones.dependency.cycle" && diagnostic.severity === "error" && diagnostic.path === "/zones/beta.zon" && diagnostic.line === 3)).toBeTrue();
     });
 
     test("runtime action catalog comes from ACTION_TYPE_LIST", async () => {

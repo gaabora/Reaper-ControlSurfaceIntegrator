@@ -1,18 +1,28 @@
 import path from "node:path";
-import type { LosslessDocument } from "./model.ts";
+import { addDiagnostic, type LosslessDocument } from "./model.ts";
 import { parseProductConfig } from "./product-config.ts";
 import { parseSnippet } from "./snippet.ts";
 import { parseSurface } from "./surface.ts";
-import { parseZone } from "./zone.ts";
+import { analysisText } from "./text.ts";
+import { isLearnTemplateDirective, parseZone } from "./zone.ts";
 
 export type AnyDocument = LosslessDocument<unknown>;
 
+function addCommonSyntaxDiagnostics(document: AnyDocument): AnyDocument {
+    for (const line of document.lines) {
+        const text = analysisText(line);
+        if (/^\/(?!\/)/.test(text)) addDiagnostic(document.diagnostics, "error", "comment.single-slash.unsupported", "Single-slash comments are not supported. Use //.", line.lineNumber, document.path);
+        if (/^#/.test(text) && document.format !== "product-config" && !(document.format === "zone" && isLearnTemplateDirective(line.tokens[0]))) addDiagnostic(document.diagnostics, "error", "comment.hash.unsupported", "Hash comments are not supported. Use //.", line.lineNumber, document.path);
+    }
+    return document;
+}
+
 export function parseByPath(source: string, filePath: string, knownActions?: Set<string>): AnyDocument {
     const extension = path.extname(filePath).toLowerCase();
-    if (extension === ".zon") return parseZone(source, filePath, knownActions);
-    if (extension === ".snippet") return parseSnippet(source, filePath, knownActions);
-    if (extension === ".txt") return parseSurface(source, filePath);
-    if (extension === ".ini") return parseProductConfig(source, filePath);
+    if (extension === ".zon") return addCommonSyntaxDiagnostics(parseZone(source, filePath, knownActions));
+    if (extension === ".snippet") return addCommonSyntaxDiagnostics(parseSnippet(source, filePath, knownActions));
+    if (extension === ".txt") return addCommonSyntaxDiagnostics(parseSurface(source, filePath));
+    if (extension === ".ini") return addCommonSyntaxDiagnostics(parseProductConfig(source, filePath));
     throw new Error(`Unsupported configuration extension: ${extension || "(none)"}`);
 }
 

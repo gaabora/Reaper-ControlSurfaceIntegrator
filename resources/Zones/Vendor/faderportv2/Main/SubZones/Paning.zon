@@ -18,5 +18,5 @@ Zone Paning NavType=SelectedTrack
   Shift+RotaryBig       Reaper _SWS_AWPANSTEREOPAN // SWS/AW: Set selected tracks pan mode to stereo pan
   Shift+RotaryBigPush   TrackPanWidth [ 1.0 ]
 
-  /Pan                   LeaveSubZone
+  //Pan                   LeaveSubZone
 ZoneEnd

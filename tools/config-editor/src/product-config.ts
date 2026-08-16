@@ -1,6 +1,8 @@
 import { addDiagnostic, type Diagnostic, type LosslessDocument } from "./model.ts";
 import { initializeLine, isStableId, parseProperties, propertyValue, splitSourceLines } from "./text.ts";
 
+const PRODUCT_CONFIG_COMMENT_PREFIXES = ["#"];
+
 export interface ProductConfigRecord {
     kind: "broadcaster" | "listener" | "page" | "surface-assignment" | "surface-type" | "unknown";
     line: number;
@@ -19,7 +21,7 @@ export function parseProductConfig(source: string, documentPath?: string): Lossl
     let firstContentLine: number | undefined;
 
     for (const line of lines) {
-        const text = initializeLine(line);
+        const text = initializeLine(line, PRODUCT_CONFIG_COMMENT_PREFIXES);
         if (!text || line.kind === "comment") continue;
         if (!firstContentLine) firstContentLine = line.lineNumber;
         const properties = parseProperties(line.tokens);

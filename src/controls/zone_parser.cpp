@@ -36,7 +36,9 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
 
             if (tokens[0] == "Zone" || tokens[0] == "ZoneEnd") continue;
 
-            else if (tokens[0] == "SubZones")
+            if (tokens[0] == "#WidgetType" || tokens[0] == "#DisplayRow" || tokens[0] == "#RingStyle" || tokens[0] == "#DisplayFont" || tokens[0] == "#SupportsColor") continue;
+
+            if (tokens[0] == "SubZones")
                 isInSubZonesSection = true;
             else if (tokens[0] == "SubZonesEnd") {
                 isInSubZonesSection = false;

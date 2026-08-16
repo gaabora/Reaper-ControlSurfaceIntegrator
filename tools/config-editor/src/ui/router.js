@@ -18,6 +18,7 @@ export function readEditorRoute(currentUrl = routeUrl()) {
 
 export function editorRouteUrl(route, currentUrl = routeUrl()) {
     const nextUrl = new URL(currentUrl.href);
+    nextUrl.hash = "";
     for (const key of EDITOR_ROUTE_KEYS) nextUrl.searchParams.delete(key);
     if (route.view === "edit") {
         nextUrl.searchParams.set("view", "edit");

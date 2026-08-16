@@ -20,7 +20,7 @@ describe("editor router", () => {
         expect(nextUrl.searchParams.get("file")).toBe("Zones/User/fp2/Main/Home.zon");
         expect(nextUrl.searchParams.get("line")).toBe("3");
         expect(nextUrl.searchParams.get("panel")).toBe("closed");
-        expect(nextUrl.hash).toBe("#section");
+        expect(nextUrl.hash).toBe("");
     });
 
     test("removes editor parameters for the home route", () => {

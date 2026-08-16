@@ -1,5 +1,5 @@
 Zone SelectedTrackSend
-  /  Channel            FixedRGBColorDisplay {   0 240 120 }
+  //  Channel            FixedRGBColorDisplay {   0 240 120 }
 
   Fader                TrackSendVolume
   RotaryBig            TrackSendPan

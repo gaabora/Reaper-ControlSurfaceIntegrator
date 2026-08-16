@@ -16,6 +16,8 @@
 - `preamble.h` is the stable include hub and project precompiled header.
 - The integrator run loop and REAPER callbacks share `csiMutex_`; preserve reentrant callback safety.
 - Zone and surface parser changes affect user configuration formats and require documentation review.
+- Treat only `//` as Surface and Zone comments. Preserve single slash tokens as data so OSC addresses such as `/ch/01/mix/fader` reach the OSC widget parser.
+- Treat the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives as metadata, not as comments.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
 - Load configuration, surfaces, zones, logs, backups, snippets, and generated files through the generated product identity and `ProductPaths`; do not add runtime fallback to legacy CSI paths.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.

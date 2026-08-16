@@ -1,5 +1,5 @@
 import { addDiagnostic, type Diagnostic, type LosslessDocument, type SourceLine } from "./model.ts";
-import { analysisText, initializeLine, parseFormatMarker, parseProperties, propertyValue, splitSourceLines, splitWidgetComment, tokenizeLine } from "./text.ts";
+import { analysisText, initializeLine, parseFormatMarker, parseProperties, propertyValue, splitSourceLines, splitWidgetMetadata, tokenizeLine } from "./text.ts";
 
 export interface SurfaceWidget {
     body: SourceLine[];
@@ -22,7 +22,6 @@ export interface OskLayoutRow {
 }
 
 export interface SurfaceSemantic {
-    legacyOskLayout: boolean;
     oskLayout?: { line: number; rows: OskLayoutRow[]; version: string };
     widgets: SurfaceWidget[];
 }
@@ -55,7 +54,6 @@ export function parseSurface(source: string, documentPath?: string): LosslessDoc
     let layout: SurfaceSemantic["oskLayout"];
     let currentLayoutRow: OskLayoutRow | undefined;
     let inLayout = false;
-    let legacyOskLayout = false;
 
     for (const line of lines) {
         const text = initializeLine(line);
@@ -71,10 +69,7 @@ export function parseSurface(source: string, documentPath?: string): LosslessDoc
             }
             continue;
         }
-        if (!text || line.kind === "comment") {
-            if (/^#\s*OSK(?:Row|Spacer)\b/.test(text)) legacyOskLayout = true;
-            continue;
-        }
+        if (!text || line.kind === "comment") continue;
 
         if (currentWidget) {
             if (line.tokens[0] === "WidgetEnd") {
@@ -150,7 +145,7 @@ export function parseSurface(source: string, documentPath?: string): LosslessDoc
             continue;
         }
         if (line.tokens[0] === "Widget") {
-            const split = splitWidgetComment(analysisText(line));
+            const split = splitWidgetMetadata(analysisText(line));
             const definitionTokens = tokenizeLine(split.definition);
             if (!definitionTokens[1]) {
                 addDiagnostic(diagnostics, "error", "surface.widget.name", "Widget requires a name", line.lineNumber, documentPath);
@@ -195,7 +190,5 @@ export function parseSurface(source: string, documentPath?: string): LosslessDoc
             }
         }
     }
-    if (layout && legacyOskLayout) addDiagnostic(diagnostics, "warning", "surface.layout.mixed", "Surface contains both formal and legacy OSK layout data", layout.line, documentPath);
-
-    return { diagnostics, format: "surface", lines, path: documentPath, semantic: { legacyOskLayout, oskLayout: layout, widgets }, source, version };
+    return { diagnostics, format: "surface", lines, path: documentPath, semantic: { oskLayout: layout, widgets }, source, version };
 }

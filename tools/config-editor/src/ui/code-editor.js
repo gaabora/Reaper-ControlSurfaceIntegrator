@@ -19,6 +19,10 @@ const configurationLanguage = StreamLanguage.define({
             state.firstToken = false;
             return "comment";
         }
+        if (state.firstToken && stream.match(/#(?:WidgetType|DisplayRow|RingStyle|DisplayFont|SupportsColor)\b/)) {
+            state.firstToken = false;
+            return "keyword";
+        }
         if (stream.peek() === '"') {
             stream.next();
             let escaped = false;

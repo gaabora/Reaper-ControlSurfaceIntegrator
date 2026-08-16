@@ -210,22 +210,28 @@ inline char* format_number(double v, char* buf, int bufsz) {
 }
 
 inline bool IsCommentedOrEmpty(const string& line) {
-    return line.empty() || line[0] == '\r' || line[0] == '/' || line[0] == '#';
+    return line.empty() || line[0] == '\r' || (line.size() > 1 && line[0] == '/' && line[1] == '/');
 }
 
 inline void TrimLine(string& line) {
     const string tmp = line;
-    const char* p = tmp.c_str();
+    const char* cursor = tmp.c_str();
 
     line.clear();
+    bool reachedComment = false;
     for (;;) {
-        while (*p > 0 && isspace(static_cast<unsigned char>(*p))) p++;
-        if (!*p || p[0] == '/') break;
+        while (*cursor > 0 && isspace(static_cast<unsigned char>(*cursor))) cursor++;
+        // A single slash is data because OSC addresses can start with '/'.
+        if (!*cursor || (cursor[0] == '/' && cursor[1] == '/')) break;
         if (line.length()) line.append(" ", 1);
-        while (*p && !isspace(static_cast<unsigned char>(*p))) {
-            if (p[0] == '/' && p[1] == '/') break;
-            line.append(p++, 1);
+        while (*cursor && !isspace(static_cast<unsigned char>(*cursor))) {
+            if (cursor[0] == '/' && cursor[1] == '/') {
+                reachedComment = true;
+                break;
+            }
+            line.append(cursor++, 1);
         }
+        if (reachedComment) break;
     }
 }
 

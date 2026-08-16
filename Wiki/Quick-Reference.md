@@ -281,9 +281,7 @@ Then check REAPER console for messages:
 ## Zone File Comment Syntax
 
 ```
-; Comment at line start
-// Also supported
-# Also supported
+// Comment at line start
 ```
 
 ## Special Characters
@@ -306,7 +304,6 @@ Then check REAPER console for messages:
 ---
 
 **Last Updated**: March 2026 | CSI v7.0
-
 
 
 

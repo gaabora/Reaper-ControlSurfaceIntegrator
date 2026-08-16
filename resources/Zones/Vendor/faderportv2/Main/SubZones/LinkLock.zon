@@ -1,9 +1,9 @@
 Zone "LinkLock"
-  / OnZoneActivation      Speak "ass"
-  /OnZoneActivation      ToggleUseLocalModifiers
-  /OnZoneDeactivation    ToggleUseLocalModifiers
+  // OnZoneActivation      Speak "ass"
+  //OnZoneActivation      ToggleUseLocalModifiers
+  //OnZoneDeactivation    ToggleUseLocalModifiers
 
-  / Link      FixedRGBColorDisplay { 255 255 128 }
+  // Link      FixedRGBColorDisplay { 255 255 128 }
 
 
 
@@ -13,8 +13,8 @@ Zone "LinkLock"
 
 	Bypass 			      ToggleFXBypass
 	Shift+Bypass 			ToggleFXOffline
-  /Touch     RemapAutoZone  //     {  7  10  10 255 255 255 } 
-  /Write     AutoMapFX      //     {  7  10  10 255 255 255 } 
+  //Touch     RemapAutoZone  //     {  7  10  10 255 255 255 }
+  //Write     AutoMapFX      //     {  7  10  10 255 255 255 }
 
   Read                       Reaper "_S&M_TOGLFLOATFXEL" // SWS/S&M: Toggle float selected FX for selected tracks
 
@@ -31,12 +31,12 @@ Zone "LinkLock"
   Next                          GoFXSlot 1
 
 
-  / Left	      TrackFXMenuBank -1
-  / Right	      TrackFXMenuBank 1
-  / Prev      FXParam -1
-  / Next      FXParam 1
+  // Left	      TrackFXMenuBank -1
+  // Right	      TrackFXMenuBank 1
+  // Prev      FXParam -1
+  // Next      FXParam 1
 
-  /Fader      FocusedFXParam
+  //Fader      FocusedFXParam
 
   Link          LeaveSubZone
 ZoneEnd

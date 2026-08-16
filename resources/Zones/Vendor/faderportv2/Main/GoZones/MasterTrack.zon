@@ -1,9 +1,9 @@
 Zone MasterTrack NavType=MasterTrack
-  /OnZoneActivation          SendMIDIMessage  "90 3A 01" // Master button light BLINK
-  /OnZoneDeactivation        SendMIDIMessage  "90 3A 00" // Master button light Off
+  //OnZoneActivation          SendMIDIMessage  "90 3A 01" // Master button light BLINK
+  //OnZoneDeactivation        SendMIDIMessage  "90 3A 00" // Master button light Off
 
-  /  Solo                      Reaper 15     // Track: Toggle solo for master track
-  /  Mute                      Reaper 14     // Track: Toggle mute for master track
+  //  Solo                      Reaper 15     // Track: Toggle solo for master track
+  //  Mute                      Reaper 14     // Track: Toggle mute for master track
   Solo                      TrackSolo
   Mute                      TrackMute
   Arm                       NoAction
@@ -42,9 +42,9 @@ Zone MasterTrack NavType=MasterTrack
    Shift+Write  TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
    Shift+Read   TrackAutoMode 0  Feedback=No HoldDelay=400 // reset to Trim
 
-  /  Pan                       Flip {  7  0 10 120   0 120 }
+  //  Pan                       Flip {  7  0 10 120   0 120 }
 
-  /Master                    GoHome Feedback=No // light, no blink
+  //Master                    GoHome Feedback=No // light, no blink
   Master                    GoHome Blink=2000 // dimmed, no blink
-  /Master                    LeaveSubZone Blink=2000 //works
+  //Master                    LeaveSubZone Blink=2000 //works
 ZoneEnd

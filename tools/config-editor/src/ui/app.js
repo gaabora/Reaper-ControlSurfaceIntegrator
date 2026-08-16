@@ -1,5 +1,5 @@
 import { createConfigurationEditor } from "./code-editor.js";
-import { onEditorRouteChange, readEditorRoute, updateEditorRoute } from "./router.js";
+import { editorRouteUrl, onEditorRouteChange, readEditorRoute, updateEditorRoute } from "./router.js";
 
 let translations = {};
 const sessionTokenElement = document.querySelector('meta[name="config-editor-session-token"]');
@@ -271,7 +271,8 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
         if (actionable) {
             const location = document.createElement("a");
             location.className = "diagnostic-location";
-            location.href = "#";
+            const targetPath = diagnostic.path || state.current?.path || "";
+            location.href = editorRouteUrl(state.task === "legacy" ? { view: "legacy" } : { file: targetPath, line: diagnostic.line, panel: state.bottomPanel, view: "edit" }).href;
             location.textContent = (diagnostic.path || "") + (diagnostic.path && diagnostic.line ? ": " : "") + (diagnostic.line ? translate("diagnostic.line", { line: diagnostic.line }).replace(/:\s*$/, "") : "");
             location.addEventListener("click", (event) => {
                 event.preventDefault();
@@ -534,6 +535,18 @@ async function navigateDiagnostic(diagnostic) {
 
 async function applyDiagnosticQuickFix(diagnostic, fix) {
     try {
+        if (state.task === "legacy") {
+            const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === diagnostic.path || candidate.targetPath === diagnostic.path);
+            if (!item) throw new Error(translate("error.quickFixEditable"));
+            const currentSource = state.legacy.drafts.get(item.sourcePath)?.source ?? item.source;
+            const result = await api("/api/quick-fix", { method: "POST", body: JSON.stringify({ diagnostic: { code: diagnostic.code, line: diagnostic.line, message: diagnostic.message }, fix: { data: fix.data, id: fix.id }, path: item.targetPath, source: currentSource }) });
+            state.legacy.drafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source: result.source });
+            await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+            const refreshedItem = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === item.sourcePath);
+            if (refreshedItem) openLegacyDraft(refreshedItem, diagnostic.line);
+            showReport(translate("status.appliedQuickFix", { fix: fix.label }));
+            return;
+        }
         if (diagnostic.path && diagnostic.path !== state.current?.path) await openDocument(diagnostic.path, diagnostic.line);
         if (!state.current?.writable || diagnostic.path && diagnostic.path !== state.current.path) throw new Error(translate("error.quickFixEditable"));
         const result = await api("/api/quick-fix", { method: "POST", body: JSON.stringify({ diagnostic: { code: diagnostic.code, line: diagnostic.line, message: diagnostic.message }, fix: { data: fix.data, id: fix.id }, path: state.current.path, source: state.current.source }) });
@@ -541,6 +554,7 @@ async function applyDiagnosticQuickFix(diagnostic, fix) {
         state.current.source = result.source;
         codeEditor.setValue(result.source);
         handleEditorChange(result.source);
+        state.globalProblems = state.globalProblems.filter((candidate) => diagnosticIdentity(candidate) !== diagnosticIdentity(diagnostic));
         renderDocument();
         showReport(translate("status.appliedQuickFix", { fix: fix.label }));
     } catch (error) { showError(error); }

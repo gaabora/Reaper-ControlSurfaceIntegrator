@@ -97,7 +97,7 @@ void SurfaceTemplateParser::ParseMidiTemplate(const string& filePath,
 
             if (IsCommentedOrEmpty(line)) continue;
 
-            // Strip inline # comments from Widget lines (used for OSK properties)
+            // Remove legacy inline OSK metadata before hardware parsing.
             string parseLine = line;
             if (parseLine.find("Widget ") == 0) {
                 auto hashPos = parseLine.find('#');
@@ -203,7 +203,7 @@ void SurfaceTemplateParser::ParseOSCTemplate(const string& filePath,
 
             if (IsCommentedOrEmpty(line)) continue;
 
-            // Strip inline # comments from Widget lines (used for OSK properties)
+            // Remove legacy inline OSK metadata before hardware parsing.
             string parseLine = line;
             if (parseLine.find("Widget ") == 0) {
                 auto hashPos = parseLine.find('#');

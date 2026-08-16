@@ -5,7 +5,8 @@ import { parseByPath, type AnyDocument } from "./formats.ts";
 import { addDiagnostic, serializeDocument, type Diagnostic } from "./model.ts";
 import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
 import { EditorOperationError } from "./store.ts";
-import { initializeLine, isStableId, splitSourceLines } from "./text.ts";
+import { diagnosticWithQuickFixes } from "./quick-fixes.ts";
+import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
 import type { ZoneBinding, ZoneSemantic } from "./zone.ts";
@@ -135,6 +136,18 @@ function stableId(sourceName: string): string {
     const normalized = sourceName.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^[-_]+|[-_]+$/g, "");
     if (!/^[a-z0-9][a-z0-9_-]*$/.test(normalized)) throw new EditorOperationError("legacy.surface-id", `Could not create a stable ID from legacy surface name: ${sourceName}`);
     return normalized;
+}
+
+const LEGACY_LEARN_DIRECTIVE = /^#(?:WidgetType|DisplayRow|RingStyle|DisplayFont|SupportsColor)(?:\s|$)/;
+
+export function migrateLegacyCommentSyntax(source: string): string {
+    const lines = splitSourceLines(source);
+    for (const line of lines) {
+        line.text = convertSingleSlashCommentLine(line.text);
+        const text = analysisText(line);
+        if (!LEGACY_LEARN_DIRECTIVE.test(text)) line.text = convertHashCommentLine(line.text);
+    }
+    return lines.map((line) => line.text + line.ending).join("");
 }
 
 function formatSource(source: string, kind: LegacyImportKind, targetPath: string, knownActions: Set<string>): string {
@@ -407,7 +420,12 @@ export class LegacyCsiSource {
         const selectedDocuments = items.filter((item) => item.selected).map((item) => item.kind === "surface" ? surfaceDocument : zoneDocuments.get(item.sourcePath)!);
         const mappingSurfaceDocuments = widgetTarget === "existing" ? [...(!includeSurface ? [surfaceDocument] : []), ...(targetSurface ? [targetSurface] : [])] : [];
         const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics).filter((diagnostic) => diagnostic.code !== "surface.format.missing" && diagnostic.code !== "zone.format.missing");
-        const diagnostics = selectedDocuments.flatMap((document) => document.diagnostics).concat(mappingSurfaceDiagnostics, validateDocumentSet(selectedDocuments), widgetMappingResult.diagnostics);
+        const selectedDocumentsByPath = new Map<string, AnyDocument>(selectedDocuments.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
+        const setDiagnostics = validateDocumentSet(selectedDocuments).map((diagnostic) => {
+            const document = diagnostic.path ? selectedDocumentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
+            return document ? diagnosticWithQuickFixes(document, diagnostic, knownActions, true) : diagnostic;
+        });
+        const diagnostics = selectedDocuments.flatMap((document) => document.diagnostics).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
         const selectedTargetPaths = new Map<string, string>();
         for (const item of items.filter((candidate) => candidate.selected)) {
             const targetKey = item.targetPath.toLowerCase();
@@ -516,11 +534,11 @@ export class LegacyCsiSource {
         }
         for (const zone of zones) zone.source = addLegacyNavigator(zone.source, navigators.get(legacyZoneName(zone.source)?.toLowerCase() ?? ""));
         zones.push(...await this.readZones(path.join(surfaceRoot, "FXZones"), "FX", "FXZones"));
-        const surfaceSource = await readFile(surfacePath, "utf8");
+        const originalSurfaceSource = await readFile(surfacePath, "utf8");
         return {
             name: surfaceName,
             stableId: stableId(surfaceName),
-            surface: { originalSourceHash: sha256(surfaceSource), source: surfaceSource, sourcePath: `Surfaces/${surfaceName}/Surface.txt` },
+            surface: { originalSourceHash: sha256(originalSurfaceSource), source: migrateLegacyCommentSyntax(originalSurfaceSource), sourcePath: `Surfaces/${surfaceName}/Surface.txt` },
             zones,
         };
     }
@@ -528,7 +546,7 @@ export class LegacyCsiSource {
     private async countZones(zonesRoot: string): Promise<number> {
         let count = 0;
         await this.visitZoneFiles(zonesRoot, async (filePath, relativePath) => {
-            if (path.posix.basename(relativePath).toLowerCase() !== "gozones.zon" || !legacyGoZoneNavigators(await readFile(filePath, "utf8"))) count++;
+            if (path.posix.basename(relativePath).toLowerCase() !== "gozones.zon" || !legacyGoZoneNavigators(migrateLegacyCommentSyntax(await readFile(filePath, "utf8")))) count++;
         });
         return count;
     }
@@ -536,8 +554,8 @@ export class LegacyCsiSource {
     private async readZones(zonesRoot: string, profile: LegacyZoneSourceFile["profile"], sourceDirectory: "FXZones" | "Zones"): Promise<LegacyZoneSourceFile[]> {
         const zones: LegacyZoneSourceFile[] = [];
         await this.visitZoneFiles(zonesRoot, async (filePath, relativePath) => {
-            const source = await readFile(filePath, "utf8");
-            zones.push({ originalSourceHash: sha256(source), profile, relativePath, source, sourcePath: `${sourceDirectory}/${relativePath}` });
+            const originalSource = await readFile(filePath, "utf8");
+            zones.push({ originalSourceHash: sha256(originalSource), profile, relativePath, source: migrateLegacyCommentSyntax(originalSource), sourcePath: `${sourceDirectory}/${relativePath}` });
         });
         return zones;
     }

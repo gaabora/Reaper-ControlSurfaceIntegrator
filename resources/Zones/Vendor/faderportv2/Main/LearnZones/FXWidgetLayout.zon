@@ -2,17 +2,17 @@ Zone FXWidgetLayout
 	Fader FXParam
 	RotaryBig FXParam
 	RotaryBigPush FXParam
-	/DisplayUpper FixedTextDisplay
-	/DisplayLower FXParamValueDisplay
+	//DisplayUpper FixedTextDisplay
+	//DisplayLower FXParamValueDisplay
 ZoneEnd
 
 #WidgetType Fader
 #WidgetType RotaryBigPush
 #WidgetType RotaryBig
 
-/#DisplayRow DisplayUpper
-/#DisplayRow DisplayLower
-/#RingStyle Dot
-/#RingStyle Fill
-/#RingStyle BoostCut
-/#RingStyle Spread
+//#DisplayRow DisplayUpper
+//#DisplayRow DisplayLower
+//#RingStyle Dot
+//#RingStyle Fill
+//#RingStyle BoostCut
+//#RingStyle Spread

@@ -30,7 +30,19 @@ export function analysisText(line: SourceLine): string {
 }
 
 export function isComment(text: string): boolean {
-    return text.startsWith("/") || text.startsWith("#");
+    return text.startsWith("//");
+}
+
+export function convertSingleSlashCommentLine(text: string): string {
+    const byteOrderMark = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+    const content = byteOrderMark ? text.slice(1) : text;
+    return byteOrderMark + content.replace(/^(\s*)\/(?!\/)/, "$1//");
+}
+
+export function convertHashCommentLine(text: string): string {
+    const byteOrderMark = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+    const content = byteOrderMark ? text.slice(1) : text;
+    return byteOrderMark + content.replace(/^(\s*)#/, "$1//");
 }
 
 export function tokenizeLine(text: string): string[] {
@@ -61,7 +73,7 @@ export function tokenizeLine(text: string): string[] {
     return tokens;
 }
 
-export function splitWidgetComment(text: string): { definition: string; properties: string } {
+export function splitWidgetMetadata(text: string): { definition: string; properties: string } {
     let insideQuote = false;
     for (let idx = 0; idx < text.length; idx++) {
         if (text[idx] === "\"") insideQuote = !insideQuote;
@@ -86,10 +98,10 @@ export function parseFormatMarker(text: string): FormatMarker | undefined {
     return { format: match[1].toLowerCase() as FormatMarker["format"], version: match[2] };
 }
 
-export function initializeLine(line: SourceLine): string {
+export function initializeLine(line: SourceLine, additionalCommentPrefixes: readonly string[] = []): string {
     const text = analysisText(line);
     if (!text) line.kind = "blank";
-    else if (isComment(text)) line.kind = "comment";
+    else if (isComment(text) || additionalCommentPrefixes.some((prefix) => text.startsWith(prefix))) line.kind = "comment";
     line.tokens = text && line.kind !== "comment" ? tokenizeLine(text) : [];
     return text;
 }
