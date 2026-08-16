@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { t } from "../src/i18n.ts";
+import { EditorSettingsStore } from "../src/editor-settings.ts";
 import { discoverReaperDataPaths, ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 
@@ -34,6 +35,13 @@ describe("REAPER data path", () => {
         const candidates = await discoverReaperDataPaths(reaperDataPath);
         expect(candidates[0]).toEqual({ exists: true, path: path.resolve(reaperDataPath), source: "candidate.commandLine" });
         expect(candidates.every((candidate) => !candidate.path.endsWith(identity.resourceDirectory))).toBeTrue();
+    });
+
+    test("uses the last selected data path before automatic defaults", async () => {
+        const settings = new EditorSettingsStore(identity.productId, path.join(temporaryRoot, "settings", "conf-editor.json"));
+        await settings.writeLastDataPath(reaperDataPath);
+        const candidates = await discoverReaperDataPaths(undefined, await settings.readLastDataPath());
+        expect(candidates[0]).toEqual({ exists: true, path: path.resolve(reaperDataPath), source: "candidate.remembered" });
     });
 
     test("adds the product directory internally", async () => {

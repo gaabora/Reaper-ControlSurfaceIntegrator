@@ -60,7 +60,7 @@ aside { min-height: 0; overflow: auto; border-right: 1px solid #343842; padding:
 .workflow-step h2 { margin: 1px 0 3px; font-size: 13px; }
 .workflow-step p { line-height: 1.35; }
 .step-number { flex: 0 0 auto; display: grid; width: 21px; height: 21px; place-items: center; border-radius: 50%; background: #31517e; color: #fff; font-weight: 700; }
-.legacy-controls { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto auto auto auto; align-items: center; gap: 6px; margin-top: 8px; }
+.legacy-controls { display: grid; grid-template-columns: minmax(180px, 1fr) repeat(6, auto); align-items: center; gap: 6px; margin-top: 8px; }
 .legacy-controls select { min-width: 0; padding: 5px 7px; }
 .legacy-profile-control { display: grid; grid-template-columns: auto minmax(180px, 340px); align-items: center; gap: 7px; margin-top: 8px; color: #b9c1ce; }
 .legacy-profile-control input { min-width: 0; padding: 5px 7px; }
@@ -73,7 +73,7 @@ aside { min-height: 0; overflow: auto; border-right: 1px solid #343842; padding:
 .legacy-dependency.warning { color: #e7c36e; }
 .legacy-widget-mappings { display: grid; gap: 6px; margin: 0 0 8px; }
 .legacy-widget-mapping { display: grid; grid-template-columns: minmax(130px, .55fr) minmax(220px, 1fr) minmax(180px, .8fr); gap: 6px; align-items: center; border: 1px solid #5c4d2b; border-radius: 4px; padding: 6px; background: #292820; }
-.legacy-widget-mapping select { min-width: 0; padding: 5px 7px; }
+.legacy-widget-mapping select, .legacy-widget-mapping input { min-width: 0; padding: 5px 7px; }
 .legacy-widget-mapping small { color: #c9b77d; }
 .legacy-workflow { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; padding: 12px; gap: 10px; }
 .legacy-source-setup { min-height: 0; max-height: 38vh; padding-right: 4px; overflow: auto; }
@@ -122,7 +122,6 @@ aside { min-height: 0; overflow: auto; border-right: 1px solid #343842; padding:
 .code-editor .cm-editor { height: 100%; min-height: 0; overflow: hidden; background: #111318; font-size: 12px; }
 .code-editor .cm-scroller { min-height: 0; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.4; }
 .code-editor .cm-gutters { border-right-color: #343842; background: #171a20; color: #626a77; }
-.code-editor .cm-activeLine, .code-editor .cm-activeLineGutter { background: #202630; }
 .bottom-panel { flex: 0 0 auto; min-height: 0; border-top: 1px solid #343842; background: #1a1d23; }
 .bottom-tabs { display: flex; gap: 2px; padding: 3px 9px; }
 .bottom-tab { border-color: transparent; background: transparent; }

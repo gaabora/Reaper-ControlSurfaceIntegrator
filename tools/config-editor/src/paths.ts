@@ -68,11 +68,12 @@ export function classifyConfigPath(relativePath: string, identity: EditorProduct
     return undefined;
 }
 
-export async function discoverReaperDataPaths(explicitPath?: string): Promise<ReaperDataPathCandidate[]> {
+export async function discoverReaperDataPaths(explicitPath?: string, rememberedPath?: string): Promise<ReaperDataPathCandidate[]> {
     const windowsAppData = process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming");
     const linuxConfig = process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
     const candidates: Array<{ path: string | undefined; source: TranslationKey }> = [
         { path: explicitPath, source: "candidate.commandLine" },
+        { path: rememberedPath, source: "candidate.remembered" },
         { path: process.env.REAPER_RESOURCE_PATH ? path.join(process.env.REAPER_RESOURCE_PATH, "Data") : undefined, source: "candidate.reaperEnvironment" },
         { path: process.platform === "darwin" ? path.join(os.homedir(), "Library", "Application Support", "REAPER", "Data") : undefined, source: "candidate.macosDefault" },
         { path: process.platform === "win32" ? path.join(windowsAppData, "REAPER", "Data") : undefined, source: "candidate.windowsDefault" },

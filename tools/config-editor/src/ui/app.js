@@ -54,6 +54,7 @@ const elements = {
     legacyReload: requiredElement("legacy-reload"),
     legacyRefresh: requiredElement("legacy-refresh"),
     legacySelectAll: requiredElement("legacy-select-all"),
+    legacySelectFx: requiredElement("legacy-select-fx"),
     legacySelectNone: requiredElement("legacy-select-none"),
     legacyStatus: requiredElement("legacy-status"),
     legacySurface: requiredElement("legacy-surface"),
@@ -924,6 +925,9 @@ function renderLegacyZones() {
     if (!zones.length) {
         elements.legacyZones.className = "legacy-list secondary";
         elements.legacyZones.textContent = translate("legacy.zones.empty");
+        elements.legacySelectFx.disabled = true;
+        elements.legacySelectFx.checked = false;
+        elements.legacySelectFx.indeterminate = false;
         return;
     }
     elements.legacyZones.className = "legacy-list";
@@ -957,6 +961,11 @@ function renderLegacyZones() {
         label.append(checkbox, document.createTextNode(" " + zone.sourcePath + (zone.zoneName ? " [" + zone.zoneName + "]" : "")));
         elements.legacyZones.append(label);
     }
+    const fxZones = zones.filter((zone) => zone.sourcePath.startsWith("FXZones/"));
+    const selectedFxCount = fxZones.filter((zone) => state.legacy.selectedZonePaths.has(zone.sourcePath)).length;
+    elements.legacySelectFx.disabled = !fxZones.length;
+    elements.legacySelectFx.checked = Boolean(fxZones.length) && selectedFxCount === fxZones.length;
+    elements.legacySelectFx.indeterminate = selectedFxCount > 0 && selectedFxCount < fxZones.length;
 }
 
 function renderLegacyDependencies() {
@@ -1002,7 +1011,7 @@ function renderLegacyWidgetMappings() {
         return;
     }
     elements.legacyWidgetMappings.className = "legacy-widget-mappings";
-    for (const issue of issues) {
+    for (const [issueIdx, issue] of issues.entries()) {
         const row = document.createElement("div");
         row.className = "legacy-widget-mapping";
         const source = document.createElement("strong");
@@ -1012,26 +1021,27 @@ function renderLegacyWidgetMappings() {
         const required = translate("legacy.widgetMappings.required", { capabilities: translatedCapabilities(issue.requiredCapabilities) });
         const occurrences = translate("legacy.widgetMappings.occurrences", { count: issue.occurrences.length });
         details.textContent = reason + " " + required + " " + occurrences;
-        const select = document.createElement("select");
-        const placeholder = document.createElement("option");
-        placeholder.value = "";
-        placeholder.textContent = translate("legacy.widgetMappings.choose");
-        select.append(placeholder);
+        const input = document.createElement("input");
+        const suggestions = document.createElement("datalist");
+        suggestions.id = "legacy-widget-mapping-" + issueIdx;
+        input.setAttribute("list", suggestions.id);
+        input.placeholder = translate("legacy.widgetMappings.choose");
         for (const candidate of issue.candidates) {
             const option = document.createElement("option");
             option.value = candidate.name;
-            option.textContent = candidate.name + " [" + translatedCapabilities(candidate.capabilities) + "]";
-            select.append(option);
+            option.label = candidate.name + " [" + translatedCapabilities(candidate.capabilities) + "]";
+            suggestions.append(option);
         }
-        select.value = state.legacy.widgetMappings.get(issue.sourceWidget) || issue.selectedTarget || "";
-        select.addEventListener("change", async () => {
+        input.value = state.legacy.widgetMappings.get(issue.sourceWidget) || issue.selectedTarget || "";
+        input.addEventListener("change", async () => {
             try {
-                if (select.value) state.legacy.widgetMappings.set(issue.sourceWidget, select.value);
+                const targetExpression = input.value.trim();
+                if (targetExpression) state.legacy.widgetMappings.set(issue.sourceWidget, targetExpression);
                 else state.legacy.widgetMappings.delete(issue.sourceWidget);
                 await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
             } catch (error) { showError(error); }
         });
-        row.append(source, select, details);
+        row.append(source, input, suggestions, details);
         elements.legacyWidgetMappings.append(row);
     }
 }
@@ -1182,6 +1192,9 @@ function renderLegacySelection(selection) {
     setFeedback(elements.legacyTargetFeedback, "");
     renderLegacySource(selection);
     elements.legacySelectAll.disabled = true;
+    elements.legacySelectFx.disabled = true;
+    elements.legacySelectFx.checked = false;
+    elements.legacySelectFx.indeterminate = false;
     elements.legacySelectNone.disabled = true;
     elements.legacyRefresh.disabled = true;
     renderLegacyPreview();
@@ -1347,6 +1360,18 @@ elements.legacySelectAll.addEventListener("click", async () => {
     try {
         const zonePaths = state.legacy.preview.items.filter((item) => item.kind === "zone").map((item) => item.sourcePath);
         await refreshLegacyPreview(zonePaths);
+    } catch (error) { showError(error); }
+});
+
+elements.legacySelectFx.addEventListener("change", async () => {
+    try {
+        const selectedZonePaths = new Set(state.legacy.selectedZonePaths);
+        const fxZonePaths = state.legacy.preview.items.filter((item) => item.kind === "zone" && item.sourcePath.startsWith("FXZones/")).map((item) => item.sourcePath);
+        for (const fxZonePath of fxZonePaths) {
+            if (elements.legacySelectFx.checked) selectedZonePaths.add(fxZonePath);
+            else selectedZonePaths.delete(fxZonePath);
+        }
+        await refreshLegacyPreview([...selectedZonePaths]);
     } catch (error) { showError(error); }
 });
 

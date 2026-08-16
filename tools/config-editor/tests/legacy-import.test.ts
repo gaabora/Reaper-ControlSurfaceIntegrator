@@ -155,6 +155,11 @@ describe("legacy CSI import", () => {
         const zone = resolved.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
         expect(zone.source).toContain("  Stop Play\n");
         expect(zone.source).toContain("  Shift+Stop GoZone Transport\n");
+        const manuallyResolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths, [{ sourceWidget: "Play", targetWidget: "Control+Stop" }]);
+        const manuallyMappedZone = manuallyResolved.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
+        expect(manuallyResolved.valid).toBeTrue();
+        expect(manuallyMappedZone.source).toContain("  Control+Stop Play\n");
+        expect(manuallyMappedZone.source).toContain("  Shift+Control+Stop GoZone Transport\n");
         const resolutions = [{ action: "create" as const, id: zone.id, sourceHash: zone.sourceHash, targetHash: zone.targetHash }];
         await source.import(store, knownActions, { includeSurface: false, resolutions, selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings });
         const imported = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8");

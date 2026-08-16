@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { actionNameSet } from "./action-catalog.ts";
 import { ConfigurationDraftStore } from "./draft-store.ts";
+import type { EditorSettingsStore } from "./editor-settings.ts";
 import type { LegacyImportConflictAction, LegacyImportDraft, LegacyImportRequest, LegacyImportResolution, LegacyImportTargetPath, LegacySurfaceSummary, LegacyWidgetMapping } from "./legacy-import.ts";
 import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
@@ -20,6 +21,7 @@ export interface EditorServerOptions {
     editorJavascript: string;
     identity: EditorProductIdentity;
     port?: number;
+    settings?: EditorSettingsStore;
 }
 
 export interface RunningEditorServer {
@@ -270,6 +272,11 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);
                 store = new ConfigurationStore(guard, knownActions);
                 draftStore = new ConfigurationDraftStore(options.identity.productId, store.getRoot());
+                try {
+                    await options.settings?.writeLastDataPath(store.getReaperDataPath());
+                } catch (error) {
+                    console.warn(`Could not remember the REAPER data path: ${error instanceof Error ? error.message : String(error)}`);
+                }
                 const automaticLegacy = await trySelectLegacySource(path.join(path.dirname(store.getReaperDataPath()), "CSI"));
                 legacySelection = automaticLegacy.selection;
                 legacySource = automaticLegacy.source;

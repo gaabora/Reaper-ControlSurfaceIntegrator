@@ -1,4 +1,5 @@
 import type { ActionCatalogEntry } from "./action-catalog.ts";
+import { EditorSettingsStore } from "./editor-settings.ts";
 import { t } from "./i18n.ts";
 import { discoverReaperDataPaths } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
@@ -40,9 +41,10 @@ export async function launchEditor(options: EditorLaunchOptions): Promise<void> 
         }
         throw new Error(`Unknown argument: ${argument}`);
     }
-    const candidates = await discoverReaperDataPaths(explicitDataPath);
+    const settings = new EditorSettingsStore(options.identity.productId);
+    const candidates = await discoverReaperDataPaths(explicitDataPath, await settings.readLastDataPath());
     const editorJavascript = options.editorJavascript ?? await bundleEditorJavascript();
-    const running = startEditorServer({ actions: options.actions, candidates, editorJavascript, identity: options.identity, port });
+    const running = startEditorServer({ actions: options.actions, candidates, editorJavascript, identity: options.identity, port, settings });
     console.log(t("app.title", { product: options.identity.displayName }));
     console.log(t("server.local", { url: running.url }));
     console.log(t("server.stop"));

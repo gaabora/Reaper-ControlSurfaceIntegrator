@@ -74,6 +74,15 @@ const configurationHighlightStyle = HighlightStyle.define([
     { color: "#89ddff", tag: tags.operator },
 ]);
 
+const configurationEditorTheme = EditorView.theme({
+    "&": { color: "#d6deeb" },
+    ".cm-content": { caretColor: "#f3f6ff" },
+    ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#f3f6ff", borderLeftWidth: "2px" },
+    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { backgroundColor: "#365f91" },
+    ".cm-selectionMatch": { backgroundColor: "#49663f" },
+    ".cm-selectionMatch.cm-selectionMatch-main": { backgroundColor: "#5d794f" },
+}, { dark: true });
+
 export function createConfigurationEditor(parent, onChange) {
     const editable = new Compartment();
     let readOnly = true;
@@ -88,6 +97,7 @@ export function createConfigurationEditor(parent, onChange) {
             dropCursor(),
             EditorState.allowMultipleSelections.of(true),
             configurationLanguage,
+            configurationEditorTheme,
             syntaxHighlighting(configurationHighlightStyle),
             bracketMatching(),
             rectangularSelection(),

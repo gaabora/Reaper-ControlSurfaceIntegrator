@@ -208,9 +208,16 @@ function widgetMappingMap(widgetMappings: LegacyWidgetMapping[]): Map<string, st
         if (!mapping.sourceWidget || !mapping.targetWidget) throw new EditorOperationError("legacy.widget.mapping.value", "Widget mappings require source and target widget names");
         const key = normalizedWidgetName(mapping.sourceWidget);
         if (result.has(key)) throw new EditorOperationError("legacy.widget.mapping.duplicate", `Widget mapping is duplicated: ${mapping.sourceWidget}`);
-        result.set(key, mapping.targetWidget);
+        result.set(key, mapping.targetWidget.trim());
     }
     return result;
+}
+
+function mappedTargetWidgetName(expression: string): string | undefined {
+    if (!expression || /\s/.test(expression)) return undefined;
+    const parts = expression.split("+");
+    if (parts.some((part) => !part)) return undefined;
+    return parts.at(-1);
 }
 
 function replaceMappedWidgets(source: string, document: AnyDocument, mappings: Map<string, string>): string {
@@ -279,14 +286,15 @@ function collectWidgetMappings(zoneDocuments: Map<string, AnyDocument>, selected
         if (sameNameTarget && isCompatible(requiredCapabilities, sameNameTarget.capabilities)) continue;
         const candidates = targetSlots.filter((candidate) => isCompatible(requiredCapabilities, candidate.capabilities)).map((candidate) => ({ capabilities: candidate.capabilities, name: candidate.name })).sort((left, right) => left.name.localeCompare(right.name));
         const requestedTarget = requested.get(sourceKey);
-        const selectedCandidate = requestedTarget ? candidates.find((candidate) => normalizedWidgetName(candidate.name) === normalizedWidgetName(requestedTarget)) : undefined;
-        if (selectedCandidate) validMappings.set(sourceKey, selectedCandidate.name);
+        const requestedWidgetName = requestedTarget ? mappedTargetWidgetName(requestedTarget) : undefined;
+        const selectedCandidate = requestedWidgetName ? candidates.find((candidate) => normalizedWidgetName(candidate.name) === normalizedWidgetName(requestedWidgetName)) : undefined;
+        if (selectedCandidate && requestedTarget) validMappings.set(sourceKey, requestedTarget);
         const issue: LegacyWidgetMappingIssue = {
             candidates,
             occurrences: entries.map((entry) => ({ line: entry.line, path: entry.path })),
             reason: sameNameTarget ? "incompatible" : "missing",
             requiredCapabilities,
-            selectedTarget: selectedCandidate?.name,
+            selectedTarget: requestedTarget,
             sourceWidget: sourceSlot?.name ?? sourceName,
         };
         issues.push(issue);
