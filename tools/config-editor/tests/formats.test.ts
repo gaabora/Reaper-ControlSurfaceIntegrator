@@ -6,6 +6,7 @@ import { actionNameSet, loadActionCatalog } from "../src/action-catalog.ts";
 import { parseByPath } from "../src/formats.ts";
 import { serializeDocument } from "../src/model.ts";
 import { parseProductIdentity } from "../src/product-identity.ts";
+import { loadSettingsSchema } from "../src/settings-schema.ts";
 import { validateDocumentSet } from "../src/validation.ts";
 
 const editorRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -19,9 +20,10 @@ async function fixturePaths(group: "invalid" | "valid"): Promise<string[]> {
 describe("configuration formats", () => {
     test("valid fixtures round-trip without text changes", async () => {
         const catalog = await loadActionCatalog(repositoryRoot);
+        const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
         for (const fixturePath of await fixturePaths("valid")) {
             const source = await readFile(fixturePath, "utf8");
-            const document = parseByPath(source, fixturePath, actionNameSet(catalog));
+            const document = parseByPath(source, fixturePath, actionNameSet(catalog), settingsSchema);
             expect(serializeDocument(document)).toBe(source);
             expect(document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
         }
@@ -29,6 +31,7 @@ describe("configuration formats", () => {
 
     test("malformed fixtures report errors without losing text", async () => {
         const catalog = await loadActionCatalog(repositoryRoot);
+        const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
         const expectedErrorCodes = new Map([
             ["home.zon", "zone.end.missing"],
             ["hash-comment.zon", "comment.hash.unsupported"],
@@ -39,7 +42,7 @@ describe("configuration formats", () => {
         ]);
         for (const fixturePath of await fixturePaths("invalid")) {
             const source = await readFile(fixturePath, "utf8");
-            const document = parseByPath(source, fixturePath, actionNameSet(catalog));
+            const document = parseByPath(source, fixturePath, actionNameSet(catalog), settingsSchema);
             expect(serializeDocument(document)).toBe(source);
             expect(document.diagnostics.some((diagnostic) => diagnostic.code === expectedErrorCodes.get(path.basename(fixturePath)) && diagnostic.severity === "error")).toBeTrue();
         }

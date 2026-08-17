@@ -11,6 +11,7 @@
 - Shared types, string/file/logging helpers, SysEx construction, OSC packet code, and UDP transport.
 - Generated product identity constants and typed product path resolution in `product_paths.h` and `product_paths.cpp`.
 - Generated C++ setting metadata from `Scripts/settings_schema.conf`.
+- `settings_values.*` schema-driven defaults, scope checks, value validation, and atomic override resolution.
 
 ## Local Contracts
 

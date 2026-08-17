@@ -10,6 +10,7 @@
 - Page and track navigation state.
 - Zone and surface-template parsing, zone activation, widgets, feedback, and message generation.
 - OSK/OSD ExtState bridges and shared surface behavior.
+- Product and Surface setting parsing, effective-value resolution, atomic persistence, and the settings ExtState bridge.
 
 ## Local Contracts
 
@@ -19,6 +20,8 @@
 - Treat only `//` as Surface and Zone comments. Preserve single slash tokens as data so OSC addresses such as `/ch/01/mix/fader` reach the OSC widget parser.
 - Treat the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives as metadata, not as comments.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
+- Parse Product overrides from `Settings` lines and Surface overrides from their `Surface=` assignment. Resolve compiled defaults, Product, and Surface in that order. Reject one invalid scope as a unit instead of partially applying it.
+- Keep `ReaCtrlSurf_SETTINGS_CMD` requests correlated with `ReaCtrlSurf_SETTINGS` responses. Apply must validate before atomic file replacement. Reload must keep current runtime values when validation or runtime matching fails.
 - Register bundled OSK and OSD ReaScripts with their absolute resource paths. If REAPER reports an already registered script as an add failure, reuse one unique matching command from the Main action section and reject ambiguous matches.
 - Load configuration, surfaces, zones, logs, backups, snippets, and generated files through the generated product identity and `ProductPaths`; do not add runtime fallback to legacy CSI paths.
 - Parse the product INI into value-only configuration records before creating runtime objects. Missing files and incompatible versions are fatal. A malformed IO, Page child, Surface, or Listener entry must report its line and must not stop other valid entries from loading. Apply Listener relationships only after all available Surfaces are created.

@@ -262,6 +262,14 @@ configure_file("${PROJECT_SOURCE_DIR}/cmake/settings_schema.h.in" "${PRODUCT_GEN
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${PRODUCT_GENERATED_DIRECTORY}")
 
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(ReaControlSurfaceSettingsTests tests/settings_values_tests.cpp src/shared/settings_values.cpp)
+  target_compile_features(ReaControlSurfaceSettingsTests PRIVATE cxx_std_17)
+  target_include_directories(ReaControlSurfaceSettingsTests PRIVATE "${PROJECT_SOURCE_DIR}/src/shared" "${PRODUCT_GENERATED_DIRECTORY}")
+  add_test(NAME ReaControlSurfaceSettingsValues COMMAND ReaControlSurfaceSettingsTests)
+endif()
+
 # ------------------------------------------------------------------------------
 # Platform-Specific Compiler Flags and Linker Options
 # ------------------------------------------------------------------------------

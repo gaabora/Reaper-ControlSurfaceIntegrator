@@ -90,6 +90,7 @@ namespace filesystem = std::filesystem;
 #include "../shared/utils.h"
 #include "../shared/types.h"
 #include "../shared/product_paths.h"
+#include "../shared/settings_values.h"
 
 #include "fwd.h"
 

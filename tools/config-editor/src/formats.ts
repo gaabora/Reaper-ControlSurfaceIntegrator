@@ -1,6 +1,7 @@
 import path from "node:path";
 import { addDiagnostic, type LosslessDocument } from "./model.ts";
 import { parseProductConfig } from "./product-config.ts";
+import type { SettingsSchema } from "./settings-schema.ts";
 import { parseSnippet } from "./snippet.ts";
 import { parseSurface } from "./surface.ts";
 import { analysisText } from "./text.ts";
@@ -17,12 +18,12 @@ function addCommonSyntaxDiagnostics(document: AnyDocument): AnyDocument {
     return document;
 }
 
-export function parseByPath(source: string, filePath: string, knownActions?: Set<string>): AnyDocument {
+export function parseByPath(source: string, filePath: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema): AnyDocument {
     const extension = path.extname(filePath).toLowerCase();
     if (extension === ".zon") return addCommonSyntaxDiagnostics(parseZone(source, filePath, knownActions));
     if (extension === ".snippet") return addCommonSyntaxDiagnostics(parseSnippet(source, filePath, knownActions));
     if (extension === ".txt") return addCommonSyntaxDiagnostics(parseSurface(source, filePath));
-    if (extension === ".ini") return addCommonSyntaxDiagnostics(parseProductConfig(source, filePath));
+    if (extension === ".ini") return addCommonSyntaxDiagnostics(parseProductConfig(source, filePath, settingsSchema));
     throw new Error(`Unsupported configuration extension: ${extension || "(none)"}`);
 }
 

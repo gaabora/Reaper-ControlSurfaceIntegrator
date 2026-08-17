@@ -272,7 +272,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             if (requestUrl.pathname === "/api/select-data-path" && request.method === "POST") {
                 const body = await requestBody(request);
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);
-                store = new ConfigurationStore(guard, knownActions);
+                store = new ConfigurationStore(guard, knownActions, {}, options.settingsSchema);
                 draftStore = new ConfigurationDraftStore(options.identity.productId, store.getRoot());
                 try {
                     await options.settings?.writeLastDataPath(store.getReaperDataPath());

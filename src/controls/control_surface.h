@@ -27,6 +27,8 @@ private:
 
     int latchTime_ = 100;
     int doublePressTime_ = 400;
+    SettingsValues settings_;
+    SettingOverrides settingOverrides_;
 
     bool isOsdEnabled_ = false;
     bool isOskEnabled_ = false;
@@ -133,10 +135,11 @@ protected:
 
     bool speedX5_ = false;
 
-    ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const string& name, int numChannels, int channelOffset)
+    ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const string& name, int numChannels, int channelOffset, const SettingsValues& settings, const SettingOverrides& settingOverrides)
         : csi_(csi), page_(page), name_(name), numChannels_(numChannels), channelOffset_(channelOffset)
         , modifierManager_(make_unique<ModifierManager>(csi_, nullptr, this)
     ) {
+        this->ApplySettings(settings, settingOverrides);
         int size = 0;
         scrubModePtr_ = (int*) get_config_var("scrubmode", &size);
 
@@ -271,6 +274,16 @@ public:
 
     void SetDoublePressTime(int value) { doublePressTime_ = value; }
     int GetDoublePressTime() { return doublePressTime_; }
+
+    void ApplySettings(const SettingsValues& settings, const SettingOverrides& settingOverrides) {
+        this->settings_ = settings;
+        this->settingOverrides_ = settingOverrides;
+        this->latchTime_ = settings.GetInteger("ModifierTapWindowMs");
+        this->holdTimeMs_ = settings.GetInteger("HoldDelayMs");
+        this->doublePressTime_ = settings.GetInteger("DoublePressWindowMs");
+    }
+    const SettingsValues& GetSettings() const { return this->settings_; }
+    const SettingOverrides& GetSettingOverrides() const { return this->settingOverrides_; }
 
     void SetBlinkTime(int value) { blinkTimeMs_ = value; }
     int GetBlinkTime() { return blinkTimeMs_; }

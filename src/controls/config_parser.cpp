@@ -54,11 +54,11 @@ static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integ
     const string userFxZoneFolderPath = userFxZoneFolder.string();
     for (const auto& io : midiIo) {
         if (!IsSameString(config.surfaceName, io->GetName())) continue;
-        return make_unique<Midi_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get());
+        return make_unique<Midi_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get(), config.effectiveSettings, config.settingOverrides);
     }
     for (const auto& io : oscIo) {
         if (!IsSameString(config.surfaceName, io->GetName())) continue;
-        return make_unique<OSC_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get());
+        return make_unique<OSC_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get(), config.effectiveSettings, config.settingOverrides);
     }
     errorMessage = "Surface '" + config.surfaceName + "' has no valid matching SurfaceType definition";
     return nullptr;
@@ -205,6 +205,8 @@ void CSurfIntegrator::Init() {
 
     ConfigLoadSummary summary { static_cast<int>(config.issues.size()), 0, config.skippedSurfaceCount };
     for (const IntegratorConfigIssue& issue : config.issues) LogConfigIssue(configPath, issue);
+    this->productSettings_ = config.productSettings;
+    this->productSettingOverrides_ = config.productSettingOverrides;
     CreateConfiguredIo(this, config, this->midiSurfacesIO_, this->oscSurfacesIO_, configPath, summary);
     CreateConfiguredPages(this, config, this->pages_);
     CreateConfiguredSurfaces(this, config, productPaths, this->midiSurfacesIO_, this->oscSurfacesIO_, this->pages_, configPath, summary);

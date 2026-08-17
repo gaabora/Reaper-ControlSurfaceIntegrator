@@ -17,6 +17,7 @@ local SURFACE_ENABLED_PREFIX = "SurfaceEnabled_"
 local POSITION_SAVE_DELAY_SECONDS = 0.25
 
 M.surfaces = {}
+M.pageName = ""
 M.layouts = {}
 M.states = {}
 M.labels = {}
@@ -443,6 +444,7 @@ function M.PollData()
     end
 
     local surfStr = r.GetExtState(M.EXT_SECTION, "Surfaces")
+    M.pageName = r.GetExtState(M.EXT_SECTION, "Page") or ""
     if surfStr and surfStr ~= "" then
         local newSurfaces = {}
         for name in surfStr:gmatch("[^|]+") do

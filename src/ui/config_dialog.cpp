@@ -1,4 +1,6 @@
 #ifdef CSI_UI_INCLUDE_CONFIG_DIALOGS
+#include "../controls/integrator_config_parser.h"
+
 static bool s_editMode = false;
 
 static const char* s_genericOSCSurface = "Generic OSC Surface";
@@ -29,6 +31,14 @@ static string s_pageSurfaceFolder;
 static string s_pageSurfaceZoneFolder;
 static string s_pageSurfaceFXZoneFolder;
 static int s_channelOffset = 0;
+static SettingOverrides s_productSettingOverrides;
+
+static void WriteSettingOverrides(FILE* configFile, const SettingOverrides& overrides) {
+    for (const Settings::Definition& definition : Settings::Definitions) {
+        const auto value = overrides.values.find(definition.name);
+        if (value != overrides.values.end()) fprintf(configFile, " %s=%s", definition.name, value->second.c_str());
+    }
+}
 
 // TODO: on reload close all windows to prevent crash
 // bool CALLBACK CloseWindowProc(HWND hwnd, LPARAM lParam) {
@@ -89,6 +99,7 @@ struct PageSurfaceLine {
     string pageSurfaceZoneFolder;
     string pageSurfaceFXZoneFolder;
     int channelOffset;
+    SettingOverrides settingOverrides;
 
     PageSurfaceLine() {
         channelOffset = 0;
@@ -1170,6 +1181,10 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
             s_hwndMainDlg = hwndDlg;
 
             const string iniFilePath = ProductPaths::FromReaperResourcePath().ConfigFile().string();
+            const IntegratorConfig parsedConfig = ParseIntegratorConfig(iniFilePath);
+            s_productSettingOverrides = parsedConfig.productSettingOverrides;
+            std::map<int, SettingOverrides> surfaceSettingOverridesByLine;
+            for (const PageConfig& page : parsedConfig.pages) for (const SurfaceAssignmentConfig& surface : page.surfaces) surfaceSettingOverridesByLine[surface.lineNumber] = surface.settingOverrides;
 
             ifstream iniFile(iniFilePath);
 
@@ -1320,6 +1335,9 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
 
                                 if (const char* assignedSurfaceStartChannelProp = pList.get_prop(PropertyType_StartChannel))
                                     surface->channelOffset = atoi(assignedSurfaceStartChannelProp);
+
+                                const auto settingOverrides = surfaceSettingOverridesByLine.find(lineNumber);
+                                if (settingOverrides != surfaceSettingOverridesByLine.end()) surface->settingOverrides = settingOverrides->second;
                             }
                         }
                     }
@@ -1356,6 +1374,7 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
 
         case WM_DESTROY: {
             s_surfaces.clear();
+            s_productSettingOverrides = SettingOverrides();
 
             for (auto& page : s_pages) {
                 page->surfaces.clear();
@@ -1385,6 +1404,12 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
                 fprintf(iniFile, "%s=%s\n", plist.string_from_prop(PropertyType_Version), s_MajorVersionToken);
 
                 fprintf(iniFile, "\n");
+
+                if (!s_productSettingOverrides.values.empty()) {
+                    fprintf(iniFile, "Settings");
+                    WriteSettingOverrides(iniFile, s_productSettingOverrides);
+                    fprintf(iniFile, "\n\n");
+                }
 
                 for (auto& surface : s_surfaces) {
                     string type = surface->type;
@@ -1428,7 +1453,9 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
                     fprintf(iniFile, "\n");
 
                     for (auto& surface : page->surfaces) {
-                        fprintf(iniFile, "\t%s=%s %s=%s %s=%s %s=%s %s=%d\n", plist.string_from_prop(PropertyType_Surface), surface->pageSurface.c_str(), plist.string_from_prop(PropertyType_SurfaceFolder), surface->pageSurfaceFolder.c_str(), plist.string_from_prop(PropertyType_ZoneFolder), surface->pageSurfaceZoneFolder.c_str(), plist.string_from_prop(PropertyType_FXZoneFolder), surface->pageSurfaceFXZoneFolder.c_str(), plist.string_from_prop(PropertyType_StartChannel), surface->channelOffset);
+                        fprintf(iniFile, "\t%s=%s %s=%s %s=%s %s=%s %s=%d", plist.string_from_prop(PropertyType_Surface), surface->pageSurface.c_str(), plist.string_from_prop(PropertyType_SurfaceFolder), surface->pageSurfaceFolder.c_str(), plist.string_from_prop(PropertyType_ZoneFolder), surface->pageSurfaceZoneFolder.c_str(), plist.string_from_prop(PropertyType_FXZoneFolder), surface->pageSurfaceFXZoneFolder.c_str(), plist.string_from_prop(PropertyType_StartChannel), surface->channelOffset);
+                        WriteSettingOverrides(iniFile, surface->settingOverrides);
+                        fprintf(iniFile, "\n");
                     }
 
                     fprintf(iniFile, "\n");

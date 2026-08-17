@@ -9,6 +9,7 @@
 - `OSK on-screen keyboard.lua`, `OSD on-screen display.lua`, and `OSK state debug.lua` entry scripts.
 - `product_identity.conf` canonical public identity and `product_identity.lua` runtime loader.
 - `settings_schema.conf` canonical setting metadata plus its `settings_schema.lua` loader.
+- `settings_protocol.lua` C++ request/response client and `settings_ui.lua` Product and Surface settings window.
 - Shared Lua modules for data parsing, configuration editing, input, rendering, settings, and UI behavior directly under `Scripts/`.
 - `osk_zone_create.lua` small zone-scaffold dialog and its `ZoneCreate` request/status state.
 - Installation and linked-development assumptions for the Lua runtime.
@@ -20,6 +21,7 @@
 - `Scripts/` is the source runtime directory. Developers may link it to `REAPER/Scripts/<ProductScriptDirectory>`; CMake install copies normal files for packages and must not create the link.
 - Load public display names, paths, and ExtState sections through `product_identity.lua`, which reads `product_identity.conf`; do not duplicate identity values in Lua modules.
 - Load setting names, types, compiled defaults, ranges, scopes, categories, and constraints through `settings_schema.lua`. Do not store user-selected values in `settings_schema.conf`. Lua obtains current effective user values through C++ instead of reading or writing the product INI directly.
+- Use `settings_protocol.lua` for Query, Apply, and Reload. Do not write product settings through `settings_store.lua`; that module owns only Lua-persistent OSK and OSD preferences.
 - Keep ExtState payloads compatible with `CSurfIntegrator` and `ControlSurface` command handling.
 - The OSK layout, state, label, binding, and action-list formats are serialized contracts; change both ends together.
 - Module loading must work from the linked or copied REAPER Scripts path without a CMake configure step.

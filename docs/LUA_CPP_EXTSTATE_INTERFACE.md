@@ -20,6 +20,8 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 | `ReaCtrlSurf_OSK_SETTINGS` | Lua persistent | OSK appearance, interaction, surface positions |
 | `ReaCtrlSurf_OSD` | C++ to Lua | Shared OSD message bus |
 | `ReaCtrlSurf_OSD_SETTINGS` | Lua persistent | Standalone and embedded OSD appearance |
+| `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Surface setting Query, Apply, and Reload requests |
+| `ReaCtrlSurf_SETTINGS` | C++ to Lua | Correlated setting responses and effective values |
 
 ## OSK Data
 
@@ -29,6 +31,7 @@ Keys in `ReaCtrlSurf_OSK`:
 | --- | --- |
 | `Command` | `Close` requests script shutdown |
 | `Surfaces` | `surface|surface...` |
+| `Page` | Current Page name used to scope configured Surface settings |
 | `Layout_<surface>` | Newline-separated rows containing pipe-separated cells |
 | `State_<surface>` | `widget=V:<value>,C:#RRGGBB,A:<0-or-1>,K:<kind>;...` |
 | `Labels_<surface>` | `widget=label;...` |
@@ -143,7 +146,43 @@ publish. Lua consumers keep their own last-seen id and do not delete the shared 
 so the standalone OSD and OSK embedded bars can consume the same event without racing
 each other while identical payloads can still refresh the visible timeout.
 
-## Settings
+## Product and Surface Settings Protocol
+
+Lua writes one session-only `Request` entry in `ReaCtrlSurf_SETTINGS_CMD`. Lua must wait while this entry exists. C++ consumes and deletes it, then writes `Response_<RequestId>` in `ReaCtrlSurf_SETTINGS`. Lua consumes and deletes its response.
+
+Every request is a newline-separated property list:
+
+```text
+Version=1
+RequestId=172345_1
+Command=Query|Apply|Reload
+Scope=Product|Surface
+Page=Home
+Surface=fp2
+Set.HoldDelayMs=750
+Unset.LongHoldDelayMs=1
+```
+
+`Query` requires `Scope`. `Surface` scope requires `Surface`; `Page` is optional when the runtime Surface name is unique across Pages. `Apply` requires at least one `Set.<name>` or `Unset.<name>`. `Reload` ignores scope and reads settings from the product INI. Lua does not read or write the INI directly.
+
+Every response starts with:
+
+```text
+Version=1
+Status=OK|ERROR
+```
+
+An error response adds `Message=<text>`. A successful Apply or Reload adds a completion message. A successful Query adds `Scope`, optional `Page` and `Surface`, and three properties for each setting:
+
+```text
+Value.HoldDelayMs=750
+Source.HoldDelayMs=Surface
+Inherited.HoldDelayMs=1000
+```
+
+`Source` is `Compiled`, `Product`, or `Surface`. `Inherited` is the value that becomes effective when the explicit override is removed. C++ validates the complete candidate scope before changing runtime state. Apply writes a complete temporary file, atomically replaces the product INI, and then applies the already validated values. Reload leaves current runtime values unchanged when the file has invalid settings or cannot be matched safely to the current Pages and Surfaces.
+
+## OSK and OSD Persistent Settings
 
 Persistent keys in `ReaCtrlSurf_OSK_SETTINGS`:
 

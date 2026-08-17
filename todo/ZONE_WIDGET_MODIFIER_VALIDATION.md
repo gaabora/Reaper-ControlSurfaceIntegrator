@@ -225,6 +225,22 @@ compiled fallback < product global settings < configured Surface instance overri
 
 Default behavior and user timing preferences belong to product configuration and configured Surface instances. They do not belong in a Vendor `Surface.txt` hardware template.
 
+Product overrides use one or more order-independent `Settings` lines after the required Version line:
+
+```ini
+Version=7.0
+Settings DefaultModifierMode=Latch HoldDelayMs=1000 LongHoldDelayMs=2000
+Settings DoublePressWindowMs=400 ModifierTapWindowMs=100
+```
+
+A configured Surface override is appended to its existing assignment line:
+
+```ini
+Surface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0 HoldDelayMs=750 LongHoldDelayMs=1500
+```
+
+An omitted Product value inherits the compiled default. An omitted Surface value inherits the effective Product value. A setting can appear only once in one scope. An invalid Product set is rejected as one unit and runtime uses all compiled defaults. An invalid Surface override set is rejected as one unit and that Surface uses the Product set. Other valid Surfaces continue to load.
+
 The timing schema includes:
 
 - `HoldDelayMs=1000`, range 50 to 10000.
@@ -416,6 +432,7 @@ C++ is the authority for effective timing values, ranges, gesture semantics, and
 - The Bun editor reads schema metadata and user-selected values from the product INI.
 - Lua reads schema metadata for its settings interface, but it queries and changes effective values through structured C++ ExtState commands. Lua must not read or write the product INI directly or keep an independent timing source of truth.
 - A Lua settings change is validated, applied live, and saved atomically by C++. A manual or Bun editor file change becomes active only after explicit Apply or Reload, or after CSI restarts.
+- C++ provides `Query`, `Apply`, and `Reload` through the generated `ReaCtrlSurf_SETTINGS_CMD` and `ReaCtrlSurf_SETTINGS` sections. Query reports each effective value, its `Compiled`, `Product`, or `Surface` source, and the value that would be inherited after removing the current override.
 - C++ validates product configuration, Zone loading, and OSK live apply before changing runtime state.
 - The Bun editor validates the same grammar, settings, surface capabilities, action traits, and cross-file relationships.
 - The legacy converter translates old unwrapped expressions and timing actions into the explicit grammar and persistent settings.
@@ -457,7 +474,11 @@ Add Bun tests for parsing, normalization, validation, quick fixes, conversion, V
 - ✅ Define the shared product and Surface behavior and timing metadata source, defaults, ranges, scopes, cross-setting constraints, C++ generation input, Lua loader, and TypeScript loader.
 - [ ] Define the explicit binding grammar, normalized binding types, declaration and binding overrides, modifier modes, action traits, and remaining generated cross-component metadata.
 - [ ] Implement the deterministic C++ gesture recognizer, scoped modifier state, configuration precedence, runtime validation, and persistent settings.
+  - ✅ Implement Product and Surface setting parsing, atomic scope validation, effective precedence, runtime timing application, atomic persistence, and reload without replacing valid runtime state on error.
 - [ ] Update Zone parsing, OSK live apply, ExtState settings commands, Lua settings UI, labels, tooltips, and serialization.
+  - ✅ Implement structured settings Query, Apply, and Reload commands plus the schema-driven OSK Product and Surface settings window.
 - [ ] Update the Bun editor, complete-set validator, quick fixes, snippets, legacy converter, and Vendor configuration migration.
+  - ✅ Validate Product settings and Surface overrides in the Bun parser and CLI from the shared schema.
 - [ ] Add C++, Bun, and Lua tests for parsing, timing, state transitions, overrides, conversion, and invalid combinations.
+  - ✅ Add focused C++ value-resolution tests, Bun Product and Surface setting tests, and Lua settings protocol self-checks.
 - [ ] Audit all Vendor surfaces and zones, then perform focused manual MIDI, OSC, motor-fader, touch, and multi-surface verification.

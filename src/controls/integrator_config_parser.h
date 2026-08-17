@@ -3,9 +3,12 @@
 #include <string>
 #include <vector>
 
+#include "../shared/settings_values.h"
+
 struct IntegratorConfigIssue {
     int lineNumber = 0;
     std::string message;
+    bool settingIssue = false;
 };
 
 struct MidiIoConfig {
@@ -36,6 +39,8 @@ struct SurfaceAssignmentConfig {
     std::string mainZoneProfileId;
     std::string fxZoneProfileId;
     int startChannel = 0;
+    SettingOverrides settingOverrides;
+    SettingsValues effectiveSettings;
 };
 
 struct ListenerConfig {
@@ -66,8 +71,12 @@ struct IntegratorConfig {
     std::vector<OscIoConfig> oscIo;
     std::vector<PageConfig> pages;
     std::vector<IntegratorConfigIssue> issues;
+    SettingOverrides productSettingOverrides;
+    SettingsValues productSettings;
+    bool settingsValid = true;
     int skippedSurfaceCount = 0;
     std::string fatalError;
 };
 
 IntegratorConfig ParseIntegratorConfig(const std::string& configPath);
+IntegratorConfig ParseIntegratorConfigSource(const std::string& source, const std::string& configPath);

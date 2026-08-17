@@ -40,6 +40,9 @@ private:
 
     vector<unique_ptr<Page>> pages_;
 
+    SettingsValues productSettings_;
+    SettingOverrides productSettingOverrides_;
+
     std::atomic<int> currentPageIndex_{ 0 }; // atomic: read safely from audio thread in GetTouchState() (Phase C)
 
     bool shouldRun_ = true;
@@ -59,6 +62,7 @@ private:
     void InitActionsDictionary();
     int FindRegisteredReaScriptCommandId(const filesystem::path& scriptPath) const;
     int ResolveReaScriptCommandId(const char* relativeScriptPath, const char* operationName) const;
+    void PollAndHandleSettingsCommands();
 
     void PollMidiDevices() {
         for (auto& midiSurfaceIO : this->midiSurfacesIO_) {
@@ -500,8 +504,10 @@ public:
 
     void PublishOSKSurfacesList() {
         string surfaces;
-        if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
-            for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
+        string pageName;
+        if (this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_]) {
+            pageName = this->pages_[this->currentPageIndex_]->GetName();
+            for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) {
                 if (surface->GetOskEnabled()) {
                     if (!surfaces.empty())
                         surfaces += "|";
@@ -510,6 +516,7 @@ public:
             }
         }
         ::SetExtState(ProductIdentity::ExtStateOsk, "Surfaces", surfaces.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateOsk, "Page", pageName.c_str(), false);
     }
 
     bool HasAnyOSKEnabled() const {
@@ -576,6 +583,7 @@ public:
             currentPageIndex_.store(idx == (int)pages_.size() - 1 ? 0 : idx + 1);
             if (pages_[currentPageIndex_])
                 pages_[currentPageIndex_]->EnterPage();
+            this->PublishOSKSurfacesList();
         }
     }
 
@@ -589,6 +597,7 @@ public:
 
                 if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
                     pages_[currentPageIndex_]->EnterPage();
+                this->PublishOSKSurfacesList();
                 break;
             }
         }
@@ -684,6 +693,7 @@ public:
             currentProject_ = currentProject;
             DAW::SendCommandMessage(REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES);
         }
+        if (shouldRun_) this->PollAndHandleSettingsCommands();
         if (shouldRun_ && pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
             PollMidiDevices();
             if (!QueuedOSD.isEmpty() && !QueuedOSD.IsAwaitFeedback()) {

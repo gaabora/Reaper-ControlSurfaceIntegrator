@@ -24,6 +24,7 @@ local render = require("osk_render")
 local config = require("osk_config")
 local osd_ui = require("osd_ui")
 local osk_settings_ui = require("osk_settings_ui")
+local settings_ui = require("settings_ui")
 local osk_zone_create = require("osk_zone_create")
 local theme = require("theme_settings")
 
@@ -90,6 +91,7 @@ local function RenderContextMenu(activeCtx, popupId, surfName)
         data = data,
         osd_ui = osd_ui,
         onCreateZone = osk_zone_create.Open,
+        onOpenInputSettings = function(surfaceName) settings_ui.Open(surfaceName, data.pageName) end,
         onFontsChanged = RebuildFonts,
     })
 end
@@ -149,9 +151,10 @@ local function main()
 
     config.RenderConfigEditor(ctx, CONFIG_FONT)
     osk_zone_create.Render(ctx, CONFIG_FONT)
+    settings_ui.Render(ctx)
     data.FlushSurfacePositions(false)
 
-    if AnyWindowOpen() or osk_zone_create.IsOpen() then
+    if AnyWindowOpen() or osk_zone_create.IsOpen() or settings_ui.IsOpen() then
         r.defer(main)
         return
     end

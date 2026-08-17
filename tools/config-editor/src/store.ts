@@ -5,6 +5,7 @@ import type { AnyDocument } from "./formats.ts";
 import { parseByPath } from "./formats.ts";
 import type { Diagnostic } from "./model.ts";
 import type { ProductRootGuard, ProductTreeEntry } from "./paths.ts";
+import type { SettingsSchema } from "./settings-schema.ts";
 import { applyQuickFix as applyRegisteredQuickFix, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, type QuickFixRequest } from "./quick-fixes.ts";
 import { validateDocumentSet } from "./validation.ts";
 
@@ -117,7 +118,7 @@ function emptyReport(currentOperationId?: string): OperationReport {
 }
 
 export class ConfigurationStore {
-    constructor(private readonly guard: ProductRootGuard, private readonly knownActions: Set<string>, private readonly hooks: ConfigurationStoreHooks = {}) {}
+    constructor(private readonly guard: ProductRootGuard, private readonly knownActions: Set<string>, private readonly hooks: ConfigurationStoreHooks = {}, private readonly settingsSchema?: SettingsSchema) {}
 
     getRoot(): string {
         return this.guard.getRoot();
@@ -136,7 +137,7 @@ export class ConfigurationStore {
         const absolutePath = await this.guard.resolveExisting(relativePath);
         const data = await readFile(absolutePath);
         const source = data.toString("utf8");
-        const document = parseByPath(source, relativePath, this.knownActions);
+        const document = parseByPath(source, relativePath, this.knownActions, this.settingsSchema);
         return { document: documentView(document, this.knownActions, info.writable), hash: sha256(data), path: relativePath, source, writable: info.writable };
     }
 
@@ -155,7 +156,7 @@ export class ConfigurationStore {
 
     validateSource(relativePath: string, source: string): DocumentView {
         const info = this.guard.getPathInfo(relativePath);
-        return documentView(parseByPath(source, relativePath, this.knownActions), this.knownActions, info.writable);
+        return documentView(parseByPath(source, relativePath, this.knownActions, this.settingsSchema), this.knownActions, info.writable);
     }
 
     applyQuickFix(relativePath: string, source: string, request: QuickFixRequest): { document: DocumentView; source: string } {
@@ -182,7 +183,7 @@ export class ConfigurationStore {
         for (const entry of entries) {
             const opened = await this.openDocument(entry.path);
             const source = sources.get(entry.path.toLowerCase()) ?? opened.source;
-            const document = parseByPath(source, entry.path, this.knownActions);
+            const document = parseByPath(source, entry.path, this.knownActions, this.settingsSchema);
             documents.push(document);
             writableByPath.set(entry.path.toLowerCase(), opened.writable);
             files.push({ diagnostics: diagnosticsWithQuickFixes(document, this.knownActions, opened.writable), path: entry.path });
@@ -221,7 +222,7 @@ export class ConfigurationStore {
             if (!info.writable) throw new EditorOperationError("path.read-only", `Configuration is read-only: ${change.path}`);
         }
 
-        const documents = changes.map((change) => parseByPath(change.source, change.path, this.knownActions));
+        const documents = changes.map((change) => parseByPath(change.source, change.path, this.knownActions, this.settingsSchema));
         const diagnostics = documents.flatMap((document) => document.diagnostics).concat(validateDocumentSet(documents));
         if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", "Transaction contains configuration errors", diagnostics);
 
@@ -377,7 +378,7 @@ export class ConfigurationStore {
         const info = this.guard.getPathInfo(change.path);
         if (!info.writable) throw new EditorOperationError("path.read-only", `Configuration is read-only: ${change.path}`);
         if (validate) {
-            const document = parseByPath(change.source, change.path, this.knownActions);
+            const document = parseByPath(change.source, change.path, this.knownActions, this.settingsSchema);
             if (document.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", `Configuration contains errors: ${change.path}`, document.diagnostics);
         }
         const targetPath = await this.guard.resolveForWrite(change.path);
@@ -407,7 +408,7 @@ export class ConfigurationStore {
             }
             const newHash = sha256(Buffer.from(change.source, "utf8"));
             if (sha256(await readFile(stagedPath)) !== newHash) throw new EditorOperationError("save.verify", `Temporary file verification failed: ${change.path}`);
-            const stagedDocument = parseByPath((await readFile(stagedPath)).toString("utf8"), change.path, this.knownActions);
+            const stagedDocument = parseByPath((await readFile(stagedPath)).toString("utf8"), change.path, this.knownActions, this.settingsSchema);
             if (stagedDocument.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("save.validate", `Temporary file validation failed: ${change.path}`, stagedDocument.diagnostics);
             return { ...change, existed, newHash, stagedPath, targetPath };
         } catch (error) {

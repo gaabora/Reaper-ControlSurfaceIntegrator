@@ -49,5 +49,7 @@ return {
         oskSettings = extStatePrefix .. "_OSK_SETTINGS",
         osd = extStatePrefix .. "_OSD",
         osdSettings = extStatePrefix .. "_OSD_SETTINGS",
+        settings = extStatePrefix .. "_SETTINGS",
+        settingsCommand = extStatePrefix .. "_SETTINGS_CMD",
     },
 }
