@@ -80,6 +80,7 @@ BEGIN
     PUSHBUTTON      "Edit",IDC_BUTTON_EditPageSurface,291,147,29,14
     PUSHBUTTON      "Remove",IDC_BUTTON_RemovePageSurface,325,147,37,14
     PUSHBUTTON      "Advanced",IDC_BUTTON_Advanced,324,3,37,14
+    PUSHBUTTON      "Open Control Panel",IDC_BUTTON_ControlPanel,255,171,107,14
     LTEXT           "Surfaces",IDC_STATIC,4,6,29,8
     LTEXT           "Pages",IDC_STATIC,145,6,20,8
     LTEXT           "Zones",IDC_STATIC,255,6,41,8

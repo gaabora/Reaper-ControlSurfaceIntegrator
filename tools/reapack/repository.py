@@ -24,6 +24,8 @@ REQUIRED_IDENTITY_KEYS = (
     "PRODUCT_OSK_SCRIPT_FILENAME",
     "PRODUCT_OSD_SCRIPT_FILENAME",
     "PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME",
+    "PRODUCT_CONTROL_PANEL_SCRIPT_FILENAME",
+    "PRODUCT_CONTROL_PANEL_ACTION_ID",
 )
 
 PLUGIN_ASSETS = (
@@ -34,6 +36,7 @@ PLUGIN_ASSETS = (
 )
 
 STABLE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+ACTION_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 VERSION_PATTERN = re.compile(r"^\d")
 GITHUB_REPOSITORY_PATTERN = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?$")
 
@@ -69,6 +72,8 @@ def read_identity(root):
 def validate_identity(identity):
     if not STABLE_ID_PATTERN.fullmatch(identity["PRODUCT_ID"]):
         fail("PRODUCT_ID must be a stable lowercase ASCII ID")
+    if not ACTION_ID_PATTERN.fullmatch(identity["PRODUCT_CONTROL_PANEL_ACTION_ID"]):
+        fail("PRODUCT_CONTROL_PANEL_ACTION_ID must contain uppercase ASCII letters, digits, and underscores, without a leading underscore")
     for key in ("PRODUCT_RESOURCE_DIRECTORY", "PRODUCT_SCRIPT_DIRECTORY", "PRODUCT_PACKAGE_PREFIX"):
         if "/" in identity[key] or "\\" in identity[key]:
             fail(f"{key} must be one path component")
@@ -182,7 +187,7 @@ def prepare(args):
         core_provides.append(f"[{platform}] {target_name} {url}")
         add_source(source_records, url, local_path.relative_to(root), target_name, Path("UserPlugins") / target_name, platform=platform)
 
-    main_scripts = {identity["PRODUCT_OSK_SCRIPT_FILENAME"], identity["PRODUCT_OSD_SCRIPT_FILENAME"], identity["PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME"]}
+    main_scripts = {identity["PRODUCT_OSK_SCRIPT_FILENAME"], identity["PRODUCT_OSD_SCRIPT_FILENAME"], identity["PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME"], identity["PRODUCT_CONTROL_PANEL_SCRIPT_FILENAME"]}
     script_paths = sorted((root / "Scripts").glob("*.lua"))
     script_paths.append(root / "Scripts" / "product_identity.conf")
     script_paths.append(root / "Scripts" / "settings_schema.conf")

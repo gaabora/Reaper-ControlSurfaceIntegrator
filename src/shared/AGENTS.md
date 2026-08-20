@@ -12,6 +12,7 @@
 - Generated product identity constants and typed product path resolution in `product_paths.h` and `product_paths.cpp`.
 - Generated C++ setting metadata from `Scripts/settings_schema.conf`.
 - `settings_values.*` schema-driven defaults, scope checks, value validation, and atomic override resolution.
+- `reascript_action.*` registration and unique command resolution for installed product ReaScripts.
 
 ## Local Contracts
 
@@ -25,6 +26,7 @@
 - Shared headers have broad compile impact; avoid adding heavyweight dependencies without need.
 - Keep runtime Surface and Zone parsing compatible with OSC address tokens that start with `/`. In these formats, only `//` starts a comment, including after another token. `IsCommentedOrEmpty` must not classify a single leading `/` or `#` as a comment.
 - Resolve product-owned paths through `ProductPaths`; the product root is `REAPER/Data/<ProductResourceDirectory>`, surface files use `Surfaces/Vendor/<surface-id>.txt` or `Surfaces/User/<surface-id>.txt`, zone profiles use matching `Zones/Vendor` and `Zones/User` roots, and stable surface, profile, and operation IDs use lowercase ASCII and must remain inside their typed roots.
+- Resolve bundled ReaScript command IDs through `ReaScriptAction::ResolveCommandId`. Reuse only one unique matching Main-section action when REAPER reports that the script is already registered.
 
 ## Work Guidance
 

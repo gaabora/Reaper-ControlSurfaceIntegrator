@@ -90,6 +90,13 @@ function module.Poll(requestId)
     return module.ParseResponse(source)
 end
 
+function module.Cancel(requestId)
+    if not reaper or not requestId then return end
+    local currentRequest = reaper.GetExtState(identity.extState.settingsCommand, "Request")
+    if currentRequest:find("RequestId=" .. tostring(requestId) .. "\n", 1, true) then reaper.DeleteExtState(identity.extState.settingsCommand, "Request", false) end
+    reaper.DeleteExtState(identity.extState.settings, "Response_" .. tostring(requestId), false)
+end
+
 function module.Query(scope, surfaceName, pageName)
     return module.Send("Query", scope, surfaceName, pageName)
 end

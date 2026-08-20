@@ -1061,6 +1061,10 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
                     }
                     break;
 
+                case IDC_BUTTON_ControlPanel:
+                    if (HIWORD(wParam) == BN_CLICKED) ControlPanelAction::OpenOrFocus();
+                    break;
+
                 case IDC_BUTTON_EditPageSurface:
                     if (HIWORD(wParam) == BN_CLICKED) {
                         int index = (int) SendDlgItemMessage(hwndDlg, IDC_LIST_PageSurfaces, LB_GETCURSEL, 0, 0);

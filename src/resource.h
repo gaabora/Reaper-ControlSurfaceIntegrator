@@ -127,13 +127,14 @@
 #define IDC_ApplyFontsAndMarginsToAll   1307
 #define IDC_GroupApplyToAll             1308
 #define IDC_EDIT_FREE_FORM              1309
+#define IDC_BUTTON_ControlPanel         1317
 
 // Next default values for new objects
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        131
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1317
+#define _APS_NEXT_CONTROL_VALUE         1318
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

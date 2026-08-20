@@ -22,6 +22,7 @@
 #include "osc/osc_surface.h"
 #include "track_nav_manager.h"
 #include "page.h"
+#include "../shared/reascript_action.h"
 
 inline constexpr int s_tickCounts_[] = { 250, 235, 220, 205, 190, 175, 160, 145, 130, 115, 100, 90, 80, 70, 60, 50, 45, 40, 35, 30, 25, 20, 20, 20 };
 
@@ -60,8 +61,6 @@ private:
     int projectMetronomeSecondaryVolumeOffs_; // for double -- if invalid, use fallbacks
 
     void InitActionsDictionary();
-    int FindRegisteredReaScriptCommandId(const filesystem::path& scriptPath) const;
-    int ResolveReaScriptCommandId(const char* relativeScriptPath, const char* operationName) const;
     void PollAndHandleSettingsCommands();
 
     void PollMidiDevices() {
@@ -186,7 +185,7 @@ public:
     int osdCommandId_ = 0;
     void OpenOSDPanel() {
         if (this->osdCommandId_ == 0) {
-            this->osdCommandId_ = this->ResolveReaScriptCommandId(REASCRIPT_PATH__CSI_OSD, "OpenOSDPanel");
+            this->osdCommandId_ = ReaScriptAction::ResolveCommandId(REASCRIPT_PATH__CSI_OSD, "OpenOSDPanel");
             if (this->osdCommandId_ == 0) return;
         }
         int runningState;
@@ -202,7 +201,7 @@ public:
     int notificationsCommandId_ = 0;
     void OpenNotificationsPanel() {
         if (this->notificationsCommandId_ == 0) {
-            this->notificationsCommandId_ = this->ResolveReaScriptCommandId(REASCRIPT_PATH__CSI_NOTIFICATIONS, "OpenNotificationsPanel");
+            this->notificationsCommandId_ = ReaScriptAction::ResolveCommandId(REASCRIPT_PATH__CSI_NOTIFICATIONS, "OpenNotificationsPanel");
             if (this->notificationsCommandId_ == 0) return;
         }
         if (GetToggleCommandState(this->notificationsCommandId_) == 1) return;
@@ -505,7 +504,7 @@ public:
     int oskCommandId_ = 0;
     void OpenOSKPanel() {
         if (this->oskCommandId_ == 0) {
-            this->oskCommandId_ = this->ResolveReaScriptCommandId(REASCRIPT_PATH__CSI_OSK, "OpenOSKPanel");
+            this->oskCommandId_ = ReaScriptAction::ResolveCommandId(REASCRIPT_PATH__CSI_OSK, "OpenOSKPanel");
             if (this->oskCommandId_ == 0) return;
         }
         int runningState = GetToggleCommandState(this->oskCommandId_);

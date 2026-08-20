@@ -2,6 +2,7 @@
 #define REAPERAPI_DECL
 
 #include "shared/reaper_plugin_functions.h"
+#include "ui/control_panel_action.h"
 #include "resource.h"
 
 extern reaper_csurf_reg_t csurf_integrator_reg;
@@ -14,8 +15,10 @@ reaper_plugin_info_t* g_reaper_plugin_info;
 extern "C" REAPER_PLUGIN_DLL_EXPORT int REAPER_PLUGIN_ENTRYPOINT(REAPER_PLUGIN_HINSTANCE hInstance, reaper_plugin_info_t* reaper_plugin_info) {
     g_hInst = hInstance;
 
-    if (!reaper_plugin_info)
+    if (!reaper_plugin_info) {
+        ControlPanelAction::Unregister();
         return 0;
+    }
 
     if (reaper_plugin_info->caller_version != REAPER_PLUGIN_VERSION || !reaper_plugin_info->GetFunc)
         return 0;
@@ -32,6 +35,7 @@ extern "C" REAPER_PLUGIN_DLL_EXPORT int REAPER_PLUGIN_ENTRYPOINT(REAPER_PLUGIN_H
     localize_init(reaper_plugin_info->GetFunc);
 
     reaper_plugin_info->Register("csurf", &csurf_integrator_reg);
+    ControlPanelAction::Register();
 
     return 1;
 }

@@ -3,6 +3,7 @@
 #include "../controls/integrator.h"
 #include "../shared/product_paths.h"
 #include "../resource.h"
+#include "control_panel_action.h"
 
 extern void TrimLine(string& line);
 extern void GetParamStepsString(string& outputString, int numSteps);

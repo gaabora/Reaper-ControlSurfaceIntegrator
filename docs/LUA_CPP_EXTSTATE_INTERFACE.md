@@ -3,7 +3,7 @@
 ## Scope
 
 This document defines the current private interface between the ReaControlSurface C++ extension and
-the bundled OSK, OSD, and Notifications Lua scripts. The scripts have not been published, so this contract
+the bundled Control Panel, OSK, OSD, and Notifications Lua scripts. The scripts have not been published, so this contract
 has no legacy aliases or migration fallbacks.
 
 The current `ReaCtrlSurf` prefix comes from [`../Scripts/product_identity.conf`](../Scripts/product_identity.conf). CMake generates the C++ constants from it, and Lua reads it directly through `product_identity.lua`.
@@ -21,8 +21,31 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 | `ReaCtrlSurf_OSD` | C++ to Lua | Shared OSD message bus |
 | `ReaCtrlSurf_OSD_SETTINGS` | Lua persistent | Standalone and embedded OSD appearance |
 | `ReaCtrlSurf_NOTIFICATIONS` | C++ to Lua | Notification log reader startup state |
+| `ReaCtrlSurf_CONTROL_PANEL` | C++ and Lua | Control Panel lifecycle requests, window state, and Lua-persistent shell state |
 | `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Surface setting Query, Apply, and Reload requests |
 | `ReaCtrlSurf_SETTINGS` | C++ to Lua | Correlated setting responses and effective values |
+
+## Control Panel Lifecycle
+
+C++ writes one session-only `Request` entry in `ReaCtrlSurf_CONTROL_PANEL`. Lua consumes and deletes it without blocking the REAPER UI thread. The Phase 1 payload is a newline-separated property list:
+
+```text
+Version=1
+RequestId=1
+Command=Open|Focus|SelectTab
+Tab=Devices|General|Appearance|Logging
+```
+
+`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. Phase 1 does not carry configuration data through this section.
+
+Lua writes the session-only `State` key as `Open` after startup and `Closed` during shutdown. The stable `_REACTRLSURF_OPEN_CONTROL_PANEL` action uses this lifecycle state for its toggle value. Repeating the action while the ReaScript is active sends `Focus` and does not start a second instance.
+
+Lua also stores these persistent shell keys in the same section:
+
+- `WindowPosition` as `x,y`.
+- `WindowSize` as `width,height`.
+- `SelectedTab` as one known tab name.
+- `Scroll.<tab>` as the last vertical scroll position for that tab.
 
 ## OSK Data
 
@@ -168,6 +191,8 @@ The plugin and normal Lua runtime write logs to the product log without calling 
 ## Product and Surface Settings Protocol
 
 Lua writes one session-only `Request` entry in `ReaCtrlSurf_SETTINGS_CMD`. Lua must wait while this entry exists. C++ consumes and deletes it, then writes `Response_<RequestId>` in `ReaCtrlSurf_SETTINGS`. Lua consumes and deletes its response.
+
+A Lua client can cancel only its own pending request before C++ consumes it. Cancellation removes the matching request and any matching response; it is not a new C++ command. The Control Panel uses this to stop its configuration-status query after a short timeout when no active C++ control-surface instance can answer.
 
 Every request is a newline-separated property list:
 

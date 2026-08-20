@@ -9,12 +9,14 @@
 - Integrator UI dispatch in `integrator_ui.cpp`.
 - Configuration dialog behavior in `config_dialog.cpp`.
 - Learn dialog behavior in `learn_dialog.cpp`.
+- Stable Control Panel action registration and Lua lifecycle dispatch in `control_panel_action.*`.
 
 ## Local Contracts
 
 - Dialog and control identifiers must match `src/resource.h` and `src/res.rc`.
 - `integrator_ui.cpp` includes the dialog implementation files directly; do not also compile them as independent translation units without restructuring the build.
 - UI callbacks operate under REAPER/WDL/SWELL conventions and must preserve dialog lifetime and localization behavior.
+- The `_REACTRLSURF_OPEN_CONTROL_PANEL` action opens or focuses the Lua window and reports On only while Lua publishes the Open lifecycle state.
 
 ## Work Guidance
 
