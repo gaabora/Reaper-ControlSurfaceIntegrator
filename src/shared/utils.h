@@ -102,12 +102,10 @@ template <size_t N, typename... Args>
 inline void LogToConsole(const char (&format)[N], Args&&... args) {
     std::vector<char> buffer(2048);
     snprintf(buffer.data(), buffer.size(), format, std::forward<Args>(args)...);
-    ShowConsoleMsg(buffer.data());
     LogMessage(buffer.data());
 }
 
 inline void LogToConsole(const char* message) {
-    ShowConsoleMsg(message);
     LogMessage(message);
 }
 

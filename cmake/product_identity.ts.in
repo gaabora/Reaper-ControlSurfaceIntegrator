@@ -5,6 +5,7 @@ export const productIdentity = Object.freeze({
     resourceInstallDirectory: "@PRODUCT_RESOURCE_INSTALL_DIRECTORY@",
     configFilename: "@PRODUCT_CONFIG_FILENAME@",
     logFilename: "@PRODUCT_LOG_FILENAME@",
+    notificationsScriptFilename: "@PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME@",
     extStatePrefix: "@PRODUCT_EXTSTATE_PREFIX@",
     reaperRegistrationId: "@PRODUCT_REAPER_REGISTRATION_ID@",
     pluginFilename: "@PRODUCT_PLUGIN_FILENAME@",
@@ -17,6 +18,7 @@ export const productIdentity = Object.freeze({
         oskSettings: "@PRODUCT_EXTSTATE_OSK_SETTINGS@",
         osd: "@PRODUCT_EXTSTATE_OSD@",
         osdSettings: "@PRODUCT_EXTSTATE_OSD_SETTINGS@",
+        notifications: "@PRODUCT_EXTSTATE_NOTIFICATIONS@",
     }),
 });
 

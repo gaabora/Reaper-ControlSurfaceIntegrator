@@ -2,6 +2,7 @@ local imgui = require "imgui" "0.9.3"
 
 local theme = require("theme_settings")
 local ui = require("ui_components")
+local log_writer = require("log_writer")
 
 local M = {}
 
@@ -33,7 +34,7 @@ function M.RenderContextMenu(ctx, popupId, surfName, deps)
     for _, action in ipairs(TOOLBAR_ACTIONS) do
         if imgui.MenuItem(ctx, action.title) then
             reaper.Main_OnCommand(action.action, 0)
-            reaper.ShowConsoleMsg("[" .. data.productDisplayName .. " OSK] Action: " .. action.action .. " (" .. action.tooltip .. ")\n")
+            log_writer.Write("NOTICE", "[" .. data.productDisplayName .. " OSK] Action: " .. action.action .. " (" .. action.tooltip .. ")")
         end
         ui.ItemTooltip(ctx, action.tooltip)
     end

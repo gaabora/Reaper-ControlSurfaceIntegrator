@@ -2,6 +2,7 @@ local r = reaper
 local layout_parser = require("layout_parser")
 local label_replacements = require("label_replacements")
 local identity = require("product_identity")
+local log_writer = require("log_writer")
 local settings_store = require("settings_store")
 local theme = require("theme_settings")
 
@@ -81,7 +82,7 @@ end
 
 function M.DebugFader(surfName, widgetName, message, throttleSeconds, keySuffix)
     if not M.FADER_DEBUG then return end
-    if not r or not r.ShowConsoleMsg then return end
+    if not r then return end
     local now = r.time_precise and r.time_precise() or os.clock()
     local key = table.concat({ tostring(surfName or "?"), tostring(widgetName or "?"), tostring(keySuffix or message or "") }, "|")
     if faderDebugLastMessage[key] == message and throttleSeconds and throttleSeconds > 0 then return end
@@ -91,7 +92,7 @@ function M.DebugFader(surfName, widgetName, message, throttleSeconds, keySuffix)
     end
     faderDebugLast[key] = now
     faderDebugLastMessage[key] = message
-    r.ShowConsoleMsg(string.format("[%s OSK FADER DEBUG] %s|%s %s\n", identity.displayName, tostring(surfName or "?"), tostring(widgetName or "?"), tostring(message or "")))
+    log_writer.Write("DEBUG", string.format("[%s OSK FADER DEBUG] %s|%s %s", identity.displayName, tostring(surfName or "?"), tostring(widgetName or "?"), tostring(message or "")))
 end
 
 function M.GetStateValue(surfName, widgetName)

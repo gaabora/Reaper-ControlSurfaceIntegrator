@@ -175,6 +175,7 @@ static void InitializeConfiguredPages(vector<unique_ptr<Page>>& pages, ConfigLoa
 }
 
 void CSurfIntegrator::Init() {
+    this->OpenNotificationsPanel();
     this->pages_.clear();
     this->midiSurfacesIO_.clear();
     this->oscSurfacesIO_.clear();

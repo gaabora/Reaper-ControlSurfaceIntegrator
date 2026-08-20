@@ -10,6 +10,7 @@ This folder keeps the work that is still open.
 - [SURFACE_TEMPLATE_EXTRACTION_PLAN.md](SURFACE_TEMPLATE_EXTRACTION_PLAN.md) - open plan for moving more surface-specific behavior into `Surface.txt`
 - [OSK_REMAINING_WORK.md](OSK_REMAINING_WORK.md) - remaining manual REAPER verification and follow-up checks for the shipped OSK/OSD work
 - [CONFIGURATION_WORKFLOW_PLAN.md](CONFIGURATION_WORKFLOW_PLAN.md) - plan for product paths, the local configuration editor, legacy import, vendor layouts, snippets, and OSK zone-file creation
+- [LUA_CONTROL_PANEL_PLAN.md](LUA_CONTROL_PANEL_PLAN.md) - plan for the Lua plugin Control Panel, device and Zone profile configuration, shared appearance settings, logging, and stable REAPER GUI actions
 - [ZONE_WIDGET_MODIFIER_VALIDATION.md](ZONE_WIDGET_MODIFIER_VALIDATION.md) - proposed validation contract for widget modifiers, gestures, action groups, and zone context changes
 - [PSEUDO_MODIFIER_PLAN.md](PSEUDO_MODIFIER_PLAN.md) - implementation plan for zone-scoped modifiers named after their source widgets, based on the shared binding grammar and validation contract
 

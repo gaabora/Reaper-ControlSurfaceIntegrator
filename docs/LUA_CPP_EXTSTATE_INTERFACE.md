@@ -3,7 +3,7 @@
 ## Scope
 
 This document defines the current private interface between the ReaControlSurface C++ extension and
-the bundled OSK/OSD Lua scripts. The scripts have not been published, so this contract
+the bundled OSK, OSD, and Notifications Lua scripts. The scripts have not been published, so this contract
 has no legacy aliases or migration fallbacks.
 
 The current `ReaCtrlSurf` prefix comes from [`../Scripts/product_identity.conf`](../Scripts/product_identity.conf). CMake generates the C++ constants from it, and Lua reads it directly through `product_identity.lua`.
@@ -20,6 +20,7 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 | `ReaCtrlSurf_OSK_SETTINGS` | Lua persistent | OSK appearance, interaction, surface positions |
 | `ReaCtrlSurf_OSD` | C++ to Lua | Shared OSD message bus |
 | `ReaCtrlSurf_OSD_SETTINGS` | Lua persistent | Standalone and embedded OSD appearance |
+| `ReaCtrlSurf_NOTIFICATIONS` | C++ to Lua | Notification log reader startup state |
 | `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Surface setting Query, Apply, and Reload requests |
 | `ReaCtrlSurf_SETTINGS` | C++ to Lua | Correlated setting responses and effective values |
 
@@ -133,18 +134,36 @@ editor state:
 
 ## OSD
 
-`ReaCtrlSurf_OSD` contains the shared OSD event consumed by both the standalone OSD
-script and OSK embedded OSD bars:
+`ReaCtrlSurf_OSD` contains the shared OSD event consumed by both the standalone OSD script and OSK embedded OSD bars:
 
 | Key | Payload |
 | --- | --- |
-| `OSD` | `text;background;timeoutMs` |
+| `OSD` | `text;background;timeoutMs;explicitMessage` |
 | `OSD_ID` | Monotonically increasing event id |
 
-`background` is `0`, `1`, or `#RRGGBB`. C++ updates `OSD_ID` for every accepted OSD
-publish. Lua consumers keep their own last-seen id and do not delete the shared keys,
-so the standalone OSD and OSK embedded bars can consume the same event without racing
-each other while identical payloads can still refresh the visible timeout.
+`background` is `0`, `1`, or `#RRGGBB`. `explicitMessage` is `1` when `text` came from an explicit action-line `OSD` value and `0` for automatic runtime text. C++ updates `OSD_ID` for every accepted OSD request, including an identical payload. Lua consumers keep their own last-seen id and do not delete the shared keys, so the standalone OSD and OSK embedded bars can consume the same event without racing each other. Repeated actions refresh the visible timeout and re-evaluate Lua runtime templates even when their source text is unchanged.
+
+Track selection publishes three text lines in previous, selected, and next order. The entire OSD background uses the selected track color. Missing adjacent tracks produce empty outer lines. CSI edit cursor movement, rewind, and fast-forward publish the resulting position as `[bar/beat]`.
+
+An explicit action-line `OSD` value can contain these case-sensitive runtime variables:
+
+| Variable | Value |
+| --- | --- |
+| `{currTrackName}` | First selected track name |
+| `{prevTrackName}` | Track name before the first selected track, or empty at the boundary |
+| `{nextTrackName}` | Track name after the first selected track, or empty at the boundary |
+| `{currMinSec}` | Current edit cursor position as `M:SS.mmm` |
+| `{currBarBeat}` | Current edit cursor position as `bar/beat`, including the project measure offset |
+
+C++ treats an explicit action-line `OSD` value as the authoritative event text and publishes it with `explicitMessage=1`. Both Lua consumers use `osd_templates.lua` to enumerate, validate, and expand variables after they receive the event. Unknown variables remain visible in the result. Use `\n` inside the `OSD` value for a new line. For example, `OSD="{prevTrackName}\n{currTrackName}\n{nextTrackName}"` creates a three-line track template, and `OSD="[{currBarBeat}] {currMinSec}"` shows both supported cursor formats.
+
+The standalone OSD calculates percentage width from the ReaImGui monitor work area. The REAPER client rectangle and `my_getViewport` are fallbacks when that work area is unavailable.
+
+## Notifications
+
+`ReaCtrlSurf_NOTIFICATIONS` contains `StartOffset`, the byte offset in `Data/ReaControlSurface/ReaControlSurface.log` from which a newly started `Notifications.lua` instance begins reading. C++ sets the value immediately before it starts the script.
+
+The plugin and normal Lua runtime write logs to the product log without calling `ShowConsoleMsg`. `Notifications.lua` tails new log entries and shows NOTICE, WARNING, and ERROR entries. INFO and DEBUG remain file-only. Explicit diagnostic tools such as `OSK state debug.lua` and parser self-check output may use the REAPER console when the user starts them manually.
 
 ## Product and Surface Settings Protocol
 

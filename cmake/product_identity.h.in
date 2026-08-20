@@ -13,6 +13,7 @@ inline constexpr const char* ExtStateOskCommand = "@PRODUCT_EXTSTATE_OSK_COMMAND
 inline constexpr const char* ExtStateOskSettings = "@PRODUCT_EXTSTATE_OSK_SETTINGS@";
 inline constexpr const char* ExtStateOsd = "@PRODUCT_EXTSTATE_OSD@";
 inline constexpr const char* ExtStateOsdSettings = "@PRODUCT_EXTSTATE_OSD_SETTINGS@";
+inline constexpr const char* ExtStateNotifications = "@PRODUCT_EXTSTATE_NOTIFICATIONS@";
 inline constexpr const char* ExtStateSettings = "@PRODUCT_EXTSTATE_SETTINGS@";
 inline constexpr const char* ExtStateSettingsCommand = "@PRODUCT_EXTSTATE_SETTINGS_COMMAND@";
 inline constexpr const char* ReaperRegistrationId = "@PRODUCT_REAPER_REGISTRATION_ID@";
@@ -22,6 +23,8 @@ inline constexpr const char* PackagePrefix = "@PRODUCT_PACKAGE_PREFIX@";
 inline constexpr const char* RepositoryUrl = "@PRODUCT_REPOSITORY_URL@";
 inline constexpr const char* OskScriptFilename = "@PRODUCT_OSK_SCRIPT_FILENAME@";
 inline constexpr const char* OsdScriptFilename = "@PRODUCT_OSD_SCRIPT_FILENAME@";
+inline constexpr const char* NotificationsScriptFilename = "@PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME@";
 inline constexpr const char* OskScriptResourcePath = "@PRODUCT_OSK_SCRIPT_RESOURCE_PATH@";
 inline constexpr const char* OsdScriptResourcePath = "@PRODUCT_OSD_SCRIPT_RESOURCE_PATH@";
+inline constexpr const char* NotificationsScriptResourcePath = "@PRODUCT_NOTIFICATIONS_SCRIPT_RESOURCE_PATH@";
 }

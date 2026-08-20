@@ -177,7 +177,7 @@ void Midi_ControlSurface::SendMidiSysExMessage(MIDI_event_ex_t* midiMessage) {
             output += buf;
         }
         output += " # Midi_ControlSurface::SendMidiSysExMessage\n";
-        ShowConsoleMsg(output.c_str());
+        LogToConsole(output.c_str());
     }
 }
 

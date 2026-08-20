@@ -22,7 +22,10 @@
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
 - Parse Product overrides from `Settings` lines and Surface overrides from their `Surface=` assignment. Resolve compiled defaults, Product, and Surface in that order. Reject one invalid scope as a unit instead of partially applying it.
 - Keep `ReaCtrlSurf_SETTINGS_CMD` requests correlated with `ReaCtrlSurf_SETTINGS` responses. Apply must validate before atomic file replacement. Reload must keep current runtime values when validation or runtime matching fails.
-- Register bundled OSK and OSD ReaScripts with their absolute resource paths. If REAPER reports an already registered script as an add failure, reuse one unique matching command from the Main action section and reject ambiguous matches.
+- Register bundled OSK, OSD, and Notifications ReaScripts with their absolute resource paths. If REAPER reports an already registered script as an add failure, reuse one unique matching command from the Main action section and reject ambiguous matches.
+- Start the Notifications ReaScript before configuration loading so it can display new NOTICE, WARNING, and ERROR log entries without opening the REAPER console.
+- Publish the selected track name with its adjacent track names and selected track color to OSD after track selection. Publish edit cursor position as `[bar/beat]` during CSI cursor movement, rewind, and fast-forward.
+- Treat an explicit action-line OSD value as authoritative text and mark it in the shared payload. Do not interpret template variable names in C++; Lua owns their definitions and expansion.
 - Load configuration, surfaces, zones, logs, backups, snippets, and generated files through the generated product identity and `ProductPaths`; do not add runtime fallback to legacy CSI paths.
 - Parse the product INI into value-only configuration records before creating runtime objects. Missing files and incompatible versions are fatal. A malformed IO, Page child, Surface, or Listener entry must report its line and must not stop other valid entries from loading. Apply Listener relationships only after all available Surfaces are created.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.

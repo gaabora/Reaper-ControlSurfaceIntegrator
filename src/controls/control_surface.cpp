@@ -152,6 +152,7 @@ void ControlSurface::RequestUpdate() {
                 CSurf_OnRew(0);
                 CSurf_OnRew(0);
             }
+            this->csi_->ShowCurrentPositionOSD();
         }
     }
 
@@ -167,6 +168,7 @@ void ControlSurface::RequestUpdate() {
                 CSurf_OnFwd(0);
                 CSurf_OnFwd(0);
             }
+            this->csi_->ShowCurrentPositionOSD();
         }
     }
 }

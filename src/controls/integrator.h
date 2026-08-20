@@ -182,6 +182,7 @@ public:
     }
 
     osd_data QueuedOSD;
+    DWORD lastPositionOSDTime_ = 0;
     int osdCommandId_ = 0;
     void OpenOSDPanel() {
         if (this->osdCommandId_ == 0) {
@@ -196,6 +197,20 @@ public:
         }
         runningState = GetToggleCommandState(this->osdCommandId_);
         LogToConsole("[ERROR] FAILED to OpenOSDPanel. ReaScript: '%s' command ID: %d state: %d\n", REASCRIPT_PATH__CSI_OSD, this->osdCommandId_, runningState);
+    }
+
+    int notificationsCommandId_ = 0;
+    void OpenNotificationsPanel() {
+        if (this->notificationsCommandId_ == 0) {
+            this->notificationsCommandId_ = this->ResolveReaScriptCommandId(REASCRIPT_PATH__CSI_NOTIFICATIONS, "OpenNotificationsPanel");
+            if (this->notificationsCommandId_ == 0) return;
+        }
+        if (GetToggleCommandState(this->notificationsCommandId_) == 1) return;
+        const filesystem::path logPath = ProductPaths::FromReaperResourcePath().LogFile();
+        const uintmax_t startOffset = filesystem::is_regular_file(logPath) ? filesystem::file_size(logPath) : 0;
+        const string startOffsetValue = to_string(startOffset);
+        ::SetExtState(ProductIdentity::ExtStateNotifications, "StartOffset", startOffsetValue.c_str(), false);
+        DAW::SendCommandMessage(this->notificationsCommandId_);
     }
 
     // -----------------------------------------------------------------------
@@ -543,8 +558,10 @@ public:
 
     void OnTrackSelection(MediaTrack* track) override {
         WDL_MutexLock lock(&csiMutex_);
-        if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])
+        if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
             pages_[currentPageIndex_]->OnTrackSelection(track);
+            if (DAW::ValidateTrackPtr(track) && GetMediaTrackInfo_Value(track, "I_SELECTED") != 0.0) this->ShowSelectedTrackOSD(track);
+        }
     }
 
     void SetTrackListChange() override {
@@ -680,9 +697,57 @@ public:
     void ForceOSD(const string& text, const string& bgColor = "") {
         osd_data osdData = osd_data(text);
         osdData.bgColor = bgColor;
-        QueuedOSD = osdData;
+        this->EnqueueOSD(osdData);
     }
-    void EnqueueOSD(const osd_data& osdData_) { QueuedOSD = osdData_; }
+    void EnqueueOSD(const osd_data& osdData) { this->QueuedOSD = osdData; }
+
+    bool HasAnyOSDEnabled() {
+        if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return false;
+        for (const auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces())
+            if (surface->IsOsdEnabled()) return true;
+        return false;
+    }
+
+    int GetCurrentOSDTime() {
+        if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return 3000;
+        for (const auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces())
+            if (surface->IsOsdEnabled()) return surface->GetOSDTime();
+        return 3000;
+    }
+
+    void ShowSelectedTrackOSD(MediaTrack* track) {
+        if (!this->HasAnyOSDEnabled() || !DAW::ValidateTrackPtr(track)) return;
+        const int trackId = CSurf_TrackToID(track, false);
+        const int trackCount = CountTracks(NULL);
+        MediaTrack* previousTrack = trackId > 1 ? CSurf_TrackFromID(trackId - 1, false) : NULL;
+        MediaTrack* nextTrack = trackId >= 0 && trackId < trackCount ? CSurf_TrackFromID(trackId + 1, false) : NULL;
+        const string previousName = previousTrack ? DAW::GetTrackName(previousTrack) : "";
+        const string nextName = nextTrack ? DAW::GetTrackName(nextTrack) : "";
+        osd_data trackOSD(previousName + "\n" + DAW::GetTrackName(track) + "\n" + nextName);
+        const rgba_color trackColor = DAW::GetTrackColor(track);
+        char background[8];
+        snprintf(background, sizeof(background), "#%02X%02X%02X", trackColor.r, trackColor.g, trackColor.b);
+        trackOSD.bgColor = background;
+        trackOSD.timeoutMs = this->GetCurrentOSDTime();
+        this->EnqueueOSD(trackOSD);
+    }
+
+    void ShowCurrentPositionOSD(bool force = false) {
+        if (!this->HasAnyOSDEnabled()) return;
+        const DWORD now = GetTickCount();
+        if (!force && now - this->lastPositionOSDTime_ < 100) return;
+        this->lastPositionOSDTime_ = now;
+        int measure = 0;
+        int timeSignatureNumerator = 0;
+        const double position = GetCursorPosition();
+        double beats = TimeMap2_timeToBeats(NULL, position, &measure, &timeSignatureNumerator, NULL, NULL) + 0.000000000001;
+        if (measure <= 0 && position < 0.0) --measure;
+        const int beat = static_cast<int>(floor(beats)) + 1;
+        int* measureOffset = this->GetMeasOffsPtr();
+        osd_data positionOSD("[" + to_string(measure + 1 + (measureOffset ? *measureOffset : 0)) + "/" + to_string(beat) + "]");
+        positionOSD.timeoutMs = this->GetCurrentOSDTime();
+        this->EnqueueOSD(positionOSD);
+    }
 
     void Run() override {
         WDL_MutexLock lock(&csiMutex_);

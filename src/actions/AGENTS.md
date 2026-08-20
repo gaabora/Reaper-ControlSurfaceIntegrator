@@ -17,6 +17,7 @@
 - `Do`, `RequestUpdate`, `Touch`, and normalized-value behavior must agree for each action.
 - Stateless `Reaper` actions with explicit action-line colors must still provide inactive color feedback unless the mapping explicitly uses `Feedback=No` or `NoFeedback`.
 - Action feedback must use the owning `ActionContext` and widget contracts rather than bypassing them.
+- An explicit action-line `OSD` value is authoritative event text. Queue it after the action runs and mark it as explicit instead of replacing it with automatic action-specific text. Lua owns template variable expansion.
 
 ## Work Guidance
 

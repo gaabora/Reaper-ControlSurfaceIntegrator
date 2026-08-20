@@ -23,6 +23,7 @@ REQUIRED_IDENTITY_KEYS = (
     "PRODUCT_REPOSITORY_URL",
     "PRODUCT_OSK_SCRIPT_FILENAME",
     "PRODUCT_OSD_SCRIPT_FILENAME",
+    "PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME",
 )
 
 PLUGIN_ASSETS = (
@@ -181,7 +182,7 @@ def prepare(args):
         core_provides.append(f"[{platform}] {target_name} {url}")
         add_source(source_records, url, local_path.relative_to(root), target_name, Path("UserPlugins") / target_name, platform=platform)
 
-    main_scripts = {identity["PRODUCT_OSK_SCRIPT_FILENAME"], identity["PRODUCT_OSD_SCRIPT_FILENAME"]}
+    main_scripts = {identity["PRODUCT_OSK_SCRIPT_FILENAME"], identity["PRODUCT_OSD_SCRIPT_FILENAME"], identity["PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME"]}
     script_paths = sorted((root / "Scripts").glob("*.lua"))
     script_paths.append(root / "Scripts" / "product_identity.conf")
     script_paths.append(root / "Scripts" / "settings_schema.conf")

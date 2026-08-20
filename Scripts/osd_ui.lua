@@ -7,6 +7,8 @@ local r = reaper
 
 local font_cache = require("font_cache")
 local identity = require("product_identity")
+local log_writer = require("log_writer")
+local osd_templates = require("osd_templates")
 local theme = require("theme_settings")
 local ui = require("ui_components")
 
@@ -57,15 +59,22 @@ local function finalizeSettingsPopupState(popupOpen)
     end
 end
 
-local function getCenteredTextPosition(ctx, imgui, x, y, width, height, text)
-    local textWidth = imgui.CalcTextSize(ctx, text)
-    local _, lineHeight = imgui.CalcTextSize(ctx, "M")
-    return x + (width - textWidth) / 2, y + (height - lineHeight) / 2
+local function getTextLines(text)
+    local lines = {}
+    for line in (tostring(text or "") .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = line end
+    return lines
 end
 
 local function getSizedFont(px)
     if not sizedFontCache then return smallFont end
     return sizedFontCache:Get(theme.osk.font_family or "sans-serif", px) or smallFont
+end
+
+local function getWindowFont(text, height)
+    local lineCount = #getTextLines(text)
+    local requestedSize = M.vars.osd_font_px
+    local fittedSize = math.max(8, math.floor((height - 12) / lineCount))
+    return getSizedFont(math.min(requestedSize, fittedSize))
 end
 
 local function debugLog(...)
@@ -74,7 +83,7 @@ local function debugLog(...)
     for index = 1, select("#", ...) do
         out[#out + 1] = tostring(select(index, ...))
     end
-    r.ShowConsoleMsg("[" .. identity.displayName .. " OSD] " .. table.concat(out, " ") .. "\n")
+    log_writer.Write("DEBUG", "[" .. identity.displayName .. " OSD] " .. table.concat(out, " "))
 end
 
 local function getOskBarSettingsKey(surfaceName)
@@ -107,8 +116,14 @@ function M.DrawOSDRect(ctx, imgui, x, y, width, height, text, bgColor, alphaPerc
 
     if font then imgui.PushFont(ctx, font) end
     if shownText ~= "" then
-        local textX, textY = getCenteredTextPosition(ctx, imgui, x, y, width, height, shownText)
-        imgui.DrawList_AddText(drawList, textX, textY, textColor, shownText)
+        local lines = getTextLines(shownText)
+        local _, lineHeight = imgui.CalcTextSize(ctx, "M")
+        local firstLineY = y + (height - lineHeight * #lines) / 2
+        for lineIndex, line in ipairs(lines) do
+            local lineWidth = imgui.CalcTextSize(ctx, line)
+            local lineX = x + (width - lineWidth) / 2
+            imgui.DrawList_AddText(drawList, lineX, firstLineY + (lineIndex - 1) * lineHeight, textColor, line)
+        end
     end
     if font then imgui.PopFont(ctx) end
 end
@@ -125,8 +140,9 @@ function M.PollOSD()
                 return
             end
 
-            local text, bgState, timeoutStr = msg:match("([^;]*);?([^;]*);?([^;]*)")
+            local text, bgState, timeoutStr, explicitMessage = msg:match("^([^;]*);([^;]*);([^;]*);([^;]*)$")
             text = text and text:match("^%s*(.-)%s*$") or ""
+            if explicitMessage == "1" then text = osd_templates.Expand(text, r) end
 
             local timeout = tonumber(timeoutStr) or theme.OSD.timeout_ms
             if bgState and bgState:sub(1, 1) == "#" then
@@ -227,7 +243,7 @@ function M.RenderOSDWindow(ctx, imgui, screenWidth, screenHeight, windowWidth, w
     if visible then
         local winX, winY = imgui.GetWindowPos(ctx)
         local winW, winH = imgui.GetWindowSize(ctx)
-        local renderFont = getSizedFont(M.vars.osd_font_px)
+        local renderFont = getWindowFont(hasText and M.state.text or "", winH)
         M.DrawOSDRect(ctx, imgui, winX, winY, winW, winH, hasText and M.state.text or "", M.state.bgColor, M.vars.osd_transparency, renderFont)
 
         local popupOpen = false

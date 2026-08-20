@@ -275,8 +275,7 @@ SurfaceOutDisplay=1             ; Show output display
 SurfaceRawInDisplay=1           ; Show raw MIDI
 ```
 
-Then check REAPER console for messages:
-- **Help** → **Show REAPER console**
+NOTICE, WARNING, and ERROR messages appear through the ReaControlSurface Notifications script. Full output is stored in `Data/ReaControlSurface/ReaControlSurface.log`.
 
 ## Zone File Comment Syntax
 
@@ -295,7 +294,7 @@ Then check REAPER console for messages:
 
 ## Getting Help
 
-1. Check error messages in REAPER console
+1. Check ReaControlSurface notifications and `Data/ReaControlSurface/ReaControlSurface.log`
 2. Verify syntax against [Configuration-Format.md](Configuration-Format.md)
 3. Verify action names against [Actions-Reference.md](Actions-Reference.md)
 4. Review example zones in CSI folder
@@ -304,6 +303,5 @@ Then check REAPER console for messages:
 ---
 
 **Last Updated**: March 2026 | CSI v7.0
-
 
 

@@ -1,10 +1,13 @@
 local imgui = require "imgui" "0.9.3"
 
 local osk_color_picker = require("osk_color_picker")
+local osd_templates = require("osd_templates")
 local theme = require("theme_settings")
 local ui = require("ui_components")
 
 local M = {}
+
+local OSD_TEMPLATE_HELP = "Variables: " .. table.concat(osd_templates.GetVariableTokens(), ", ") .. ". Use \\n for a new line."
 
 local function selectBinding(state, bindingIndex)
     state.selectedBinding = bindingIndex
@@ -215,6 +218,9 @@ function M.RenderBody(ctx, state, deps)
         parts.properties.OSD = (osdText ~= "") and osdText or nil
         changedQuick = true
     end
+    imgui.TextDisabled(ctx, OSD_TEMPLATE_HELP)
+    local unknownOSDVariables = osd_templates.FindUnknownVariables(osdText)
+    if #unknownOSDVariables > 0 then imgui.TextWrapped(ctx, "Unknown OSD variables stay unchanged: " .. table.concat(unknownOSDVariables, ", ")) end
 
     local keyLabelText = tostring(parts.properties.KeyLabel or "")
     local keyLabelChanged

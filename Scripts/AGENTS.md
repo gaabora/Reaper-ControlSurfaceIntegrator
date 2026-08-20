@@ -6,10 +6,11 @@
 
 ## Ownership
 
-- `OSK on-screen keyboard.lua`, `OSD on-screen display.lua`, and `OSK state debug.lua` entry scripts.
+- `OSK on-screen keyboard.lua`, `OSD on-screen display.lua`, `Notifications.lua`, and `OSK state debug.lua` entry scripts.
 - `product_identity.conf` canonical public identity and `product_identity.lua` runtime loader.
 - `settings_schema.conf` canonical setting metadata plus its `settings_schema.lua` loader.
 - `settings_protocol.lua` C++ request/response client and `settings_ui.lua` Product and Surface settings window.
+- `osd_templates.lua` canonical OSD template variable definitions, resolver functions, enumeration, validation, and expansion.
 - Shared Lua modules for data parsing, configuration editing, input, rendering, settings, and UI behavior directly under `Scripts/`.
 - `osk_zone_create.lua` small zone-scaffold dialog and its `ZoneCreate` request/status state.
 - Installation and linked-development assumptions for the Lua runtime.
@@ -35,6 +36,8 @@
 - Keep the config window undockable and its dirty-state Apply, Save, and Revert controls in the top toolbar so they remain visible.
 - Show direction pseudo-modifiers only for relative controls identified by layout metadata; normal buttons must not expose Increase or Decrease controls.
 - Show the resolved binding title as the editable OSD default, and when KeyLabel is empty present OSD as its effective default without serializing duplicate properties until the user edits them.
+- Show the supported case-sensitive OSD template variables beside the OSD editor. Warn about unknown `{variableName}` values without removing them. Use `\n` as the editable new-line escape.
+- Keep OSD template names, descriptions, resolver functions, enumeration, unknown-variable checks, and text expansion in `osd_templates.lua`. C++ only marks whether the event came from an explicit action-line `OSD` value.
 - Always apply built-in OSK label replacements; merge user replacements on top with user rules taking priority and longer phrases evaluated before shorter phrases.
 - Send OSK wheel input as rate-limited semantic acceleration packets; do not generate MIDI messages or expose device IDs from Lua.
 - Send OSK fader drag and wheel input as absolute normalized `WidgetValue` packets; when fader feedback is dB-valued, convert it for display and send matching dB command values for DB actions.
@@ -44,6 +47,9 @@
 - Keep OSK surface enabled/hidden state persisted per surface and mirrored to C++ through `SurfaceEnabled` when a window closes.
 - Keep OSK widget config window geometry persistent, keep its font independent from OSK button font settings, and keep embedded OSD bar position scoped per surface.
 - Keep standalone OSD settings reachable by right-clicking a visible OSD overlay; do not add an idle launcher window.
+- Size standalone OSD percentages against the ReaImGui monitor work area. Use the REAPER client rectangle and `my_getViewport` only as fallbacks.
+- Route normal Lua runtime logs through `log_writer.lua`. Do not open the REAPER console for automatic logging. The manually launched `OSK state debug.lua` and parser self-check output may still use the console for explicit diagnostics.
+- Keep `Notifications.lua` running as the dedicated NOTICE, WARNING, and ERROR display. It tails new entries from the product log and must not show INFO or DEBUG entries as popups.
 - Keep OSK font size, font family, wrapped-label line-height, and label-case controls in the OSK context menu near zoom.
 - Keep OSK wheel inversion in the context menu with interactive-control settings; ReaImGui exposes wheel delta but not reliable mouse-wheel versus trackpad source.
 - Show OSK hover tooltips with the default binding first and `+ `-prefixed alternate bindings for modifiers, Hold, DoublePress, and combined pseudo-modifier entries.
@@ -57,6 +63,7 @@
 - Keep serialized action-line, layout, and label-replacement contracts in `action_line.lua`, `layout_parser.lua`, and `label_replacements.lua` so UI modules do not own those formats.
 - Keep pure Lua parser checks registered through `self_checks.lua` when adding or changing parser module self-checks.
 - Keep OSD color, alpha, contrast, and centered text drawing in `osd_ui.lua` so standalone OSD and the embedded OSK bar share one renderer.
+- Expand explicit OSD templates in `osd_ui.lua` through `osd_templates.lua` so standalone OSD and embedded OSK bars use the same Lua behavior.
 - Keep visual defaults, reusable style tokens, and color/font helpers in `theme_settings.lua`; keep per-context font attachment/caching in `font_cache.lua`; keep typed ExtState setting coercion in `settings_store.lua`.
 - Keep OSK context-menu settings UI in `osk_settings_ui.lua`, low-level widget math in `osk_widget_math.lua`, reusable draw primitives in `osk_draw_primitives.lua`, and widget shape drawing/interaction plumbing in `osk_widget_drawers.lua`.
 - Keep config binding parsing/state helpers in `osk_config_model.lua`, ExtState request/response handling in `osk_config_protocol.lua`, config-window rendering in `osk_config_view.lua`, and persistent color-picker/swatches behavior in `osk_color_picker.lua`.
@@ -75,8 +82,11 @@
 - Test OSK press, release, hold, double-press, and rotary wheel input.
 - Test OSK fader drag, wheel scroll, value feedback, and touch/release behavior on touch-aware actions.
 - Send repeated identical OSD messages and confirm the visible timeout refreshes.
+- Set an explicit action-line OSD template with every supported variable and `\n`, then verify selected-track boundaries, edit-cursor values, and visible unknown variables.
 - Open OSD settings while no OSD message is visible.
 - Check standalone OSD top/bottom placement, left/center/right alignment, margins, size, font size, styling, Save, and Cancel.
+- Check standalone OSD at 100% width on macOS and on each available monitor.
+- Trigger NOTICE, WARNING, and ERROR logs and confirm that Lua notifications appear without opening the REAPER console.
 - Verify standalone OSD settings stay open after the message timeout when opened by right-clicking the visible overlay.
 
 ## Child DOX Index

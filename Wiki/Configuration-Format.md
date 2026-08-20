@@ -60,7 +60,7 @@ DebugLevel=Error              ; Error, Warning, Info, Debug
 SurfaceInDisplay=0            ; Show surface input display
 SurfaceOutDisplay=0           ; Show surface output display
 SurfaceRawInDisplay=0         ; Show raw MIDI input
-FXParamsWrite=0               ; Write FX param changes to console
+FXParamsWrite=0               ; Write FX parameter changes to the product log
 
 ; Pages section lists all UI pages
 [Pages]
@@ -466,6 +466,27 @@ RGB(0, 0, 255)                          ; Blue
 ```
 Widget StatusLight SetXTouchDisplayColors RGB(0,255,0)
 ```
+
+### OSD Text Templates
+
+Use the `OSD` action property to replace the default OSD title. The value can contain runtime variables:
+
+| Variable | Result |
+| --- | --- |
+| `{currTrackName}` | First selected track name |
+| `{prevTrackName}` | Previous track name, or empty when there is no previous track |
+| `{nextTrackName}` | Next track name, or empty when there is no next track |
+| `{currMinSec}` | Current edit cursor position in `M:SS.mmm` format |
+| `{currBarBeat}` | Current edit cursor position in `bar/beat` format |
+
+Variable names are case-sensitive. An unknown variable stays visible so that you can find the error. Use `\n` for a new line.
+
+```text
+Widget SelectTrack Reaper 40297 OSD="{prevTrackName}\n{currTrackName}\n{nextTrackName}"
+Widget NextMeasure Reaper 40839 OSD="[{currBarBeat}] {currMinSec}"
+```
+
+An explicit `OSD` value replaces automatic action-specific OSD text. The track variables use the first selected track. The time variables use the edit cursor position after the action runs. Decorative text, such as `[` and `]`, is part of the template and not part of the variable value.
 
 ## Property System
 

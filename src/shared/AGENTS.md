@@ -19,6 +19,9 @@
 - `reaper_plugin.h`, `oscpkt.hh`, and `udp.hh` carry upstream or compatibility behavior; keep local edits minimal and well justified.
 - DAW wrappers must preserve REAPER pointer validity, index conventions, and threading expectations.
 - Publish OSD messages through the shared `ReaCtrlSurf_OSD` payload and event id keys documented in `docs/LUA_CPP_EXTSTATE_INTERFACE.md`.
+- Publish a new OSD event id for every accepted request, including an identical payload, so Lua can refresh the timeout and re-evaluate runtime templates.
+- Keep the generic explicit-message flag in the OSD payload. Do not put Lua OSD template names or resolver logic in shared C++ code.
+- Write plugin logs to the product log file without calling `ShowConsoleMsg`; the Notifications ReaScript owns automatic log presentation.
 - Shared headers have broad compile impact; avoid adding heavyweight dependencies without need.
 - Keep runtime Surface and Zone parsing compatible with OSC address tokens that start with `/`. In these formats, only `//` starts a comment, including after another token. `IsCommentedOrEmpty` must not classify a single leading `/` or `#` as a comment.
 - Resolve product-owned paths through `ProductPaths`; the product root is `REAPER/Data/<ProductResourceDirectory>`, surface files use `Surfaces/Vendor/<surface-id>.txt` or `Surfaces/User/<surface-id>.txt`, zone profiles use matching `Zones/Vendor` and `Zones/User` roots, and stable surface, profile, and operation IDs use lowercase ASCII and must remain inside their typed roots.

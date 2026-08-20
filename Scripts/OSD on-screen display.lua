@@ -35,9 +35,23 @@ local function main()
 
     local screenW, screenH = theme.OSD.fallback_screen_width, theme.OSD.fallback_screen_height
     local originX, originY = 0, 0
+    local monitorResolved = false
 
-    -- Prefer REAPER client rectangle to avoid covering app title bar.
-    if r.APIExists and r.APIExists("JS_Window_GetClientRect") and r.APIExists("JS_Window_ClientToScreen") then
+    if imgui.GetMainViewport and imgui.Viewport_GetWorkPos and imgui.Viewport_GetWorkSize then
+        local viewport = imgui.GetMainViewport(ctx)
+        if viewport then
+            local workX, workY = imgui.Viewport_GetWorkPos(viewport)
+            local workWidth, workHeight = imgui.Viewport_GetWorkSize(viewport)
+            if workWidth and workHeight and workWidth > 0 and workHeight > 0 then
+                originX, originY = workX, workY
+                screenW, screenH = workWidth, workHeight
+                monitorResolved = true
+            end
+        end
+    end
+
+    -- Use the REAPER client rectangle only when the monitor work area is unavailable.
+    if not monitorResolved and r.APIExists and r.APIExists("JS_Window_GetClientRect") and r.APIExists("JS_Window_ClientToScreen") then
         local hwnd = r.GetMainHwnd()
         local ok, cl, ct, cr, cb = r.JS_Window_GetClientRect(hwnd)
         if ok and cr and cb and cr > cl and cb > ct then
@@ -46,9 +60,10 @@ local function main()
                 originX, originY = sx, sy
                 screenW = cr - cl
                 screenH = cb - ct
+                monitorResolved = true
             end
         end
-    elseif r.my_getViewport then
+    elseif not monitorResolved and r.my_getViewport then
         local left, top, right, bottom = r.my_getViewport(0, 0, 0, 0, 0, 0, 0, 0, true)
         if left and top and right and bottom and right > left and bottom > top then
             originX = left

@@ -1,6 +1,7 @@
 local r = reaper
 local scriptDir = debug.getinfo(1, "S").source:match("@(.+[\\/])") or ""
 local identity = dofile(scriptDir .. "product_identity.lua")
+local log_writer = dofile(scriptDir .. "log_writer.lua")
 
 local M = {}
 
@@ -20,7 +21,7 @@ local function reportMissingImGui(details)
         message = message .. "\n\nInstall ReaPack, then install ReaImGui from the ReaTeam Extensions repository."
     end
     r.ShowMessageBox(message, "MISSING DEPENDENCY", 0)
-    if details and r.ShowConsoleMsg then r.ShowConsoleMsg("[" .. identity.displayName .. " script_host] ReaImGui load failed: " .. tostring(details) .. "\n") end
+    if details then log_writer.Write("ERROR", "[" .. identity.displayName .. " script_host] ReaImGui load failed: " .. tostring(details)) end
     if r.ReaPack_BrowsePackages then r.ReaPack_BrowsePackages("^ReaImGui:") end
 end
 
@@ -85,9 +86,7 @@ function M.OnExit(cleanupFn)
     r.atexit(function()
         if not cleanupFn then return end
         local ok, err = pcall(cleanupFn)
-        if not ok and r.ShowConsoleMsg then
-            r.ShowConsoleMsg("[" .. identity.displayName .. " script_host] Cleanup failed: " .. tostring(err) .. "\n")
-        end
+        if not ok then log_writer.Write("ERROR", "[" .. identity.displayName .. " script_host] Cleanup failed: " .. tostring(err)) end
     end)
 end
 

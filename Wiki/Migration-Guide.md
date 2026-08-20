@@ -594,7 +594,7 @@ For each deprecated action found:
 - [ ] Zone navigation works
 - [ ] Modifier combinations function correctly
 - [ ] FX parameter control works
-- [ ] No REAPER errors in console
+- [ ] No errors in ReaControlSurface notifications or `Data/ReaControlSurface/ReaControlSurface.log`
 
 ### Step 5: Document Changes
 
@@ -674,14 +674,13 @@ If you encounter migration issues:
 
 1. **Search Actions-Reference.md** for the current action syntax
 2. **Review examples** in the "Complete Example Zone" section
-3. **Check error logs** in REAPER console (Ctrl+Alt+?)
+3. **Check error logs** in ReaControlSurface notifications and `Data/ReaControlSurface/ReaControlSurface.log`
 4. **Test incrementally** - update one zone at a time
 
 ---
 
 **Last Updated**: June 2025  
 **Changelog**: [10 - Change Log](https://github.com/FunkybotsEvilTwin/CSIUserGuide/wiki/10-%E2%80%90-Change-Log)
-
 
 
 

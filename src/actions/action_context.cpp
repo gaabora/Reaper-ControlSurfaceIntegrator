@@ -149,6 +149,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
 
     const char* osdValue = widgetProperties_.get_prop(PropertyType_OSD);
     osdData_ = osd_data(osdValue ? osdValue : "?");
+    this->osdData_.hasExplicitMessage = osdValue != NULL;
     if (osdData_.message == "No")
         osdData_.message.clear();
     else if (osdData_.message == "?")
@@ -462,6 +463,11 @@ void ActionContext::ProcessOSD(double value, bool fromFeedback) {
     if (osdData_.timeoutMs == 0)
         osdData_.timeoutMs = GetSurface()->GetOSDTime();
 
+    if (this->osdData_.hasExplicitMessage) {
+        this->osdData_.SetAwaitFeedback(false);
+        return this->GetCSI()->EnqueueOSD(this->osdData_);
+    }
+
     if ((action_->IsVolumeRelated() || action_->IsPanRelated()) && !(action_->IsDisplayRelated() || action_->IsMeterRelated())) {
         if (MediaTrack* track = this->GetTrack()) {
             ostringstream oss;
@@ -490,6 +496,11 @@ void ActionContext::ProcessOSD(double value, bool fromFeedback) {
     }
 
     const ActionType actionType = action_->GetType();
+
+    if (actionType == ActionType::MoveCursor || actionType == ActionType::Rewind || actionType == ActionType::FastForward) {
+        osdData_.SetAwaitFeedback(false);
+        return GetCSI()->ShowCurrentPositionOSD(true);
+    }
 
     if (actionType == ActionType::CycleDebugLevel) {
         osdData_.message = string(action_->GetName()) + ": " + DebugLevelToString(g_debugLevel);

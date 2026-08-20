@@ -19,6 +19,7 @@ Current provisional values are:
 | Installed script directory | `Scripts/ReaControlSurface` |
 | OSK script | `OSK on-screen keyboard.lua` |
 | OSD script | `OSD on-screen display.lua` |
+| Notifications script | `Notifications.lua` |
 | Package prefix | `ReaControlSurface` |
 | Repository URL | `https://github.com/gaabora/Reaper-ControlSurfaceIntegrator` |
 

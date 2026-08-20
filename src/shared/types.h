@@ -54,6 +54,7 @@ inline constexpr int PLAYSTATE_RECORDING = 5;
 inline constexpr int PLAYSTATE_PAUSED_WHILE_RECORDING = 6;
 
 inline constexpr const char* REASCRIPT_PATH__CSI_OSD = ProductIdentity::OsdScriptResourcePath;
+inline constexpr const char* REASCRIPT_PATH__CSI_NOTIFICATIONS = ProductIdentity::NotificationsScriptResourcePath;
 inline constexpr const char* REASCRIPT_PATH__CSI_OSK = ProductIdentity::OskScriptResourcePath;
 inline constexpr int REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES = 41743;
 inline constexpr int REAPER__RESET_ALL_MIDI_CONTROL_SURFACE_DEVICES = 42348;
@@ -101,6 +102,7 @@ struct osd_data {
     vector<string> bgColors;
     string bgColor;
     string lastValue;
+    bool hasExplicitMessage = false;
 
     DWORD startWaitFeedback = 0;
 
@@ -122,7 +124,7 @@ struct osd_data {
     }
 
     const string toString() const {
-        return message + ";" + bgColor + ";" + to_string(timeoutMs);
+        return message + ";" + bgColor + ";" + to_string(timeoutMs) + ";" + (hasExplicitMessage ? "1" : "0");
     }
     const bool isEmpty() const {
         return message.empty();
