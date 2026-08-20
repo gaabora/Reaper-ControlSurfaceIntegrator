@@ -1,6 +1,7 @@
 local identity = require("product_identity")
 
 local module = {}
+local requestCounter = 0
 
 local VALID_COMMANDS = {
     Focus = true,
@@ -29,6 +30,24 @@ local function refreshStableAction()
     if commandId and commandId > 0 then reaper.RefreshToolbar2(0, commandId) end
 end
 
+local function nextRequestId()
+    requestCounter = requestCounter + 1
+    return tostring(math.floor(reaper.time_precise() * 1000000)) .. "_" .. tostring(requestCounter)
+end
+
+local function publishSelectTab(tab, options)
+    options = options or {}
+    local lines = {
+        "Version=1",
+        "RequestId=" .. nextRequestId(),
+        "Command=SelectTab",
+        "Tab=" .. tostring(tab or ""),
+    }
+    if options.surface and options.surface ~= "" then lines[#lines + 1] = "Surface=" .. tostring(options.surface) end
+    if options.page and options.page ~= "" then lines[#lines + 1] = "Page=" .. tostring(options.page) end
+    reaper.SetExtState(identity.extState.controlPanel, "Request", table.concat(lines, "\n") .. "\n", false)
+end
+
 function module.SetOpen(isOpen)
     if not reaper then return end
     if not isOpen then reaper.DeleteExtState(identity.extState.controlPanel, "Request", false) end
@@ -48,8 +67,19 @@ function module.Poll()
     return {
         command = properties.Command,
         requestId = properties.RequestId,
+        page = properties.Page or "",
+        surface = properties.Surface or "",
         tab = properties.Tab or "",
     }
+end
+
+function module.Open(tab, options)
+    if not reaper or not reaper.NamedCommandLookup or not reaper.Main_OnCommand then return false, "REAPER action API is not available" end
+    local commandId = reaper.NamedCommandLookup("_" .. identity.controlPanelActionId)
+    if not commandId or commandId <= 0 then return false, "Control Panel action is not registered" end
+    reaper.Main_OnCommand(commandId, 0)
+    if tab and tab ~= "" then publishSelectTab(tab, options) end
+    return true
 end
 
 return module

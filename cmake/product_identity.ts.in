@@ -21,6 +21,8 @@ export const productIdentity = Object.freeze({
         osd: "@PRODUCT_EXTSTATE_OSD@",
         osdSettings: "@PRODUCT_EXTSTATE_OSD_SETTINGS@",
         notifications: "@PRODUCT_EXTSTATE_NOTIFICATIONS@",
+        notificationsSettings: "@PRODUCT_EXTSTATE_NOTIFICATIONS_SETTINGS@",
+        appearanceSettings: "@PRODUCT_EXTSTATE_APPEARANCE_SETTINGS@",
         controlPanel: "@PRODUCT_EXTSTATE_CONTROL_PANEL@",
     }),
 });

@@ -20,11 +20,12 @@ if not imgui then return end
 local identity = require("product_identity")
 local data = require("osk_data")
 local font_cache = require("font_cache")
+local log_writer = require("log_writer")
 local render = require("osk_render")
 local config = require("osk_config")
 local osd_ui = require("osd_ui")
 local osk_settings_ui = require("osk_settings_ui")
-local settings_ui = require("settings_ui")
+local control_panel_protocol = require("control_panel_protocol")
 local osk_zone_create = require("osk_zone_create")
 local theme = require("theme_settings")
 
@@ -34,6 +35,7 @@ local FONT_SMALL = nil
 local CONFIG_FONT = nil
 local surfaceWindows = {}
 local fontCache = nil
+local lastAppearanceChangeToken = ""
 
 local WINDOW_FLAGS_BASE = imgui.WindowFlags_NoScrollbar
     | imgui.WindowFlags_NoCollapse
@@ -55,6 +57,17 @@ local function RebuildFonts()
     FONT_SMALL = fontCache:Get(family, math.max(8, fontSize - theme.WIDGET.label_small_font_delta)) or FONT_SMALL
     render.SetFonts(FONT, FONT_SMALL)
     osd_ui.SetFont(FONT_SMALL)
+end
+
+local function ReloadAppearanceIfNeeded()
+    local changeToken = theme.GetAppearanceChangeToken()
+    if changeToken == lastAppearanceChangeToken then return end
+    theme.LoadCurrentAppearance()
+    theme.ClearInactiveLedBoostCache()
+    data.processedLabelCache = {}
+    RebuildFonts()
+    osd_ui.RefreshAppearance()
+    lastAppearanceChangeToken = changeToken
 end
 
 local function EnsureSurfaceWindow(surfName)
@@ -91,7 +104,10 @@ local function RenderContextMenu(activeCtx, popupId, surfName)
         data = data,
         osd_ui = osd_ui,
         onCreateZone = osk_zone_create.Open,
-        onOpenInputSettings = function(surfaceName) settings_ui.Open(surfaceName, data.pageName) end,
+        onOpenInputSettings = function(surfaceName)
+            local opened, openError = control_panel_protocol.Open("General", { surface = surfaceName, page = data.pageName })
+            if not opened then log_writer.Write("ERROR", "[" .. identity.displayName .. " OSK] " .. tostring(openError)) end
+        end,
         onFontsChanged = RebuildFonts,
     })
 end
@@ -101,6 +117,7 @@ local function main()
         host.SetToolbarState(-1)
         return
     end
+    ReloadAppearanceIfNeeded()
     if not data.PollData() then return end
     if #data.surfaces == 0 then
         r.defer(main)
@@ -151,10 +168,9 @@ local function main()
 
     config.RenderConfigEditor(ctx, CONFIG_FONT)
     osk_zone_create.Render(ctx, CONFIG_FONT)
-    settings_ui.Render(ctx)
     data.FlushSurfacePositions(false)
 
-    if AnyWindowOpen() or osk_zone_create.IsOpen() or settings_ui.IsOpen() then
+    if AnyWindowOpen() or osk_zone_create.IsOpen() then
         r.defer(main)
         return
     end
@@ -167,8 +183,10 @@ end
 local function Init()
     host.SetToolbarState(1)
     data.LoadSettings()
-    theme.LoadOskSettings()
     osd_ui.LoadSettings()
+    theme.LoadCurrentAppearance()
+    osd_ui.RefreshAppearance()
+    lastAppearanceChangeToken = theme.GetAppearanceChangeToken()
 
     ctx = host.CreateContext(identity.displayName .. " OSK")
     fontCache = font_cache.New(imgui, ctx)
@@ -184,7 +202,6 @@ local function Init()
         if config.HandleShutdown then config.HandleShutdown() end
         data.FlushSurfacePositions(true)
         data.SaveSettings()
-        osd_ui.SaveSettings()
         host.SetToolbarState(-1)
     end)
 

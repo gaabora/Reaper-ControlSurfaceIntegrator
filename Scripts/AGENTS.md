@@ -9,7 +9,8 @@
 - `Control Panel.lua`, `OSK on-screen keyboard.lua`, `OSD on-screen display.lua`, `Notifications.lua`, and `OSK state debug.lua` entry scripts.
 - `product_identity.conf` canonical public identity and `product_identity.lua` runtime loader.
 - `settings_schema.conf` canonical setting metadata plus its `settings_schema.lua` loader.
-- `settings_protocol.lua` C++ request/response client and `settings_ui.lua` Product and Surface settings window.
+- `settings_protocol.lua` C++ request/response client and `settings_ui.lua` embedded Product and Surface settings page.
+- `control_panel_appearance.lua` Common, OSK, OSD, and Notifications appearance draft, validation, preview, Save, and Revert behavior.
 - `osd_templates.lua` canonical OSD template variable definitions, resolver functions, enumeration, validation, and expansion.
 - Shared Lua modules for data parsing, configuration editing, input, rendering, settings, and UI behavior directly under `Scripts/`.
 - `osk_zone_create.lua` small zone-scaffold dialog and its `ZoneCreate` request/status state.
@@ -22,7 +23,8 @@
 - `Scripts/` is the source runtime directory. Developers may link it to `REAPER/Scripts/<ProductScriptDirectory>`; CMake install copies normal files for packages and must not create the link.
 - Load public display names, stable action IDs, paths, and ExtState sections through `product_identity.lua`, which reads `product_identity.conf`; do not duplicate identity values in Lua modules.
 - Load setting names, types, compiled defaults, ranges, scopes, categories, and constraints through `settings_schema.lua`. Do not store user-selected values in `settings_schema.conf`. Lua obtains current effective user values through C++ instead of reading or writing the product INI directly.
-- Use `settings_protocol.lua` for Query, Apply, and Reload. Do not write product settings through `settings_store.lua`; that module owns only Lua-persistent Control Panel, OSK, and OSD preferences.
+- Use `settings_protocol.lua` for Query, Apply, and Reload. Do not write product settings through `settings_store.lua`; that module owns only Lua-persistent Control Panel, Common appearance, OSK, OSD, and Notifications preferences.
+- Use the Page and Surface options returned by every successful settings Query for the General Surface selector. Do not accept an arbitrary Surface name from the user.
 - Keep the Control Panel lifecycle protocol limited to the operations documented in `docs/LUA_CPP_EXTSTATE_INTERFACE.md`. Configuration values use their existing or later dedicated protocols instead of the lifecycle section.
 - Keep ExtState payloads compatible with `CSurfIntegrator` and `ControlSurface` command handling.
 - The OSK layout, state, label, binding, and action-list formats are serialized contracts; change both ends together.
@@ -51,6 +53,9 @@
 - Size standalone OSD percentages against the ReaImGui monitor work area. Use the REAPER client rectangle and `my_getViewport` only as fallbacks.
 - Route normal Lua runtime logs through `log_writer.lua`. Do not open the REAPER console for automatic logging. The manually launched `OSK state debug.lua` and parser self-check output may still use the console for explicit diagnostics.
 - Keep `Notifications.lua` running as the dedicated NOTICE, WARNING, and ERROR display. It tails new entries from the product log and must not show INFO or DEBUG entries as popups.
+- Keep a square per-record notification dismiss control with the shared theme size and `×` label separate from script shutdown. Dismissing one visible record must leave Notifications active so later messages can appear.
+- Publish the session-only Appearance `Revision` after a Lua appearance schema is saved. Publish the session-only `PreviewRevision` and complete draft overlay after every Control Panel Appearance change. Running OSK, OSD, and Notifications contexts must reload persisted values and then apply the active preview overlay when either revision changes.
+- Clear the Appearance preview overlay on Save, Revert, Don't Save, and Control Panel shutdown. Preview values must never become persistent before Save.
 - Keep OSK font size, font family, wrapped-label line-height, and label-case controls in the OSK context menu near zoom.
 - Keep OSK wheel inversion in the context menu with interactive-control settings; ReaImGui exposes wheel delta but not reliable mouse-wheel versus trackpad source.
 - Show OSK hover tooltips with the default binding first and `+ `-prefixed alternate bindings for modifiers, Hold, DoublePress, and combined pseudo-modifier entries.
@@ -61,7 +66,7 @@
 - Keep data acquisition/parsing in `osk_data.lua`, drawing coordination in `osk_render.lua`, input dispatch state in `osk_input.lua`, binding editing coordination in `osk_config.lua`, and OSD behavior in `osd_ui.lua`.
 - Keep reusable ReaImGui widget helpers in `ui_components.lua` so entry scripts and feature modules do not re-implement the same UI patterns.
 - Keep shared script startup, context creation, toolbar state, and shutdown boilerplate in `script_host.lua` so the entry scripts stay thin orchestration layers.
-- Keep Control Panel page registration and draft operations in `control_panel_pages.lua`, lifecycle parsing in `control_panel_protocol.lua`, and shell rendering in `control_panel_ui.lua`.
+- Keep Control Panel page registration and coordinated draft operations in `control_panel_pages.lua`, lifecycle parsing in `control_panel_protocol.lua`, Appearance draft behavior in `control_panel_appearance.lua`, and shell rendering in `control_panel_ui.lua`.
 - Keep serialized action-line, layout, and label-replacement contracts in `action_line.lua`, `layout_parser.lua`, and `label_replacements.lua` so UI modules do not own those formats.
 - Keep pure Lua parser checks registered through `self_checks.lua` when adding or changing parser module self-checks.
 - Keep OSD color, alpha, contrast, and centered text drawing in `osd_ui.lua` so standalone OSD and the embedded OSK bar share one renderer.
@@ -89,6 +94,9 @@
 - Check standalone OSD top/bottom placement, left/center/right alignment, margins, size, font size, styling, Save, and Cancel.
 - Check standalone OSD at 100% width on macOS and on each available monitor.
 - Trigger NOTICE, WARNING, and ERROR logs and confirm that Lua notifications appear without opening the REAPER console.
+- Open General and verify that its Surface selector lists configured Page and Surface assignments and preserves Product and Surface inheritance.
+- Change every Appearance group and verify running OSK, OSD, and Notifications contexts preview each draft change before Save and restore persistent values after Revert.
+- Dismiss one notification and verify Notifications remains active and shows a later record.
 - Verify standalone OSD settings stay open after the message timeout when opened by right-clicking the visible overlay.
 
 ## Child DOX Index

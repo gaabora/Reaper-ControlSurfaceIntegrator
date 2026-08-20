@@ -53,6 +53,8 @@ return {
         osd = extStatePrefix .. "_OSD",
         osdSettings = extStatePrefix .. "_OSD_SETTINGS",
         notifications = extStatePrefix .. "_NOTIFICATIONS",
+        notificationsSettings = extStatePrefix .. "_NOTIFICATIONS_SETTINGS",
+        appearanceSettings = extStatePrefix .. "_APPEARANCE_SETTINGS",
         controlPanel = extStatePrefix .. "_CONTROL_PANEL",
         settings = extStatePrefix .. "_SETTINGS",
         settingsCommand = extStatePrefix .. "_SETTINGS_CMD",

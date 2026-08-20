@@ -24,6 +24,17 @@ local theme = require("theme_settings")
 local ctx = nil
 local FONT_SMALL = nil
 local fontCache = nil
+local lastAppearanceChangeToken = ""
+
+local function ReloadAppearanceIfNeeded()
+    local changeToken = theme.GetAppearanceChangeToken()
+    if changeToken == lastAppearanceChangeToken then return end
+    theme.LoadCurrentAppearance()
+    FONT_SMALL = fontCache:Get(theme.osk.font_family or "sans-serif", math.max(8, (theme.osk.font_size or 13) - theme.WIDGET.label_small_font_delta)) or FONT_SMALL
+    osd_ui.SetFont(FONT_SMALL)
+    osd_ui.RefreshAppearance()
+    lastAppearanceChangeToken = changeToken
+end
 
 local function main()
     if not host.IsContextValid(ctx) then
@@ -31,6 +42,7 @@ local function main()
         return
     end
 
+    ReloadAppearanceIfNeeded()
     osd_ui.PollOSD()
 
     local screenW, screenH = theme.OSD.fallback_screen_width, theme.OSD.fallback_screen_height
@@ -81,6 +93,9 @@ end
 local function Init()
     host.SetToolbarState(1)
     osd_ui.LoadSettings()
+    theme.LoadCurrentAppearance()
+    osd_ui.RefreshAppearance()
+    lastAppearanceChangeToken = theme.GetAppearanceChangeToken()
 
     ctx = host.CreateContext(identity.displayName .. " OSD")
     fontCache = font_cache.New(imgui, ctx)
@@ -90,7 +105,6 @@ local function Init()
     osd_ui.SetFontCache(fontCache)
 
     host.OnExit(function()
-        osd_ui.SaveSettings()
         host.SetToolbarState(-1)
     end)
 

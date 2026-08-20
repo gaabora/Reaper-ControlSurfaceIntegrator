@@ -3,8 +3,8 @@ local imgui = require "imgui" "0.9.3"
 local identity = require("product_identity")
 local lifecycleProtocol = require("control_panel_protocol")
 local pages = require("control_panel_pages")
-local settingsProtocol = require("settings_protocol")
 local settingsStore = require("settings_store")
+local theme = require("theme_settings")
 local ui = require("ui_components")
 
 local module = {}
@@ -23,13 +23,8 @@ end
 
 local function newState()
     local state = {
+        closeAfterSave = false,
         closePopupPending = false,
-        configError = "",
-        configMessage = "Checking configuration...",
-        configNeedsQuery = true,
-        configRequestId = nil,
-        configRequestStartedAt = 0,
-        configRetryAt = 0,
         focusRequested = true,
         geometry = {
             position = settingsStore.ReadPair(identity.extState.controlPanel, "WindowPosition"),
@@ -43,53 +38,6 @@ local function newState()
     }
     for idx, page in ipairs(pages.All()) do state.scrollByPage[page.id] = tonumber(reaper.GetExtState(identity.extState.controlPanel, "Scroll." .. page.id)) or 0 end
     return state
-end
-
-local function startConfigQuery(state)
-    if state.configRequestId then return end
-    local requestId, requestError = settingsProtocol.Query("Product")
-    if requestId then
-        state.configRequestId = requestId
-        state.configRequestStartedAt = reaper.time_precise()
-        state.configNeedsQuery = false
-        state.configError = ""
-        state.configMessage = "Checking configuration..."
-        return
-    end
-    state.configMessage = "Waiting to check configuration..."
-    state.configNeedsQuery = true
-    state.configError = requestError or "Cannot request configuration status"
-    state.configRetryAt = reaper.time_precise() + 0.5
-end
-
-local function pollConfigQuery(state)
-    if not state.configRequestId then
-        if state.configNeedsQuery and reaper.time_precise() >= state.configRetryAt then startConfigQuery(state) end
-        return
-    end
-    local response, responseError = settingsProtocol.Poll(state.configRequestId)
-    if not response and not responseError then
-        if reaper.time_precise() - state.configRequestStartedAt >= 3 then
-            settingsProtocol.Cancel(state.configRequestId)
-            state.configRequestId = nil
-            state.configMessage = "Configuration status unavailable"
-            state.configError = "No active C++ configuration response"
-        end
-        return
-    end
-    state.configRequestId = nil
-    if not response then
-        state.configMessage = "Configuration status unavailable"
-        state.configError = responseError or "Invalid configuration response"
-        return
-    end
-    if not response.ok then
-        state.configMessage = "Configuration has an error"
-        state.configError = response.message ~= "" and response.message or "Configuration query failed"
-        return
-    end
-    state.configMessage = "Configuration is active"
-    state.configError = ""
 end
 
 local function selectTab(state, tabId)
@@ -109,6 +57,10 @@ local function pollLifecycleRequests(state)
     if request.command == "Open" or request.command == "Focus" then state.focusRequested = true end
     if request.command == "SelectTab" then
         if pages.Find(request.tab) then
+            if request.tab == "General" and request.surface ~= "" then
+                local contextSet, contextError = pages.SetGeneralContext(request.surface, request.page)
+                if not contextSet then state.lastStatus = tostring(contextError or "Cannot change General settings context") end
+            end
             selectTab(state, request.tab)
             state.focusRequested = true
         else
@@ -118,19 +70,19 @@ local function pollLifecycleRequests(state)
 end
 
 local function renderHeader(ctx, state)
+    local configMessage, configError = pages.GetConfigurationStatus()
     imgui.Text(ctx, identity.displayName)
     imgui.SameLine(ctx)
-    imgui.TextDisabled(ctx, state.configMessage)
-    if state.configError ~= "" then
+    imgui.TextDisabled(ctx, configMessage)
+    if configError ~= "" then
         imgui.SameLine(ctx)
-        imgui.TextColored(ctx, 0xFF6666FF, state.configError)
+        imgui.TextColored(ctx, theme.HexToImCol(theme.common.error_color, 0xFF6666FF), configError)
     end
     imgui.SameLine(ctx)
-    ui.Disabled(ctx, state.configRequestId ~= nil, function()
+    ui.Disabled(ctx, pages.IsBusy() or pages.HasAnyDirty(), function()
         if imgui.SmallButton(ctx, "Refresh##ConfigurationStatus") then
-            state.configNeedsQuery = true
-            state.configRetryAt = 0
-            startConfigQuery(state)
+            local refreshed, refreshError = pages.RefreshGeneral()
+            if not refreshed then state.lastStatus = tostring(refreshError or "Cannot refresh configuration status") end
         end
     end)
 end
@@ -160,26 +112,24 @@ local function renderPage(ctx, state, width, height)
     imgui.EndChild(ctx)
 end
 
-local function renderFooter(ctx, state, page)
+local function renderFooter(ctx, state)
     imgui.Separator(ctx)
-    if not page.hasDraft then
-        imgui.TextDisabled(ctx, "No editable settings are available on this page yet")
-        return
-    end
-    local dirty = pages.IsDirty(page)
-    ui.DirtyActionButton(ctx, "Save changes", dirty, function()
-        local saved, saveError = pages.Save(page)
-        state.lastStatus = saved and "Changes saved" or tostring(saveError or "Cannot save changes")
+    local dirty = pages.HasAnyDirty()
+    local busy = pages.IsBusy()
+    ui.DirtyActionButton(ctx, "Save changes", dirty and not busy, function()
+        local accepted, saveError = pages.SaveAll()
+        state.lastStatus = accepted and "Saving changes..." or tostring(saveError or "Cannot save changes")
     end)
     imgui.SameLine(ctx)
-    ui.Disabled(ctx, not dirty, function()
+    ui.Disabled(ctx, not dirty or busy, function()
         if imgui.Button(ctx, "Revert") then
-            pages.Revert(page)
-            state.lastStatus = "Draft reverted"
+            local reverted, revertError = pages.RevertAll()
+            state.lastStatus = reverted and "Draft reverted" or tostring(revertError or "Cannot revert changes")
         end
     end)
     imgui.SameLine(ctx)
-    imgui.TextDisabled(ctx, dirty and "Unsaved changes" or (state.lastStatus ~= "" and state.lastStatus or "No unsaved changes"))
+    local status = busy and "Working..." or (dirty and "Unsaved changes" or (state.lastStatus ~= "" and state.lastStatus or pages.GetStatus()))
+    imgui.TextDisabled(ctx, status ~= "" and status or "No unsaved changes")
 end
 
 local function renderClosePopup(ctx, state)
@@ -192,9 +142,10 @@ local function renderClosePopup(ctx, state)
     imgui.Text(ctx, "Save changes before closing the Control Panel?")
     imgui.Spacing(ctx)
     if imgui.Button(ctx, "Save", 100, 0) then
-        local saved, saveError = pages.SaveAll()
-        if saved then
-            state.open = false
+        local accepted, saveError = pages.SaveAll()
+        if accepted then
+            state.closeAfterSave = pages.IsBusy()
+            if not state.closeAfterSave and not pages.HasAnyDirty() then state.open = false end
             imgui.CloseCurrentPopup(ctx)
         else
             state.lastStatus = tostring(saveError or "Cannot save changes")
@@ -202,9 +153,13 @@ local function renderClosePopup(ctx, state)
     end
     imgui.SameLine(ctx)
     if imgui.Button(ctx, "Don't Save", 100, 0) then
-        pages.RevertAll()
-        state.open = false
-        imgui.CloseCurrentPopup(ctx)
+        local reverted, revertError = pages.RevertAll()
+        if reverted then
+            state.open = false
+            imgui.CloseCurrentPopup(ctx)
+        else
+            state.lastStatus = tostring(revertError or "Cannot discard changes")
+        end
     end
     imgui.SameLine(ctx)
     if imgui.Button(ctx, "Cancel", 100, 0) then imgui.CloseCurrentPopup(ctx) end
@@ -214,13 +169,13 @@ end
 function module.New(ctx)
     local state = newState()
     state.ctx = ctx
-    startConfigQuery(state)
+    pages.Initialize()
     return state
 end
 
 function module.SaveWindowState(state)
     if not state then return end
-    if state.configRequestId then settingsProtocol.Cancel(state.configRequestId) end
+    pages.Shutdown()
     if state.geometry.position then settingsStore.WritePair(identity.extState.controlPanel, "WindowPosition", state.geometry.position) end
     if state.geometry.size then settingsStore.WritePair(identity.extState.controlPanel, "WindowSize", state.geometry.size) end
     reaper.SetExtState(identity.extState.controlPanel, "SelectedTab", state.selectedTab, true)
@@ -229,7 +184,16 @@ end
 
 function module.Render(state)
     pollLifecycleRequests(state)
-    pollConfigQuery(state)
+    pages.Update()
+    if state.lastStatus == "Saving changes..." and not pages.IsBusy() then state.lastStatus = pages.GetStatus() end
+    if state.closeAfterSave and not pages.IsBusy() then
+        if pages.HasAnyDirty() then
+            state.closeAfterSave = false
+            state.lastStatus = pages.GetStatus()
+        else
+            state.open = false
+        end
+    end
 
     if state.geometry.position then imgui.SetNextWindowPos(state.ctx, state.geometry.position.x, state.geometry.position.y, imgui.Cond_Appearing) end
     local windowSize = state.geometry.size or { x = DEFAULT_WIDTH, y = DEFAULT_HEIGHT }
@@ -242,6 +206,9 @@ function module.Render(state)
     local windowFlags = imgui.WindowFlags_NoCollapse
     if imgui.WindowFlags_NoDocking then windowFlags = windowFlags | imgui.WindowFlags_NoDocking end
     if imgui.WindowFlags_NoSavedSettings then windowFlags = windowFlags | imgui.WindowFlags_NoSavedSettings end
+    imgui.PushStyleVar(state.ctx, imgui.StyleVar_ItemSpacing, theme.common.item_spacing, theme.common.item_spacing)
+    imgui.PushStyleVar(state.ctx, imgui.StyleVar_FrameRounding, theme.common.rounding)
+    imgui.PushStyleVar(state.ctx, imgui.StyleVar_DisabledAlpha, theme.common.disabled_alpha)
     local visible, windowOpen = imgui.Begin(state.ctx, identity.displayName .. " Control Panel", true, windowFlags)
     if visible then
         local windowX, windowY = imgui.GetWindowPos(state.ctx)
@@ -255,15 +222,21 @@ function module.Render(state)
         renderNavigation(state.ctx, state, bodyHeight)
         imgui.SameLine(state.ctx)
         renderPage(state.ctx, state, availableWidth - NAVIGATION_WIDTH - 8, bodyHeight)
-        local selectedPage = pages.Find(state.selectedTab) or pages.Find(DEFAULT_TAB)
-        renderFooter(state.ctx, state, selectedPage)
+        renderFooter(state.ctx, state)
     end
     imgui.End(state.ctx)
 
     if not windowOpen then
-        if pages.HasAnyDirty() then state.closePopupPending = true else state.open = false end
+        if pages.IsBusy() then
+            state.lastStatus = "Wait for the current settings operation"
+        elseif pages.HasAnyDirty() then
+            state.closePopupPending = true
+        else
+            state.open = false
+        end
     end
     renderClosePopup(state.ctx, state)
+    imgui.PopStyleVar(state.ctx, 3)
     return state.open
 end
 

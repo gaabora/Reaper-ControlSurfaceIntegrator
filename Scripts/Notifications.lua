@@ -14,6 +14,7 @@ local imgui = host.RequireImGui(scriptDir)
 if not imgui then return end
 
 local identity = require("product_identity")
+local theme = require("theme_settings")
 
 local ctx = host.CreateContext(identity.displayName .. " Notifications")
 local logPath = reaperApi.GetResourcePath() .. "/Data/" .. identity.resourceDirectory .. "/" .. identity.logFilename
@@ -22,6 +23,7 @@ local logFile = nil
 local notifications = {}
 local lastSeverity = nil
 local lastPollTime = 0
+local lastAppearanceChangeToken = theme.GetAppearanceChangeToken()
 
 local LEVELS = {
     ERROR = { color = 0xFF5A5AFF, durationSec = 600 },
@@ -80,6 +82,13 @@ local function removeExpiredNotifications()
     end
 end
 
+local function reloadAppearanceIfNeeded()
+    local changeToken = theme.GetAppearanceChangeToken()
+    if changeToken == lastAppearanceChangeToken then return end
+    theme.LoadCurrentAppearance()
+    lastAppearanceChangeToken = changeToken
+end
+
 local function renderNotifications()
     if #notifications == 0 then return true end
     local viewport = imgui.GetMainViewport(ctx)
@@ -91,17 +100,25 @@ local function renderNotifications()
     local windowFlags = imgui.WindowFlags_NoTitleBar | imgui.WindowFlags_NoResize | imgui.WindowFlags_NoMove | imgui.WindowFlags_AlwaysAutoResize
     if imgui.WindowFlags_NoDocking then windowFlags = windowFlags | imgui.WindowFlags_NoDocking end
     if imgui.WindowFlags_NoSavedSettings then windowFlags = windowFlags | imgui.WindowFlags_NoSavedSettings end
-    local visible, open = imgui.Begin(ctx, "##ReaControlSurfaceNotifications", true, windowFlags)
+    imgui.PushStyleVar(ctx, imgui.StyleVar_Alpha, theme.notifications.opacity)
+    imgui.PushStyleVar(ctx, imgui.StyleVar_WindowRounding, theme.common.rounding)
+    local visible = imgui.Begin(ctx, "##ReaControlSurfaceNotifications", true, windowFlags)
+    local dismissIndex = nil
     if visible then
         for notificationIndex, notification in ipairs(notifications) do
             if notificationIndex > 1 then imgui.Separator(ctx) end
+            local closeButtonSize = theme.NOTIFICATIONS.close_button_size
+            if imgui.Button(ctx, "×##DismissNotification_" .. notificationIndex, closeButtonSize, closeButtonSize) then dismissIndex = notificationIndex end
+            imgui.SameLine(ctx)
             imgui.PushTextWrapPos(ctx, windowWidth - 20)
             imgui.TextColored(ctx, notification.color, notification.text)
             imgui.PopTextWrapPos(ctx)
         end
     end
     imgui.End(ctx)
-    return open
+    imgui.PopStyleVar(ctx, 2)
+    if dismissIndex then table.remove(notifications, dismissIndex) end
+    return true
 end
 
 local function main()
@@ -109,16 +126,15 @@ local function main()
         host.SetToolbarState(-1)
         return
     end
+    reloadAppearanceIfNeeded()
     pollLog()
     removeExpiredNotifications()
-    if not renderNotifications() then
-        host.SetToolbarState(-1)
-        return
-    end
+    renderNotifications()
     reaperApi.defer(main)
 end
 
 host.SetToolbarState(1)
+theme.LoadCurrentAppearance()
 host.OnExit(function()
     if logFile then logFile:close() end
     host.SetToolbarState(-1)

@@ -58,15 +58,34 @@ function module.ParseResponse(source)
         scope = properties.Scope or "",
         sources = {},
         surfaceName = properties.Surface or "",
+        surfaceOptions = {},
         values = {},
     }
+    local surfaceOptionsByIndex = {}
+    local maximumSurfaceOptionIdx = 0
     for key, value in pairs(properties) do
         local valueName = key:match("^Value%.([A-Z][A-Za-z0-9]*)$")
         local sourceName = key:match("^Source%.([A-Z][A-Za-z0-9]*)$")
         local inheritedName = key:match("^Inherited%.([A-Z][A-Za-z0-9]*)$")
+        local optionPageIdx = tonumber(key:match("^SurfaceOption%.(%d+)%.Page$"))
+        local optionSurfaceIdx = tonumber(key:match("^SurfaceOption%.(%d+)%.Surface$"))
         if valueName then response.values[valueName] = value end
         if sourceName then response.sources[sourceName] = value end
         if inheritedName then response.inheritedValues[inheritedName] = value end
+        if optionPageIdx then
+            surfaceOptionsByIndex[optionPageIdx] = surfaceOptionsByIndex[optionPageIdx] or {}
+            surfaceOptionsByIndex[optionPageIdx].pageName = value
+            maximumSurfaceOptionIdx = math.max(maximumSurfaceOptionIdx, optionPageIdx)
+        end
+        if optionSurfaceIdx then
+            surfaceOptionsByIndex[optionSurfaceIdx] = surfaceOptionsByIndex[optionSurfaceIdx] or {}
+            surfaceOptionsByIndex[optionSurfaceIdx].surfaceName = value
+            maximumSurfaceOptionIdx = math.max(maximumSurfaceOptionIdx, optionSurfaceIdx)
+        end
+    end
+    for optionIdx = 1, maximumSurfaceOptionIdx do
+        local option = surfaceOptionsByIndex[optionIdx]
+        if option and option.pageName and option.surfaceName then response.surfaceOptions[#response.surfaceOptions + 1] = option end
     end
     return response
 end
@@ -113,10 +132,11 @@ function module.RunSelfChecks()
     local request = buildRequest("Apply", "Surface", "fp2", "Home", { HoldDelayMs = { value = 750 }, LongHoldDelayMs = { unset = true } }, "test_1")
     assert(request:find("Set.HoldDelayMs=750", 1, true), "settings request set")
     assert(request:find("Unset.LongHoldDelayMs=1", 1, true), "settings request unset")
-    local response = assert(module.ParseResponse("Version=1\nStatus=OK\nScope=Surface\nPage=Home\nSurface=fp2\nValue.HoldDelayMs=750\nSource.HoldDelayMs=Surface\nInherited.HoldDelayMs=1000\n"))
+    local response = assert(module.ParseResponse("Version=1\nStatus=OK\nScope=Surface\nPage=Home\nSurface=fp2\nSurfaceOption.1.Page=Home\nSurfaceOption.1.Surface=fp2\nValue.HoldDelayMs=750\nSource.HoldDelayMs=Surface\nInherited.HoldDelayMs=1000\n"))
     assert(response.ok and response.values.HoldDelayMs == "750", "settings response value")
     assert(response.sources.HoldDelayMs == "Surface", "settings response source")
     assert(response.inheritedValues.HoldDelayMs == "1000", "settings response inherited value")
+    assert(response.surfaceOptions[1].pageName == "Home" and response.surfaceOptions[1].surfaceName == "fp2", "settings response Surface options")
 end
 
 return module

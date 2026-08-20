@@ -21,6 +21,8 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 | `ReaCtrlSurf_OSD` | C++ to Lua | Shared OSD message bus |
 | `ReaCtrlSurf_OSD_SETTINGS` | Lua persistent | Standalone and embedded OSD appearance |
 | `ReaCtrlSurf_NOTIFICATIONS` | C++ to Lua | Notification log reader startup state |
+| `ReaCtrlSurf_NOTIFICATIONS_SETTINGS` | Lua persistent | Notifications appearance |
+| `ReaCtrlSurf_APPEARANCE_SETTINGS` | Lua persistent and session-only | Common appearance values and appearance revision notification |
 | `ReaCtrlSurf_CONTROL_PANEL` | C++ and Lua | Control Panel lifecycle requests, window state, and Lua-persistent shell state |
 | `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Surface setting Query, Apply, and Reload requests |
 | `ReaCtrlSurf_SETTINGS` | C++ to Lua | Correlated setting responses and effective values |
@@ -34,9 +36,11 @@ Version=1
 RequestId=1
 Command=Open|Focus|SelectTab
 Tab=Devices|General|Appearance|Logging
+Surface=fp2
+Page=Home
 ```
 
-`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. Phase 1 does not carry configuration data through this section.
+`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Surface` and `Page` are optional navigation context for General. They identify which configured Surface scope General must query through the separate settings protocol. This lifecycle section does not carry configuration values.
 
 Lua writes the session-only `State` key as `Open` after startup and `Closed` during shutdown. The stable `_REACTRLSURF_OPEN_CONTROL_PANEL` action uses this lifecycle state for its toggle value. Repeating the action while the ReaScript is active sends `Focus` and does not start a second instance.
 
@@ -188,11 +192,13 @@ The standalone OSD calculates percentage width from the ReaImGui monitor work ar
 
 The plugin and normal Lua runtime write logs to the product log without calling `ShowConsoleMsg`. `Notifications.lua` tails new log entries and shows NOTICE, WARNING, and ERROR entries. INFO and DEBUG remain file-only. Explicit diagnostic tools such as `OSK state debug.lua` and parser self-check output may use the REAPER console when the user starts them manually.
 
+Notifications uses persistent `opacity` from `ReaCtrlSurf_NOTIFICATIONS_SETTINGS`. Its compiled Lua default is `0.8`. Each visible record has its own square `×` dismiss control with a shared theme size. Dismiss removes only that popup record from memory, does not remove its log data, and does not stop the Notifications script.
+
 ## Product and Surface Settings Protocol
 
 Lua writes one session-only `Request` entry in `ReaCtrlSurf_SETTINGS_CMD`. Lua must wait while this entry exists. C++ consumes and deletes it, then writes `Response_<RequestId>` in `ReaCtrlSurf_SETTINGS`. Lua consumes and deletes its response.
 
-A Lua client can cancel only its own pending request before C++ consumes it. Cancellation removes the matching request and any matching response; it is not a new C++ command. The Control Panel uses this to stop its configuration-status query after a short timeout when no active C++ control-surface instance can answer.
+A Lua client can cancel only its own pending request before C++ consumes it. Cancellation removes the matching request and any matching response; it is not a new C++ command. General uses cancellation when its Product or Surface query context changes before C++ consumes the old request, when no C++ response arrives before its timeout, and during Control Panel shutdown.
 
 Every request is a newline-separated property list:
 
@@ -224,9 +230,37 @@ Source.HoldDelayMs=Surface
 Inherited.HoldDelayMs=1000
 ```
 
+Every successful Query also returns the current runtime Page and Surface assignments as one-based option pairs:
+
+```text
+SurfaceOption.1.Page=Home
+SurfaceOption.1.Surface=fp2
+SurfaceOption.2.Page=Mix
+SurfaceOption.2.Surface=xtouch
+```
+
+General renders these pairs as one Surface dropdown. The Page value keeps equal Surface names on different Pages unambiguous. Lua does not accept a raw Surface name for this selector.
+
 `Source` is `Compiled`, `Product`, or `Surface`. `Inherited` is the value that becomes effective when the explicit override is removed. C++ validates the complete candidate scope before changing runtime state. Apply writes a complete temporary file, atomically replaces the product INI, and then applies the already validated values. Reload leaves current runtime values unchanged when the file has invalid settings or cannot be matched safely to the current Pages and Surfaces.
 
-## OSK and OSD Persistent Settings
+## Lua Appearance Persistent Settings
+
+Persistent keys in `ReaCtrlSurf_APPEARANCE_SETTINGS`:
+
+- `item_spacing`
+- `rounding`
+- `disabled_alpha`
+- `error_color`
+
+The same section contains session-only `Revision`. Every Common, OSK, OSD, or Notifications schema save that changes persisted values increments it. `Revision` is a change notification, not a persistent setting or configuration revision.
+
+The Control Panel also writes a session-only live preview overlay in this section:
+
+- `PreviewActive=1` while an Appearance draft preview exists.
+- `PreviewRevision` increments after the preview is published or cleared.
+- `Preview.<group>.<setting>` contains every current draft value, where `<group>` is `Common`, `OSK`, `OSD`, or `Notifications`.
+
+Running OSK, OSD, and Notifications contexts compare both revisions. After either changes, they load persistent appearance values and then apply the active preview overlay. Save persists the draft and clears the overlay. Revert, Don't Save, and Control Panel shutdown clear the overlay without persisting it.
 
 Persistent keys in `ReaCtrlSurf_OSK_SETTINGS`:
 
@@ -242,6 +276,7 @@ Persistent keys in `ReaCtrlSurf_OSK_SETTINGS`:
 - `pad_v`
 - `transparency`
 - `btn_transparency`
+- `inactive_led_boost`
 - `tooltip_delay`
 - `arrow_angle`
 - `titlebar_enabled`
@@ -269,6 +304,10 @@ Persistent keys in `ReaCtrlSurf_OSD_SETTINGS`:
 - `osd_font_px`
 - `osd_bg_on`
 - `osd_bg_off`
+
+Persistent keys in `ReaCtrlSurf_NOTIFICATIONS_SETTINGS`:
+
+- `opacity`
 
 ## Unsupported Keys
 

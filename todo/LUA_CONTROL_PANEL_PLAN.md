@@ -18,7 +18,7 @@ The Control Panel must make common settings easy to find without duplicating C++
 - [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cpp) is the native device configuration window. It edits MIDI and OSC I/O records, pages, surface assignments, zone folder fields, listener relationships, input settings, and logging values. It also writes the complete product INI.
 - [`../Scripts/settings_ui.lua`](../Scripts/settings_ui.lua) already edits Product and Surface input settings through [`../Scripts/settings_protocol.lua`](../Scripts/settings_protocol.lua). C++ validates and saves these values.
 - [`../Scripts/settings_schema.conf`](../Scripts/settings_schema.conf) is the canonical metadata source for Behavior and Timing settings.
-- [`../Scripts/theme_settings.lua`](../Scripts/theme_settings.lua) contains shared style values and separate persistent OSK and OSD schemas.
+- [`../Scripts/theme_settings.lua`](../Scripts/theme_settings.lua) contains shared style values and separate persistent Common, OSK, OSD, and Notifications schemas.
 - [`../Scripts/Notifications.lua`](../Scripts/Notifications.lua) is the dedicated notification script for NOTICE, WARNING, and ERROR log records.
 - [`../src/controls/integrator_config_parser.h`](../src/controls/integrator_config_parser.h) already models `surfaceId`, `mainZoneProfileId`, and `fxZoneProfileId` as separate values.
 - [`../src/controls/config_parser.cpp`](../src/controls/config_parser.cpp) rejects a surface assignment when its Main zone profile is missing. It creates the User FX directory when necessary.
@@ -65,7 +65,7 @@ A Surface template and a Zone profile are related by an assignment, but they are
 - ✅ Add a resizable ReaImGui window with a fixed-width vertical navigation bar on the left.
 - ✅ Open General on the first launch. Restore the last selected tab, scroll position, and window geometry on later launches.
 - ✅ Show the current product name and configuration status in the header.
-- ✅ Keep `Save changes`, `Revert`, and status controls in a fixed footer when the selected page has a draft. Enable Save and Revert only when the draft differs from the saved state.
+- ✅ Keep `Save changes`, `Revert`, and status controls in a fixed footer for the combined Control Panel draft. Enable Save and Revert only when at least one page differs from its saved state.
 - ✅ Close immediately when the draft is clean. When the draft is dirty, show `Save`, `Don't Save`, and `Cancel`: Save validates, persists, applies, and closes; Don't Save discards the draft and closes; Cancel keeps the window and draft open.
 - ✅ Show pending C++ requests without blocking the REAPER UI thread.
 - ✅ Use the shared startup, dependency checks, toolbar state, and shutdown behavior from [`../Scripts/script_host.lua`](../Scripts/script_host.lua).
@@ -133,7 +133,8 @@ The GUI must not assume that every Surface template has a matching Vendor profil
 
 Direct replacement of [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cpp) is possible, but it must not be a direct Lua port. The native dialog is tied to the REAPER Control/OSC/Web configuration callback and currently owns complete INI serialization.
 
-- ✅ Phase A: add an `Open Control Panel` button to the native dialog. Opening the Lua Control Panel keeps the native dialog open with all current controls available.
+- ✅ Phase A: add an `Open Control Panel` button to the native dialog. Launch or focus Lua first, then close the REAPER-owned parent dialog as Cancel so it does not remain modal and unfinished native edits are not applied.
+- [ ] Manually verify that `Open Control Panel` closes the native parent dialog on macOS and does not save unfinished native edits.
 - [ ] Phase B: add a C++ read-only query that returns the complete parsed device, Page, assignment, listener, issue, and active-state model.
 - [ ] Phase C: make the Lua Devices tab the preferred read-only view while all editing remains native.
 - [ ] Phase D: add C++ draft validation and transactional Save for the complete configuration model.
@@ -146,14 +147,15 @@ Direct replacement of [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cp
 
 General contains runtime behavior that is not device routing, appearance, or logging.
 
-- [ ] Move the current Product and Surface settings view from [`../Scripts/settings_ui.lua`](../Scripts/settings_ui.lua) into this tab without changing its C++ authority.
-- [ ] Keep the Product and Surface scope selector and show the source of inherited values.
-- [ ] Render categories from [`../Scripts/settings_schema.conf`](../Scripts/settings_schema.conf) instead of hardcoding each control.
-- [ ] Start with the current `Behavior` and `Timing` categories.
-- [ ] Keep compiled defaults, Product overrides, and Surface overrides visible and distinct.
-- [ ] Keep cross-setting validation, such as `LongHoldDelayMs > HoldDelayMs`, in the schema and C++ validation.
+- ✅ Move the current Product and Surface settings view from [`../Scripts/settings_ui.lua`](../Scripts/settings_ui.lua) into this tab without changing its C++ authority.
+- ✅ Keep the Product and Surface scope selector and show the source of inherited values.
+- ✅ Populate the Surface scope selector from C++ runtime assignments and label each option as `Page / Surface`. Do not accept an arbitrary Surface name.
+- ✅ Render categories from [`../Scripts/settings_schema.conf`](../Scripts/settings_schema.conf) instead of hardcoding each control.
+- ✅ Start with the current `Behavior` and `Timing` categories.
+- ✅ Keep compiled defaults, Product overrides, and Surface overrides visible and distinct.
+- ✅ Keep cross-setting validation, such as `LongHoldDelayMs > HoldDelayMs`, in the schema and C++ validation.
 - [ ] Add future settings here only when they change general runtime behavior for the product or one surface.
-- [ ] Do not put device ports, file paths, UI colors, window geometry, notification appearance, or logging values in this tab.
+- ✅ Do not put device ports, file paths, UI colors, window geometry, notification appearance, or logging values in this tab.
 
 ## Appearance Tab
 
@@ -166,26 +168,27 @@ The Appearance tab is one place to discover and edit visual settings. The code a
 - `OSD` owns position, alignment, width, height, margins, font size, background colors, and opacity.
 - `Notifications` owns notification opacity, placement, width, message duration, maximum visible records, dismiss behavior, and navigation from a notification to its log record.
 
-- [ ] Extract common visual tokens and helpers from feature code into the existing shared theme and UI modules.
-- [ ] Keep separate namespaced setting schemas for Common, OSK, OSD, and Notifications.
-- [ ] Keep Lua-only visual preferences in persistent ExtState. Do not put them in the product INI.
-- [ ] Render all appearance groups in the Control Panel from their schemas.
-- [ ] Keep the existing OSK context menu and OSD right-click settings as quick access views of the same schemas.
-- [ ] Ensure a change made in one view appears in every other view after reload.
-- [ ] Add a small preview area for common controls, OSD text, and notification appearance.
-- [ ] Apply previews to the draft only. Restore the saved appearance after Revert or `Don't Save`.
+- ✅ Extract current common visual tokens and helpers from feature code into the existing shared theme and UI modules.
+- ✅ Keep separate namespaced setting schemas for Common, OSK, OSD, and Notifications.
+- ✅ Keep Lua-only visual preferences in persistent ExtState. Do not put them in the product INI.
+- ✅ Render all appearance groups in the Control Panel from their schemas.
+- ✅ Keep the existing OSK context menu and OSD right-click settings as quick access views of the same schemas.
+- ✅ Ensure every Control Panel draft change appears immediately in running OSK, OSD, and Notifications through a session-only preview overlay and revision.
+- ✅ Add a small preview area for common controls, OSD appearance, and notification appearance.
+- ✅ Apply previews to the draft only. Clear the preview overlay and restore the saved appearance after Revert, `Don't Save`, or Control Panel shutdown.
 - [ ] Standardize shared visual language, but do not force the same layout or geometry on OSK, OSD, and Notifications.
 
 ### Notification behavior
 
-- [ ] Add a Notification opacity setting with the default value `0.8`, which means 80 percent opaque.
-- [ ] Add a close button for each visible notification.
+- ✅ Add a Notification opacity setting with the default value `0.8`, which means 80 percent opaque.
+- ✅ Add a close button for each visible notification.
+- ✅ Use one shared square close-button size and the centered `×` symbol.
 - [ ] Make the notification body clickable. A click must open or focus the Control Panel on Logging, select the source record, and scroll it into view.
-- [ ] Keep the close button separate from body navigation. Clicking close dismisses the notification and must not open the Control Panel.
+- ✅ Keep the close button separate from body navigation. Clicking close dismisses the notification and must not open the Control Panel.
 - [ ] Identify a notification source record by session log ID, segment ID, and record start byte offset. The byte offset permits direct file access and supports records that use more than one text line. If retention already removed that record, open Logging and show that the source record is no longer available.
-- [ ] Keep the Notifications script running when one notification is closed. Its close control must dismiss only that visible record so later messages can appear.
+- ✅ Keep the Notifications script running when one notification is closed. Its close control must dismiss only that visible record so later messages can appear.
 - [ ] Stop the Notifications script and set its REAPER toggle state to Off only when the user deliberately disables Notifications or invokes its registered action to stop it.
-- [ ] Keep dismissed records in the log file. Closing or dismissing a notification must not delete log data.
+- ✅ Keep dismissed records in the log file. Closing or dismissing a notification must not delete log data.
 - [ ] Let the registered Notifications action start the script again.
 
 ## Logging Tab
@@ -300,15 +303,15 @@ If code is copied instead of reimplemented, verify its MIT license notice and at
 
 ### General and Logging operations
 
-- [ ] Extend the existing settings protocol instead of creating a second Product and Surface settings protocol.
-- [ ] Keep setting names, types, defaults, scopes, categories, ranges, and constraints in the canonical schema.
-- [ ] Let C++ return effective values, explicit overrides, inherited values, and sources.
+- ✅ Extend the existing settings protocol instead of creating a second Product and Surface settings protocol.
+- ✅ Keep setting names, types, defaults, scopes, categories, ranges, and constraints in the canonical schema.
+- ✅ Let C++ return effective values, explicit overrides, inherited values, and sources.
 
 ### Appearance operations
 
-- [ ] Keep appearance settings in Lua ExtState schemas.
-- [ ] Add a small revision notification so running OSK, OSD, and Notifications scripts can reload changed appearance values.
-- [ ] Do not use the device configuration protocol for Lua-only appearance values.
+- ✅ Keep appearance settings in Lua ExtState schemas.
+- ✅ Add a small revision notification so running OSK, OSD, and Notifications scripts can reload changed appearance values.
+- ✅ Do not use the device configuration protocol for Lua-only appearance values.
 
 ## Implementation Phases
 
@@ -318,16 +321,18 @@ If code is copied instead of reimplemented, verify its MIT license notice and at
 - ✅ Add the Control Panel entry script, shell, navigation, page module interface, draft status, and close warning.
 - ✅ Add stable C++ registration for the Control Panel action.
 - ✅ Open the Control Panel from the native configuration dialog without removing current controls.
-- [ ] Manually verify in REAPER that the stable action and native button open or focus one window and that the action state follows the Lua lifecycle.
+- ✅ Manually verify in REAPER that the stable action opens or focuses one window and that the action state follows the Lua lifecycle.
+- [ ] Manually verify that the native button opens or focuses Lua, closes the blocking native parent, and does not apply unfinished native edits.
 
 Ready when REAPER can open or focus one Control Panel window and its action state is correct.
 
-### Phase 2. General and Appearance
+### Phase 2. General and Appearance - implementation complete, manual verification pending
 
-- [ ] Move the existing schema-driven Product and Surface settings UI into General.
-- [ ] Add schema-driven Common, OSK, OSD, and Notifications groups to Appearance.
-- [ ] Add Notification opacity `0.8` and dismiss behavior.
-- [ ] Keep quick settings views synchronized with the Control Panel.
+- ✅ Move the existing schema-driven Product and Surface settings UI into General.
+- ✅ Add schema-driven Common, OSK, OSD, and Notifications groups to Appearance.
+- ✅ Add Notification opacity `0.8` and dismiss behavior.
+- ✅ Keep running visual scripts synchronized with both saved Appearance revisions and each session-only draft preview revision.
+- [ ] Manually verify Product and Surface Save/Revert, Appearance preview/Save/Revert, quick-view synchronization, and per-record notification dismiss behavior in REAPER.
 
 Ready when all existing input and visual settings are available from the Control Panel and old quick views still use the same values.
 
@@ -387,10 +392,12 @@ Ready when normal configuration uses Lua and the REAPER native callback still gi
 ## Manual Verification
 
 - [ ] Open the Control Panel from the REAPER Action List and from the native Control/OSC/Web configuration entry.
+- [ ] Confirm that the native parent closes after `Open Control Panel` and that its unfinished changes are discarded.
 - [ ] Open the same action again and confirm that it focuses the existing window instead of creating a second one.
-- [ ] Change a Product setting and a Surface override, then verify inheritance after reload.
-- [ ] Change an appearance value in the Control Panel and confirm that its quick settings view shows the same value.
-- [ ] Dismiss one visible notification and confirm that the script remains active and a later notification still appears.
+- [ ] Confirm that General lists every configured assignment as `Page / Surface`, then change a Product setting and a Surface override and verify inheritance after reload.
+- [ ] Change values in every Appearance group and confirm that running OSK, OSD, and Notifications preview each change before Save.
+- [ ] Preview an Appearance change, use Revert and `Don't Save`, and confirm that the persisted quick-view value is restored.
+- [ ] Confirm that each notification uses a square `×` button, then dismiss one record and confirm that the script remains active and a later notification still appears.
 - [ ] Stop and restart Notifications with its registered action and confirm that the action toggle state follows the script lifecycle.
 - [ ] Click a notification and confirm that Logging opens, selects the exact source record, and scrolls it into view.
 - [ ] Change every Logging setting and confirm the expected log records.

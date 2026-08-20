@@ -235,6 +235,15 @@ static string BuildSettingsQueryBody(const SettingsCommandRequest& request, cons
 
     string body = "Scope=" + request.scope + "\n";
     if (request.scope == "Surface") body += "Page=" + resolvedPageName + "\nSurface=" + request.surfaceName + "\n";
+    int surfaceOptionIdx = 0;
+    for (const auto& page : pages) {
+        for (const auto& surface : page->GetSurfaces()) {
+            surfaceOptionIdx++;
+            const string optionPrefix = "SurfaceOption." + std::to_string(surfaceOptionIdx) + ".";
+            body += optionPrefix + "Page=" + page->GetName() + "\n";
+            body += optionPrefix + "Surface=" + surface->GetName() + "\n";
+        }
+    }
     for (const Settings::Definition& definition : Settings::Definitions) {
         if (!SettingAllowsScope(definition, request.scope)) continue;
         string source = "Compiled";

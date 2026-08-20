@@ -1062,7 +1062,11 @@ WDL_DLGRET dlgProcMainConfig(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
                     break;
 
                 case IDC_BUTTON_ControlPanel:
-                    if (HIWORD(wParam) == BN_CLICKED) ControlPanelAction::OpenOrFocus();
+                    if (HIWORD(wParam) == BN_CLICKED) {
+                        ControlPanelAction::OpenOrFocus();
+                        HWND parentWindow = GetParent(hwndDlg);
+                        if (parentWindow) PostMessage(parentWindow, WM_COMMAND, MAKEWPARAM(IDCANCEL, BN_CLICKED), 0);
+                    }
                     break;
 
                 case IDC_BUTTON_EditPageSurface:

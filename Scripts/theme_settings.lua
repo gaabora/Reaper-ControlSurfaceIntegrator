@@ -1,15 +1,18 @@
 local identity = require("product_identity")
 local settings_store = require("settings_store")
+local reaperApi = reaper
 
 local M = {}
 
 M.OSK_SETTINGS_SECTION = identity.extState.oskSettings
 M.OSD_SETTINGS_SECTION = identity.extState.osdSettings
+M.COMMON_SETTINGS_SECTION = identity.extState.appearanceSettings
+M.NOTIFICATIONS_SETTINGS_SECTION = identity.extState.notificationsSettings
 
 M.FONT_FAMILIES = {
-    { label = "Sans", family = "sans-serif" },
-    { label = "Serif", family = "serif" },
-    { label = "Mono", family = "monospace" },
+    { label = "Sans", family = "sans-serif", value = "sans-serif" },
+    { label = "Serif", family = "serif", value = "serif" },
+    { label = "Mono", family = "monospace", value = "monospace" },
 }
 
 M.LABEL_CASES = {
@@ -149,56 +152,185 @@ M.OSD = {
     center_luminance_cutoff = 186,
 }
 
+M.NOTIFICATIONS = {
+    close_button_size = 20,
+}
+
+M.common = {}
+M.notifications = {}
 M.osk = {}
 M.osd = {}
 local inactiveLedBoostCache = {}
 
-local OSK_SCHEMA = {
-    zoom = { type = "number", default = 0.9, min = 0.5, max = 3.0 },
-    font_size = { type = "number", default = 13, min = 8, max = 32, integer = true },
-    font_family = { type = "string", default = "sans-serif", enum = { "sans-serif", "serif", "monospace" } },
-    line_height = { type = "number", default = 0.6, min = 0.45, max = 1.25 },
-    label_case = { type = "string", default = "original", enum = { "original", "title", "sentence", "upper", "lower" } },
-    aspect = { type = "number", default = 1.4, min = 0.5, max = 2.0 },
-    pad_h = { type = "number", default = 6, min = 0, max = 20, integer = true },
-    pad_v = { type = "number", default = 6, min = 0, max = 20, integer = true },
-    transparency = { type = "number", default = 0.6, min = 0.2, max = 1.0 },
-    btn_transparency = { type = "number", default = 0.9, min = 0.2, max = 1.0 },
-    inactive_led_boost = { type = "number", default = 50, min = 0, max = 100, integer = true },
-    arrow_angle = { type = "number", default = 120, min = 60, max = 150, integer = true },
-    titlebar_enabled = { type = "boolean", default = true },
+M.COMMON_SCHEMA = {
+    item_spacing = { type = "number", default = 8, min = 2, max = 20, integer = true, label = "Item spacing" },
+    rounding = { type = "number", default = 4, min = 0, max = 16, integer = true, label = "Control rounding" },
+    disabled_alpha = { type = "number", default = 0.6, min = 0.2, max = 1.0, label = "Disabled control opacity", format = "%.2f" },
+    error_color = { type = "color", default = "#ff6666", label = "Error color" },
 }
 
-local OSD_SCHEMA = {
-    osd_position = { type = "string", default = "top", enum = { "top", "bottom" } },
-    osd_alignment = { type = "string", default = "center", enum = { "left", "center", "right" } },
-    osk_bar_position = { type = "string", default = "off", enum = { "off", "top", "bottom" } },
-    osd_width_percent = { type = "number", default = 50, min = 10, max = 100, step = 1, integer = true },
-    osd_height_px = { type = "number", default = 100, min = 20, max = 400, step = 10, integer = true },
-    osd_transparency = { type = "number", default = 30, min = 0, max = 100, step = 5, integer = true },
-    osd_h_margin_px = { type = "number", default = 0, min = 0, max = 400, step = 10, integer = true },
-    osd_v_margin_px = { type = "number", default = 50, min = 0, max = 400, step = 10, integer = true },
-    osd_font_px = { type = "number", default = 80, min = 8, max = 200, step = 1, integer = true },
-    osd_bg_on = { type = "string", default = "#7f7f7f" },
-    osd_bg_off = { type = "string", default = "#333333" },
+M.OSK_SCHEMA = {
+    zoom = { type = "number", default = 0.9, min = 0.5, max = 3.0, label = "Zoom", format = "%.1f" },
+    font_size = { type = "number", default = 13, min = 8, max = 32, integer = true, label = "Font size" },
+    font_family = { type = "string", default = "sans-serif", enum = { "sans-serif", "serif", "monospace" }, enumItems = M.FONT_FAMILIES, label = "Font" },
+    line_height = { type = "number", default = 0.6, min = 0.45, max = 1.25, label = "Line height", format = "%.2f" },
+    label_case = { type = "string", default = "original", enum = { "original", "title", "sentence", "upper", "lower" }, enumItems = M.LABEL_CASES, label = "Label case" },
+    aspect = { type = "number", default = 1.4, min = 0.5, max = 2.0, label = "Button aspect", format = "%.2f" },
+    pad_h = { type = "number", default = 6, min = 0, max = 20, integer = true, label = "Horizontal padding" },
+    pad_v = { type = "number", default = 6, min = 0, max = 20, integer = true, label = "Vertical padding" },
+    transparency = { type = "number", default = 0.6, min = 0.2, max = 1.0, label = "Window opacity", format = "%.2f" },
+    btn_transparency = { type = "number", default = 0.9, min = 0.2, max = 1.0, label = "Button opacity", format = "%.2f" },
+    inactive_led_boost = { type = "number", default = 50, min = 0, max = 100, integer = true, label = "Inactive RGB LED boost" },
+    arrow_angle = { type = "number", default = 120, min = 60, max = 150, integer = true, label = "Arrow angle" },
+    titlebar_enabled = { type = "boolean", default = true, label = "Show title bar" },
 }
+
+M.OSD_SCHEMA = {
+    osd_position = { type = "string", default = "top", enum = { "top", "bottom" }, enumItems = { { label = "Top", value = "top" }, { label = "Bottom", value = "bottom" } }, label = "Position" },
+    osd_alignment = { type = "string", default = "center", enum = { "left", "center", "right" }, enumItems = { { label = "Left", value = "left" }, { label = "Center", value = "center" }, { label = "Right", value = "right" } }, label = "Alignment" },
+    osk_bar_position = { type = "string", default = "off", enum = { "off", "top", "bottom" }, enumItems = { { label = "Off", value = "off" }, { label = "Top", value = "top" }, { label = "Bottom", value = "bottom" } }, label = "Default OSK bar position" },
+    osd_width_percent = { type = "number", default = 50, min = 10, max = 100, step = 1, integer = true, label = "Width %" },
+    osd_height_px = { type = "number", default = 100, min = 20, max = 400, step = 10, integer = true, label = "Height px" },
+    osd_transparency = { type = "number", default = 30, min = 0, max = 100, step = 5, integer = true, label = "Opacity %" },
+    osd_h_margin_px = { type = "number", default = 0, min = 0, max = 400, step = 10, integer = true, label = "Horizontal margin px" },
+    osd_v_margin_px = { type = "number", default = 50, min = 0, max = 400, step = 10, integer = true, label = "Vertical margin px" },
+    osd_font_px = { type = "number", default = 80, min = 8, max = 200, step = 1, integer = true, label = "Font size px" },
+    osd_bg_on = { type = "color", default = "#7f7f7f", label = "Active background" },
+    osd_bg_off = { type = "color", default = "#333333", label = "Inactive background" },
+}
+
+M.NOTIFICATIONS_SCHEMA = {
+    opacity = { type = "number", default = 0.8, min = 0.2, max = 1.0, label = "Notification opacity", format = "%.2f" },
+}
+
+M.COMMON_ORDER = { "item_spacing", "rounding", "disabled_alpha", "error_color" }
+M.OSK_ORDER = { "zoom", "font_size", "font_family", "line_height", "label_case", "aspect", "pad_h", "pad_v", "transparency", "btn_transparency", "inactive_led_boost", "arrow_angle", "titlebar_enabled" }
+M.OSD_ORDER = { "osd_position", "osd_alignment", "osk_bar_position", "osd_width_percent", "osd_height_px", "osd_transparency", "osd_h_margin_px", "osd_v_margin_px", "osd_font_px", "osd_bg_on", "osd_bg_off" }
+M.NOTIFICATIONS_ORDER = { "opacity" }
+
+local APPEARANCE_PREVIEW_ACTIVE_KEY = "PreviewActive"
+local APPEARANCE_PREVIEW_REVISION_KEY = "PreviewRevision"
+local appearanceGroups = {
+    { id = "Common", schema = M.COMMON_SCHEMA, target = M.common },
+    { id = "OSK", schema = M.OSK_SCHEMA, target = M.osk },
+    { id = "OSD", schema = M.OSD_SCHEMA, target = M.osd },
+    { id = "Notifications", schema = M.NOTIFICATIONS_SCHEMA, target = M.notifications },
+}
+
+local function appearancePreviewKey(groupId, settingName)
+    return "Preview." .. groupId .. "." .. settingName
+end
+
+function M.GetAppearanceRevision()
+    return tonumber(reaperApi.GetExtState(M.COMMON_SETTINGS_SECTION, "Revision")) or 0
+end
+
+function M.GetAppearancePreviewRevision()
+    return tonumber(reaperApi.GetExtState(M.COMMON_SETTINGS_SECTION, APPEARANCE_PREVIEW_REVISION_KEY)) or 0
+end
+
+function M.GetAppearanceChangeToken()
+    return tostring(M.GetAppearanceRevision()) .. ":" .. tostring(M.GetAppearancePreviewRevision())
+end
+
+function M.NotifyAppearanceChanged()
+    local revision = M.GetAppearanceRevision() + 1
+    reaperApi.SetExtState(M.COMMON_SETTINGS_SECTION, "Revision", tostring(revision), false)
+    return revision
+end
+
+local function notifyAppearancePreviewChanged()
+    local revision = M.GetAppearancePreviewRevision() + 1
+    reaperApi.SetExtState(M.COMMON_SETTINGS_SECTION, APPEARANCE_PREVIEW_REVISION_KEY, tostring(revision), false)
+end
+
+local function saveSettingsIfChanged(section, schema, target)
+    local changed = false
+    for settingName, rule in pairs(schema) do
+        local rawValue = reaperApi.GetExtState(section, settingName)
+        local persistedValue = settings_store.NormalizeValue(rawValue ~= "" and rawValue or nil, rule)
+        if target[settingName] ~= persistedValue then
+            changed = true
+            break
+        end
+    end
+    if not changed then return false end
+    settings_store.Save(section, schema, target)
+    M.NotifyAppearanceChanged()
+    return true
+end
+
+function M.LoadCommonSettings()
+    settings_store.Load(M.COMMON_SETTINGS_SECTION, M.COMMON_SCHEMA, M.common)
+    return M.common
+end
+
+function M.SaveCommonSettings()
+    return saveSettingsIfChanged(M.COMMON_SETTINGS_SECTION, M.COMMON_SCHEMA, M.common)
+end
+
+function M.LoadNotificationSettings()
+    settings_store.Load(M.NOTIFICATIONS_SETTINGS_SECTION, M.NOTIFICATIONS_SCHEMA, M.notifications)
+    return M.notifications
+end
+
+function M.SaveNotificationSettings()
+    return saveSettingsIfChanged(M.NOTIFICATIONS_SETTINGS_SECTION, M.NOTIFICATIONS_SCHEMA, M.notifications)
+end
 
 function M.LoadOskSettings()
-    settings_store.Load(M.OSK_SETTINGS_SECTION, OSK_SCHEMA, M.osk)
+    settings_store.Load(M.OSK_SETTINGS_SECTION, M.OSK_SCHEMA, M.osk)
     return M.osk
 end
 
 function M.SaveOskSettings()
-    settings_store.Save(M.OSK_SETTINGS_SECTION, OSK_SCHEMA, M.osk)
+    return saveSettingsIfChanged(M.OSK_SETTINGS_SECTION, M.OSK_SCHEMA, M.osk)
 end
 
 function M.LoadOsdSettings()
-    settings_store.Load(M.OSD_SETTINGS_SECTION, OSD_SCHEMA, M.osd)
+    settings_store.Load(M.OSD_SETTINGS_SECTION, M.OSD_SCHEMA, M.osd)
     return M.osd
 end
 
 function M.SaveOsdSettings()
-    settings_store.Save(M.OSD_SETTINGS_SECTION, OSD_SCHEMA, M.osd)
+    return saveSettingsIfChanged(M.OSD_SETTINGS_SECTION, M.OSD_SCHEMA, M.osd)
+end
+
+function M.PublishAppearancePreview()
+    for groupIdx, group in ipairs(appearanceGroups) do
+        for settingName in pairs(group.schema) do reaperApi.SetExtState(M.COMMON_SETTINGS_SECTION, appearancePreviewKey(group.id, settingName), tostring(group.target[settingName]), false) end
+    end
+    reaperApi.SetExtState(M.COMMON_SETTINGS_SECTION, APPEARANCE_PREVIEW_ACTIVE_KEY, "1", false)
+    notifyAppearancePreviewChanged()
+end
+
+function M.ClearAppearancePreview()
+    if reaperApi.GetExtState(M.COMMON_SETTINGS_SECTION, APPEARANCE_PREVIEW_ACTIVE_KEY) ~= "1" then return false end
+    for groupIdx, group in ipairs(appearanceGroups) do
+        for settingName in pairs(group.schema) do reaperApi.DeleteExtState(M.COMMON_SETTINGS_SECTION, appearancePreviewKey(group.id, settingName), false) end
+    end
+    reaperApi.DeleteExtState(M.COMMON_SETTINGS_SECTION, APPEARANCE_PREVIEW_ACTIVE_KEY, false)
+    notifyAppearancePreviewChanged()
+    return true
+end
+
+function M.ApplyAppearancePreview()
+    if reaperApi.GetExtState(M.COMMON_SETTINGS_SECTION, APPEARANCE_PREVIEW_ACTIVE_KEY) ~= "1" then return false end
+    for groupIdx, group in ipairs(appearanceGroups) do
+        for settingName, rule in pairs(group.schema) do
+            local rawValue = reaperApi.GetExtState(M.COMMON_SETTINGS_SECTION, appearancePreviewKey(group.id, settingName))
+            if rawValue ~= "" then group.target[settingName] = settings_store.NormalizeValue(rawValue, rule) end
+        end
+    end
+    return true
+end
+
+function M.LoadCurrentAppearance()
+    M.LoadCommonSettings()
+    M.LoadNotificationSettings()
+    M.LoadOskSettings()
+    M.LoadOsdSettings()
+    M.ApplyAppearancePreview()
 end
 
 local function packColor(red, green, blue, alpha)
@@ -322,7 +454,6 @@ function M.GetContrastTextColor(bgHex)
     return M.GetContrastTextColorFromCol(M.HexToImCol(bgHex, M.OSK_COLORS.button_off))
 end
 
-M.LoadOskSettings()
-M.LoadOsdSettings()
+M.LoadCurrentAppearance()
 
 return M

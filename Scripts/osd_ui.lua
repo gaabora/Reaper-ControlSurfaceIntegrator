@@ -15,6 +15,7 @@ local ui = require("ui_components")
 local M = {}
 
 M.state = {
+    background = "0",
     text = "",
     bgColor = theme.HexToImCol(theme.osd.osd_bg_off, theme.OSK_COLORS.button_off),
     showUntil = 0,
@@ -38,9 +39,20 @@ local oskBarPositions = {}
 local lastSeenOSDEventId = nil
 
 local function resetHiddenState()
+    M.state.background = "0"
     M.state.text = ""
     M.state.showUntil = 0
     M.state.bgColor = theme.HexToImCol(M.vars.osd_bg_off, theme.OSK_COLORS.button_off)
+end
+
+function M.RefreshAppearance()
+    if M.state.background and M.state.background:sub(1, 1) == "#" then
+        M.state.bgColor = theme.HexToImCol(M.state.background, theme.OSK_COLORS.button_off)
+    elseif M.state.background == "1" then
+        M.state.bgColor = theme.HexToImCol(M.vars.osd_bg_on, theme.OSK_COLORS.button_on)
+    else
+        M.state.bgColor = theme.HexToImCol(M.vars.osd_bg_off, theme.OSK_COLORS.button_off)
+    end
 end
 
 local function restoreSettingsBackup()
@@ -145,6 +157,7 @@ function M.PollOSD()
             if explicitMessage == "1" then text = osd_templates.Expand(text, r) end
 
             local timeout = tonumber(timeoutStr) or theme.OSD.timeout_ms
+            M.state.background = bgState or "0"
             if bgState and bgState:sub(1, 1) == "#" then
                 M.state.bgColor = theme.HexToImCol(bgState, theme.OSK_COLORS.button_off)
             elseif bgState == "1" then

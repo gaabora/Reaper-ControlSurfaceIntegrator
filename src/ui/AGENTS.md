@@ -17,6 +17,7 @@
 - `integrator_ui.cpp` includes the dialog implementation files directly; do not also compile them as independent translation units without restructuring the build.
 - UI callbacks operate under REAPER/WDL/SWELL conventions and must preserve dialog lifetime and localization behavior.
 - The `_REACTRLSURF_OPEN_CONTROL_PANEL` action opens or focuses the Lua window and reports On only while Lua publishes the Open lifecycle state.
+- The native `Open Control Panel` button launches or focuses Lua, then posts `IDCANCEL` to the REAPER-owned parent configuration window so that parent does not remain modal and unfinished native edits are not applied.
 
 ## Work Guidance
 

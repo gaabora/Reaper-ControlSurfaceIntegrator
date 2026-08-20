@@ -22,6 +22,7 @@
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
 - Parse Product overrides from `Settings` lines and Surface overrides from their `Surface=` assignment. Resolve compiled defaults, Product, and Surface in that order. Reject one invalid scope as a unit instead of partially applying it.
 - Keep `ReaCtrlSurf_SETTINGS_CMD` requests correlated with `ReaCtrlSurf_SETTINGS` responses. Apply must validate before atomic file replacement. Reload must keep current runtime values when validation or runtime matching fails.
+- Include every runtime Page and Surface assignment in each successful settings Query response so Lua can select a valid Surface scope without reading the product INI.
 - Register bundled OSK, OSD, and Notifications ReaScripts through the shared ReaScript command resolver.
 - Start the Notifications ReaScript before configuration loading so it can display new NOTICE, WARNING, and ERROR log entries without opening the REAPER console.
 - Publish the selected track name with its adjacent track names and selected track color to OSD after track selection. Publish edit cursor position as `[bar/beat]` during CSI cursor movement, rewind, and fast-forward.
