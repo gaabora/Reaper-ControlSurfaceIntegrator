@@ -10,6 +10,7 @@
 - Configuration dialog behavior in `config_dialog.cpp`.
 - Learn dialog behavior in `learn_dialog.cpp`.
 - Stable Control Panel action registration and Lua lifecycle dispatch in `control_panel_action.*`.
+- Stable Notifications action registration and Lua start/stop lifecycle dispatch in `notifications_action.*`.
 
 ## Local Contracts
 
@@ -17,6 +18,7 @@
 - `integrator_ui.cpp` includes the dialog implementation files directly; do not also compile them as independent translation units without restructuring the build.
 - UI callbacks operate under REAPER/WDL/SWELL conventions and must preserve dialog lifetime and localization behavior.
 - The `_REACTRLSURF_OPEN_CONTROL_PANEL` action opens or focuses the Lua window and reports On only while Lua publishes the Open lifecycle state.
+- The `_REACTRLSURF_TOGGLE_NOTIFICATIONS` action starts or stops `Notifications.lua` and reports On only while its Lua lifecycle state is Open.
 - The native `Open Control Panel` button launches or focuses Lua, then posts `IDCANCEL` to the REAPER-owned parent configuration window so that parent does not remain modal and unfinished native edits are not applied.
 
 ## Work Guidance

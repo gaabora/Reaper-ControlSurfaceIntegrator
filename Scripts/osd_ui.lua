@@ -300,7 +300,7 @@ function M.RenderSettingsPanel(ctx, imgui)
         return
     end
 
-    imgui.Separator(ctx)
+    imgui.Spacing(ctx)
     local changed
     changed, M.vars.osd_position = ui.ComboEnum(ctx, "Position##osd_pos", M.vars.osd_position, {
         { label = "Top", value = "top" },

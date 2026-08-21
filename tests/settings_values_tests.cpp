@@ -15,6 +15,8 @@ static void TestCompiledDefaults() {
     Require(defaults.GetString("DefaultPseudoModifierMode") == "Latch", "default pseudo-modifier mode");
     Require(defaults.GetInteger("HoldDelayMs") == 1000, "default hold delay");
     Require(defaults.GetInteger("LongHoldDelayMs") == 2000, "default long hold delay");
+    Require(defaults.GetString("DebugLevel") == "Error", "default debug level");
+    Require(!defaults.GetBoolean("SurfaceInDisplay"), "default surface input display");
 }
 
 static void TestValidOverrides() {
@@ -23,11 +25,23 @@ static void TestValidOverrides() {
     overrides.values["DefaultModifierMode"] = "Momentary";
     overrides.values["HoldDelayMs"] = "750";
     overrides.values["LongHoldDelayMs"] = "1500";
+    overrides.values["SurfaceInDisplay"] = "1";
     SettingsValues result;
     std::vector<SettingValidationIssue> issues;
     Require(defaults.TryApply(overrides, "Product", result, issues), "valid Product overrides");
     Require(result.GetString("DefaultModifierMode") == "Momentary", "enum override");
     Require(result.GetInteger("HoldDelayMs") == 750, "integer override");
+    Require(result.GetBoolean("SurfaceInDisplay"), "boolean override");
+}
+
+static void TestInvalidBooleanOverride() {
+    SettingsValues defaults;
+    SettingOverrides overrides;
+    overrides.values["SurfaceInDisplay"] = "true";
+    SettingsValues result;
+    std::vector<SettingValidationIssue> issues;
+    Require(!defaults.TryApply(overrides, "Product", result, issues), "invalid boolean rejection");
+    Require(!result.GetBoolean("SurfaceInDisplay"), "invalid boolean set is atomic");
 }
 
 static void TestAtomicInvalidOverride() {
@@ -86,6 +100,7 @@ int main() {
     TestCompiledDefaults();
     TestValidOverrides();
     TestAtomicInvalidOverride();
+    TestInvalidBooleanOverride();
     TestRangeAndRelationship();
     TestProductAndSurfacePrecedence();
     std::cout << "SettingsValues tests passed\n";

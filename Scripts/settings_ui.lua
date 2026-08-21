@@ -2,6 +2,7 @@ local imgui = require "imgui" "0.9.3"
 
 local protocol = require("settings_protocol")
 local schemaLoader = require("settings_schema")
+local theme = require("theme_settings")
 local ui = require("ui_components")
 
 local module = {}
@@ -22,7 +23,6 @@ local state = {
     requestId = nil,
     requestStartedAt = 0,
     scope = "Product",
-    sources = {},
     surfaceName = "",
     surfaceOptions = {},
 }
@@ -30,6 +30,17 @@ local state = {
 local SCOPE_ITEMS = {
     { label = "Product", value = "Product" },
     { label = "Surface", value = "Surface" },
+}
+local SETTING_LABELS = {
+    DefaultModifierMode = "Default modifier mode",
+    DefaultPseudoModifierMode = "Default pseudo-modifier mode",
+    DefaultButtonTrigger = "Default button trigger",
+    DoublePressPolicy = "Double-press policy",
+    HoldDelayMs = "Hold delay",
+    LongHoldDelayMs = "Long-hold delay",
+    DoublePressWindowMs = "Double-press window",
+    ModifierTapWindowMs = "Modifier tap window",
+    HoldRepeatIntervalMs = "Hold repeat interval",
 }
 
 local function findSurfaceOptionIdx(pageName, surfaceName)
@@ -94,7 +105,6 @@ local function loadResponse(response)
     state.inheritedValues = {}
     state.draftExplicit = {}
     state.draftValues = {}
-    state.sources = {}
     for settingIndex, definition in ipairs(schema.settings) do
         local settingName = definition.name
         local value = response.values[settingName]
@@ -102,7 +112,6 @@ local function loadResponse(response)
             if definition.type == "integer" then value = tonumber(value) or definition.defaultValue end
             state.originalValues[settingName] = value
             state.draftValues[settingName] = value
-            state.sources[settingName] = response.sources[settingName]
             local inheritedValue = response.inheritedValues[settingName]
             if definition.type == "integer" then inheritedValue = tonumber(inheritedValue) or definition.defaultValue end
             state.inheritedValues[settingName] = inheritedValue
@@ -129,7 +138,6 @@ local function clearLoadedState()
     state.loaded = false
     state.originalExplicit = {}
     state.originalValues = {}
-    state.sources = {}
 end
 
 local function pollRequest()
@@ -163,7 +171,7 @@ end
 
 local function validateDraft()
     for settingIndex, definition in ipairs(schema.settings) do
-        if definitionAllowsScope(definition, state.scope) and state.draftValues[definition.name] ~= nil then
+        if definition.category ~= "Logging" and definitionAllowsScope(definition, state.scope) and state.draftValues[definition.name] ~= nil then
             local value = state.draftValues[definition.name]
             if definition.type == "integer" then
                 value = tonumber(value)
@@ -181,7 +189,7 @@ end
 local function buildChanges()
     local changes = {}
     for settingIndex, definition in ipairs(schema.settings) do
-        if definitionAllowsScope(definition, state.scope) then
+        if definition.category ~= "Logging" and definitionAllowsScope(definition, state.scope) then
             local settingName = definition.name
             local originalExplicit = state.originalExplicit[settingName] == true
             local draftExplicit = state.draftExplicit[settingName] == true
@@ -203,32 +211,28 @@ end
 
 local function renderSetting(ctx, definition)
     local settingName = definition.name
-    local explicit = state.draftExplicit[settingName] == true
-    local changed
-    changed, explicit = imgui.Checkbox(ctx, "Override##" .. settingName, explicit)
+    local changed = false
+    local value = state.draftValues[settingName]
+    local controlId = "##General_" .. settingName
+    if definition.type == "enum" then
+        local items = {}
+        for enumIndex, enumValue in ipairs(definition.enumValues or {}) do items[#items + 1] = { label = enumValue, value = enumValue } end
+        changed, value = ui.ComboEnum(ctx, controlId, value, items)
+    else
+        local step = definition.unit == "Milliseconds" and 10 or 1
+        local format = definition.unit == "Milliseconds" and "%d ms" or "%d"
+        changed, value = ui.DragInteger(ctx, controlId, value or definition.defaultValue, definition.min, definition.max, step, { format = format })
+    end
     if changed then
-        state.draftExplicit[settingName] = explicit
-        if not explicit then state.draftValues[settingName] = state.inheritedValues[settingName] end
+        state.draftExplicit[settingName] = true
+        state.draftValues[settingName] = value
     end
-    imgui.SameLine(ctx)
-
-    ui.Disabled(ctx, not explicit, function()
-        if definition.type == "enum" then
-            local items = {}
-            for enumIndex, enumValue in ipairs(definition.enumValues or {}) do items[#items + 1] = { label = enumValue, value = enumValue } end
-            local enumChanged, value = ui.ComboEnum(ctx, settingName, state.draftValues[settingName], items)
-            if enumChanged then state.draftValues[settingName] = value end
-        else
-            local integerChanged, value = ui.SliderWithInput(ctx, settingName, tonumber(state.draftValues[settingName]) or definition.defaultValue, definition.min, definition.max, 1, { inputChars = 6, inputWidth = 65, sliderWidth = 180 })
-            if integerChanged then state.draftValues[settingName] = math.floor(value + 0.5) end
-        end
+    local tooltip = state.scope == "Surface" and (state.draftExplicit[settingName] and "Surface value. Right-click to use the Product value." or "Using the Product value.") or (state.draftExplicit[settingName] and "Product value. Right-click to reset to the default." or "Using the default value.")
+    local resetLabel = state.draftExplicit[settingName] and (state.scope == "Surface" and "Use Product value" or "Reset to default") or nil
+    ui.ValueSourceActions(ctx, tooltip, resetLabel, function()
+        state.draftExplicit[settingName] = false
+        state.draftValues[settingName] = state.inheritedValues[settingName]
     end)
-
-    if not explicit then
-        imgui.SameLine(ctx)
-        local inheritedSource = state.sources[settingName] or (state.scope == "Surface" and "Product" or "Compiled")
-        imgui.TextDisabled(ctx, "Inherited from " .. inheritedSource)
-    end
 end
 
 function module.Initialize()
@@ -279,12 +283,6 @@ function module.GetStatus()
     return state.message
 end
 
-function module.GetConfigurationStatus()
-    if state.requestId and not state.loaded then return "Checking configuration...", "" end
-    if state.error ~= "" and not state.loaded then return "Configuration status unavailable", state.error end
-    return state.loaded and "Configuration is active" or "Configuration status unavailable", ""
-end
-
 function module.Save()
     local valid, validationError = validateDraft()
     if not valid then
@@ -304,17 +302,6 @@ function module.Revert()
     return true
 end
 
-function module.Reload()
-    if state.requestId then return false, "Wait for the current settings request" end
-    return startRequest("Reload", protocol.Reload())
-end
-
-function module.Refresh()
-    if state.requestId then return false, "Wait for the current settings request" end
-    if module.IsDirty() then return false, "Save or Revert the current General draft first" end
-    return queryCurrentScope()
-end
-
 function module.Shutdown()
     if not state.requestId then return end
     protocol.Cancel(state.requestId)
@@ -322,58 +309,93 @@ function module.Shutdown()
     state.requestId = nil
 end
 
-function module.RenderPage(ctx)
+local function renderSectionHeader(ctx, label, fonts)
+    if fonts and fonts.section then imgui.PushFont(ctx, fonts.section) end
+    imgui.Text(ctx, label)
+    if fonts and fonts.section then imgui.PopFont(ctx) end
+end
+
+local function renderContextSelectors(ctx)
     module.Initialize()
-    local scopeChanged = false
-    ui.Disabled(ctx, state.requestId ~= nil or module.IsDirty(), function()
-        scopeChanged, state.scope = ui.ComboEnum(ctx, "Scope", state.scope, SCOPE_ITEMS)
-    end)
-    if scopeChanged then
-        clearLoadedState()
-        if state.scope == "Surface" and not findSurfaceOptionIdx(state.pageName, state.surfaceName) and not selectSurfaceOption(1) then
-            state.pageName = ""
-            state.surfaceName = ""
+    if imgui.BeginTable(ctx, "##GeneralContext", 2, 0, -1, 0) then
+        imgui.TableSetupColumn(ctx, "Label", imgui.TableColumnFlags_WidthStretch)
+        imgui.TableSetupColumn(ctx, "Value", imgui.TableColumnFlags_WidthFixed, theme.FORM.control_width)
+        imgui.TableNextRow(ctx)
+        imgui.TableSetColumnIndex(ctx, 0)
+        imgui.AlignTextToFramePadding(ctx)
+        imgui.Text(ctx, "Scope")
+        imgui.TableSetColumnIndex(ctx, 1)
+        local scopeChanged = false
+        ui.Disabled(ctx, state.requestId ~= nil or module.IsDirty(), function()
+            scopeChanged, state.scope = ui.ComboEnum(ctx, "##GeneralScope", state.scope, SCOPE_ITEMS)
+        end)
+        if scopeChanged then
+            clearLoadedState()
+            if state.scope == "Surface" and not findSurfaceOptionIdx(state.pageName, state.surfaceName) and not selectSurfaceOption(1) then
+                state.pageName = ""
+                state.surfaceName = ""
+            end
+            queryCurrentScope()
         end
-        queryCurrentScope()
-    end
-    if state.scope == "Surface" then
-        local surfaceItems = buildSurfaceItems()
-        if #surfaceItems == 0 then
-            imgui.TextDisabled(ctx, "No configured Surfaces are available")
-        else
-            local selectedOptionIdx = findSurfaceOptionIdx(state.pageName, state.surfaceName) or 1
-            local surfaceChanged
-            ui.Disabled(ctx, state.requestId ~= nil or module.IsDirty(), function()
-                surfaceChanged, selectedOptionIdx = ui.ComboEnum(ctx, "Surface", selectedOptionIdx, surfaceItems)
-            end)
-            if surfaceChanged and selectSurfaceOption(selectedOptionIdx) then
-                clearLoadedState()
-                queryCurrentScope()
+        if state.scope == "Surface" then
+            imgui.TableNextRow(ctx)
+            imgui.TableSetColumnIndex(ctx, 0)
+            imgui.AlignTextToFramePadding(ctx)
+            imgui.Text(ctx, "Surface")
+            imgui.TableSetColumnIndex(ctx, 1)
+            local surfaceItems = buildSurfaceItems()
+            if #surfaceItems == 0 then
+                imgui.TextDisabled(ctx, "No configured Surfaces")
+            else
+                local selectedOptionIdx = findSurfaceOptionIdx(state.pageName, state.surfaceName) or 1
+                local surfaceChanged
+                ui.Disabled(ctx, state.requestId ~= nil or module.IsDirty(), function()
+                    surfaceChanged, selectedOptionIdx = ui.ComboEnum(ctx, "##GeneralSurface", selectedOptionIdx, surfaceItems)
+                end)
+                if surfaceChanged and selectSurfaceOption(selectedOptionIdx) then
+                    clearLoadedState()
+                    queryCurrentScope()
+                end
             end
         end
+        imgui.EndTable(ctx)
     end
+end
 
-    imgui.SameLine(ctx)
-    ui.Disabled(ctx, state.requestId ~= nil or module.IsDirty(), function()
-        if imgui.Button(ctx, "Reload from file") then module.Reload() end
-    end)
-
-    if state.requestId then imgui.TextDisabled(ctx, state.pendingKind .. "...") end
-    if state.error ~= "" then imgui.TextWrapped(ctx, "Error: " .. state.error) end
-    imgui.Separator(ctx)
-
-    local currentCategory = ""
+local function renderCategory(ctx, category, fonts)
+    renderSectionHeader(ctx, category, fonts)
+    if not imgui.BeginTable(ctx, "##GeneralCategory_" .. category, 2, 0, -1, 0) then return end
+    imgui.TableSetupColumn(ctx, "Label", imgui.TableColumnFlags_WidthStretch)
+    imgui.TableSetupColumn(ctx, "Value", imgui.TableColumnFlags_WidthFixed, theme.FORM.control_width)
     for settingIndex, definition in ipairs(schema.settings) do
-        if definitionAllowsScope(definition, state.scope) and state.draftValues[definition.name] ~= nil then
-            if definition.category ~= currentCategory then
-                currentCategory = definition.category
-                imgui.Separator(ctx)
-                imgui.Text(ctx, currentCategory)
-            end
+        if definition.category == category and definitionAllowsScope(definition, state.scope) and state.draftValues[definition.name] ~= nil then
+            imgui.TableNextRow(ctx)
+            imgui.TableSetColumnIndex(ctx, 0)
+            imgui.AlignTextToFramePadding(ctx)
+            imgui.Text(ctx, SETTING_LABELS[definition.name] or definition.name)
+            imgui.TableSetColumnIndex(ctx, 1)
             renderSetting(ctx, definition)
         end
     end
+    imgui.EndTable(ctx)
+end
 
+function module.RenderPage(ctx, fonts)
+    module.Initialize()
+    if imgui.BeginTable(ctx, "##GeneralColumns", 2, 0, -1, 0) then
+        imgui.TableSetupColumn(ctx, "Left", imgui.TableColumnFlags_WidthStretch)
+        imgui.TableSetupColumn(ctx, "Right", imgui.TableColumnFlags_WidthStretch)
+        imgui.TableNextRow(ctx)
+        imgui.TableSetColumnIndex(ctx, 0)
+        renderContextSelectors(ctx)
+        imgui.Spacing(ctx)
+        renderCategory(ctx, "Behavior", fonts)
+        imgui.Spacing(ctx)
+        renderCategory(ctx, "Timing", fonts)
+        imgui.EndTable(ctx)
+    end
+    if state.requestId then imgui.TextDisabled(ctx, state.pendingKind .. "...") end
+    if state.error ~= "" then imgui.TextWrapped(ctx, "Error: " .. state.error) end
     local valid, validationError = validateDraft()
     if not valid then imgui.TextWrapped(ctx, "Error: " .. validationError) end
 end

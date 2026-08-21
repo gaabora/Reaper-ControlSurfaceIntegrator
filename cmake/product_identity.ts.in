@@ -7,6 +7,7 @@ export const productIdentity = Object.freeze({
     logFilename: "@PRODUCT_LOG_FILENAME@",
     controlPanelScriptFilename: "@PRODUCT_CONTROL_PANEL_SCRIPT_FILENAME@",
     controlPanelActionId: "@PRODUCT_CONTROL_PANEL_ACTION_ID@",
+    notificationsActionId: "@PRODUCT_NOTIFICATIONS_ACTION_ID@",
     notificationsScriptFilename: "@PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME@",
     extStatePrefix: "@PRODUCT_EXTSTATE_PREFIX@",
     reaperRegistrationId: "@PRODUCT_REAPER_REGISTRATION_ID@",
@@ -24,6 +25,8 @@ export const productIdentity = Object.freeze({
         notificationsSettings: "@PRODUCT_EXTSTATE_NOTIFICATIONS_SETTINGS@",
         appearanceSettings: "@PRODUCT_EXTSTATE_APPEARANCE_SETTINGS@",
         controlPanel: "@PRODUCT_EXTSTATE_CONTROL_PANEL@",
+        log: "@PRODUCT_EXTSTATE_LOG@",
+        logCommand: "@PRODUCT_EXTSTATE_LOG_COMMAND@",
     }),
 });
 

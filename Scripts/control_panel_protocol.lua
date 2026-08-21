@@ -45,6 +45,8 @@ local function publishSelectTab(tab, options)
     }
     if options.surface and options.surface ~= "" then lines[#lines + 1] = "Surface=" .. tostring(options.surface) end
     if options.page and options.page ~= "" then lines[#lines + 1] = "Page=" .. tostring(options.page) end
+    if options.logSessionId and options.logSessionId ~= "" then lines[#lines + 1] = "LogSessionId=" .. tostring(options.logSessionId) end
+    if options.logOffset ~= nil then lines[#lines + 1] = "LogOffset=" .. tostring(options.logOffset) end
     reaper.SetExtState(identity.extState.controlPanel, "Request", table.concat(lines, "\n") .. "\n", false)
 end
 
@@ -66,6 +68,8 @@ function module.Poll()
     if not VALID_COMMANDS[properties.Command] then return nil, "Unsupported Control Panel command: " .. tostring(properties.Command) end
     return {
         command = properties.Command,
+        logOffset = properties.LogOffset or "",
+        logSessionId = properties.LogSessionId or "",
         requestId = properties.RequestId,
         page = properties.Page or "",
         surface = properties.Surface or "",

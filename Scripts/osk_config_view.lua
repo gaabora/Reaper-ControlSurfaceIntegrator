@@ -179,12 +179,12 @@ function M.RenderBody(ctx, state, deps)
 
     local selected = deps.model.GetSelectedBinding(state)
     if not selected then
-        imgui.Separator(ctx)
+        imgui.Spacing(ctx)
         imgui.Text(ctx, "No binding for this widget in the active zone.")
         return
     end
 
-    imgui.Separator(ctx)
+    imgui.Spacing(ctx)
     local parts = deps.action_line.Parse(selected.line)
 
     local actionChanged
@@ -337,7 +337,7 @@ function M.RenderBody(ctx, state, deps)
         deps.model.UpdateDirtyState(state)
     end
 
-    imgui.Separator(ctx)
+    imgui.Spacing(ctx)
     local lineChanged
     lineChanged, selected.line = imgui.InputText(ctx, "Raw", selected.line or "")
     if lineChanged then

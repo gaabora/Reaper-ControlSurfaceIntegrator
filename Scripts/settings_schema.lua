@@ -82,7 +82,7 @@ function module.Parse(source)
                 if not name:match("^[A-Z][A-Za-z0-9]*$") then error("Invalid setting name at line " .. lineNumber .. ": " .. name) end
                 if schema.settingsByName[name] then error("Duplicate setting: " .. name) end
                 local sourceType = requireProperty(properties, "Type", lineNumber)
-                if sourceType ~= "Enum" and sourceType ~= "Integer" then error("Unsupported setting type at line " .. lineNumber .. ": " .. sourceType) end
+                if sourceType ~= "Boolean" and sourceType ~= "Enum" and sourceType ~= "Integer" then error("Unsupported setting type at line " .. lineNumber .. ": " .. sourceType) end
                 local scopes = splitUniqueValues(requireProperty(properties, "Scopes", lineNumber), "Scopes", lineNumber)
                 for scopeIdx, scope in ipairs(scopes) do
                     if not scope:match("^[A-Z][A-Za-z0-9]*$") then error("Invalid setting scope at line " .. lineNumber .. ": " .. scope) end
@@ -91,7 +91,12 @@ function module.Parse(source)
                 if not category:match("^[A-Z][A-Za-z0-9]*$") then error("Invalid setting category at line " .. lineNumber .. ": " .. category) end
                 local defaultSource = requireProperty(properties, "Default", lineNumber)
                 local definition = { category = category, name = name, scopes = scopes }
-                if sourceType == "Enum" then
+                if sourceType == "Boolean" then
+                    if properties.Values or properties.Min or properties.Max or properties.Unit or properties.GreaterThan then error("Boolean setting has unsupported properties at line " .. lineNumber .. ": " .. name) end
+                    if defaultSource ~= "0" and defaultSource ~= "1" then error("Boolean setting default must be 0 or 1 at line " .. lineNumber .. ": " .. name) end
+                    definition.type = "boolean"
+                    definition.defaultValue = defaultSource
+                elseif sourceType == "Enum" then
                     if properties.Min or properties.Max or properties.Unit or properties.GreaterThan then error("Enum setting has integer-only properties at line " .. lineNumber .. ": " .. name) end
                     local enumValues, enumValueSet = splitUniqueValues(requireProperty(properties, "Values", lineNumber), "Values", lineNumber)
                     for enumValueIdx, enumValue in ipairs(enumValues) do
@@ -150,6 +155,8 @@ function module.RunSelfChecks()
     assert(schema.settingsByName.DefaultPseudoModifierMode.defaultValue == "Latch", "default pseudo-modifier mode")
     assert(schema.settingsByName.LongHoldDelayMs.greaterThan == "HoldDelayMs", "long hold constraint")
     assert(schema.settingsByName.HoldRepeatIntervalMs.defaultValue == 100, "hold repeat interval")
+    assert(schema.settingsByName.SurfaceInDisplay.type == "boolean", "logging boolean type")
+    assert(schema.settingsByName.DebugLevel.defaultValue == "Error", "logging level default")
 end
 
 return module

@@ -18,7 +18,7 @@ The Control Panel must make common settings easy to find without duplicating C++
 - [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cpp) is the native device configuration window. It edits MIDI and OSC I/O records, pages, surface assignments, zone folder fields, listener relationships, input settings, and logging values. It also writes the complete product INI.
 - [`../Scripts/settings_ui.lua`](../Scripts/settings_ui.lua) already edits Product and Surface input settings through [`../Scripts/settings_protocol.lua`](../Scripts/settings_protocol.lua). C++ validates and saves these values.
 - [`../Scripts/settings_schema.conf`](../Scripts/settings_schema.conf) is the canonical metadata source for Behavior and Timing settings.
-- [`../Scripts/theme_settings.lua`](../Scripts/theme_settings.lua) contains shared style values and separate persistent Common, OSK, OSD, and Notifications schemas.
+- [`../Scripts/theme_settings.lua`](../Scripts/theme_settings.lua) contains fixed shared style values and separate persistent OSK, OSD, and Notifications schemas.
 - [`../Scripts/Notifications.lua`](../Scripts/Notifications.lua) is the dedicated notification script for NOTICE, WARNING, and ERROR log records.
 - [`../src/controls/integrator_config_parser.h`](../src/controls/integrator_config_parser.h) already models `surfaceId`, `mainZoneProfileId`, and `fxZoneProfileId` as separate values.
 - [`../src/controls/config_parser.cpp`](../src/controls/config_parser.cpp) rejects a surface assignment when its Main zone profile is missing. It creates the User FX directory when necessary.
@@ -35,7 +35,7 @@ The Control Panel must make common settings easy to find without duplicating C++
 - Preview Appearance changes immediately from the draft, but do not persist them until Save. Revert or discard must restore the saved appearance.
 - Keep the native C++ dialog until the Lua Devices page has feature parity and has passed manual runtime checks.
 - Do not add surface, zone, snippet, legacy import, or batch text editing to this Control Panel. Provide a command that opens the standalone editor for these tasks.
-- Keep one Appearance page, but do not create one flat settings table. Use separate `Common`, `OSK`, `OSD`, and `Notifications` setting groups.
+- Keep one Appearance page, but do not create one flat settings table. Use separate `OSK`, `OSD`, and `Notifications` setting groups.
 - Treat runtime logs as disposable diagnostics. Store each REAPER process in its own bounded log session under the operating system user temporary directory.
 - Use session log ID, segment ID, and record start byte offset as the internal record identity shared by the viewer and Notifications. Keep this identity hidden from the user.
 - Register stable REAPER actions in C++. Do not use generated `_RS...` ReaScript IDs as the public action contract.
@@ -64,7 +64,8 @@ A Surface template and a Zone profile are related by an assignment, but they are
 
 - ✅ Add a resizable ReaImGui window with a fixed-width vertical navigation bar on the left.
 - ✅ Open General on the first launch. Restore the last selected tab, scroll position, and window geometry on later launches.
-- ✅ Show the current product name and configuration status in the header.
+- ✅ Do not duplicate the selected sidebar label as a page heading. Do not show a product-status header or a manual Refresh control.
+- ✅ Do not use horizontal separators in Lua UI unless the user requests them. Keep the approved separator between visible notification records.
 - ✅ Keep `Save changes`, `Revert`, and status controls in a fixed footer for the combined Control Panel draft. Enable Save and Revert only when at least one page differs from its saved state.
 - ✅ Close immediately when the draft is clean. When the draft is dirty, show `Save`, `Don't Save`, and `Cancel`: Save validates, persists, applies, and closes; Don't Save discards the draft and closes; Cancel keeps the window and draft open.
 - ✅ Show pending C++ requests without blocking the REAPER UI thread.
@@ -152,8 +153,10 @@ General contains runtime behavior that is not device routing, appearance, or log
 - ✅ Populate the Surface scope selector from C++ runtime assignments and label each option as `Page / Surface`. Do not accept an arbitrary Surface name.
 - ✅ Render categories from [`../Scripts/settings_schema.conf`](../Scripts/settings_schema.conf) instead of hardcoding each control.
 - ✅ Start with the current `Behavior` and `Timing` categories.
-- ✅ Keep compiled defaults, Product overrides, and Surface overrides visible and distinct.
+- ✅ Keep compiled defaults, Product values, and Surface values distinct without permanent Override controls. Show the source in a field tooltip. Editing creates the value at the current scope. A saved Product value has a right-click `Reset to default` action, and a saved Surface value has a right-click `Use Product value` action.
 - ✅ Keep cross-setting validation, such as `LongHoldDelayMs > HoldDelayMs`, in the schema and C++ validation.
+- ✅ Use the left half of the shared two-column page layout. Put labels to the left of equal-width Scope, Surface, Behavior, and Timing controls. Keep the right half available for later settings.
+- ✅ Query the current configuration when General opens or its scope changes. Do not expose the internal Reload operation as an unexplained page button.
 - [ ] Add future settings here only when they change general runtime behavior for the product or one surface.
 - ✅ Do not put device ports, file paths, UI colors, window geometry, notification appearance, or logging values in this tab.
 
@@ -163,18 +166,20 @@ General contains runtime behavior that is not device routing, appearance, or log
 
 The Appearance tab is one place to discover and edit visual settings. The code and persistence remain separated by feature.
 
-- `Common` owns shared font choices, spacing, rounding, base colors, disabled colors, error colors, and common window behavior.
+- Common Control Panel item spacing, rounding, and disabled opacity are fixed at `8`, `4`, and `0.6`. Error color is not configurable.
 - `OSK` owns zoom, font size, label case, layout spacing, window opacity, button opacity, LED boost, arrow angle, and title bar behavior.
 - `OSD` owns position, alignment, width, height, margins, font size, background colors, and opacity.
 - `Notifications` owns notification opacity, placement, width, message duration, maximum visible records, dismiss behavior, and navigation from a notification to its log record.
 
-- ✅ Extract current common visual tokens and helpers from feature code into the existing shared theme and UI modules.
-- ✅ Keep separate namespaced setting schemas for Common, OSK, OSD, and Notifications.
+- ✅ Keep fixed common visual tokens and helpers in the existing shared theme and UI modules.
+- ✅ Keep separate namespaced setting schemas for OSK, OSD, and Notifications.
 - ✅ Keep Lua-only visual preferences in persistent ExtState. Do not put them in the product INI.
 - ✅ Render all appearance groups in the Control Panel from their schemas.
+- ✅ Render Appearance in two columns: OSK on the left, Notifications and OSD on the right.
+- ✅ Use fixed shared form-control widths, compact drag controls for numbers, and the shared widget-configuration color picker and swatches.
 - ✅ Keep the existing OSK context menu and OSD right-click settings as quick access views of the same schemas.
 - ✅ Ensure every Control Panel draft change appears immediately in running OSK, OSD, and Notifications through a session-only preview overlay and revision.
-- ✅ Add a small preview area for common controls, OSD appearance, and notification appearance.
+- ✅ Put an Open or Show preview action beside each large OSK, Notifications, and OSD group heading. Start the visual script only when it is not already active, then show a real OSD or Notifications preview record.
 - ✅ Apply previews to the draft only. Clear the preview overlay and restore the saved appearance after Revert, `Don't Save`, or Control Panel shutdown.
 - [ ] Standardize shared visual language, but do not force the same layout or geometry on OSK, OSD, and Notifications.
 
@@ -183,19 +188,20 @@ The Appearance tab is one place to discover and edit visual settings. The code a
 - ✅ Add a Notification opacity setting with the default value `0.8`, which means 80 percent opaque.
 - ✅ Add a close button for each visible notification.
 - ✅ Use one shared square close-button size and the centered `×` symbol.
-- [ ] Make the notification body clickable. A click must open or focus the Control Panel on Logging, select the source record, and scroll it into view.
+- ✅ Make the notification body clickable. A click opens or focuses the Control Panel on Logging, selects the source record, and scrolls it into view.
 - ✅ Keep the close button separate from body navigation. Clicking close dismisses the notification and must not open the Control Panel.
-- [ ] Identify a notification source record by session log ID, segment ID, and record start byte offset. The byte offset permits direct file access and supports records that use more than one text line. If retention already removed that record, open Logging and show that the source record is no longer available.
+- ✅ Identify a source record in the current unsegmented implementation by session log ID and record start byte offset. The byte offset permits direct file access and supports records that use more than one text line. If the record is unavailable, open Logging and show that result.
+- [ ] Add segment ID to the record identity when segmented rotation is implemented.
 - ✅ Keep the Notifications script running when one notification is closed. Its close control must dismiss only that visible record so later messages can appear.
-- [ ] Stop the Notifications script and set its REAPER toggle state to Off only when the user deliberately disables Notifications or invokes its registered action to stop it.
+- ✅ Stop the Notifications script and set its REAPER toggle state to Off only when the user invokes its registered action to stop it.
 - ✅ Keep dismissed records in the log file. Closing or dismissing a notification must not delete log data.
-- [ ] Let the registered Notifications action start the script again.
+- ✅ Let the registered Notifications action start the script again.
 
 ## Logging Tab
 
 ### Canonical settings
 
-Move the following legacy global values into canonical setting metadata and C++ configuration handling:
+Move the approved legacy global values into canonical setting metadata and C++ configuration handling. `FXParamsWrite` remains in the native window until a later decision because it creates raw FX diagnostic files instead of log records:
 
 ```ini
 DebugLevel=Error
@@ -205,35 +211,43 @@ SurfaceRawInDisplay=0
 FXParamsWrite=0
 ```
 
-- [ ] Add a `Logging` category to the canonical settings schema with Product scope.
-- [ ] Define `DebugLevel` as an enum that matches the current C++ levels: Error, Warning, Notice, Info, and Debug.
-- [ ] Do not add an `Off` value until C++ has an explicit no-logging level. The current numeric value `0` means Error, not Off.
-- [ ] Define Surface input, Surface output, raw Surface input, and FX parameter write values as booleans with clear user labels.
-- [ ] Audit each flag and document exactly which records it enables before exposing it in the GUI.
-- [ ] Remove direct native control ownership only after the new schema values load, save, reload, and affect runtime behavior.
-- [ ] Keep all normal C++ and Lua logging in the product log file. Do not open the REAPER console for automatic messages.
-- [ ] Keep popup notifications limited to NOTICE, WARNING, and ERROR records.
+- ✅ Add a `Logging` category to the canonical settings schema with Product scope.
+- ✅ Define `DebugLevel` as an enum that matches the current C++ levels: Error, Warning, Notice, Info, and Debug.
+- ✅ Do not add an `Off` value. The current numeric runtime value `0` means Error, not Off.
+- ✅ Define Surface input, Surface output, and raw Surface input values as booleans with clear user labels.
+- ✅ Document the exposed flags: raw input writes three-byte MIDI input, Surface input writes processed MIDI widget and OSC values, and Surface output writes MIDI and OSC output.
+- ✅ Remove direct native ownership of `DebugLevel`, Surface input, Surface output, and raw Surface input after connecting schema load, Apply, Reload, and runtime updates.
+- [ ] Decide how Logging should display a temporary `SetDebugLevel` or `CycleDebugLevel` action override. These actions still change only the current runtime global; the canonical Product value is restored by Apply, Reload, or REAPER restart.
+- [ ] Decide whether `FXParamsWrite` should later become a canonical Boolean setting. Until then it remains only in the native window.
+- ✅ Keep all normal C++ and Lua logging in the product log file. Do not open the REAPER console for automatic messages.
+- ✅ Prefix each log record with local time as `[HH:MM:SS]` without a calendar date.
+- ✅ Keep popup notifications limited to NOTICE, WARNING, and ERROR records.
 
 ### Log viewer
 
-- [ ] Store disposable runtime logs under the operating system user temporary directory in a stable product subdirectory, with one session directory for each REAPER process, such as `<temp>/<stable-product-id>/logs/<session-id>`.
-- [ ] Resolve the log directory in C++ and give Lua the resolved path. Do not let C++ and Lua build the platform path independently.
-- [ ] Document that the operating system can remove temporary logs at any time. Logs must not contain required product configuration or user data.
-- [ ] Give each REAPER process a unique log session so simultaneous REAPER instances never share one writable log file.
+- ✅ Store disposable runtime logs under the operating system user temporary directory in a stable product subdirectory, with one session directory for each REAPER process: `<temp>/<stable-product-id>/logs/<session-id>`.
+- ✅ Resolve the log directory in C++ and give Lua the resolved path. C++ and Lua do not build the platform path independently.
+- ✅ Document that the operating system can remove temporary logs at any time. Logs do not contain required product configuration or user data.
+- ✅ Give each REAPER process a unique log session so simultaneous REAPER instances never share one writable log file.
 - [ ] Start a new numbered segment when one session log reaches a documented size. Apply a documented total size or retained-session limit across the product log directory so a long-running process and repeated launches cannot use unlimited temporary storage.
-- [ ] Tail the current product log without blocking the REAPER UI thread.
+- ✅ Tail the current product log without blocking the REAPER UI thread.
 - [ ] Show timestamp, severity, source, and message columns when the record format contains these fields.
 - [ ] Add severity filters, text search, Pause, Resume, and Auto-scroll.
 - [ ] Handle `Ctrl+C` explicitly in ReaImGui and copy the selected records. Do not require a dedicated Copy selected button.
-- [ ] Add `Open current log file`, and `Open log folder` actions to the Logging toolbar or menu.
+- ✅ Use a read-only multiline text field in the reduced viewer so normal text selection and `Ctrl+C` work now. Keep record-aware copy behavior deferred with the full viewer.
+- ✅ Add `Open log file` and `Open log folder` actions to the reduced Logging toolbar.
+- ✅ Open the active log and its directory through the operating system default file and folder associations on Windows, macOS, and Linux.
+- ✅ Keep Log level, logging checkboxes, and file or folder actions on one row. Do not show the full log path in the page.
+- ✅ Show consecutive records on consecutive lines without an extra blank line.
 - [ ] Add `Insert separator`. It writes a timestamped structured marker with an optional short label. Notifications must ignore this marker.
 - [ ] Add `Delete all logs...`. Show the resolved directory, file count, and total size, require confirmation, close active readers and writers, remove the active and rotated log files, then create a new empty active log.
 - [ ] Detect when the active segment becomes smaller, is replaced, or a new numbered segment becomes active. Open the correct segment, reset its byte offset when required, and continue reading without duplicate records or a permanent stopped state.
-- [ ] Give each loaded record a session log ID, segment ID, and record start byte offset so Notifications can request exact navigation to it.
-- [ ] Accept a session-only navigation request from Notifications, open the Logging tab, select the matching record, and scroll it into view.
+- ✅ Give each loaded record a session log ID and record start byte offset in the current unsegmented implementation.
+- [ ] Add segment ID when rotation is implemented.
+- ✅ Accept a session-only navigation request from Notifications, open the Logging tab, select the matching record, and scroll it into view.
 - [ ] Limit the in-memory view and load older records only on request.
 - [ ] Make `Clear view` clear only the current GUI buffer.
-- [ ] Show a useful empty state when the log file does not exist.
+- ✅ Show a useful empty state when the log file does not exist or has no NOTICE, WARNING, or ERROR records.
 
 ## Stable REAPER Actions
 
@@ -326,24 +340,29 @@ If code is copied instead of reimplemented, verify its MIT license notice and at
 
 Ready when REAPER can open or focus one Control Panel window and its action state is correct.
 
-### Phase 2. General and Appearance - implementation complete, manual verification pending
+### ✅ Phase 2. General and Appearance - complete
 
 - ✅ Move the existing schema-driven Product and Surface settings UI into General.
-- ✅ Add schema-driven Common, OSK, OSD, and Notifications groups to Appearance.
+- ✅ Add schema-driven OSK, OSD, and Notifications groups to Appearance and keep common Control Panel styling fixed.
 - ✅ Add Notification opacity `0.8` and dismiss behavior.
 - ✅ Keep running visual scripts synchronized with both saved Appearance revisions and each session-only draft preview revision.
-- [ ] Manually verify Product and Surface Save/Revert, Appearance preview/Save/Revert, quick-view synchronization, and per-record notification dismiss behavior in REAPER.
+- ✅ Manually verify Product and Surface Save/Revert, Appearance preview/Save/Revert, quick-view synchronization, and per-record notification dismiss behavior in REAPER.
 
 Ready when all existing input and visual settings are available from the Control Panel and old quick views still use the same values.
 
-### Phase 3. Logging and Notifications
+### Phase 3. Logging and Notifications - reduced implementation complete, deferred viewer work pending
 
-- [ ] Add canonical Logging settings and migrate current native values.
-- [ ] Move the product log to the resolved temporary product log directory and add bounded rotation.
-- [ ] Add the non-blocking log viewer and filters.
-- [ ] Add notification-to-record navigation, separator insertion, and confirmed deletion of all active and rotated logs.
-- [ ] Register the Notifications action and synchronize its toggle state.
-- [ ] Verify that normal logging never opens the REAPER console.
+- ✅ Add canonical Product settings for `DebugLevel`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay`, then apply them to runtime after load, Apply, and Reload.
+- ✅ Keep `FXParamsWrite` native until its future ownership is decided.
+- ✅ Move the product log to one resolved temporary session directory per REAPER process.
+- [ ] Add bounded segment rotation and retained-session cleanup later.
+- ✅ Add a simple current-session NOTICE, WARNING, and ERROR text view with native file and folder opening.
+- ✅ Make the reduced text view read-only but selectable, with normal text copy and source-record selection after notification navigation.
+- [ ] Add the full bounded non-blocking viewer, filters, search, Pause, Resume, Auto-scroll, explicit `Ctrl+C`, and older-record loading later.
+- ✅ Add notification-to-record navigation for the current unsegmented session log.
+- [ ] Add separator insertion and confirmed deletion of active and rotated logs later.
+- ✅ Register the Notifications action and synchronize its toggle state with the Lua lifecycle.
+- [ ] Manually verify that normal logging never opens the REAPER console.
 
 Ready when the user can change logging behavior, inspect the log, and control notifications from stable REAPER actions.
 

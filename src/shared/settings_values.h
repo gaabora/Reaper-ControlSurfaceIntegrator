@@ -31,6 +31,7 @@ public:
 
     bool TryApply(const SettingOverrides& overrides, const std::string& scope, SettingsValues& result, std::vector<SettingValidationIssue>& issues) const;
     const std::map<std::string, std::string>& GetValues() const;
+    bool GetBoolean(const std::string& settingName) const;
     const std::string& GetString(const std::string& settingName) const;
     int GetInteger(const std::string& settingName) const;
 };

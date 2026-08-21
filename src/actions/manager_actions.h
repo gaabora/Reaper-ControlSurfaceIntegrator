@@ -738,7 +738,7 @@ public:
 //!
 //! @zone_usage  WidgetName    SetDebugLevel 2
 //!
-//! @params Int param: debug level 0–4 (0=off, 1=error, 2=warning, 3=info, 4=debug).
+//! @params Int param: debug level 0-4 (0=Error, 1=Warning, 2=Notice, 3=Info, 4=Debug).
 class SetDebugLevel : public RangeValidatedSettingsAction
 {
 public:
@@ -749,7 +749,7 @@ public:
 
 //! @action CycleDebugLevel
 //!
-//! @brief Cycles through debug levels 0–4 on each press.
+//! @brief Cycles through debug levels 0-4 on each press.
 //!
 //! @zone_usage  WidgetName    CycleDebugLevel
 //!

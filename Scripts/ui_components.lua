@@ -98,7 +98,24 @@ function M.SliderWithInput(ctx, label, currentValue, minValue, maxValue, step, o
     return changed, newValue
 end
 
-function M.ComboEnum(ctx, label, currentValue, items)
+function M.SetNextFormControlWidth(ctx, width)
+    imgui.SetNextItemWidth(ctx, width or theme.FORM.control_width)
+end
+
+function M.DragInteger(ctx, label, currentValue, minValue, maxValue, step, options)
+    options = options or {}
+    M.SetNextFormControlWidth(ctx, options.width)
+    return imgui.DragInt(ctx, label, math.floor(tonumber(currentValue) or 0), step or 1, minValue, maxValue, options.format or "%d")
+end
+
+function M.DragNumber(ctx, label, currentValue, minValue, maxValue, step, options)
+    options = options or {}
+    M.SetNextFormControlWidth(ctx, options.width)
+    return imgui.DragDouble(ctx, label, tonumber(currentValue) or 0, step or 0.01, minValue, maxValue, options.format or "%.2f")
+end
+
+function M.ComboEnum(ctx, label, currentValue, items, options)
+    options = options or {}
     local labels = {}
     local selectedIndex = 0
     for index, item in ipairs(items or {}) do
@@ -108,10 +125,20 @@ function M.ComboEnum(ctx, label, currentValue, items)
         end
     end
     local changed
+    M.SetNextFormControlWidth(ctx, options.width)
     changed, selectedIndex = imgui.Combo(ctx, label, selectedIndex, table.concat(labels, "\0") .. "\0")
     if not changed then return false, currentValue, selectedIndex end
     local selected = items and items[selectedIndex + 1]
     return true, selected and selected.value or currentValue, selectedIndex
+end
+
+function M.ValueSourceActions(ctx, tooltip, resetLabel, onReset)
+    M.ItemTooltip(ctx, tooltip, true)
+    if not resetLabel or not imgui.BeginPopupContextItem or not imgui.BeginPopupContextItem(ctx) then return false end
+    local reset = imgui.MenuItem(ctx, resetLabel)
+    imgui.EndPopup(ctx)
+    if reset and onReset then onReset() end
+    return reset
 end
 
 function M.SaveCancelButtons(ctx, saveId, cancelId, buttonWidth)

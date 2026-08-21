@@ -14,14 +14,16 @@ local imgui = host.RequireImGui(scriptDir)
 if not imgui then return end
 
 local identity = require("product_identity")
+local controlPanelProtocol = require("control_panel_protocol")
 local theme = require("theme_settings")
 
 local ctx = host.CreateContext(identity.displayName .. " Notifications")
-local logPath = reaperApi.GetResourcePath() .. "/Data/" .. identity.resourceDirectory .. "/" .. identity.logFilename
+local logPath = reaperApi.GetExtState(identity.extState.log, "File")
+local logSessionId = reaperApi.GetExtState(identity.extState.log, "SessionId")
 local startOffset = tonumber(reaperApi.GetExtState(identity.extState.notifications, "StartOffset")) or 0
 local logFile = nil
 local notifications = {}
-local lastSeverity = nil
+local activeNotification = nil
 local lastPollTime = 0
 local lastAppearanceChangeToken = theme.GetAppearanceChangeToken()
 
@@ -33,7 +35,7 @@ local LEVELS = {
 
 local function openLog()
     if logFile then return true end
-    logFile = io.open(logPath, "r")
+    logFile = io.open(logPath, "rb")
     if not logFile then return false end
     local fileSize = logFile:seek("end") or 0
     logFile:seek("set", math.min(startOffset, fileSize))
@@ -41,38 +43,77 @@ local function openLog()
     return true
 end
 
-local function addNotification(line, severity)
+local function addNotification(line, severity, byteOffset, options)
+    options = options or {}
     local level = LEVELS[severity]
     if not level then return end
-    notifications[#notifications + 1] = { text = line, color = level.color, expireTs = reaperApi.time_precise() + level.durationSec }
+    notifications[#notifications + 1] = { text = line, color = level.color, expireTs = reaperApi.time_precise() + (options.durationSec or level.durationSec), byteOffset = byteOffset, sessionId = options.preview and "" or logSessionId, preview = options.preview == true }
     while #notifications > 6 do table.remove(notifications, 1) end
+    if not options.preview then activeNotification = notifications[#notifications] end
 end
 
-local function processLine(line)
+local function pollAppearancePreview()
+    if not reaperApi.HasExtState(identity.extState.notifications, "AppearancePreview") then return end
+    reaperApi.DeleteExtState(identity.extState.notifications, "AppearancePreview", false)
+    addNotification("[NOTICE] Appearance preview", "NOTICE", nil, { durationSec = 30, preview = true })
+end
+
+local function processLine(line, byteOffset)
     local severity = line:match("%[(ERROR)%]") or line:match("%[(WARNING)%]") or line:match("%[(NOTICE)%]") or line:match("%[(INFO)%]") or line:match("%[(DEBUG)%]")
     if severity then
-        lastSeverity = LEVELS[severity] and severity or nil
-        if lastSeverity then addNotification(line, severity) end
-    elseif line:match("^%[%d%d%-%d%d%-%d%d %d%d:%d%d:%d%d%]") then
-        lastSeverity = nil
-    elseif lastSeverity and #notifications > 0 then
-        notifications[#notifications].text = notifications[#notifications].text .. "\n" .. line
+        activeNotification = nil
+        if LEVELS[severity] then addNotification(line, severity, byteOffset) end
+    elseif line:match("^%[%d%d:%d%d:%d%d%]") then
+        activeNotification = nil
+    elseif activeNotification then
+        activeNotification.text = activeNotification.text .. "\n" .. line
     end
+end
+
+local function refreshLogIdentity()
+    local currentPath = reaperApi.GetExtState(identity.extState.log, "File")
+    local currentSessionId = reaperApi.GetExtState(identity.extState.log, "SessionId")
+    if currentPath == logPath and currentSessionId == logSessionId then return end
+    if logFile then logFile:close() end
+    logFile = nil
+    logPath = currentPath
+    logSessionId = currentSessionId
+    startOffset = 0
+    activeNotification = nil
 end
 
 local function pollLog()
     local now = reaperApi.time_precise()
     if now - lastPollTime < 0.1 then return end
     lastPollTime = now
+    refreshLogIdentity()
     if not openLog() then return end
     local currentOffset = logFile:seek() or 0
     local fileSize = logFile:seek("end") or 0
     logFile:seek("set", fileSize < currentOffset and 0 or currentOffset)
     while true do
+        local byteOffset = logFile:seek() or 0
         local line = logFile:read("*l")
         if not line then break end
-        processLine(line)
+        processLine(line, byteOffset)
     end
+end
+
+local function refreshStableAction()
+    if not reaperApi.NamedCommandLookup or not reaperApi.RefreshToolbar2 then return end
+    local commandId = reaperApi.NamedCommandLookup("_" .. identity.notificationsActionId)
+    if commandId and commandId > 0 then reaperApi.RefreshToolbar2(0, commandId) end
+end
+
+local function setLifecycleState(value)
+    reaperApi.SetExtState(identity.extState.notifications, "State", value, false)
+    refreshStableAction()
+end
+
+local function shouldStop()
+    if reaperApi.GetExtState(identity.extState.notifications, "Command") ~= "Stop" then return false end
+    reaperApi.DeleteExtState(identity.extState.notifications, "Command", false)
+    return true
 end
 
 local function removeExpiredNotifications()
@@ -113,6 +154,7 @@ local function renderNotifications()
             imgui.PushTextWrapPos(ctx, windowWidth - 20)
             imgui.TextColored(ctx, notification.color, notification.text)
             imgui.PopTextWrapPos(ctx)
+            if not notification.preview and imgui.IsItemClicked and imgui.IsItemClicked(ctx, 0) then controlPanelProtocol.Open("Logging", { logSessionId = notification.sessionId, logOffset = notification.byteOffset }) end
         end
     end
     imgui.End(ctx)
@@ -122,11 +164,13 @@ local function renderNotifications()
 end
 
 local function main()
+    if shouldStop() then return end
     if not host.IsContextValid(ctx) then
         host.SetToolbarState(-1)
         return
     end
     reloadAppearanceIfNeeded()
+    pollAppearancePreview()
     pollLog()
     removeExpiredNotifications()
     renderNotifications()
@@ -134,9 +178,12 @@ local function main()
 end
 
 host.SetToolbarState(1)
+reaperApi.SetExtState(identity.extState.notifications, "Enabled", "1", false)
+setLifecycleState("Open")
 theme.LoadCurrentAppearance()
 host.OnExit(function()
     if logFile then logFile:close() end
+    setLifecycleState("Closed")
     host.SetToolbarState(-1)
 end)
 main()

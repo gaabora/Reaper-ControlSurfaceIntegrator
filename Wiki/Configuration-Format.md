@@ -56,11 +56,11 @@ MajorVersion=7.0 //FIXME: to change
 
 ; Global settings
 [Options]
-DebugLevel=Error              ; Error, Warning, Info, Debug
+DebugLevel=Error              ; Error, Warning, Notice, Info, Debug
 SurfaceInDisplay=0            ; Show surface input display
 SurfaceOutDisplay=0           ; Show surface output display
 SurfaceRawInDisplay=0         ; Show raw MIDI input
-FXParamsWrite=0               ; Write FX parameter changes to the product log
+FXParamsWrite=0               ; Write raw FX parameter files under Generated/ZoneRawFXFiles
 
 ; Pages section lists all UI pages
 [Pages]

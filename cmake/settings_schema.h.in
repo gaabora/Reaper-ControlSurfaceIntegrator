@@ -4,6 +4,7 @@
 
 namespace Settings {
 enum class ValueType {
+    Boolean,
     Enum,
     Integer,
 };

@@ -573,10 +573,6 @@ static WDL_DLGRET dlgProcAdvancedSetup(HWND hwndDlg, UINT uMsg, WPARAM wParam, L
                 SendMessage(GetDlgItem(hwndDlg, IDC_LIST_Broadcasters), LB_SETCURSEL, 0, 0);
             }
 
-            SetDlgItemInt(hwndDlg, IDC_EDIT_DebugLevel, g_debugLevel, FALSE);
-            CheckDlgButton(hwndDlg, IDC_CHECK_ShowRawInput, g_surfaceRawInDisplay);
-            CheckDlgButton(hwndDlg, IDC_CHECK_ShowInput, g_surfaceInDisplay);
-            CheckDlgButton(hwndDlg, IDC_CHECK_ShowOutput, g_surfaceOutDisplay);
             CheckDlgButton(hwndDlg, IDC_CHECK_WriteFXParams, g_fxParamsWrite);
             OnDialogInit(hwndDlg);
         }
@@ -802,13 +798,6 @@ static WDL_DLGRET dlgProcAdvancedSetup(HWND hwndDlg, UINT uMsg, WPARAM wParam, L
 
                 case IDOK:
                     if (HIWORD(wParam) == BN_CLICKED) {
-                        BOOL success = FALSE;
-                        int newDebugLevel = GetDlgItemInt(hwndDlg, IDC_EDIT_DebugLevel, &success, FALSE);
-                        if (success)
-                            g_debugLevel = std::clamp(newDebugLevel, 0, 4);
-                        g_surfaceRawInDisplay = IsDlgButtonChecked(hwndDlg, IDC_CHECK_ShowRawInput) != 0;
-                        g_surfaceInDisplay = IsDlgButtonChecked(hwndDlg, IDC_CHECK_ShowInput) != 0;
-                        g_surfaceOutDisplay = IsDlgButtonChecked(hwndDlg, IDC_CHECK_ShowOutput) != 0;
                         g_fxParamsWrite = IsDlgButtonChecked(hwndDlg, IDC_CHECK_WriteFXParams) != 0;
 
                         TransferBroadcasters(s_broadcasters, s_pages[s_pageIndex]->broadcasters);

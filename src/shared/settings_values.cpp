@@ -60,7 +60,12 @@ bool SettingsValues::TryApply(const SettingOverrides& overrides, const std::stri
             issues.push_back({ entry.first, "Setting " + entry.first + " is not allowed in " + scope + " scope" });
             continue;
         }
-        if (definition->type == Settings::ValueType::Enum) {
+        if (definition->type == Settings::ValueType::Boolean) {
+            if (entry.second != "0" && entry.second != "1") {
+                issues.push_back({ entry.first, "Setting " + entry.first + " must be 0 or 1" });
+                continue;
+            }
+        } else if (definition->type == Settings::ValueType::Enum) {
             if (!IsEnumValueAllowed(*definition, entry.second)) {
                 issues.push_back({ entry.first, "Setting " + entry.first + " must be one of " + definition->enumValues });
                 continue;
@@ -100,6 +105,8 @@ bool SettingsValues::TryApply(const SettingOverrides& overrides, const std::stri
 }
 
 const std::map<std::string, std::string>& SettingsValues::GetValues() const { return this->values_; }
+
+bool SettingsValues::GetBoolean(const std::string& settingName) const { return this->GetString(settingName) == "1"; }
 
 const std::string& SettingsValues::GetString(const std::string& settingName) const {
     static const std::string emptyValue;

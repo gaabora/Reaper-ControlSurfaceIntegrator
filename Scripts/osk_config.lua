@@ -190,7 +190,7 @@ function M.RenderConfigEditor(ctx, font)
             tableFlags = TABLE_FLAGS,
         }
         osk_config_view.RenderToolbar(ctx, state, deps)
-        imgui.Separator(ctx)
+        imgui.Spacing(ctx)
         local bodyVisible = imgui.BeginChild(ctx, "##config_body", -1, -1, 0, 0)
         if bodyVisible then
             osk_config_view.RenderBody(ctx, state, deps)

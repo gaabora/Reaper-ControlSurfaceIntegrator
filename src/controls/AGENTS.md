@@ -21,10 +21,13 @@
 - Treat the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives as metadata, not as comments.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
 - Parse Product overrides from `Settings` lines and Surface overrides from their `Surface=` assignment. Resolve compiled defaults, Product, and Surface in that order. Reject one invalid scope as a unit instead of partially applying it.
+- Apply canonical Product `DebugLevel`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay` values to the legacy runtime globals after initial configuration load, Apply, and Reload. `FXParamsWrite` remains owned by the native dialog.
 - Keep `ReaCtrlSurf_SETTINGS_CMD` requests correlated with `ReaCtrlSurf_SETTINGS` responses. Apply must validate before atomic file replacement. Reload must keep current runtime values when validation or runtime matching fails.
 - Include every runtime Page and Surface assignment in each successful settings Query response so Lua can select a valid Surface scope without reading the product INI.
 - Register bundled OSK, OSD, and Notifications ReaScripts through the shared ReaScript command resolver.
+- Consume the OSK `Open` command without changing enabled surfaces when at least one is enabled. If none is enabled, enable every current-Page surface, republish its data, and open the OSK ReaScript.
 - Start the Notifications ReaScript before configuration loading so it can display new NOTICE, WARNING, and ERROR log entries without opening the REAPER console.
+- Respect the session-only Notifications Enabled value during later CSI initialization so a deliberate stable-action stop is not immediately reversed.
 - Publish the selected track name with its adjacent track names and selected track color to OSD after track selection. Publish edit cursor position as `[bar/beat]` during CSI cursor movement, rewind, and fast-forward.
 - Treat an explicit action-line OSD value as authoritative text and mark it in the shared payload. Do not interpret template variable names in C++; Lua owns their definitions and expansion.
 - Load configuration, surfaces, zones, logs, backups, snippets, and generated files through the generated product identity and `ProductPaths`; do not add runtime fallback to legacy CSI paths.

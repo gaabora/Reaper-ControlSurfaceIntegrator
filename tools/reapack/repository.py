@@ -26,6 +26,7 @@ REQUIRED_IDENTITY_KEYS = (
     "PRODUCT_NOTIFICATIONS_SCRIPT_FILENAME",
     "PRODUCT_CONTROL_PANEL_SCRIPT_FILENAME",
     "PRODUCT_CONTROL_PANEL_ACTION_ID",
+    "PRODUCT_NOTIFICATIONS_ACTION_ID",
 )
 
 PLUGIN_ASSETS = (
@@ -74,6 +75,10 @@ def validate_identity(identity):
         fail("PRODUCT_ID must be a stable lowercase ASCII ID")
     if not ACTION_ID_PATTERN.fullmatch(identity["PRODUCT_CONTROL_PANEL_ACTION_ID"]):
         fail("PRODUCT_CONTROL_PANEL_ACTION_ID must contain uppercase ASCII letters, digits, and underscores, without a leading underscore")
+    if not ACTION_ID_PATTERN.fullmatch(identity["PRODUCT_NOTIFICATIONS_ACTION_ID"]):
+        fail("PRODUCT_NOTIFICATIONS_ACTION_ID must contain uppercase ASCII letters, digits, and underscores, without a leading underscore")
+    if identity["PRODUCT_NOTIFICATIONS_ACTION_ID"] == identity["PRODUCT_CONTROL_PANEL_ACTION_ID"]:
+        fail("PRODUCT_NOTIFICATIONS_ACTION_ID must differ from PRODUCT_CONTROL_PANEL_ACTION_ID")
     for key in ("PRODUCT_RESOURCE_DIRECTORY", "PRODUCT_SCRIPT_DIRECTORY", "PRODUCT_PACKAGE_PREFIX"):
         if "/" in identity[key] or "\\" in identity[key]:
             fail(f"{key} must be one path component")

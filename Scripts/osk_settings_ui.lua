@@ -44,7 +44,7 @@ function M.RenderContextMenu(ctx, popupId, surfName, deps)
     if imgui.MenuItem(ctx, "Input settings...") and deps.onOpenInputSettings then deps.onOpenInputSettings(surfName) end
     ui.ItemTooltip(ctx, "Edit Product defaults or overrides for this configured Surface")
 
-    imgui.Separator(ctx)
+    imgui.Spacing(ctx)
     sliderSetting(ctx, "Zoom", theme.osk.zoom, function(value)
         theme.osk.zoom = value
         saveTheme()
@@ -119,7 +119,7 @@ function M.RenderContextMenu(ctx, popupId, surfName, deps)
     changed, theme.osk.titlebar_enabled = imgui.Checkbox(ctx, "Show titlebar", theme.osk.titlebar_enabled)
     if changed then saveTheme() end
 
-    imgui.Separator(ctx)
+    imgui.Spacing(ctx)
     changed, data.vars.label_replacements = ui.LabelReplacementEditor(
         ctx,
         "Label replacements",
@@ -132,7 +132,7 @@ function M.RenderContextMenu(ctx, popupId, surfName, deps)
         saveBehavior(data)
     end
 
-    imgui.Separator(ctx)
+    imgui.Spacing(ctx)
     osd_ui.RenderOSKPositionToggle(ctx, imgui, surfName)
     imgui.EndPopup(ctx)
 end

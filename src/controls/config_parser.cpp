@@ -174,7 +174,20 @@ static void InitializeConfiguredPages(vector<unique_ptr<Page>>& pages, ConfigLoa
     }
 }
 
+void CSurfIntegrator::ApplyProductRuntimeSettings() {
+    const string debugLevel = this->productSettings_.GetString("DebugLevel");
+    if (debugLevel == "Debug") g_debugLevel = DEBUG_LEVEL_DEBUG;
+    else if (debugLevel == "Info") g_debugLevel = DEBUG_LEVEL_INFO;
+    else if (debugLevel == "Notice") g_debugLevel = DEBUG_LEVEL_NOTICE;
+    else if (debugLevel == "Warning") g_debugLevel = DEBUG_LEVEL_WARNING;
+    else g_debugLevel = DEBUG_LEVEL_ERROR;
+    g_surfaceRawInDisplay = this->productSettings_.GetBoolean("SurfaceRawInDisplay");
+    g_surfaceInDisplay = this->productSettings_.GetBoolean("SurfaceInDisplay");
+    g_surfaceOutDisplay = this->productSettings_.GetBoolean("SurfaceOutDisplay");
+}
+
 void CSurfIntegrator::Init() {
+    ProductLog::Initialize();
     this->OpenNotificationsPanel();
     this->pages_.clear();
     this->midiSurfacesIO_.clear();
@@ -204,10 +217,11 @@ void CSurfIntegrator::Init() {
         return;
     }
 
-    ConfigLoadSummary summary { static_cast<int>(config.issues.size()), 0, config.skippedSurfaceCount };
-    for (const IntegratorConfigIssue& issue : config.issues) LogConfigIssue(configPath, issue);
     this->productSettings_ = config.productSettings;
     this->productSettingOverrides_ = config.productSettingOverrides;
+    this->ApplyProductRuntimeSettings();
+    ConfigLoadSummary summary { static_cast<int>(config.issues.size()), 0, config.skippedSurfaceCount };
+    for (const IntegratorConfigIssue& issue : config.issues) LogConfigIssue(configPath, issue);
     CreateConfiguredIo(this, config, this->midiSurfacesIO_, this->oscSurfacesIO_, configPath, summary);
     CreateConfiguredPages(this, config, this->pages_);
     CreateConfiguredSurfaces(this, config, productPaths, this->midiSurfacesIO_, this->oscSurfacesIO_, this->pages_, configPath, summary);

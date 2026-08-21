@@ -10,6 +10,7 @@
 - DAW wrappers for transport, tracks, FX, display, and utility operations.
 - Shared types, string/file/logging helpers, SysEx construction, OSC packet code, and UDP transport.
 - Generated product identity constants and typed product path resolution in `product_paths.h` and `product_paths.cpp`.
+- `product_log.*` process-wide temporary log session creation, active-file writes, ExtState path publication, and native file/folder opening.
 - Generated C++ setting metadata from `Scripts/settings_schema.conf`.
 - `settings_values.*` schema-driven defaults, scope checks, value validation, and atomic override resolution.
 - `reascript_action.*` registration and unique command resolution for installed product ReaScripts.
@@ -23,6 +24,9 @@
 - Publish a new OSD event id for every accepted request, including an identical payload, so Lua can refresh the timeout and re-evaluate runtime templates.
 - Keep the generic explicit-message flag in the OSD payload. Do not put Lua OSD template names or resolver logic in shared C++ code.
 - Write plugin logs to the product log file without calling `ShowConsoleMsg`; the Notifications ReaScript owns automatic log presentation.
+- Create one unique writable log session below the operating system temporary directory for each REAPER process. Publish its resolved ID, directory, and active file through the Log ExtState section so Lua does not build the platform path.
+- Prefix each product log record with local time in `[HH:MM:SS]` format without a calendar date.
+- Open the active product log file and session directory through the system default association. Do not force Notepad, Explorer, or another platform-specific application.
 - Shared headers have broad compile impact; avoid adding heavyweight dependencies without need.
 - Keep runtime Surface and Zone parsing compatible with OSC address tokens that start with `/`. In these formats, only `//` starts a comment, including after another token. `IsCommentedOrEmpty` must not classify a single leading `/` or `#` as a comment.
 - Resolve product-owned paths through `ProductPaths`; the product root is `REAPER/Data/<ProductResourceDirectory>`, surface files use `Surfaces/Vendor/<surface-id>.txt` or `Surfaces/User/<surface-id>.txt`, zone profiles use matching `Zones/Vendor` and `Zones/User` roots, and stable surface, profile, and operation IDs use lowercase ASCII and must remain inside their typed roots.

@@ -22,6 +22,7 @@ Current provisional values are:
 | Notifications script | `Notifications.lua` |
 | Control Panel script | `Control Panel.lua` |
 | Control Panel action ID | `REACTRLSURF_OPEN_CONTROL_PANEL` |
+| Notifications action ID | `REACTRLSURF_TOGGLE_NOTIFICATIONS` |
 | Package prefix | `ReaControlSurface` |
 | Repository URL | `https://github.com/gaabora/Reaper-ControlSurfaceIntegrator` |
 
@@ -37,7 +38,7 @@ CMake configure generates these files under `build/generated/`:
 
 Lua loads the committed `Scripts/product_identity.lua`, which reads the manifest without CMake. Entry scripts also remain committed source files. CI loads the generated `product_identity.env` after configure and uses `cmake --install` to copy the complete Lua runtime into the package tree. The ReaPack staging tool reads the same manifest directly, so it does not require CMake configure.
 
-The C++ action registry uses `PRODUCT_CONTROL_PANEL_ACTION_ID` without a leading underscore. REAPER exposes it to users and scripts as `_REACTRLSURF_OPEN_CONTROL_PANEL`. The ID is stable and does not depend on the public display name.
+The C++ action registry uses `PRODUCT_CONTROL_PANEL_ACTION_ID` and `PRODUCT_NOTIFICATIONS_ACTION_ID` without leading underscores. REAPER exposes them to users and scripts as `_REACTRLSURF_OPEN_CONTROL_PANEL` and `_REACTRLSURF_TOGGLE_NOTIFICATIONS`. These IDs are stable and do not depend on the public display name.
 
 ## Runtime structure
 
@@ -69,6 +70,8 @@ Surface, profile, and operation IDs use lowercase ASCII letters, digits, `_`, an
 Vendor zones are read-only at runtime. The runtime creates `Zones/User/<profile-id>/FX` when it initializes a configured FX profile. FX Learn and new FX zone files always write there. Before OSK edits Vendor Main, it requests confirmation and atomically copies only Main into the matching User profile. Before OSK edits a Vendor FX zone, it requests confirmation and copies only that file to the same relative User FX path. OSK then reloads the layered zones.
 
 The runtime does not read the old `CSI/` root. Legacy names and layouts belong only in the future import workflow.
+
+Disposable diagnostics do not live below the resource tree. Each REAPER process creates one unique log session at `<operating-system-temp>/reacontrolsurface/logs/<session-id>/ReaControlSurface.log`. C++ publishes the resolved paths to Lua through ExtState. The operating system can remove these logs at any time.
 
 ## Development resources
 

@@ -594,7 +594,7 @@ For each deprecated action found:
 - [ ] Zone navigation works
 - [ ] Modifier combinations function correctly
 - [ ] FX parameter control works
-- [ ] No errors in ReaControlSurface notifications or `Data/ReaControlSurface/ReaControlSurface.log`
+- [ ] No errors in ReaControlSurface notifications or the Control Panel Logging page
 
 ### Step 5: Document Changes
 
@@ -674,7 +674,7 @@ If you encounter migration issues:
 
 1. **Search Actions-Reference.md** for the current action syntax
 2. **Review examples** in the "Complete Example Zone" section
-3. **Check error logs** in ReaControlSurface notifications and `Data/ReaControlSurface/ReaControlSurface.log`
+3. **Check error logs** in ReaControlSurface notifications and the Control Panel Logging page
 4. **Test incrementally** - update one zone at a time
 
 ---

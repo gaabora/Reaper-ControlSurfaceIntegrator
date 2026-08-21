@@ -477,4 +477,23 @@ function M.RenderBindingColorPicker(ctx, configState, binding, bindingIndex, col
     return currentColor
 end
 
+function M.RenderHexColorPicker(ctx, controlId, label, currentHex, defaultHex)
+    local currentColor = parseHexColor(currentHex) or parseHexColor(defaultHex) or theme.CONFIG.default_active_color
+    local defaultColor = parseHexColor(defaultHex) or currentColor
+    local binding = { value = currentColor }
+    local model = {
+        SetActionColor = function(targetBinding, colorIndex, color)
+            targetBinding.value = normalizeColor(color)
+        end,
+        UpdateDirtyState = function() end,
+        ResetActionColor = function(targetBinding)
+            targetBinding.value = defaultColor
+            return defaultColor
+        end,
+    }
+    M.RenderBindingColorPicker(ctx, {}, binding, tostring(controlId), 1, label, currentColor, { model = model }, currentColor)
+    local changed = not colorsEqual(currentColor, binding.value)
+    return changed, changed and colorToHex(binding.value) or currentHex
+end
+
 return M

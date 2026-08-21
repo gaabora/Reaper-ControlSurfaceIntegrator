@@ -321,6 +321,7 @@ void CSurfIntegrator::PollAndHandleSettingsCommands() {
 
     this->productSettings_ = candidate.productSettings;
     this->productSettingOverrides_ = candidate.productSettingOverrides;
+    this->ApplyProductRuntimeSettings();
     for (RuntimeSettingsApplication& application : applications) application.surface->ApplySettings(application.values, application.overrides);
     PublishSettingsResponse(request.requestId, true, "Message=" + request.command + " completed\n");
 }

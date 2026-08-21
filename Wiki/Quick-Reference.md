@@ -266,16 +266,9 @@ NavType=FolderNavigator             ; Folder tracks
 
 ## Essential Commands (Debug)
 
-In `CSI.ini` for troubleshooting:
-```ini
-[Options]
-DebugLevel=Debug                ; Verbose logging
-SurfaceInDisplay=1              ; Show input display
-SurfaceOutDisplay=1             ; Show output display
-SurfaceRawInDisplay=1           ; Show raw MIDI
-```
+Open Control Panel > Logging. Enable Product overrides for `Log level`, `Surface input`, `Surface output`, or `Raw MIDI input`, then use `Save changes`. Enable the input and output records only while troubleshooting because they can create a large log quickly.
 
-NOTICE, WARNING, and ERROR messages appear through the ReaControlSurface Notifications script. Full output is stored in `Data/ReaControlSurface/ReaControlSurface.log`.
+NOTICE, WARNING, and ERROR messages appear through the ReaControlSurface Notifications script and on the Control Panel Logging page. Use `Open log file` or `Open log folder` there to access the current temporary REAPER-session log.
 
 ## Zone File Comment Syntax
 
@@ -294,7 +287,7 @@ NOTICE, WARNING, and ERROR messages appear through the ReaControlSurface Notific
 
 ## Getting Help
 
-1. Check ReaControlSurface notifications and `Data/ReaControlSurface/ReaControlSurface.log`
+1. Check ReaControlSurface notifications and the Control Panel Logging page
 2. Verify syntax against [Configuration-Format.md](Configuration-Format.md)
 3. Verify action names against [Actions-Reference.md](Actions-Reference.md)
 4. Review example zones in CSI folder

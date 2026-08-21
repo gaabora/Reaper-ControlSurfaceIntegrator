@@ -14,7 +14,6 @@
 #endif
 
 #include <iostream>
-#include <fstream>
 #include <sstream>
 #include <vector>
 #include <string>
@@ -22,9 +21,9 @@
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
-#include <ctime>
 
 #include "product_identity.h"
+#include "product_log.h"
 
 inline double int14ToNormalized(unsigned char msb, unsigned char lsb) {
     int val = lsb | (msb << 7);
@@ -82,20 +81,7 @@ inline const char* DebugLevelToString(int level) {
 }
 
 inline void LogMessage(const char* msg) {
-    std::ofstream logFile(std::string(GetResourcePath()) + "/" + ProductIdentity::ResourceInstallDirectory + "/" + ProductIdentity::LogFilename, std::ios::app);
-    if (logFile.is_open()) {
-        char timeStr[32];
-        time_t rawtime;
-        time(&rawtime);
-        struct tm timeinfo_buf;
-#ifdef _WIN32
-        localtime_s(&timeinfo_buf, &rawtime);
-#else
-        localtime_r(&rawtime, &timeinfo_buf);
-#endif
-        strftime(timeStr, sizeof(timeStr), "[%y-%m-%d %H:%M:%S] ", &timeinfo_buf);
-        logFile << timeStr << msg;
-    }
+    ProductLog::Write(msg);
 }
 
 template <size_t N, typename... Args>

@@ -10,8 +10,10 @@ local ui = require("ui_components")
 local module = {}
 
 local DEFAULT_TAB = "General"
-local DEFAULT_WIDTH = 760
+local DEFAULT_WIDTH = 1120
 local DEFAULT_HEIGHT = 560
+local MINIMUM_WIDTH = 1050
+local MINIMUM_HEIGHT = 440
 local NAVIGATION_WIDTH = 160
 local FOOTER_HEIGHT = 38
 local CLOSE_POPUP_ID = "Save changes before closing?##ControlPanelClose"
@@ -61,30 +63,16 @@ local function pollLifecycleRequests(state)
                 local contextSet, contextError = pages.SetGeneralContext(request.surface, request.page)
                 if not contextSet then state.lastStatus = tostring(contextError or "Cannot change General settings context") end
             end
+            if request.tab == "Logging" and request.logSessionId ~= "" and request.logOffset ~= "" then
+                local navigated = pages.NavigateLogging(request.logSessionId, request.logOffset)
+                if not navigated then state.lastStatus = "The notification source record is not available in the current log session." end
+            end
             selectTab(state, request.tab)
             state.focusRequested = true
         else
             state.lastStatus = "Unknown Control Panel tab: " .. tostring(request.tab)
         end
     end
-end
-
-local function renderHeader(ctx, state)
-    local configMessage, configError = pages.GetConfigurationStatus()
-    imgui.Text(ctx, identity.displayName)
-    imgui.SameLine(ctx)
-    imgui.TextDisabled(ctx, configMessage)
-    if configError ~= "" then
-        imgui.SameLine(ctx)
-        imgui.TextColored(ctx, theme.HexToImCol(theme.common.error_color, 0xFF6666FF), configError)
-    end
-    imgui.SameLine(ctx)
-    ui.Disabled(ctx, pages.IsBusy() or pages.HasAnyDirty(), function()
-        if imgui.SmallButton(ctx, "Refresh##ConfigurationStatus") then
-            local refreshed, refreshError = pages.RefreshGeneral()
-            if not refreshed then state.lastStatus = tostring(refreshError or "Cannot refresh configuration status") end
-        end
-    end)
 end
 
 local function renderNavigation(ctx, state, height)
@@ -106,14 +94,13 @@ local function renderPage(ctx, state, width, height)
             imgui.SetScrollY(ctx, state.scrollByPage[page.id] or 0)
             state.restoreScroll = false
         end
-        pages.Render(ctx, page)
+        pages.Render(ctx, page, state.fonts)
         if imgui.GetScrollY then state.scrollByPage[page.id] = imgui.GetScrollY(ctx) end
     end
     imgui.EndChild(ctx)
 end
 
 local function renderFooter(ctx, state)
-    imgui.Separator(ctx)
     local dirty = pages.HasAnyDirty()
     local busy = pages.IsBusy()
     ui.DirtyActionButton(ctx, "Save changes", dirty and not busy, function()
@@ -166,9 +153,10 @@ local function renderClosePopup(ctx, state)
     imgui.EndPopup(ctx)
 end
 
-function module.New(ctx)
+function module.New(ctx, fonts)
     local state = newState()
     state.ctx = ctx
+    state.fonts = fonts or {}
     pages.Initialize()
     return state
 end
@@ -198,6 +186,7 @@ function module.Render(state)
     if state.geometry.position then imgui.SetNextWindowPos(state.ctx, state.geometry.position.x, state.geometry.position.y, imgui.Cond_Appearing) end
     local windowSize = state.geometry.size or { x = DEFAULT_WIDTH, y = DEFAULT_HEIGHT }
     imgui.SetNextWindowSize(state.ctx, windowSize.x, windowSize.y, imgui.Cond_Appearing)
+    if imgui.SetNextWindowSizeConstraints then imgui.SetNextWindowSizeConstraints(state.ctx, MINIMUM_WIDTH, MINIMUM_HEIGHT, 10000, 10000) end
     if state.focusRequested then
         imgui.SetNextWindowFocus(state.ctx)
         state.focusRequested = false
@@ -215,8 +204,6 @@ function module.Render(state)
         local windowWidth, windowHeight = imgui.GetWindowSize(state.ctx)
         state.geometry.position = { x = windowX, y = windowY }
         state.geometry.size = { x = windowWidth, y = windowHeight }
-        renderHeader(state.ctx, state)
-        imgui.Separator(state.ctx)
         local availableWidth, availableHeight = imgui.GetContentRegionAvail(state.ctx)
         local bodyHeight = availableHeight - FOOTER_HEIGHT
         renderNavigation(state.ctx, state, bodyHeight)

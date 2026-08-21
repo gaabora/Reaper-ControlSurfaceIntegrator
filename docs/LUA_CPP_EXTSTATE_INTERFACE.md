@@ -22,8 +22,10 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 | `ReaCtrlSurf_OSD_SETTINGS` | Lua persistent | Standalone and embedded OSD appearance |
 | `ReaCtrlSurf_NOTIFICATIONS` | C++ to Lua | Notification log reader startup state |
 | `ReaCtrlSurf_NOTIFICATIONS_SETTINGS` | Lua persistent | Notifications appearance |
-| `ReaCtrlSurf_APPEARANCE_SETTINGS` | Lua persistent and session-only | Common appearance values and appearance revision notification |
+| `ReaCtrlSurf_APPEARANCE_SETTINGS` | Lua session-only | Appearance revision and live-preview state |
 | `ReaCtrlSurf_CONTROL_PANEL` | C++ and Lua | Control Panel lifecycle requests, window state, and Lua-persistent shell state |
+| `ReaCtrlSurf_LOG` | C++ to Lua | Current temporary log session ID, directory, and active file |
+| `ReaCtrlSurf_LOG_CMD` | Lua to C++ | Native open-file and open-folder requests |
 | `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Surface setting Query, Apply, and Reload requests |
 | `ReaCtrlSurf_SETTINGS` | C++ to Lua | Correlated setting responses and effective values |
 
@@ -38,9 +40,11 @@ Command=Open|Focus|SelectTab
 Tab=Devices|General|Appearance|Logging
 Surface=fp2
 Page=Home
+LogSessionId=session-1724250000000000-0
+LogOffset=1842
 ```
 
-`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Surface` and `Page` are optional navigation context for General. They identify which configured Surface scope General must query through the separate settings protocol. This lifecycle section does not carry configuration values.
+`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Surface` and `Page` are optional navigation context for General. They identify which configured Surface scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current session record that Logging selects and scrolls into view. This lifecycle section does not carry configuration values.
 
 Lua writes the session-only `State` key as `Open` after startup and `Closed` during shutdown. The stable `_REACTRLSURF_OPEN_CONTROL_PANEL` action uses this lifecycle state for its toggle value. Repeating the action while the ReaScript is active sends `Focus` and does not start a second instance.
 
@@ -123,7 +127,10 @@ Keys in `ReaCtrlSurf_OSK_CMD`:
 | `ConfigRevert` | `surface|widget` |
 | `ActionListQuery` | Empty payload |
 | `SurfaceEnabled` | `surface|0-or-1` |
+| `Open` | Any payload |
 | `ZoneCreate` | `surface|scaffoldType|zoneName|alias|navigator` |
+
+`Open` opens the OSK ReaScript without changing enabled surfaces when at least one current-Page surface is already enabled. When none is enabled, it enables every surface on the current Page, republishes their layout and state, and opens the script.
 
 `ZoneCreate` supports `main`, `home`, `go`, `subzone`, `included`, `learn`, and `fx` scaffold types. C++ resolves the active surface profile and writes only below its user profile. Creating a Main zone from Vendor Main requires confirmation and a Main-only User copy first. Creating an FX zone writes directly to the configured User FX directory. The command creates one file and does not add it to a parent zone. `zoneName` is also the file stem and uses ASCII letters, digits, `_`, and `-`. The optional alias must not contain `|`, quotes, or line breaks. The optional navigator is empty or one of the navigator names offered by the OSK dialog.
 
@@ -188,11 +195,29 @@ The standalone OSD calculates percentage width from the ReaImGui monitor work ar
 
 ## Notifications
 
-`ReaCtrlSurf_NOTIFICATIONS` contains `StartOffset`, the byte offset in `Data/ReaControlSurface/ReaControlSurface.log` from which a newly started `Notifications.lua` instance begins reading. C++ sets the value immediately before it starts the script.
+`ReaCtrlSurf_NOTIFICATIONS` contains `StartOffset`, the byte offset in the current temporary session log from which a newly started `Notifications.lua` instance begins reading. C++ sets the value immediately before it starts the script. `State` is `Open`, `Stopping`, or `Closed`; the stable `_REACTRLSURF_TOGGLE_NOTIFICATIONS` action uses it for its toggle state. `Enabled=0` prevents later CSI initialization in the same REAPER session from restarting a deliberately stopped Notifications script. The stable action writes `Command=Stop`, and Lua consumes it before shutdown. The Control Panel writes session-only `AppearancePreview` to request one temporary preview record. Notifications consumes and deletes this key. The preview does not come from the log and does not navigate to Logging.
 
-The plugin and normal Lua runtime write logs to the product log without calling `ShowConsoleMsg`. `Notifications.lua` tails new log entries and shows NOTICE, WARNING, and ERROR entries. INFO and DEBUG remain file-only. Explicit diagnostic tools such as `OSK state debug.lua` and parser self-check output may use the REAPER console when the user starts them manually.
+The plugin and normal Lua runtime write logs to the current temporary session log without calling `ShowConsoleMsg`. `Notifications.lua` tails new log entries and shows NOTICE, WARNING, and ERROR entries. INFO and DEBUG remain file-only. Explicit diagnostic tools such as `OSK state debug.lua` and parser self-check output may use the REAPER console when the user starts them manually.
 
-Notifications uses persistent `opacity` from `ReaCtrlSurf_NOTIFICATIONS_SETTINGS`. Its compiled Lua default is `0.8`. Each visible record has its own square `×` dismiss control with a shared theme size. Dismiss removes only that popup record from memory, does not remove its log data, and does not stop the Notifications script.
+Notifications uses persistent `opacity` from `ReaCtrlSurf_NOTIFICATIONS_SETTINGS`. Its compiled Lua default is `0.8`. Each visible record has its own square `×` dismiss control with a shared theme size. Dismiss removes only that popup record from memory, does not remove its log data, and does not stop the Notifications script. Each popup keeps its source session ID and record start byte offset. Clicking its body opens Logging and scrolls to that record.
+
+## Temporary Log Session
+
+C++ creates one unique directory for the current REAPER process below `<operating-system-temp>/reacontrolsurface/logs/<session-id>`. The active file is `ReaControlSurface.log`. The operating system can remove this disposable diagnostic data at any time. It must not contain required configuration or user data.
+
+Each C++ or Lua record starts with local time and severity as `[HH:MM:SS] [LEVEL]`. The record does not contain a calendar date because its session directory already identifies one REAPER process launch.
+
+`ReaCtrlSurf_LOG` contains:
+
+| Key | Payload |
+| --- | --- |
+| `SessionId` | Unique current-process session ID |
+| `Directory` | Resolved current session directory |
+| `File` | Resolved active log file |
+
+Lua reads these values and does not construct a platform temporary path. The current reduced Logging page reads NOTICE, WARNING, and ERROR records from this file. It presents them in a read-only multiline field, so the user can select and copy text. It keeps the loaded text only while the Control Panel runs. Rotation, retention, bounded in-memory loading, and advanced viewer controls are not implemented yet.
+
+Lua writes `OpenFile` or `OpenFolder` to the session-only `Request` key in `ReaCtrlSurf_LOG_CMD`. C++ consumes the request and uses the native platform shell with the operating system default association to open the active file or its session directory.
 
 ## Product and Surface Settings Protocol
 
@@ -241,24 +266,21 @@ SurfaceOption.2.Surface=xtouch
 
 General renders these pairs as one Surface dropdown. The Page value keeps equal Surface names on different Pages unambiguous. Lua does not accept a raw Surface name for this selector.
 
+The schema supports `Boolean`, `Enum`, and `Integer` setting types. Boolean values use `0` and `1` in protocol and configuration payloads. The Product-scope Logging category currently owns `DebugLevel`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay`.
+
 `Source` is `Compiled`, `Product`, or `Surface`. `Inherited` is the value that becomes effective when the explicit override is removed. C++ validates the complete candidate scope before changing runtime state. Apply writes a complete temporary file, atomically replaces the product INI, and then applies the already validated values. Reload leaves current runtime values unchanged when the file has invalid settings or cannot be matched safely to the current Pages and Surfaces.
 
 ## Lua Appearance Persistent Settings
 
-Persistent keys in `ReaCtrlSurf_APPEARANCE_SETTINGS`:
+Common Control Panel appearance is fixed at item spacing `8`, rounding `4`, and disabled opacity `0.6`. It has no user settings. Error color is not a configurable appearance value.
 
-- `item_spacing`
-- `rounding`
-- `disabled_alpha`
-- `error_color`
-
-The same section contains session-only `Revision`. Every Common, OSK, OSD, or Notifications schema save that changes persisted values increments it. `Revision` is a change notification, not a persistent setting or configuration revision.
+`ReaCtrlSurf_APPEARANCE_SETTINGS` contains session-only `Revision`. Every OSK, OSD, or Notifications schema save that changes persisted values increments it. `Revision` is a change notification, not a persistent setting or configuration revision.
 
 The Control Panel also writes a session-only live preview overlay in this section:
 
 - `PreviewActive=1` while an Appearance draft preview exists.
 - `PreviewRevision` increments after the preview is published or cleared.
-- `Preview.<group>.<setting>` contains every current draft value, where `<group>` is `Common`, `OSK`, `OSD`, or `Notifications`.
+- `Preview.<group>.<setting>` contains every current draft value, where `<group>` is `OSK`, `OSD`, or `Notifications`.
 
 Running OSK, OSD, and Notifications contexts compare both revisions. After either changes, they load persistent appearance values and then apply the active preview overlay. Save persists the draft and clears the overlay. Revert, Don't Save, and Control Panel shutdown clear the overlay without persisting it.
 

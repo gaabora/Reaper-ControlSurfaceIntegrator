@@ -61,6 +61,8 @@ private:
     int projectMetronomeSecondaryVolumeOffs_; // for double -- if invalid, use fallbacks
 
     void InitActionsDictionary();
+    void ApplyProductRuntimeSettings();
+    void PollAndHandleLogCommands();
     void PollAndHandleSettingsCommands();
 
     void PollMidiDevices() {
@@ -200,15 +202,17 @@ public:
 
     int notificationsCommandId_ = 0;
     void OpenNotificationsPanel() {
+        if (string(::GetExtState(ProductIdentity::ExtStateNotifications, "Enabled")) == "0") return;
         if (this->notificationsCommandId_ == 0) {
             this->notificationsCommandId_ = ReaScriptAction::ResolveCommandId(REASCRIPT_PATH__CSI_NOTIFICATIONS, "OpenNotificationsPanel");
             if (this->notificationsCommandId_ == 0) return;
         }
         if (GetToggleCommandState(this->notificationsCommandId_) == 1) return;
-        const filesystem::path logPath = ProductPaths::FromReaperResourcePath().LogFile();
-        const uintmax_t startOffset = filesystem::is_regular_file(logPath) ? filesystem::file_size(logPath) : 0;
+        const filesystem::path logPath = ProductLog::ActiveFile();
+        const auto startOffset = filesystem::is_regular_file(logPath) ? filesystem::file_size(logPath) : 0;
         const string startOffsetValue = to_string(startOffset);
         ::SetExtState(ProductIdentity::ExtStateNotifications, "StartOffset", startOffsetValue.c_str(), false);
+        ::SetExtState(ProductIdentity::ExtStateNotifications, "Enabled", "1", false);
         DAW::SendCommandMessage(this->notificationsCommandId_);
     }
 
@@ -289,6 +293,22 @@ public:
             }
         }
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKSurfaceEnabled: surface '%s' not found\n", surfName.c_str());
+    }
+
+    void DispatchOSKOpen() {
+        if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return;
+        if (this->HasAnyOSKEnabled()) {
+            this->OpenOSKPanel();
+            return;
+        }
+        for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) surface->SetOskEnabled(true);
+        this->PublishOSKSurfacesList();
+        for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) {
+            surface->PublishOSKLayout();
+            surface->PublishOSKLabels();
+            surface->PublishOSKState();
+        }
+        this->OpenOSKPanel();
     }
 
     void DispatchOSKConfigQuery(const string& surfName, const string& widgetName) {
@@ -443,6 +463,10 @@ public:
             auto sep = payload.find('|');
             if (sep != string::npos)
                 DispatchOSKSurfaceEnabled(payload.substr(0, sep), payload.substr(sep + 1) == "1");
+        }
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "Open")) {
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "Open", false);
+            this->DispatchOSKOpen();
         }
         if (::HasExtState(ProductIdentity::ExtStateOskCommand, "ConfigQuery")) {
             string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "ConfigQuery");
@@ -758,6 +782,7 @@ public:
             DAW::SendCommandMessage(REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES);
         }
         if (shouldRun_) this->PollAndHandleSettingsCommands();
+        if (shouldRun_) this->PollAndHandleLogCommands();
         if (shouldRun_ && pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
             PollMidiDevices();
             if (!QueuedOSD.isEmpty() && !QueuedOSD.IsAwaitFeedback()) {

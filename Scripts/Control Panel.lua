@@ -17,8 +17,8 @@ local identity = require("product_identity")
 local lifecycleProtocol = require("control_panel_protocol")
 local controlPanel = require("control_panel_ui")
 
-local ctx = host.CreateContext(identity.displayName .. " Control Panel")
-local state = controlPanel.New(ctx)
+local ctx, fonts = host.CreateContext(identity.displayName .. " Control Panel", { { key = "section", family = "sans-serif", size = 16 } })
+local state = controlPanel.New(ctx, fonts)
 
 local function main()
     if not host.IsContextValid(ctx) then return end
