@@ -2,7 +2,7 @@
 
 ## Status
 
-Tagged release CI generates a release-specific `index.xml`. It publishes the index, its SHA-256 checksum, platform extension files, and ZIP archives only after all builds and package checks pass.
+Tagged release CI generates a release-specific `index.xml`. It publishes the index, its SHA-256 checksum, platform extension files, standalone editor executables, and ZIP archives only after all builds and package checks pass.
 
 Users import `https://github.com/gaabora/Reaper-ControlSurfaceIntegrator/releases/latest/download/index.xml`. GitHub redirects this stable entry URL to the index from the latest published release. Each generated index currently contains only its tagged version, so retained downgrade history is not available yet.
 
@@ -11,6 +11,7 @@ Users import `https://github.com/gaabora/Reaper-ControlSurfaceIntegrator/release
 | Package | ReaPack target | Content |
 | --- | --- | --- |
 | `<PackagePrefix> Core` | `UserPlugins/` and `Scripts/<ProductScriptDirectory>/` | One selected platform extension, shared Lua files, and `product_identity.conf` |
+| `<PackagePrefix> Configuration Editor` | `Data/<ProductResourceDirectory>/Tools/` | One selected platform standalone editor executable |
 | `<PackagePrefix> Surface <surface-id>` | `Data/<ProductResourceDirectory>/Surfaces/Vendor/` | One vendor surface file |
 | `<PackagePrefix> Zones <profile-id>` | `Data/<ProductResourceDirectory>/Zones/Vendor/<profile-id>/` | One complete vendor zone profile |
 | `<PackagePrefix> Snippet <name>` | `Data/<ProductResourceDirectory>/Snippets/BuiltIn/` | One built-in snippet when `.snippet` files exist |
@@ -28,6 +29,8 @@ The preview core package uses these platform selectors and release asset suffixe
 
 All names before these suffixes come from `Scripts/product_identity.conf`.
 
+The Configuration Editor package uses the matching `darwin-x64`, `darwin-arm64`, `windows-x64`, or `linux-x64` release executable and installs it with the stable name `config-editor-<ProductId>` plus `.exe` on Windows. The Control Panel opens this package in ReaPack search when the executable is missing. On macOS and Linux, the plugin adds the executable permission before launch because package extraction does not guarantee that file mode.
+
 ## Generation and validation
 
 `tools/reapack/repository.py prepare` creates a temporary repository below `.reapack-build/`. Data source target names contain their complete paths below `Data/`. The index name comes from `PRODUCT_SCRIPT_DIRECTORY`, and script source target names remove the package category component so scripts install directly below `Scripts/<ProductScriptDirectory>/`. Source URLs point to the exact release tag and exact GitHub Release assets. The release workflow validates vendor surface files before package generation.
@@ -41,7 +44,7 @@ The release workflow then:
 5. Adds a SHA-256 multihash to every source.
 6. Writes `index.xml.sha256` and publishes all release files in one gated job.
 
-The core commands used after all four platform assets exist in `release-assets/` are:
+The core commands used after all platform extension and standalone editor assets exist in `release-assets/` are:
 
 ```sh
 gem install reapack-index --version 1.2.6 --no-document

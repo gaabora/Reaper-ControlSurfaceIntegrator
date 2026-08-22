@@ -76,7 +76,7 @@
 - Keep browser assets embedded so compiled executables do not need adjacent UI files.
 - Keep HTML, CSS, and browser JavaScript in their native file types under `src/ui/`. Bundle the browser JavaScript and CodeMirror dependencies through `src/ui.ts` so standalone builds still embed them.
 - Generate standalone identity and action data from repository contracts during compile. Do not source-control generated compile input or `dist/` output.
-- Build tagged standalone release archives for Windows x64, macOS Intel, macOS ARM, and Linux x64 independently from the C++ build. Do not install the editor through ReaPack.
+- Build tagged standalone release archives and raw executables for Windows x64, macOS Intel, macOS ARM, and Linux x64 independently from the C++ build. Publish raw executables through the separate platform-specific ReaPack Configuration Editor package, not through the Core package.
 
 ## Verification
 

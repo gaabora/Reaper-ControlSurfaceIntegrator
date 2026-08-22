@@ -36,6 +36,13 @@ PLUGIN_ASSETS = (
     ("linux64", "linux-x86_64", ".so"),
 )
 
+CONFIG_EDITOR_ASSETS = (
+    ("darwin64", "darwin-x64", ""),
+    ("darwin-arm64", "darwin-arm64", ""),
+    ("win64", "windows-x64", ".exe"),
+    ("linux64", "linux-x64", ""),
+)
+
 STABLE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 ACTION_ID_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 VERSION_PATTERN = re.compile(r"^\d")
@@ -209,6 +216,21 @@ def prepare(args):
 
     core_manifest = stage_root / script_directory / f"{package_prefix} Core.ext"
     write_manifest(core_manifest, f"{display_name} core extension and shared scripts", owner, args.version, args.tag, repository_url, core_provides)
+
+    editor_provides = []
+    editor_base_name = f"config-editor-{identity['PRODUCT_ID']}"
+    for platform, asset_suffix, executable_suffix in CONFIG_EDITOR_ASSETS:
+        asset_name = f"{editor_base_name}-{asset_suffix}{executable_suffix}"
+        target_name = f"{editor_base_name}{executable_suffix}"
+        local_path = asset_root / asset_name
+        require_regular_file(local_path, f"{platform} configuration editor asset")
+        url = release_url(repository_url, args.tag, asset_name)
+        target_file = (Path(resource_directory) / "Tools" / target_name).as_posix()
+        editor_provides.append(f"[{platform}] {target_file} {url}")
+        install_path = Path("Data") / resource_directory / "Tools" / target_name
+        add_source(source_records, url, local_path.relative_to(root), target_file, install_path, platform=platform)
+    editor_manifest = stage_root / resource_directory / "Tools" / f"{package_prefix} Configuration Editor.data"
+    write_manifest(editor_manifest, f"{display_name} standalone configuration editor", owner, args.version, args.tag, repository_url, editor_provides)
 
     vendor_surfaces_root = root / "resources" / "Surfaces" / "Vendor"
     for surface_path in sorted(vendor_surfaces_root.glob("*.txt")):

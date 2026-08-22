@@ -38,6 +38,8 @@ public:
     const std::filesystem::path& ReaperResourceRoot() const;
     std::filesystem::path ProductRoot() const;
     std::filesystem::path ConfigFile() const;
+    std::filesystem::path ToolsRoot() const;
+    std::filesystem::path ConfigurationEditorExecutable() const;
     std::filesystem::path TemporaryLogsRoot() const;
     std::filesystem::path SurfacesRoot() const;
     std::filesystem::path VendorSurfacesRoot() const;

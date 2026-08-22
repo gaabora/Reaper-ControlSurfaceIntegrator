@@ -49,6 +49,16 @@ local function selectTab(state, tabId)
     return true
 end
 
+local function requestClose(state)
+    if pages.IsBusy() then
+        state.lastStatus = "Wait for the current settings operation"
+    elseif pages.HasAnyDirty() then
+        state.closePopupPending = true
+    else
+        state.open = false
+    end
+end
+
 local function pollLifecycleRequests(state)
     local request, requestError = lifecycleProtocol.Poll()
     if requestError then
@@ -56,6 +66,7 @@ local function pollLifecycleRequests(state)
         return
     end
     if not request then return end
+    if request.command == "Close" then requestClose(state) return end
     if request.command == "Open" or request.command == "Focus" then state.focusRequested = true end
     if request.command == "SelectTab" then
         if pages.Find(request.tab) then
@@ -214,13 +225,7 @@ function module.Render(state)
     imgui.End(state.ctx)
 
     if not windowOpen then
-        if pages.IsBusy() then
-            state.lastStatus = "Wait for the current settings operation"
-        elseif pages.HasAnyDirty() then
-            state.closePopupPending = true
-        else
-            state.open = false
-        end
+        requestClose(state)
     end
     renderClosePopup(state.ctx, state)
     imgui.PopStyleVar(state.ctx, 3)

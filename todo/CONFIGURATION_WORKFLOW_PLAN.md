@@ -169,10 +169,10 @@ Ready when valid files round-trip without data loss and malformed fixtures produ
 - ✅ Add standalone compile targets that embed generated product identity and runtime actions.
 - ✅ Add platform defaults for the REAPER data path and prefill the path field.
 - ✅ Route fixed UI text through a typed i18n catalog and use beginner-facing labels.
-- Build, verify, sign or package standalone executables for supported operating systems so users do not install Bun.
-- ✅ Keep plugin-triggered editor launch as an optional later integration, not a requirement for the first editor release.
+- [ ] Build, verify, sign, and publish standalone executables for supported operating systems so users do not install Bun.
+- ✅ Add plugin-triggered editor launch and a separate platform-specific ReaPack Configuration Editor package.
 - ✅ Run the Bun tests and local HTTP checks.
-- Run the standalone build after the planned interface changes.
+- [ ] Run the standalone build after the planned interface changes.
 
 Ready when a user can safely inspect and edit the new configuration structure from a standalone local application.
 

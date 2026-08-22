@@ -85,50 +85,59 @@ The Devices tab replaces the device and assignment parts of the native C++ dialo
 
 The first release can show these sections as read-only diagnostics. Editing starts only after the C++ configuration protocol can validate and save the complete model.
 
+- ✅ Present the three sections in workflow order: create an I/O definition, assign it to a Page, then optionally add listeners.
+- ✅ Use compact master-detail lists so only the selected I/O definition, Page assignment, or listener opens for editing.
+- ✅ Use three columns for Pages and Surface assignments: Pages, assignments on the selected Page, and the selected assignment editor.
+- ✅ Keep runtime state outside the editable draft form and use `Reload saved configuration` for an explicit saved-state reload.
+- ✅ Put the standalone editor and square `↻` reload actions at the right edge of the internal section row.
+- ✅ Render I/O definitions, Pages, Surface assignments, and Relationships in rounded bordered lists with row-local Duplicate and `×` Remove actions.
+- ✅ Show one green `●` or red `×` runtime state with a beginner-facing recovery instruction instead of repeating MIDI input and output status text.
+
 ### I/O definitions
 
-- [ ] List MIDI definitions with name, channel count, input port, output port, refresh rate, and maximum messages per run.
-- [ ] List OSC definitions with name, type, receive port, transmit address, transmit port, channel count, and maximum packets per run.
-- [ ] Show whether each configured port is currently available.
-- [ ] Provide Add, Duplicate, Edit, and Remove operations in the draft.
-- [ ] Detect duplicate names and invalid numeric ranges before Save.
-- [ ] Confirm Save when a change will disconnect and reconnect an active device.
-- [ ] Return a clear C++ error if a configured MIDI or OSC endpoint cannot open.
+- ✅ List MIDI definitions with name, channel count, input port, output port, refresh rate, and maximum messages per run.
+- ✅ List OSC definitions with name, type, receive port, transmit address, transmit port, channel count, and maximum packets per run.
+- ✅ Show whether each configured port is currently available.
+- ✅ List only named REAPER MIDI ports, keep `Not selected` first, and preserve only the selected unavailable port as `Unavailable (#X)`.
+- ✅ Provide Add, Duplicate, Edit, and Remove operations in the draft.
+- ✅ Detect duplicate names and invalid numeric ranges before Save.
+- ✅ Confirm Save when a change will disconnect and reconnect an active device.
+- ✅ Return a clear C++ error if a configured MIDI or OSC endpoint cannot open.
 
 ### Pages and Surface assignments
 
-- [ ] List Pages and their assigned surfaces without hiding skipped or invalid assignments.
-- [ ] Edit the Page name and current Page flags.
-- [ ] Edit the assignment name, I/O definition, Surface template, start channel, Main Zone profile, FX Zone profile, and Surface-scoped settings.
-- [ ] Filter Surface templates by available Vendor and User files. Show the active source and whether User overrides Vendor.
-- [ ] Keep the Surface template selector separate from the Zone profile selector.
-- [ ] Default to one `Zone profile` selector for Main and FX.
-- [ ] Add a `Use a different FX profile` advanced option that exposes separate Main and FX selectors.
-- [ ] When the selected Surface template ID has a profile with the same ID, offer it as the default. Do not select it silently if another profile is already saved.
-- [ ] Show the resolved Main source and the Vendor plus User FX layers before Save.
-- [ ] Show source badges: `Vendor`, `User`, `Vendor + User`, and `Missing Main`.
+- ✅ List Pages and their assigned surfaces without hiding skipped or invalid assignments.
+- ✅ Edit the Page name and current Page flags.
+- ✅ Edit the assignment name, I/O definition, Surface template, start channel, Main Zone profile, FX Zone profile, and Surface-scoped settings.
+- ✅ Filter Surface templates by available Vendor and User files. Show the active source and whether User overrides Vendor.
+- ✅ Keep the Surface template selector separate from the Zone profile selector.
+- ✅ Default to one `Zone profile` selector for Main and FX.
+- ✅ Add a `Use a different FX profile` advanced option that exposes separate Main and FX selectors.
+- ✅ When the selected Surface template ID has a profile with the same ID, offer it as the default. Do not select it silently if another profile is already saved.
+- ✅ Show the resolved Main source and the Vendor plus User FX layers before Save.
+- ✅ Show source badges: `Vendor`, `User`, `Vendor + User`, and `Missing Main`.
 
 ### Missing Zone profile behavior
 
 The GUI must not assume that every Surface template has a matching Vendor profile.
 
-- [ ] Build the profile list from the union of valid Vendor and User profile IDs.
-- [ ] If the selected Surface template has no profile with the same ID, keep the assignment incomplete and show `Select or create a Zone profile`.
-- [ ] Offer an existing compatible profile first.
-- [ ] Offer `Create User profile` for a new profile ID. Create a valid minimal Main scaffold through C++, not by direct Lua file writes.
-- [ ] Offer `Copy to User` when a Vendor profile exists and the user wants an editable Main copy.
-- [ ] Offer `Open standalone editor` for import, detailed zone editing, and dependency work.
-- [ ] Never create or change files under `Zones/Vendor` from the Control Panel.
-- [ ] Never silently replace a missing profile with an unrelated profile.
-- [ ] Block Save when the Main profile is missing or invalid.
-- [ ] Permit an empty FX layer only when the Main profile is valid. Let C++ prepare the User FX path when the assignment is applied.
+- ✅ Build the profile list from the union of valid Vendor and User profile IDs.
+- ✅ If the selected Surface template has no profile with the same ID, keep the assignment incomplete and show `Select or create a Zone profile`.
+- ✅ Offer an existing compatible profile first.
+- ✅ Offer `Create User profile` for a new profile ID. Create a valid minimal Main scaffold through C++, not by direct Lua file writes.
+- ✅ Offer `Copy to User` when a Vendor profile exists and the user wants an editable Main copy.
+- ✅ Offer `Open standalone editor` for import, detailed zone editing, and dependency work. Open ReaPack package search when its executable is not installed.
+- ✅ Never create or change files under `Zones/Vendor` from the Control Panel.
+- ✅ Never silently replace a missing profile with an unrelated profile.
+- ✅ Block Save when the Main profile is missing or invalid.
+- ✅ Permit an empty FX layer only when the Main profile is valid. Let C++ prepare the User FX path when the assignment is applied.
 
 ### Broadcaster and listener relationships
 
-- [ ] Show relationships as Page-local links between configured surface assignments.
-- [ ] Edit Go Home, Modifiers, FX Menu, Selected Track FX, Selected Track Sends, and Selected Track Receives categories.
-- [ ] Reject links to missing, skipped, or cross-Page assignments.
-- [ ] Detect duplicate and circular relationships if the runtime does not support them.
+- ✅ Show relationships as Page-local links between configured surface assignments.
+- ✅ Edit Go Home, Modifiers, FX Menu, Selected Track FX, Selected Track Sends, and Selected Track Receives categories.
+- ✅ Reject links to missing, skipped, or cross-Page assignments.
+- ✅ Detect duplicate and circular relationships if the runtime does not support them.
 
 ### C++ dialog migration
 
@@ -136,10 +145,10 @@ Direct replacement of [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cp
 
 - ✅ Phase A: add an `Open Control Panel` button to the native dialog. Launch or focus Lua first, then close the REAPER-owned parent dialog as Cancel so it does not remain modal and unfinished native edits are not applied.
 - [ ] Manually verify that `Open Control Panel` closes the native parent dialog on macOS and does not save unfinished native edits.
-- [ ] Phase B: add a C++ read-only query that returns the complete parsed device, Page, assignment, listener, issue, and active-state model.
-- [ ] Phase C: make the Lua Devices tab the preferred read-only view while all editing remains native.
-- [ ] Phase D: add C++ draft validation and transactional Save for the complete configuration model.
-- [ ] Phase E: enable Lua editing one section at a time, in this order: assignments and profiles, I/O definitions, Pages, then listeners.
+- ✅ Phase B: add a C++ read-only query that returns the complete parsed device, Page, assignment, listener, issue, and active-state model.
+- ✅ Phase C: make the Lua Devices tab the preferred read-only view while all editing remains native.
+- ✅ Phase D: add C++ draft validation and transactional Save for the complete configuration model.
+- ✅ Phase E: enable Lua editing one section at a time, in this order: assignments and profiles, I/O definitions, Pages, then listeners.
 - [ ] Phase F: compare native and Lua save output with representative MIDI and OSC configurations.
 - [ ] Phase G: replace the native editor with a small launcher and status dialog only after feature parity and manual checks on Windows, macOS, and Linux.
 - [ ] Keep the native launcher available because REAPER owns the configuration callback and expects a native window handle.
@@ -268,12 +277,12 @@ Initial action contract:
 
 | C++ `idStr` | External named command | Public purpose | Toggle |
 | --- | --- | --- | --- |
-| `REACTRLSURF_OPEN_CONTROL_PANEL` | `_REACTRLSURF_OPEN_CONTROL_PANEL` | Open or focus the Control Panel | On while open |
+| `REACTRLSURF_OPEN_CONTROL_PANEL` | `_REACTRLSURF_OPEN_CONTROL_PANEL` | Open or close the Control Panel | On while open |
 | `REACTRLSURF_OPEN_OSK` | `_REACTRLSURF_OPEN_OSK` | Open or focus the OSK | On while at least one OSK window is active |
 | `REACTRLSURF_TOGGLE_OSD` | `_REACTRLSURF_TOGGLE_OSD` | Start or stop the standalone OSD | On while active |
 | `REACTRLSURF_TOGGLE_NOTIFICATIONS` | `_REACTRLSURF_TOGGLE_NOTIFICATIONS` | Start or stop Notifications | On while active |
 
-Register `custom_action_register_t.idStr` without a leading underscore. REAPER exposes the named command with a leading underscore to `NamedCommandLookup`, scripts, and user configuration. The exact public label can contain the configured product name. The stable ID must not change during a product rename. Invoking an active Open action focuses its window and does not close it. Invoking a Toggle action changes its active state.
+Register `custom_action_register_t.idStr` without a leading underscore. REAPER exposes the named command with a leading underscore to `NamedCommandLookup`, scripts, and user configuration. The exact public label can contain the configured product name. The stable ID must not change during a product rename. The Control Panel user action toggles its window. Programmatic Open, Focus, and Select Tab calls do not toggle an existing panel closed. Other Open actions focus an existing window unless their own contract says that they toggle.
 
 ## Reasonus-Native Assessment
 
@@ -300,20 +309,20 @@ If code is copied instead of reimplemented, verify its MIT license notice and at
 
 ### Control Panel lifecycle operations
 
-- ✅ Keep the Phase 1 protocol limited to versioned Open, Focus, and Select Tab requests plus the window lifecycle state required by the stable action.
+- ✅ Keep the lifecycle protocol limited to versioned Open, Close, Focus, and Select Tab requests plus the window lifecycle state required by the stable action.
 - ✅ Launch the Lua entry script when the Control Panel is not active. When it is already active, send a Focus request instead of starting a second script instance.
 - ✅ Do not design the complete Devices payload in Phase 1. Reuse the existing settings protocol in Phase 2 and add the Devices model in Phase 4.
 
 ### Device configuration operations
 
 - [ ] Define versioned `Query`, `Validate`, `Apply`, `Reload`, and `Status` operations for the complete device configuration model.
-- [ ] Treat the internal `Apply` operation as the implementation of the user-facing `Save changes` command. Do not show a separate Apply button.
-- [ ] Return a configuration revision or source hash with every query.
-- [ ] Reject Apply when the saved file changed after the draft was opened.
+- ✅ Treat the internal `Apply` operation as the implementation of the user-facing `Save changes` command. Do not show a separate Apply button.
+- ✅ Return a configuration revision or source hash with every query.
+- ✅ Reject Apply when the saved file changed after the draft was opened.
 - [ ] Return structured field errors plus full parser issues.
-- [ ] Write a completed temporary file, validate it, replace the target atomically, and reload only after validation succeeds.
-- [ ] Keep the active runtime configuration unchanged when validation or saving fails.
-- [ ] Report devices that failed to reconnect and keep the saved versus active state clear.
+- ✅ Write a completed temporary file, validate it, replace the target atomically, and reload only after validation succeeds.
+- ✅ Keep the active runtime configuration unchanged when validation or saving fails.
+- ✅ Report devices that failed to reconnect and keep the saved versus active state clear.
 
 ### General and Logging operations
 
@@ -335,10 +344,10 @@ If code is copied instead of reimplemented, verify its MIT license notice and at
 - ✅ Add the Control Panel entry script, shell, navigation, page module interface, draft status, and close warning.
 - ✅ Add stable C++ registration for the Control Panel action.
 - ✅ Open the Control Panel from the native configuration dialog without removing current controls.
-- ✅ Manually verify in REAPER that the stable action opens or focuses one window and that the action state follows the Lua lifecycle.
+- [ ] Manually verify in REAPER that the stable action opens a closed panel, closes an open panel, shows the dirty-draft close prompt, and follows the Lua lifecycle state.
 - [ ] Manually verify that the native button opens or focuses Lua, closes the blocking native parent, and does not apply unfinished native edits.
 
-Ready when REAPER can open or focus one Control Panel window and its action state is correct.
+Ready when REAPER can toggle one Control Panel window, programmatic callers can open or focus it, and its action state is correct.
 
 ### ✅ Phase 2. General and Appearance - complete
 
@@ -366,20 +375,24 @@ Ready when all existing input and visual settings are available from the Control
 
 Ready when the user can change logging behavior, inspect the log, and control notifications from stable REAPER actions.
 
-### Phase 4. Read-only Devices
+### ✅ Phase 4. Read-only Devices
 
-- [ ] Add the complete C++ device configuration query and runtime status response.
-- [ ] Render I/O definitions, Pages, Surface assignments, Zone profiles, listeners, and parser issues.
-- [ ] Show missing devices, Surface templates, and Main Zone profiles without hiding invalid assignments.
+- ✅ Add the complete C++ device configuration query and runtime status response.
+- ✅ Render I/O definitions, Pages, Surface assignments, Zone profiles, listeners, and parser issues.
+- ✅ Show missing devices, Surface templates, and Main Zone profiles without hiding invalid assignments.
 
 Ready when the Lua view explains the complete saved and active device configuration better than the native dialog.
 
 ### Phase 5. Device editing and Zone profiles
 
-- [ ] Add complete draft editing and C++ validation.
-- [ ] Add Zone profile selection, advanced separate Main and FX selection, User profile creation, and Vendor-to-User copy operations.
-- [ ] Add transactional save, reload, reconnect status, conflict detection, and Revert.
-- [ ] Add Page-local listener editing.
+- ✅ Add complete draft editing and C++ validation.
+- ✅ Add Zone profile selection, advanced separate Main and FX selection, User profile creation, and Vendor-to-User copy operations.
+- ✅ Add transactional save, reload, reconnect status, conflict detection, and Revert.
+- ✅ Add Page-local listener editing.
+- ✅ Replace the expanded diagnostic forms with the three-section master-detail Devices workflow.
+- ✅ Populate MIDI port selectors with current REAPER device names while preserving only an unavailable saved port index.
+- ✅ Add a separate platform-specific ReaPack package for the standalone configuration editor executable and add its Control Panel launcher.
+- [ ] Compare native and Lua save output with representative MIDI and OSC configurations.
 
 Ready when representative MIDI and OSC configurations produce the same valid result from the native and Lua editors.
 
@@ -404,7 +417,7 @@ Ready when normal configuration uses Lua and the REAPER native callback still gi
 - [ ] OSK, OSD, and Notifications share visual tokens but keep feature-specific settings.
 - [ ] Notifications default to opacity `0.8` and can be dismissed or stopped.
 - [ ] Logging uses the product log and does not open the REAPER console automatically.
-- [ ] Stable REAPER actions open or focus every product GUI and report correct toggle state.
+- [ ] Stable REAPER actions follow each GUI's documented Open or Toggle behavior and report correct toggle state.
 - [ ] The standalone Bun editor remains the only full editor for surface, zone, snippet, import, and batch work.
 - [ ] The native configuration window remains available until Lua feature parity is verified.
 
@@ -412,7 +425,7 @@ Ready when normal configuration uses Lua and the REAPER native callback still gi
 
 - [ ] Open the Control Panel from the REAPER Action List and from the native Control/OSC/Web configuration entry.
 - [ ] Confirm that the native parent closes after `Open Control Panel` and that its unfinished changes are discarded.
-- [ ] Open the same action again and confirm that it focuses the existing window instead of creating a second one.
+- [ ] Open the same stable action again and confirm that it closes the existing window after the normal unsaved-change prompt. Confirm that internal notification, OSK, and native-dialog requests still open or focus one existing window instead of toggling it closed.
 - [ ] Confirm that General lists every configured assignment as `Page / Surface`, then change a Product setting and a Surface override and verify inheritance after reload.
 - [ ] Change values in every Appearance group and confirm that running OSK, OSD, and Notifications preview each change before Save.
 - [ ] Preview an Appearance change, use Revert and `Don't Save`, and confirm that the persisted quick-view value is restored.

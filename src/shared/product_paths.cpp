@@ -84,6 +84,14 @@ std::filesystem::path ProductPaths::StableIdFile(const std::filesystem::path& ro
 const std::filesystem::path& ProductPaths::ReaperResourceRoot() const { return this->reaperResourceRoot_; }
 std::filesystem::path ProductPaths::ProductRoot() const { return this->reaperResourceRoot_ / ProductIdentity::ResourceInstallDirectory; }
 std::filesystem::path ProductPaths::ConfigFile() const { return this->ProductRoot() / ProductIdentity::ConfigFilename; }
+std::filesystem::path ProductPaths::ToolsRoot() const { return this->ProductRoot() / "Tools"; }
+std::filesystem::path ProductPaths::ConfigurationEditorExecutable() const {
+#ifdef _WIN32
+    return this->ToolsRoot() / (std::string("config-editor-") + ProductIdentity::ProductId + ".exe");
+#else
+    return this->ToolsRoot() / (std::string("config-editor-") + ProductIdentity::ProductId);
+#endif
+}
 std::filesystem::path ProductPaths::TemporaryLogsRoot() const { return std::filesystem::temp_directory_path() / ProductIdentity::ProductId / "logs"; }
 std::filesystem::path ProductPaths::SurfacesRoot() const { return this->ProductRoot() / "Surfaces"; }
 std::filesystem::path ProductPaths::VendorSurfacesRoot() const { return this->SurfacesRoot() / "Vendor"; }

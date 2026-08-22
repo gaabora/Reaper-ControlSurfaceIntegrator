@@ -114,7 +114,7 @@ void Write(const char* message) {
 #else
     localtime_r(&rawTime, &localTime);
 #endif
-    std::strftime(timeText, sizeof(timeText), "[%H:%M:%S] ", &localTime);
+    strftime(timeText, sizeof(timeText), "[%H:%M:%S] ", &localTime);
     const std::string text = message ? message : "";
     logFile << timeText << text;
     if (text.empty() || text.back() != '\n') logFile << '\n';

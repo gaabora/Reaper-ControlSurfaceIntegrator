@@ -13,7 +13,7 @@ function errorCodes(source: string): string[] {
 
 describe("product settings", () => {
     test("accepts Product settings and Surface overrides", () => {
-        const source = "Version=7.0\nSettings DefaultModifierMode=Latch HoldDelayMs=1000 LongHoldDelayMs=2000\nPageName=Home PageFollowsMCP=No SynchPages=No ScrollLink=No ScrollSynch=No\nSurface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0 HoldDelayMs=750 LongHoldDelayMs=1500\n";
+        const source = "Version=7.0\nSettings DefaultModifierMode=Latch HoldDelayMs=1000 LongHoldDelayMs=2000 SurfaceInDisplay=1\nPageName=Home PageFollowsMCP=No SynchPages=No ScrollLink=No ScrollSynch=No\nSurface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0 HoldDelayMs=750 LongHoldDelayMs=1500\n";
         expect(errorCodes(source)).toEqual([]);
     });
 
@@ -24,6 +24,8 @@ describe("product settings", () => {
         expect(invalidEnum).toContain("product.setting.enum");
         const invalidRange = errorCodes("Version=7.0\nSettings HoldDelayMs=10\n");
         expect(invalidRange).toContain("product.setting.range");
+        const invalidBoolean = errorCodes("Version=7.0\nSettings SurfaceInDisplay=Yes\n");
+        expect(invalidBoolean).toContain("product.setting.boolean");
         const invalidRelationship = errorCodes("Version=7.0\nSettings HoldDelayMs=1000 LongHoldDelayMs=500\n");
         expect(invalidRelationship).toContain("product.setting.relationship");
     });

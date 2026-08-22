@@ -25,6 +25,11 @@ interface SettingOverrideSet {
 }
 
 function validateSettingValue(definition: SettingDefinition, value: string, line: number, diagnostics: Diagnostic[], documentPath?: string): boolean {
+    if (definition.type === "boolean") {
+        if (value === "0" || value === "1") return true;
+        addDiagnostic(diagnostics, "error", "product.setting.boolean", `${definition.name} must be 0 or 1`, line, documentPath);
+        return false;
+    }
     if (definition.type === "enum") {
         if (definition.enumValues?.includes(value)) return true;
         addDiagnostic(diagnostics, "error", "product.setting.enum", `${definition.name} must be one of ${(definition.enumValues ?? []).join(", ")}`, line, documentPath);

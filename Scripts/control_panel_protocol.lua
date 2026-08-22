@@ -4,6 +4,7 @@ local module = {}
 local requestCounter = 0
 
 local VALID_COMMANDS = {
+    Close = true,
     Focus = true,
     Open = true,
     SelectTab = true,
@@ -81,7 +82,8 @@ function module.Open(tab, options)
     if not reaper or not reaper.NamedCommandLookup or not reaper.Main_OnCommand then return false, "REAPER action API is not available" end
     local commandId = reaper.NamedCommandLookup("_" .. identity.controlPanelActionId)
     if not commandId or commandId <= 0 then return false, "Control Panel action is not registered" end
-    reaper.Main_OnCommand(commandId, 0)
+    local alreadyOpen = reaper.GetExtState(identity.extState.controlPanel, "State") == "Open"
+    if not alreadyOpen then reaper.Main_OnCommand(commandId, 0) end
     if tab and tab ~= "" then publishSelectTab(tab, options) end
     return true
 end

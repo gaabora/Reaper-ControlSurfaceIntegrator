@@ -28,6 +28,8 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 | `ReaCtrlSurf_LOG_CMD` | Lua to C++ | Native open-file and open-folder requests |
 | `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Surface setting Query, Apply, and Reload requests |
 | `ReaCtrlSurf_SETTINGS` | C++ to Lua | Correlated setting responses and effective values |
+| `ReaCtrlSurf_DEVICES_CMD` | Lua to C++ | Complete device configuration Query, validation, Apply, User Zone profile requests, and standalone editor launch |
+| `ReaCtrlSurf_DEVICES` | C++ to Lua | Saved device configuration, resource availability, parser issues, and matching runtime status |
 
 ## Control Panel Lifecycle
 
@@ -36,7 +38,7 @@ C++ writes one session-only `Request` entry in `ReaCtrlSurf_CONTROL_PANEL`. Lua 
 ```text
 Version=1
 RequestId=1
-Command=Open|Focus|SelectTab
+Command=Open|Close|Focus|SelectTab
 Tab=Devices|General|Appearance|Logging
 Surface=fp2
 Page=Home
@@ -44,9 +46,9 @@ LogSessionId=session-1724250000000000-0
 LogOffset=1842
 ```
 
-`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Surface` and `Page` are optional navigation context for General. They identify which configured Surface scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current session record that Logging selects and scrolls into view. This lifecycle section does not carry configuration values.
+`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Close` performs the normal close flow and shows the Save, Don't Save, and Cancel prompt when the draft is dirty. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Surface` and `Page` are optional navigation context for General. They identify which configured Surface scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current session record that Logging selects and scrolls into view. This lifecycle section does not carry configuration values.
 
-Lua writes the session-only `State` key as `Open` after startup and `Closed` during shutdown. The stable `_REACTRLSURF_OPEN_CONTROL_PANEL` action uses this lifecycle state for its toggle value. Repeating the action while the ReaScript is active sends `Focus` and does not start a second instance.
+Lua writes the session-only `State` key as `Open` after startup and `Closed` during shutdown. The stable `_REACTRLSURF_OPEN_CONTROL_PANEL` action uses this lifecycle state for its toggle value. The user action opens a closed panel and sends `Close` to an open panel. Programmatic calls from the native dialog, OSK, and Notifications still open, focus, or select a tab without toggling the panel closed.
 
 Lua also stores these persistent shell keys in the same section:
 
@@ -218,6 +220,37 @@ Each C++ or Lua record starts with local time and severity as `[HH:MM:SS] [LEVEL
 Lua reads these values and does not construct a platform temporary path. The current reduced Logging page reads NOTICE, WARNING, and ERROR records from this file. It presents them in a read-only multiline field, so the user can select and copy text. It keeps the loaded text only while the Control Panel runs. Rotation, retention, bounded in-memory loading, and advanced viewer controls are not implemented yet.
 
 Lua writes `OpenFile` or `OpenFolder` to the session-only `Request` key in `ReaCtrlSurf_LOG_CMD`. C++ consumes the request and uses the native platform shell with the operating system default association to open the active file or its session directory.
+
+## Devices Protocol
+
+Lua writes one session-only `Request` entry in `ReaCtrlSurf_DEVICES_CMD`. The supported commands are `Query`, `Validate`, `Apply`, `CreateProfile`, `CopyProfile`, and `OpenEditor`:
+
+```text
+Version=1
+RequestId=172345_1
+Command=Query|Validate|Apply|CreateProfile|CopyProfile|OpenEditor
+```
+
+C++ consumes and deletes the request, parses the current product configuration, compares its valid records with active runtime objects, and writes `Response_<RequestId>` in `ReaCtrlSurf_DEVICES`. Lua consumes and deletes its response. A client can cancel its own pending request before C++ consumes it.
+
+`Validate` and `Apply` include the `ExpectedRevision` returned by Query and the complete draft as one-based `ConfigLine.<index>` properties. C++ rejects an outdated revision, parses and validates the complete candidate, and checks names, numeric ranges, Surface templates, Main Zone profiles, assignment I/O references, and Page-local listener relationships. `Apply` replaces the configuration atomically, prepares missing User FX directories, and asks REAPER to reconnect CSI. `CreateProfile` creates a minimal Main scaffold and empty FX directory only under the User profile root. `CopyProfile` copies Vendor Main to the matching User profile and never changes Vendor files. `OpenEditor` launches the installed standalone editor through the system shell. Query returns `EditorAvailable=1` only when its platform executable exists in the product Tools directory.
+
+Lua builds the complete candidate through `devices_model.lua`. The serializer includes the Product and Surface setting overrides returned by Query, so a Devices save does not omit settings owned by General or Logging. The Control Panel keeps the queried snapshot for Revert and considers only the serialized candidate when calculating Devices dirty state. Apply requires user confirmation because reconnecting CSI temporarily disconnects active surfaces.
+
+Every response starts with `Version=1` and `Status=OK|ERROR`. An error adds `Message`. A successful response contains:
+
+- The current runtime Page and any fatal configuration error.
+- Every parsed MIDI definition, including ports, resolved REAPER device names, refresh rate, message limit, and whether a matching runtime I/O object exists. An empty resolved device name means that the saved MIDI port is missing.
+- Every currently named REAPER MIDI input and output option as a display name plus its zero-based port index. Empty REAPER device slots are omitted. Lua adds `Not selected` and keeps only the saved unavailable index as a temporary `Unavailable (#X)` option.
+- Every parsed OSC definition, including endpoints, packet limit, and whether a matching runtime I/O object exists.
+- Every parsed Page with its saved navigation flags, active/current state, Surface assignments, and listeners.
+- Each Surface assignment's saved I/O type, template ID, Main and FX profile IDs, start channel, matching I/O and Surface runtime state, selected User or Vendor template source, selected User or Vendor Main source, and available User and Vendor FX sources. `Missing` and `Invalid` resource states remain visible in the assignment.
+- Each listener's broadcaster, target, categories, and whether both required runtime Surfaces exist on that Page.
+- Parser and setting issues with source line numbers, plus the parser's skipped Surface count.
+
+Counts and nested records use one-based property prefixes such as `Midi.1.*`, `Osc.1.*`, `Page.1.Surface.1.*`, `Page.1.Listener.1.*`, and `Issue.1.*`. Protocol values cannot contain line breaks; C++ replaces them with spaces.
+
+The Devices page requests this snapshot when the Control Panel starts and when the user selects `Reload saved configuration`. The page uses three ordered master-detail sections: I/O Devices, Pages & Surfaces, and Listeners. The response also returns a configuration revision, the union of User and Vendor Zone profile IDs, the available Surface template IDs, and Product and Surface setting overrides required to serialize a complete draft without reading the product INI.
 
 ## Product and Surface Settings Protocol
 

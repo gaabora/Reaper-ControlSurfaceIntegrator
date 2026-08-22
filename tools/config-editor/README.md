@@ -22,7 +22,7 @@ This Bun and TypeScript application provides a local browser editor and its loss
 - A typed English UI text catalog with parameter replacement.
 - Standalone compile targets for Windows, macOS, and Linux.
 
-Plugin-triggered launch is optional and is not part of the first local editor.
+The plugin Control Panel can launch the installed standalone editor from Devices.
 
 ## Commands
 
@@ -147,7 +147,7 @@ Tagged release CI builds and publishes these standalone ZIP archives:
 - `config-editor-<ProductId>-darwin-arm64.zip`
 - `config-editor-<ProductId>-linux-x64.zip`
 
-The editor runs separately from REAPER and is not installed through ReaPack.
+The editor runs separately from REAPER. Release CI publishes both the ZIP archives and raw platform executables. The separate `<PackagePrefix> Configuration Editor` ReaPack package installs the matching executable below `Data/<ProductResourceDirectory>/Tools/`. It is not part of the Core package.
 
 ## Lossless model
 

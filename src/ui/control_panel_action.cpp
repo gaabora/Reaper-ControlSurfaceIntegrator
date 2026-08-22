@@ -42,8 +42,17 @@ static bool OnAction(KbdSectionInfo* section, int requestedCommandId, int value,
     (void) relativeMode;
     (void) window;
     if (requestedCommandId != commandId) return false;
-    OpenOrFocus();
+    Toggle();
     return true;
+}
+
+void Toggle() {
+    if (IsOpen()) {
+        PublishRequest("Close", nullptr);
+        RefreshToolbar();
+        return;
+    }
+    OpenOrFocus();
 }
 
 void OpenOrFocus(const char* tabName) {

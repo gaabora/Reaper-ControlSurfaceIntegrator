@@ -64,6 +64,7 @@ private:
     void ApplyProductRuntimeSettings();
     void PollAndHandleLogCommands();
     void PollAndHandleSettingsCommands();
+    void PollAndHandleDevicesCommands();
 
     void PollMidiDevices() {
         for (auto& midiSurfaceIO : this->midiSurfacesIO_) {
@@ -782,6 +783,7 @@ public:
             DAW::SendCommandMessage(REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES);
         }
         if (shouldRun_) this->PollAndHandleSettingsCommands();
+        if (shouldRun_) this->PollAndHandleDevicesCommands();
         if (shouldRun_) this->PollAndHandleLogCommands();
         if (shouldRun_ && pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
             PollMidiDevices();

@@ -10,6 +10,7 @@
 - `product_identity.conf` canonical public identity and `product_identity.lua` runtime loader.
 - `settings_schema.conf` canonical setting metadata plus its `settings_schema.lua` loader.
 - `settings_protocol.lua` C++ request/response client and `settings_ui.lua` embedded Product and Surface settings page.
+- `devices_protocol.lua` C++ request/response client, `devices_model.lua` complete draft serializer, and `control_panel_devices.lua` device editor and runtime status page.
 - `control_panel_appearance.lua` OSK, OSD, and Notifications appearance draft, validation, preview, Save, and Revert behavior.
 - `control_panel_logging.lua` simple current-session NOTICE, WARNING, and ERROR log view plus notification record navigation and native file/folder open requests.
 - `logging_settings_ui.lua` Product-scope logging settings draft, Save, and Revert behavior.
@@ -27,11 +28,18 @@
 - Load setting names, types, compiled defaults, ranges, scopes, categories, and constraints through `settings_schema.lua`. Do not store user-selected values in `settings_schema.conf`. Lua obtains current effective user values through C++ instead of reading or writing the product INI directly.
 - Use `settings_protocol.lua` for Query, Apply, and Reload. Do not write product settings through `settings_store.lua`; that module owns only Lua-persistent Control Panel, OSK, OSD, and Notifications preferences.
 - Use the Page and Surface options returned by every successful settings Query for the General Surface selector. Do not accept an arbitrary Surface name from the user.
+- Use `devices_protocol.lua` for Devices Query, validation, Apply, and User Zone profile operations. Do not read or interpret the product INI directly in Lua.
+- Keep complete Devices serialization in `devices_model.lua`. Preserve Product and Surface setting overrides returned by C++ so saving device routing does not remove settings owned by General or Logging.
+- Keep Devices as three ordered internal sections: I/O Devices, Pages & Surfaces, and Listeners. Use rounded bordered master-detail lists instead of expanding every record at once. Keep row Duplicate and `×` Remove actions in the list, keep saved draft values separate from runtime availability, and show Zone profile actions only for the selected assignment.
+- Populate MIDI input and output selectors from the named ports returned by the C++ Devices Query. Put `Not selected` first, omit unrelated unavailable slots, and keep only an unavailable saved port visible until the user selects another port.
+- Show Devices runtime state as one green `●` or red `×` plus a short action for the user. Do not repeat resolved input and output status below the MIDI form. Confirm removal of an assigned I/O definition, then remove its assignments and connected Listeners only after confirmation.
+- Keep the standalone editor and square reload actions at the right edge of the Devices internal section row. Launch the editor through C++; when it is absent, open ReaPack search for the separate `<PackagePrefix> Configuration Editor` package.
 - Keep Control Panel form controls at shared fixed widths. Do not use window-dependent dropdown widths or show a slider beside a duplicate numeric input.
 - Keep Product and Surface value sources out of permanent Override controls. Show the current source in the field tooltip. Use `Reset to default` for Product values and `Use Product value` for Surface values in the field context menu.
 - Do not use horizontal separators in Lua UI unless the user requests them. The separator between visible Notifications records is explicitly approved.
 - Do not show a Control Panel heading that duplicates its selected sidebar item. Keep General labels left of fixed-width controls in the left half of its two-column layout.
 - Keep the Control Panel lifecycle protocol limited to the operations documented in `docs/LUA_CPP_EXTSTATE_INTERFACE.md`. Configuration values use their existing or later dedicated protocols instead of the lifecycle section.
+- Treat the stable Control Panel user action as a toggle. Keep programmatic requests from the native dialog, OSK, and Notifications as open, focus, or tab-selection operations so they never close an existing panel.
 - Keep ExtState payloads compatible with `CSurfIntegrator` and `ControlSurface` command handling.
 - The OSK layout, state, label, binding, and action-list formats are serialized contracts; change both ends together.
 - Module loading must work from the linked or copied REAPER Scripts path without a CMake configure step.

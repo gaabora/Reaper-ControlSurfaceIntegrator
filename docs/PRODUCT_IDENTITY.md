@@ -48,6 +48,7 @@ The C++ action registry uses `PRODUCT_CONTROL_PANEL_ACTION_ID` and `PRODUCT_NOTI
 Data/
   ReaControlSurface/
     ReaControlSurface.ini
+    Tools/config-editor-reacontrolsurface[.exe]
     Surfaces/
       Vendor/<surface-id>.txt
       User/<surface-id>.txt
@@ -72,6 +73,8 @@ Vendor zones are read-only at runtime. The runtime creates `Zones/User/<profile-
 The runtime does not read the old `CSI/` root. Legacy names and layouts belong only in the future import workflow.
 
 Disposable diagnostics do not live below the resource tree. Each REAPER process creates one unique log session at `<operating-system-temp>/reacontrolsurface/logs/<session-id>/ReaControlSurface.log`. C++ publishes the resolved paths to Lua through ExtState. The operating system can remove these logs at any time.
+
+`ProductPaths::ConfigurationEditorExecutable()` resolves the optional standalone editor below `Tools`. Its filename is derived from the stable Product ID. The separate platform-specific ReaPack Configuration Editor package owns this executable.
 
 ## Development resources
 

@@ -10,7 +10,7 @@
 - Page and track navigation state.
 - Zone and surface-template parsing, zone activation, widgets, feedback, and message generation.
 - OSK/OSD ExtState bridges and shared surface behavior.
-- Product and Surface setting parsing, effective-value resolution, atomic persistence, and the settings ExtState bridge.
+- Product and Surface setting parsing, effective-value resolution, atomic persistence, and the settings and Devices ExtState bridges.
 
 ## Local Contracts
 
@@ -24,6 +24,7 @@
 - Apply canonical Product `DebugLevel`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay` values to the legacy runtime globals after initial configuration load, Apply, and Reload. `FXParamsWrite` remains owned by the native dialog.
 - Keep `ReaCtrlSurf_SETTINGS_CMD` requests correlated with `ReaCtrlSurf_SETTINGS` responses. Apply must validate before atomic file replacement. Reload must keep current runtime values when validation or runtime matching fails.
 - Include every runtime Page and Surface assignment in each successful settings Query response so Lua can select a valid Surface scope without reading the product INI.
+- Keep `ReaCtrlSurf_DEVICES_CMD` Query responses complete. Include saved MIDI and OSC definitions, currently named REAPER MIDI port options, standalone editor availability, Pages, Surface assignments, Zone profile availability, listeners, parser issues, and matching runtime status without hiding valid assignments that have missing resources. Validate complete Lua drafts in C++, reject stale revisions, replace the configuration atomically, and reconnect CSI only after a successful Apply. Zone profile operations may create or copy only under the User root. Launch the optional standalone editor only from its typed product Tools path.
 - Register bundled OSK, OSD, and Notifications ReaScripts through the shared ReaScript command resolver.
 - Consume the OSK `Open` command without changing enabled surfaces when at least one is enabled. If none is enabled, enable every current-Page surface, republish its data, and open the OSK ReaScript.
 - Start the Notifications ReaScript before configuration loading so it can display new NOTICE, WARNING, and ERROR log entries without opening the REAPER console.

@@ -1,6 +1,7 @@
 local imgui = require "imgui" "0.9.3"
 
 local appearance = require("control_panel_appearance")
+local devices = require("control_panel_devices")
 local general = require("settings_ui")
 local logging = require("control_panel_logging")
 
@@ -10,7 +11,6 @@ local pages = {
     {
         id = "Devices",
         label = "Devices",
-        description = "Device definitions, Pages, Surface assignments, and listener relationships will move here in later stages. Use the native configuration window for editing now.",
     },
     {
         id = "General",
@@ -35,10 +35,6 @@ local state = {
     status = "",
 }
 
-local function renderPlaceholder(ctx, page)
-    if imgui.TextWrapped then imgui.TextWrapped(ctx, page.description) else imgui.Text(ctx, page.description) end
-end
-
 local function finishAppearanceSave()
     local saved, saveError = appearance.Save()
     state.pendingSaveStage = ""
@@ -46,7 +42,30 @@ local function finishAppearanceSave()
 end
 
 local function finishPendingSave()
-    if state.pendingSaveStage == "" or general.IsBusy() or logging.IsBusy() then return end
+    if state.pendingSaveStage == "" or devices.IsBusy() or general.IsBusy() or logging.IsBusy() then return end
+    if state.pendingSaveStage == "Devices" then
+        if devices.HasError() or devices.IsDirty() then
+            state.pendingSaveStage = ""
+            state.status = devices.GetStatus() ~= "" and devices.GetStatus() or "Devices were not saved"
+            return
+        end
+        if general.IsDirty() then
+            local accepted, saveError = general.Save()
+            if not accepted then state.pendingSaveStage = "" state.status = tostring(saveError or "General settings were not saved") return end
+            state.pendingSaveStage = "General"
+            state.status = "Saving General settings..."
+            return
+        end
+        if logging.IsDirty() then
+            local accepted, saveError = logging.Save()
+            if not accepted then state.pendingSaveStage = "" state.status = tostring(saveError or "Logging settings were not saved") return end
+            state.pendingSaveStage = "Logging"
+            state.status = "Saving Logging settings..."
+            return
+        end
+        finishAppearanceSave()
+        return
+    end
     if state.pendingSaveStage == "General" then
         if general.HasError() or general.IsDirty() then
             state.pendingSaveStage = ""
@@ -78,6 +97,7 @@ end
 function module.Initialize()
     if state.initialized then return end
     state.initialized = true
+    devices.Initialize()
     general.Initialize()
     appearance.Initialize()
 end
@@ -85,6 +105,7 @@ end
 function module.Update()
     module.Initialize()
     general.Update()
+    devices.Update()
     appearance.Update()
     logging.Update()
     finishPendingSave()
@@ -99,19 +120,21 @@ function module.Find(pageId)
 end
 
 function module.Render(ctx, page, fonts)
-    if page.id == "General" then
+    if page.id == "Devices" then
+        devices.RenderPage(ctx, fonts)
+    elseif page.id == "General" then
         general.RenderPage(ctx, fonts)
     elseif page.id == "Appearance" then
         appearance.RenderPage(ctx, fonts)
     elseif page.id == "Logging" then
         logging.RenderPage(ctx)
-    else
-        renderPlaceholder(ctx, page)
     end
+    devices.RenderModal(ctx)
 end
 
 function module.IsDirty(page)
     if not page then return false end
+    if page.id == "Devices" then return devices.IsDirty() end
     if page.id == "General" then return general.IsDirty() end
     if page.id == "Appearance" then return appearance.IsDirty() end
     if page.id == "Logging" then return logging.IsDirty() end
@@ -119,10 +142,14 @@ function module.IsDirty(page)
 end
 
 function module.HasAnyDirty()
-    return general.IsDirty() or appearance.IsDirty() or logging.IsDirty()
+    return devices.IsDirty() or general.IsDirty() or appearance.IsDirty() or logging.IsDirty()
 end
 
 function module.ValidateAll()
+    if devices.IsDirty() then
+        local devicesValid, devicesError = devices.Validate()
+        if not devicesValid then return false, devicesError end
+    end
     local generalValid, generalError = general.Validate()
     if not generalValid then return false, generalError end
     local loggingValid, loggingError = logging.Validate()
@@ -131,7 +158,7 @@ function module.ValidateAll()
 end
 
 function module.IsBusy()
-    return general.IsBusy() or appearance.IsBusy() or logging.IsBusy() or state.pendingSaveStage ~= ""
+    return devices.IsBusy() or general.IsBusy() or appearance.IsBusy() or logging.IsBusy() or state.pendingSaveStage ~= ""
 end
 
 function module.SaveAll()
@@ -140,6 +167,13 @@ function module.SaveAll()
     if not valid then return false, validationError end
     if not module.HasAnyDirty() then
         state.status = "No unsaved changes"
+        return true
+    end
+    if devices.IsDirty() then
+        local accepted, saveError = devices.Save()
+        if not accepted then return false, saveError end
+        state.pendingSaveStage = "Devices"
+        state.status = "Saving Devices..."
         return true
     end
     if general.IsDirty() then
@@ -162,7 +196,9 @@ end
 
 function module.RevertAll()
     if module.IsBusy() then return false, "Wait for the current settings operation" end
-    local reverted, revertError = general.Revert()
+    local reverted, revertError = devices.Revert()
+    if not reverted then return false, revertError end
+    reverted, revertError = general.Revert()
     if not reverted then return false, revertError end
     reverted, revertError = logging.Revert()
     if not reverted then return false, revertError end
@@ -180,6 +216,7 @@ function module.NavigateLogging(sessionId, byteOffset)
 end
 
 function module.Shutdown()
+    devices.Shutdown()
     general.Shutdown()
     appearance.Shutdown()
     logging.Shutdown()
@@ -191,6 +228,8 @@ function module.GetStatus()
     if generalStatus ~= "" then return generalStatus end
     local loggingStatus = logging.GetStatus()
     if loggingStatus ~= "" then return loggingStatus end
+    local devicesStatus = devices.GetStatus()
+    if devicesStatus ~= "" then return devicesStatus end
     return appearance.GetStatus()
 end
 

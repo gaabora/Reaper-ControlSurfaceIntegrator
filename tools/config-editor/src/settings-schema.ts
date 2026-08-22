@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-export type SettingType = "enum" | "integer";
+export type SettingType = "boolean" | "enum" | "integer";
 
 export interface SettingDefinition {
     category: string;
@@ -79,14 +79,19 @@ export function parseSettingsSchema(source: string): SettingsSchema {
         if (!/^[A-Z][A-Za-z0-9]*$/.test(name)) throw new Error(`Invalid setting name at line ${lineNumber}: ${name}`);
         if (settingsByName.has(name)) throw new Error(`Duplicate setting: ${name}`);
         const sourceType = requiredProperty(properties, "Type", lineNumber);
-        if (sourceType !== "Enum" && sourceType !== "Integer") throw new Error(`Unsupported setting type at line ${lineNumber}: ${sourceType}`);
+        if (sourceType !== "Boolean" && sourceType !== "Enum" && sourceType !== "Integer") throw new Error(`Unsupported setting type at line ${lineNumber}: ${sourceType}`);
         const scopes = splitUniqueValues(requiredProperty(properties, "Scopes", lineNumber), "Scopes", lineNumber);
         if (scopes.some((scope) => !/^[A-Z][A-Za-z0-9]*$/.test(scope))) throw new Error(`Invalid setting scope at line ${lineNumber}: ${scopes.join(",")}`);
         const category = requiredProperty(properties, "Category", lineNumber);
         if (!/^[A-Z][A-Za-z0-9]*$/.test(category)) throw new Error(`Invalid setting category at line ${lineNumber}: ${category}`);
         const defaultSource = requiredProperty(properties, "Default", lineNumber);
         let definition: SettingDefinition;
-        if (sourceType === "Enum") {
+        if (sourceType === "Boolean") {
+            if (properties.has("Values") || properties.has("Min") || properties.has("Max") || properties.has("Unit") || properties.has("GreaterThan")) throw new Error(`Boolean setting has unsupported properties at line ${lineNumber}: ${name}`);
+            const defaultValue = parseInteger(defaultSource, "Default", lineNumber);
+            if (defaultValue !== 0 && defaultValue !== 1) throw new Error(`Boolean setting default must be 0 or 1 at line ${lineNumber}: ${name}`);
+            definition = { category, defaultValue, name, scopes, type: "boolean" };
+        } else if (sourceType === "Enum") {
             if (properties.has("Min") || properties.has("Max") || properties.has("Unit") || properties.has("GreaterThan")) throw new Error(`Enum setting has integer-only properties at line ${lineNumber}: ${name}`);
             const enumValues = splitUniqueValues(requiredProperty(properties, "Values", lineNumber), "Values", lineNumber);
             if (enumValues.some((value) => !/^[A-Z][A-Za-z0-9]*$/.test(value))) throw new Error(`Setting Values contains an invalid enum value at line ${lineNumber}: ${name}`);

@@ -62,5 +62,7 @@ return {
         logCommand = extStatePrefix .. "_LOG_CMD",
         settings = extStatePrefix .. "_SETTINGS",
         settingsCommand = extStatePrefix .. "_SETTINGS_CMD",
+        devices = extStatePrefix .. "_DEVICES",
+        devicesCommand = extStatePrefix .. "_DEVICES_CMD",
     },
 }

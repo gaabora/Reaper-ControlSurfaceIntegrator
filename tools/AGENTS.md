@@ -13,7 +13,7 @@
 
 - Read public product names, stable action IDs, and repository names from `Scripts/product_identity.conf`.
 - Write generated ReaPack work only below `.reapack-build/` or another explicit staging directory.
-- ReaPack packages may own the extension, shared scripts, vendor surfaces, vendor zone profiles, and built-in snippets.
+- ReaPack packages may own the extension, shared scripts, the platform-specific standalone configuration editor executable, vendor surfaces, vendor zone profiles, and built-in snippets.
 - ReaPack packages must not target user surfaces, user zone profiles, user snippets, backups, or generated user data.
 
 ## Work Guidance

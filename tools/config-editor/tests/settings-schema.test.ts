@@ -14,10 +14,13 @@ describe("settings schema", () => {
         expect(settingDefinition(schema, "DefaultPseudoModifierMode")?.defaultValue).toBe("Latch");
         expect(settingDefinition(schema, "LongHoldDelayMs")?.greaterThan).toBe("HoldDelayMs");
         expect(settingDefinition(schema, "HoldRepeatIntervalMs")?.defaultValue).toBe(100);
+        expect(settingDefinition(schema, "SurfaceRawInDisplay")?.type).toBe("boolean");
+        expect(settingDefinition(schema, "SurfaceRawInDisplay")?.defaultValue).toBe(0);
     });
 
     test("rejects invalid defaults and cross-setting relationships", () => {
         expect(() => parseSettingsSchema("Version=1\nSetting=Mode Type=Enum Default=Bad Values=Latch,Hybrid Scopes=Product,Surface Category=Behavior\n")).toThrow("default is not in Values");
         expect(() => parseSettingsSchema("Version=1\nSetting=HoldDelayMs Type=Integer Default=1000 Min=50 Max=10000 Scopes=Product,Surface Category=Timing Unit=Milliseconds\nSetting=LongHoldDelayMs Type=Integer Default=500 Min=100 Max=30000 Scopes=Product,Surface Category=Timing Unit=Milliseconds GreaterThan=HoldDelayMs\n")).toThrow("default must be greater than HoldDelayMs");
+        expect(() => parseSettingsSchema("Version=1\nSetting=SurfaceDisplay Type=Boolean Default=2 Scopes=Product Category=Logging\n")).toThrow("default must be 0 or 1");
     });
 });

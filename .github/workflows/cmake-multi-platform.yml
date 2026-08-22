@@ -292,7 +292,9 @@ jobs:
         with:
           name: release-config-editor-${{ matrix.target }}
           if-no-files-found: error
-          path: tools/config-editor/dist/*.zip
+          path: |
+            tools/config-editor/dist/config-editor-*
+            !tools/config-editor/dist/*.log
 
   publish-release:
     needs: [build-macos-intel, build-macos-arm, build-windows, build-linux, build-config-editor]
