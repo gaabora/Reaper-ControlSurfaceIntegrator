@@ -376,34 +376,123 @@ All C++ consumers use one parsed `IntegratorConfig` model. The native configurat
 - [ ] Confirm whether `LearnFX.fxzon` belongs under the zone profile root or a dedicated profile metadata directory. It must not be embedded in one surface file because a zone profile can be selected independently.
 - [ ] Confirm the complete global `FeedbackShape` set and the fallback mapping for every ring feedback processor.
 
-## [ ] Phase 1: Runtime behavior inventory
+## ✅ Phase 1: Runtime behavior inventory
 
-- [ ] List every exact zone-name comparison in C++ and group it by home selection, navigator choice, banking, FX matching, Learn FX, and listener behavior.
-- [ ] Separate navigation references (`GoZone`, `GoSubZone`) from structural references (`ActiveZones`, `SubZones`).
-- [ ] Define which missing references are errors, warnings, or valid external references.
-- [ ] Define active Main and FX layer rules for Vendor and User files in one shared specification.
-- [ ] Inventory every product configuration reader and writer and remove the native dialog's duplicate semantic parser path.
-- [ ] Inventory ring feedback processor capabilities and group standard actions by semantic feedback shape.
+The replacement column below names the required semantic field. Phase 2 confirms its exact spelling and grammar. It must not collapse every special string into `Role`.
 
-Ready when every current special case has an explicit replacement and no behavior depends on an undocumented name.
+### Zone construction and lifecycle branches
+
+| Current name or construct | Current hidden behavior | Required explicit replacement | Source |
+|---|---|---|---|
+| `Home` | Required single zone, uses the selected-track navigator, activates after initialization, and remains the fallback after other zones | `Role=Home`, selected-track navigator, one instance, required profile entry | [ZoneManager::Initialize()](../src/controls/zone_manager.cpp) |
+| `LastTouchedFXParam` zone | Optional single high-priority mapping loaded during initialization with the focused-FX navigator | Dedicated last-touched-FX role, focused-FX navigator, one instance | [ZoneManager::Initialize()](../src/controls/zone_manager.cpp), [zone_parser.cpp](../src/controls/zone_parser.cpp) |
+| Legacy `NavType` | Preprocessing accepts `Track`, `FixedTrack`, `MasterTrack`, `SelectedTrack`, and `FocusedFX`, but zone construction still compares stale `TrackNavigator`, `MasterTrackNavigator`, and `FocusedFXNavigator` strings. `FixedTrack` also has no construction path here | Store a typed navigator value and switch on it. Define the required fixed-track selector or reject `FixedTrack` explicitly | [NavigatorType](../src/shared/types.h), [ZoneManager::PreProcessZoneFile() and GetNavigatorsForZone()](../src/controls/zone_manager.cpp) |
+| `MasterTrack` | Selects the master-track navigator and one instance | Master-track navigator, one instance | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp) |
+| `Track` | Creates one track-navigator instance per surface channel and selects the normal track bank | Track navigator, surface-channel instances, normal track bank | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Page::AdjustBank()](../src/controls/page.h) |
+| `VCA`, `Folder`, `SelectedTracks` | Create track-navigator instances, select a special track-list mode while active, and select the matching bank | Track navigator, surface-channel instances, explicit track mode and bank | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::Activate()](../src/controls/zone.cpp), [Page::AdjustBank()](../src/controls/page.h) |
+| `TrackSend`, `TrackReceive`, `TrackFXMenu` | Create track-navigator instances and derive each zone slot from a separate bank offset | Track navigator, surface-channel instances, explicit bank and slot source | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::GetSlotIndex()](../src/controls/zone.cpp), [ZoneManager::AdjustBank()](../src/controls/zone_manager.h) |
+| `SelectedTrack` | Creates one selected-track instance per surface channel, uses the instance slot, selects the selected-track bank, and deactivates on track deselection | Selected-track navigator, surface-channel instances, instance slot, selected-track bank, selected-track lifetime | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::GetSlotIndex()](../src/controls/zone.cpp), [ZoneManager::OnTrackDeselection()](../src/controls/zone_manager.h) |
+| `SelectedTrackSend`, `SelectedTrackReceive`, `SelectedTrackFXMenu` | Create selected-track instances, add a dedicated bank offset to the instance slot, and deactivate on track deselection | Selected-track navigator, surface-channel instances, explicit bank and slot source, selected-track lifetime | [zone_manager.cpp](../src/controls/zone_manager.cpp), [zone.cpp](../src/controls/zone.cpp), [zone_manager.h](../src/controls/zone_manager.h) |
+| `MasterTrackFXMenu` | Creates one master-track instance per surface channel and derives each slot from the master FX-menu offset | Master-track navigator, surface-channel instances, master FX-menu bank and slot source | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::GetSlotIndex()](../src/controls/zone.cpp) |
+| `SelectedTrackFX` target | Normal `GoZone` activation also creates and activates matching FX zones for every FX on the selected track | Explicit selected-track FX-chain activation behavior on the target zone | [ZoneManager::GoZone()](../src/controls/page.h), [ZoneManager::GoSelectedTrackFX()](../src/controls/zone_manager.cpp) |
+| FX plugin title used as the zone map key | Focused, selected-track, and slot FX loading finds a zone by the current REAPER plugin title | Build a separate `MatchFX` index; the zone ID remains the filename stem | [zone_manager.cpp](../src/controls/zone_manager.cpp) |
+
+### Navigation, propagation, and internal command branches
+
+| Current name or construct | Current hidden behavior | Required explicit replacement | Source |
+|---|---|---|---|
+| `GoZone Folder`, `VCA`, `TrackSend`, `TrackReceive`, `TrackFXMenu`, or `MasterTrackFXMenu` | Routes activation through the Page and all its surfaces; other targets use the local surface or configured listeners | Target zone declares page or surface navigation scope; `GoZone` resolves the target and does not compare its ID | [GoZone::Do()](../src/actions/manager_actions.h) |
+| `SelectedTrackSend`, `SelectedTrackReceive`, `SelectedTrackFX`, `SelectedTrackFXMenu` listener targets | Select one listener category by target name | Target zone declares its listener event category | [ZoneManager::ListenToGoZone()](../src/controls/zone_manager.h) |
+| `TrackFXMenu`, `SelectedTrackFXMenu` | Reactivate the active FX-menu zone after an FX-slot mapping closes | Explicit FX-menu context or return target | [ZoneManager::ReactivateFXMenuZone()](../src/controls/zone_manager.h) |
+| `LastTouchedFXParam`, `FocusedFX`, `SelectedTrackFX`, `FXSlot` passed by clear actions | Select one hard-coded clear operation | Keep separate typed clear actions or a typed FX context enum; these strings are commands, not zone roles | [ZoneManager::DeclareClearFXZone()](../src/controls/zone_manager.h), [manager_actions.h](../src/actions/manager_actions.h) |
+| `GoZones` | Uses a deprecated file as the top-level zone list | Remove the runtime path; the importer reads it and emits normal format 2 references | [ZoneManager::Initialize()](../src/controls/zone_manager.cpp) |
+| `IncludedZones`, `SubZones` | Load simultaneously active child zones or declared subzones | `ActiveZones` remains composition; `SubZones` remains the parent-child relation | [zone_parser.cpp](../src/controls/zone_parser.cpp), [zone.cpp](../src/controls/zone.cpp) |
+| `GoZone`, `GoSubZone` action names | Mark their string parameter as a reference when the parser recognizes the action name | Action metadata declares a typed zone-reference parameter; dependency extraction does not compare action text | [zone_parser.cpp](../src/controls/zone_parser.cpp) |
+| `OnZoneActivation`, `OnZoneDeactivation` widget names | Run bindings during zone lifecycle events | Explicit lifecycle event selectors in the binding grammar, not physical widget names | [Zone::Activate() and Zone::Deactivate()](../src/controls/zone.cpp) |
+
+### Learn FX name branches
+
+| Current name or construct | Current hidden behavior | Required explicit replacement | Source |
+|---|---|---|---|
+| `FXRowLayout` | Lists modifier and row combinations for the native Learn FX dialog | Do not import it; OSK uses real widgets and runtime modifier combinations | [learn_dialog.cpp](../src/ui/learn_dialog.cpp) |
+| `FXWidgetLayout` | Supplies eligible widgets, display rows, ring choices, fonts, and color flags | Convert eligible widget and display selectors to `LearnFX.fxzon`; derive capabilities from matched widgets and feedback processors | [learn_dialog.cpp](../src/ui/learn_dialog.cpp) |
+| `FXPrologue`, `FXEpilogue` | Inject bindings before and after generated FX parameter bindings | Merge active bindings into ordered `GeneratedBindings`; diagnose conflicts instead of keeping hidden ordering | [learn_dialog.cpp](../src/ui/learn_dialog.cpp) |
+| `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, `#SupportsColor` | Parsed only by the native Learn FX dialog and skipped by the normal zone parser | Legacy importer input only; format 2 emits selectors and typed capabilities without hash directives | [learn_dialog.cpp](../src/ui/learn_dialog.cpp), [zone_parser.cpp](../src/controls/zone_parser.cpp) |
+| Surface name `SCE24` in Learn FX | Enables device-specific display behavior by exact surface name | Widget and feedback processor capability metadata | [learn_dialog.cpp](../src/ui/learn_dialog.cpp) |
+
+### Reference diagnostics and active layers
+
+| Condition | Format 2 result |
+|---|---|
+| Assigned Main profile does not exist | Error on the surface assignment; skip only that surface |
+| No zone has `Role=Home`, or more than one active Main zone has it | Profile error; do not initialize that surface profile |
+| Duplicate zone ID in one active Main layer or one FX source layer | Error that links both files |
+| Exact User FX ID matches a Vendor FX ID | Valid override, not a duplicate |
+| `ActiveZones`, `SubZones`, `GoZone`, or `GoSubZone` target is missing from the complete active profile | Error on the reference |
+| A partial editor validation set does not contain the target | Defer the diagnostic and resolve it from the profile index; do not report it as missing |
+| Main zone is valid but no structural or navigation reference reaches it | Warning for an orphan zone |
+| Vendor or User FX directory is absent or empty | Valid empty layer |
+| `MatchFX` names a plugin that is not installed | Valid external matcher; runtime simply has no matching active FX |
+
+The layer model is fixed: [ProductPaths::FindMainZones()](../src/shared/product_paths.cpp) selects the complete User Main directory when it exists, otherwise Vendor Main. [ZoneManager::PreProcessZones()](../src/controls/zone_manager.cpp) reads Vendor and User FX directories together, and [ZoneManager::AddZoneFilePath()](../src/controls/zone_manager.h) gives an exact User FX match priority over Vendor.
+
+### Product config readers and writers
+
+| Consumer | Current path | Format 2 ownership |
+|---|---|---|
+| Runtime initialization | `ParseIntegratorConfig()` produces `IntegratorConfig`; [config_parser.cpp](../src/controls/config_parser.cpp) applies it | One C++ parser and typed model |
+| Native Settings and Devices protocols | Read source, call `ParseIntegratorConfigSource()`, then use `WriteSettingsConfigAtomically()` | Edit and validate the same typed document model through one transaction writer |
+| Native configuration dialog | Calls `ParseIntegratorConfig()` again and writes directly with `fopenUTF8()` | Consume the existing model and use the same transaction writer; remove its duplicate semantic path |
+| Bun editor | Uses `parseProductConfig()` and the editor store | Independent TypeScript implementation of the same normative grammar, diagnostics, and fixtures |
+
+The relevant implementations are [integrator_config_parser.cpp](../src/controls/integrator_config_parser.cpp), [settings_protocol.cpp](../src/controls/settings_protocol.cpp), [devices_protocol.cpp](../src/controls/devices_protocol.cpp), [config_dialog.cpp](../src/ui/config_dialog.cpp), and [product-config.ts](../tools/config-editor/src/product-config.ts).
+
+### Ring feedback and action meaning
+
+`PropertyType_RingStyle` exists, but there is no global typed `RingStyle` enum. Current actions do not choose a style. Each processor reads an optional string property:
+
+| Processor | Accepted styles | Current default |
+|---|---|---|
+| Generic encoder | `Dot`, `BoostCut`, `Fill`, `Spread` | `Dot` |
+| SCE24 encoder | `Dot`, `BoostCut`, `Fill`, `Spread` | `Dot` |
+| Asparion encoder | `Dot`, `Fill` | `Dot` |
+
+Sources: [fb_generic.h](../src/controls/midi/fb_generic.h), [fb_sce24.h](../src/controls/midi/fb_sce24.h), and [fb_asparion.h](../src/controls/midi/fb_asparion.h).
+
+The initial reliable semantic action groups are:
+
+| Proposed `FeedbackShape` | Normalized action families |
+|---|---|
+| `Level` | `TrackVolume`, `TrackSendVolume`, `TrackReceiveVolume`, `TrackOutputMeter*`, `TrackVolumeWithMeter*`, `FXGainReductionMeter` |
+| `Centered` | `TrackPan`, `TrackPanL`, `TrackPanR`, `TrackPanAutoLeft`, `TrackSendPan`, `TrackReceivePan` |
+| `Spread` | `TrackPanWidth` |
+
+`FXParam` has no reliable global meaning. `TrackPanAutoRight` changes between width and right-pan meaning at runtime. Raw dB, percentage, text, toggle, and color actions are not normalized ring-shape candidates. Phase 2 must define dynamic or absent shape behavior instead of guessing from action names.
+
+✅ Every current exact zone-name branch has a source-linked semantic replacement. Zone IDs, action names, parser directives, listener events, and internal FX commands remain separate concepts.
+
+Ready when every current special case has a source-linked explicit replacement and no behavior depends on an undocumented name. ✅
 
 ## [ ] Phase 2: Format 2 specification
 
-- [ ] Specify `@Meta`, brace blocks, lists, identity, alias, role, navigator, instances, FX matching, bindings, structural dependencies, comments, properties, quoting, and EOF behavior.
-- [ ] Specify true wildcard selectors separately from the current channel placeholder.
-- [ ] Specify the three valid square-bracket positions and reject all anonymous bracket groups.
-- [ ] Specify named action value and MIDI encoder direction properties.
-- [ ] Specify `StateColors` and convert legacy decimal RGB groups to hexadecimal color lists.
-- [ ] Require one logical object per file.
-- [ ] Define case handling and uniqueness within one zone profile.
-- [ ] Define safe transactional rename behavior and reference updates.
-- [ ] Define `LearnFX.fxzon`, OSK FX edit mode, widget eligibility, display selection, and generated bindings without hash-prefixed directives or pseudo-zones.
-- [ ] Specify the global `RingStyle` enum, processor capabilities and defaults, action `FeedbackShape` metadata, fallback mappings, and explicit binding override behavior.
-- [ ] Specify the unversioned product `.conf` blocks, identifiers, fields, nesting, defaults, links, comments, diagnostics, and shared semantic model ownership.
-- [ ] Specify the brace-based surface and snippet syntax with the same lexical rules.
-- [ ] Add representative valid and invalid fixtures before changing runtime code.
+The confirmed format direction above is input to this phase, not the complete grammar. Main zone identity remains the `.zon` filename stem. `@Meta` carries format and behavior metadata. `MatchFX` identifies an external plugin match, not the zone itself. Format 2 uses `[Channel]`; legacy `Widget|` is accepted only by the importer and converted during migration.
 
-Ready when C++, Bun, Lua, and documentation can implement the same grammar without interpretation differences.
+- [ ] Write the normative lexical grammar for `@Meta`, brace blocks, identifiers, selectors, lists, properties, strings, comments, whitespace, and EOF behavior.
+- [ ] Define the allowed metadata keys, value types, defaults, combinations, and diagnostics for zones, surfaces, snippets, and `LearnFX.fxzon`.
+- [ ] Define the exact `Role`, `Navigator`, `Instances`, banking, mode, and FX context values from the completed Phase 1 inventory.
+- [ ] Define binding, `ActiveZones`, `SubZones`, `GoZone`, and `GoSubZone` schemas without treating navigation references as structural recursion.
+- [ ] Specify true wildcard matching, case handling, escaping, match order, and no-match diagnostics separately from `[Channel]`.
+- [ ] Specify the valid prefix selector, postfix `[Channel]`, and named property list positions. Reject anonymous bracket groups.
+- [ ] Confirm the names and value rules for `Range`, `Delta`, `StepValues`, `AcceleratedDeltas`, `AccelerationTicks`, `Increment`, `Decrement`, and `StateColors`.
+- [ ] Define case-insensitive zone uniqueness within one active profile and keep the Main, FX, Surface, Vendor, and User layer rules distinct.
+- [ ] Define transactional file rename, collision checks, stale-reference handling, and updates of every typed reference.
+- [ ] Define `LearnFX.fxzon`, OSK FX edit mode, widget eligibility, display selection, and generated bindings. The legacy importer reads hash-prefixed Learn FX directives but emits only normal format 2 data.
+- [ ] Define the global `RingStyle` type, processor capabilities and defaults, the complete action `FeedbackShape` set, fallback mappings, and optional explicit binding overrides.
+- [ ] Specify the unversioned product `.conf` block schemas, identifiers, required and optional fields, defaults, settings scopes, links, diagnostics, and shared semantic model ownership.
+- [ ] Specify brace-based surface and snippet schemas using the common lexical grammar.
+- [ ] Add representative valid and invalid fixture files for every top-level format before runtime implementation starts.
+
+Ready when the normative specification and fixtures let C++, Bun, Lua, and documentation implement the same grammar without interpretation differences.
 
 ## [ ] Phase 3: One C++ parser model
 
