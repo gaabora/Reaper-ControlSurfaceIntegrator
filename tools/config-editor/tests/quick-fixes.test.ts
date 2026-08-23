@@ -65,16 +65,16 @@ describe("diagnostic quick fix registry", () => {
     test("comments out the exact dependency line that closes a zone cycle", () => {
         const alphaPath = "Zones/User/test/Main/Alpha.zon";
         const betaPath = "Zones/User/test/Main/Beta.zon";
-        const alpha = parseByPath("// @format zone 1\nZone Alpha\n  Play GoZone Beta\nZoneEnd\n", alphaPath, knownActions);
-        const betaSource = "// @format zone 1\nZone Beta\n  Play GoZone Alpha\nZoneEnd\n";
+        const alpha = parseByPath("// @format zone 1\nZone Alpha\nIncludedZones\n  Beta\nIncludedZonesEnd\nZoneEnd\n", alphaPath, knownActions);
+        const betaSource = "// @format zone 1\nZone Beta\nIncludedZones\n  Alpha\nIncludedZonesEnd\nZoneEnd\n";
         const beta = parseByPath(betaSource, betaPath, knownActions);
         const cycle = validateDocumentSet([alpha, beta]).find((diagnostic) => diagnostic.code === "zones.dependency.cycle")!;
         const diagnostic = diagnosticWithQuickFixes(beta, cycle, knownActions, true);
 
         expect(diagnostic.path).toBe(betaPath);
-        expect(diagnostic.line).toBe(3);
+        expect(diagnostic.line).toBe(4);
         expect(diagnostic.fixes).toEqual([{ data: { dependency: "Alpha" }, id: "zones.dependency.cycle.comment-out", label: "Comment out dependency on Alpha" }]);
         const result = applyQuickFix(betaSource, betaPath, knownActions, { diagnostic: { code: diagnostic.code, line: diagnostic.line, message: diagnostic.message }, fix: diagnostic.fixes![0] });
-        expect(result.source).toContain("\n  // Play GoZone Alpha\n");
+        expect(result.source).toContain("\n  // Alpha\n");
     });
 });

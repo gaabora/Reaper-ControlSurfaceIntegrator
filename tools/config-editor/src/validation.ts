@@ -9,6 +9,10 @@ interface ZoneLayerLocation {
     source: "User" | "Vendor";
 }
 
+export interface ValidationOptions {
+    availableZoneNamesByProfile?: Map<string, Set<string>>;
+}
+
 function zoneLayerLocation(documentPath?: string): ZoneLayerLocation | undefined {
     if (!documentPath) return undefined;
     const match = documentPath.replaceAll("\\", "/").match(/(?:^|\/)Zones\/(Vendor|User)\/([^/]+)\/(Main|FX)(?:\/|$)/);
@@ -24,14 +28,34 @@ function isFxLayerOverride(existing: AnyDocument, incoming: AnyDocument): boolea
     return existingName === incomingName && existingLocation?.collection === "FX" && incomingLocation?.collection === "FX" && existingLocation.profileId === incomingLocation.profileId && existingLocation.source !== incomingLocation.source;
 }
 
-export function validateDocumentSet(documents: AnyDocument[]): Diagnostic[] {
+function zoneHeaderLine(document: AnyDocument): number | undefined {
+    return document.lines.find((line) => line.kind === "header")?.lineNumber;
+}
+
+function zoneScope(document: AnyDocument): string {
+    return zoneLayerLocation(document.path)?.profileId.toLowerCase() ?? "";
+}
+
+function zoneKey(document: AnyDocument, zoneName: string): string {
+    return `${zoneScope(document)}\0${zoneName.toLowerCase()}`;
+}
+
+function addDuplicateZoneDiagnostic(diagnostics: Diagnostic[], document: AnyDocument, existing: AnyDocument, zoneName: string): void {
+    const existingPath = existing.path ?? "another input file";
+    const existingLine = zoneHeaderLine(existing);
+    const profileId = zoneLayerLocation(document.path)?.profileId;
+    const scope = profileId ? ` in profile "${profileId}"` : "";
+    addDiagnostic(diagnostics, "error", "zones.name.duplicate", `Zone ID "${zoneName}" is also declared in ${existingPath}${existingLine ? `:${existingLine}` : ""}. Zone IDs are case-insensitive${scope}.`, zoneHeaderLine(document), document.path, existing.path ? [{ line: existingLine, path: existing.path }] : undefined);
+}
+
+export function validateDocumentSet(documents: AnyDocument[], options: ValidationOptions = {}): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-    const zonesByName = new Map<string, AnyDocument>();
+    const zonesByKey = new Map<string, AnyDocument>();
     const fxZonesByLayer = new Map<string, AnyDocument>();
     const userMainProfiles = new Set<string>();
     for (const document of documents) {
         const location = zoneLayerLocation(document.path);
-        if (location?.collection === "Main" && location.source === "User") userMainProfiles.add(location.profileId);
+        if (location?.collection === "Main" && location.source === "User") userMainProfiles.add(location.profileId.toLowerCase());
     }
     const documentsByPath = new Map<string, AnyDocument>();
     for (const document of documents) {
@@ -47,50 +71,57 @@ export function validateDocumentSet(documents: AnyDocument[]): Diagnostic[] {
         if (!semantic.name) continue;
         const lowercaseName = semantic.name.toLowerCase();
         const location = zoneLayerLocation(document.path);
-        if (location?.collection === "Main" && location.source === "Vendor" && userMainProfiles.has(location.profileId)) continue;
+        if (location?.collection === "Main" && location.source === "Vendor" && userMainProfiles.has(location.profileId.toLowerCase())) continue;
         if (location?.collection === "FX") {
-            const layerKey = `${location.profileId}\0${location.source}\0${lowercaseName}`;
-            if (fxZonesByLayer.has(layerKey)) {
-                addDiagnostic(diagnostics, "error", "zones.name.duplicate", `Zone name is duplicated case-insensitively in the same FX layer: ${semantic.name}`, undefined, document.path);
+            const layerKey = `${location.profileId.toLowerCase()}\0${location.source}\0${lowercaseName}`;
+            const existingLayerZone = fxZonesByLayer.get(layerKey);
+            if (existingLayerZone) {
+                addDuplicateZoneDiagnostic(diagnostics, document, existingLayerZone, semantic.name);
                 continue;
             }
             fxZonesByLayer.set(layerKey, document);
         }
-        const existing = zonesByName.get(lowercaseName);
+        const key = zoneKey(document, semantic.name);
+        const existing = zonesByKey.get(key);
         if (existing && isFxLayerOverride(existing, document)) {
-            if (location?.source === "User") zonesByName.set(lowercaseName, document);
-        } else if (existing) addDiagnostic(diagnostics, "error", "zones.name.duplicate", `Zone name is duplicated case-insensitively: ${semantic.name}`, undefined, document.path);
-        else zonesByName.set(lowercaseName, document);
+            if (location?.source === "User") zonesByKey.set(key, document);
+        } else if (existing) addDuplicateZoneDiagnostic(diagnostics, document, existing, semantic.name);
+        else zonesByKey.set(key, document);
     }
-    for (const document of zonesByName.values()) {
+    for (const document of zonesByKey.values()) {
         const semantic = document.semantic as ZoneSemantic;
-        for (const dependency of semantic.dependencies) if (!zonesByName.has(dependency.toLowerCase())) addDiagnostic(diagnostics, "warning", "zones.dependency.missing", `Referenced zone was not included in this validation set: ${dependency}`, undefined, document.path);
+        const availableNames = options.availableZoneNamesByProfile?.get(zoneScope(document));
+        for (const dependency of semantic.dependencies) {
+            if (zonesByKey.has(zoneKey(document, dependency)) || availableNames?.has(dependency.toLowerCase())) continue;
+            const reference = semantic.dependencyReferences.find((candidate) => candidate.name.toLowerCase() === dependency.toLowerCase());
+            addDiagnostic(diagnostics, "warning", "zones.dependency.missing", `Zone "${semantic.name}" references missing zone "${dependency}".`, reference?.line, document.path);
+        }
     }
 
     const states = new Map<string, "done" | "visiting">();
     const stack: string[] = [];
     const reportedCycles = new Set<string>();
-    const visitZone = (zoneName: string, incoming?: { document: AnyDocument; reference: ZoneDependencyReference }): void => {
-        if (states.get(zoneName) === "done") return;
-        if (states.get(zoneName) === "visiting") {
-            const cycleStart = stack.indexOf(zoneName);
-            const cycle = [...stack.slice(cycleStart), zoneName];
+    const visitZone = (key: string, incoming?: { document: AnyDocument; reference: ZoneDependencyReference }): void => {
+        if (states.get(key) === "done") return;
+        if (states.get(key) === "visiting") {
+            const cycleStart = stack.indexOf(key);
+            const cycle = [...stack.slice(cycleStart), key];
             const cycleKey = [...new Set(cycle)].sort().join("\0");
             if (!reportedCycles.has(cycleKey)) {
                 reportedCycles.add(cycleKey);
-                addDiagnostic(diagnostics, "error", "zones.dependency.cycle", `Zone dependency cycle: ${cycle.map((name) => (zonesByName.get(name)?.semantic as ZoneSemantic | undefined)?.name ?? name).join(" -> ")}`, incoming?.reference.line, incoming?.document.path ?? zonesByName.get(zoneName)?.path);
+                addDiagnostic(diagnostics, "error", "zones.dependency.cycle", `Structural zone dependency cycle: ${cycle.map((zoneEntryKey) => (zonesByKey.get(zoneEntryKey)?.semantic as ZoneSemantic | undefined)?.name ?? zoneEntryKey).join(" -> ")}`, incoming?.reference.line, incoming?.document.path ?? zonesByKey.get(key)?.path);
             }
             return;
         }
-        const document = zonesByName.get(zoneName);
+        const document = zonesByKey.get(key);
         if (!document) return;
-        states.set(zoneName, "visiting");
-        stack.push(zoneName);
+        states.set(key, "visiting");
+        stack.push(key);
         const semantic = document.semantic as ZoneSemantic;
-        for (const reference of semantic.dependencyReferences) visitZone(reference.name.toLowerCase(), { document, reference });
+        for (const reference of semantic.dependencyReferences) if (reference.type === "IncludedZones" || reference.type === "SubZones") visitZone(zoneKey(document, reference.name), { document, reference });
         stack.pop();
-        states.set(zoneName, "done");
+        states.set(key, "done");
     };
-    for (const zoneName of zonesByName.keys()) visitZone(zoneName);
+    for (const key of zonesByKey.keys()) visitZone(key);
     return diagnostics;
 }

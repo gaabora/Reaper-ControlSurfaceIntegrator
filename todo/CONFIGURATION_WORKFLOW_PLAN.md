@@ -85,7 +85,7 @@ Validate in this order:
 
 1. Syntax and format version.
 2. IDs, names, destination paths, and duplicates.
-3. Cross-file zone references and dependency cycles.
+3. Cross-file zone references and structural `IncludedZones` or `SubZones` dependency cycles. `GoZone` and `GoSubZone` return paths are valid navigation, not structural cycles.
 4. Surface widget existence and semantic capabilities.
 5. Action names and the parameters for which runtime metadata is available.
 

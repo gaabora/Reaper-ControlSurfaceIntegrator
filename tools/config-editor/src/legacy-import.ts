@@ -10,6 +10,7 @@ import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, in
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
 import type { ZoneBinding, ZoneSemantic } from "./zone.ts";
+import type { ProductTreeEntry } from "./paths.ts";
 
 export type LegacyImportConflictAction = "create" | "rename" | "replace" | "skip";
 export type LegacyImportKind = "surface" | "zone";
@@ -316,6 +317,33 @@ async function isDirectory(directoryPath: string): Promise<boolean> {
     }
 }
 
+function flattenTreeEntries(entries: ProductTreeEntry[], result: ProductTreeEntry[] = []): ProductTreeEntry[] {
+    for (const entry of entries) {
+        result.push(entry);
+        if (entry.children) flattenTreeEntries(entry.children, result);
+    }
+    return result;
+}
+
+async function existingTargetZoneNames(store: ConfigurationStore, targetProfileId: string, replacedTargetPaths: Set<string>): Promise<Set<string>> {
+    const entries = flattenTreeEntries(await store.tree());
+    const profileKey = targetProfileId.toLowerCase();
+    const userMainPrefix = `zones/user/${profileKey}/main/`;
+    const hasUserMain = entries.some((entry) => entry.path.toLowerCase() === `zones/user/${profileKey}/main` || entry.path.toLowerCase().startsWith(userMainPrefix)) || [...replacedTargetPaths].some((targetPath) => targetPath.startsWith(userMainPrefix));
+    const names = new Set<string>();
+    for (const entry of entries) {
+        if (entry.kind !== "file" || entry.type !== "zone") continue;
+        const normalizedPath = entry.path.replaceAll("\\", "/");
+        const location = normalizedPath.match(/^Zones\/(Vendor|User)\/([^/]+)\/(Main|FX)\//i);
+        if (!location || location[2].toLowerCase() !== profileKey || replacedTargetPaths.has(normalizedPath.toLowerCase())) continue;
+        if (hasUserMain && location[1].toLowerCase() === "vendor" && location[3].toLowerCase() === "main") continue;
+        const opened = await store.openDocument(entry.path);
+        const zoneName = (opened.document.semantic as ZoneSemantic).name;
+        if (zoneName) names.add(zoneName.toLowerCase());
+    }
+    return names;
+}
+
 export class LegacyCsiSource {
     private constructor(private readonly root: string) {}
 
@@ -429,9 +457,22 @@ export class LegacyCsiSource {
         const mappingSurfaceDocuments = widgetTarget === "existing" ? [...(!includeSurface ? [surfaceDocument] : []), ...(targetSurface ? [targetSurface] : [])] : [];
         const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics).filter((diagnostic) => diagnostic.code !== "surface.format.missing" && diagnostic.code !== "zone.format.missing");
         const selectedDocumentsByPath = new Map<string, AnyDocument>(selectedDocuments.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
-        const setDiagnostics = validateDocumentSet(selectedDocuments).map((diagnostic) => {
+        const replacedTargetPaths = new Set([...selectedPaths].map((sourcePath) => zoneTargetPaths.get(sourcePath)!.toLowerCase()));
+        const availableTargetZoneNames = await existingTargetZoneNames(store, targetProfileId, replacedTargetPaths);
+        const availableZoneNamesByProfile = new Map([[targetProfileId.toLowerCase(), availableTargetZoneNames]]);
+        const setDiagnostics = validateDocumentSet(selectedDocuments, { availableZoneNamesByProfile }).map((diagnostic) => {
             const document = diagnostic.path ? selectedDocumentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
-            return document ? diagnosticWithQuickFixes(document, diagnostic, knownActions, true) : diagnostic;
+            let contextualDiagnostic = diagnostic;
+            if (document && diagnostic.code === "zones.dependency.missing") {
+                const semantic = document.semantic as ZoneSemantic;
+                const reference = semantic.dependencyReferences.find((candidate) => candidate.line === diagnostic.line);
+                const matchingSources = reference ? matchesByName.get(reference.name.toLowerCase()) ?? [] : [];
+                if (reference && matchingSources.length) {
+                    const related = matchingSources.map((sourcePath) => ({ line: zoneDocuments.get(sourcePath)?.lines.find((line) => line.kind === "header")?.lineNumber, path: sourcePath }));
+                    contextualDiagnostic = { ...diagnostic, message: `Zone "${semantic.name}" references "${reference.name}", but its matching legacy zone is not selected for import and no active target zone was found.`, related };
+                }
+            }
+            return document ? diagnosticWithQuickFixes(document, contextualDiagnostic, knownActions, true) : contextualDiagnostic;
         });
         const diagnostics = selectedDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, true)).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
         const selectedTargetPaths = new Map<string, string>();

@@ -99,6 +99,26 @@ describe("legacy CSI import", () => {
         expect(preview.dependencies).toContainEqual({ from: "Zones/HomeZones/Home.zon", matches: ["Zones/GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
     });
 
+    test("explains when a referenced legacy zone is not selected", async () => {
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);
+        const diagnostic = preview.diagnostics.find((candidate) => candidate.code === "zones.dependency.missing");
+
+        expect(diagnostic?.message).toContain("matching legacy zone is not selected for import");
+        expect(diagnostic?.line).toBe(3);
+        expect(diagnostic?.related).toEqual([{ line: 2, path: "Zones/GoZones/Transport.zon" }]);
+    });
+
+    test("resolves an import dependency from the active target profile", async () => {
+        const targetZonePath = path.join(productRoot, "Zones", "User", "faderportv2", "Main", "GoZones", "Transport.zon");
+        await mkdir(path.dirname(targetZonePath), { recursive: true });
+        await writeFile(targetZonePath, "// @format zone 1\nZone Transport\n  Play Play\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);
+
+        expect(preview.diagnostics.some((diagnostic) => diagnostic.code === "zones.dependency.missing")).toBeFalse();
+    });
+
     test("writes selected files in one transaction and requires conflict decisions on repeat", async () => {
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();

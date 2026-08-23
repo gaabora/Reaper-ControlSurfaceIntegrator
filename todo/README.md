@@ -13,6 +13,7 @@ This folder keeps the work that is still open.
 - [LUA_CONTROL_PANEL_PLAN.md](LUA_CONTROL_PANEL_PLAN.md) - plan for the Lua plugin Control Panel, device and Zone profile configuration, shared appearance settings, logging, and stable REAPER GUI actions
 - [ZONE_WIDGET_MODIFIER_VALIDATION.md](ZONE_WIDGET_MODIFIER_VALIDATION.md) - proposed validation contract for widget modifiers, gestures, action groups, and zone context changes
 - [PSEUDO_MODIFIER_PLAN.md](PSEUDO_MODIFIER_PLAN.md) - implementation plan for zone-scoped modifiers named after their source widgets, based on the shared binding grammar and validation contract
+- [ZONE_FORMAT_V2_PLAN.md](ZONE_FORMAT_V2_PLAN.md) - proposed replacement for block-shaped zones, magic names, Learn FX pseudo-zones, and separate zone line readers
 
 ## What Was Removed
 

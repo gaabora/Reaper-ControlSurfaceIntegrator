@@ -102,10 +102,16 @@ describe("configuration formats", () => {
         expect(errorCodes).toContain("snippet.action.modifiers");
     });
 
-    test("zone dependency cycles report a stable error", () => {
+    test("GoZone navigation may return to an earlier zone", () => {
         const alpha = parseByPath("// @format zone 1\nZone alpha\n  Play GoZone beta\nZoneEnd\n", "/zones/alpha.zon");
         const beta = parseByPath("// @format zone 1\nZone beta\n  Play GoZone alpha\nZoneEnd\n", "/zones/beta.zon");
-        expect(validateDocumentSet([alpha, beta]).some((diagnostic) => diagnostic.code === "zones.dependency.cycle" && diagnostic.severity === "error" && diagnostic.path === "/zones/beta.zon" && diagnostic.line === 3)).toBeTrue();
+        expect(validateDocumentSet([alpha, beta]).some((diagnostic) => diagnostic.code === "zones.dependency.cycle")).toBeFalse();
+    });
+
+    test("structural zone dependency cycles report a stable error", () => {
+        const alpha = parseByPath("// @format zone 1\nZone alpha\nIncludedZones\n  beta\nIncludedZonesEnd\nZoneEnd\n", "/zones/alpha.zon");
+        const beta = parseByPath("// @format zone 1\nZone beta\nIncludedZones\n  alpha\nIncludedZonesEnd\nZoneEnd\n", "/zones/beta.zon");
+        expect(validateDocumentSet([alpha, beta]).some((diagnostic) => diagnostic.code === "zones.dependency.cycle" && diagnostic.severity === "error" && diagnostic.path === "/zones/beta.zon" && diagnostic.line === 4)).toBeTrue();
     });
 
     test("User FX zones override same-name Vendor FX zones", () => {
@@ -128,7 +134,16 @@ describe("configuration formats", () => {
         const override = parseByPath("// @format zone 1\nZone Compressor\nZoneEnd\n", "/config/Zones/User/faderportv2/FX/Compressor.zon");
         const first = parseByPath("// @format zone 1\nZone Compressor\nZoneEnd\n", "/config/Zones/Vendor/faderportv2/FX/Compressor.zon");
         const second = parseByPath("// @format zone 1\nZone Compressor\nZoneEnd\n", "/config/Zones/Vendor/faderportv2/FX/Other.zon");
-        expect(validateDocumentSet([override, first, second]).some((diagnostic) => diagnostic.code === "zones.name.duplicate" && diagnostic.severity === "error")).toBeTrue();
+        const duplicate = validateDocumentSet([override, first, second]).find((diagnostic) => diagnostic.code === "zones.name.duplicate" && diagnostic.severity === "error");
+        expect(duplicate?.line).toBe(2);
+        expect(duplicate?.message).toContain(first.path);
+        expect(duplicate?.related).toEqual([{ line: 2, path: first.path! }]);
+    });
+
+    test("zone IDs are independent between profiles", () => {
+        const first = parseByPath("// @format zone 1\nZone Home\nZoneEnd\n", "/config/Zones/User/first/Main/Home.zon");
+        const second = parseByPath("// @format zone 1\nZone Home\nZoneEnd\n", "/config/Zones/User/second/Main/Home.zon");
+        expect(validateDocumentSet([first, second]).some((diagnostic) => diagnostic.code === "zones.name.duplicate")).toBeFalse();
     });
 
     test("runtime action catalog comes from ACTION_TYPE_LIST", async () => {

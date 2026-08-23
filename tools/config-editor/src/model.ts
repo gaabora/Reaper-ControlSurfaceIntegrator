@@ -8,12 +8,18 @@ export interface DiagnosticQuickFix {
     label: string;
 }
 
+export interface DiagnosticRelatedLocation {
+    line?: number;
+    path: string;
+}
+
 export interface Diagnostic {
     code: string;
     fixes?: DiagnosticQuickFix[];
     line?: number;
     message: string;
     path?: string;
+    related?: DiagnosticRelatedLocation[];
     severity: DiagnosticSeverity;
 }
 
@@ -44,6 +50,6 @@ export function serializeDocument(document: LosslessDocument<unknown>): string {
     return document.lines.map((line) => line.text + line.ending).join("");
 }
 
-export function addDiagnostic(diagnostics: Diagnostic[], severity: DiagnosticSeverity, code: string, message: string, line?: number, path?: string): void {
-    diagnostics.push({ code, line, message, path, severity });
+export function addDiagnostic(diagnostics: Diagnostic[], severity: DiagnosticSeverity, code: string, message: string, line?: number, path?: string, related?: DiagnosticRelatedLocation[]): void {
+    diagnostics.push({ code, line, message, path, related, severity });
 }

@@ -284,6 +284,17 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
         const message = document.createElement("span");
         message.textContent = diagnostic.severity.toUpperCase() + " " + diagnostic.code + ": " + diagnostic.message;
         row.append(message);
+        for (const related of diagnostic.related || []) {
+            const relatedLink = document.createElement("a");
+            relatedLink.className = "diagnostic-location";
+            relatedLink.href = editorRouteUrl(state.task === "legacy" ? { view: "legacy" } : { file: related.path, line: related.line, panel: state.bottomPanel, view: "edit" }).href;
+            relatedLink.textContent = related.path + (related.line ? ": " + translate("diagnostic.line", { line: related.line }).replace(/:\s*$/, "") : "");
+            relatedLink.addEventListener("click", (event) => {
+                event.preventDefault();
+                void navigate({ ...diagnostic, fixes: undefined, line: related.line, path: related.path, related: undefined });
+            });
+            row.append(document.createTextNode(" "), relatedLink);
+        }
         if (diagnostic.fixes?.length) {
             const fixes = document.createElement("span");
             fixes.className = "diagnostic-fixes";
