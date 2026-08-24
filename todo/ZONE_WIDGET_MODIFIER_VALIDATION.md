@@ -12,7 +12,7 @@ The left side of a binding has three explicit token classes:
 
 - Square brackets `[]` contain context selectors.
 - Parentheses `()` contain input events, direction selectors, or value transforms.
-- The last unwrapped name is the physical widget.
+- The last unwrapped name is an exact physical widget or a widget family with the `@CH` surface-channel qualifier.
 
 Context selectors include:
 
@@ -33,9 +33,10 @@ Examples:
 [Marker]+(DoublePress)+Play SomeAction
 [Touch]+(Increase)+Rotary1 SomeAction
 [Shift]+[SomeButton]+(Hold)+Play SomeAction
+[Shift]+Rotary@CH TrackPan
 ```
 
-An unwrapped name before the action is always a physical widget. A widget named `Marker`, `Touch`, or `Hold` remains valid because only wrapped tokens have special meaning.
+An unwrapped name before the action is always a physical widget reference. A widget named `Marker`, `Touch`, or `Hold` remains valid because only wrapped tokens have special meaning. `@CH` is the exact case-sensitive postfix qualifier for expansion across physical surface channels. It is not a context selector and does not describe the zone's logical `Target`.
 
 An unqualified button binding uses the effective `DefaultButtonTrigger` setting:
 
@@ -89,7 +90,7 @@ The parser must collect declarations before it validates bindings. Declaration o
 Validation must parse every binding into a normalized record:
 
 ```text
-context key = zone + physical widget + standard modifier set + pseudo-modifier set + Touch state + Toggle state
+context key = zone + resolved physical widget + optional surface-channel index + standard modifier set + pseudo-modifier set + Touch state + Toggle state
 event       = configured default | Press | Tap | Release | Hold | LongHold | DoublePress
 direction   = Any | Increase | Decrease
 transforms  = Invert + InvertFB
@@ -109,7 +110,7 @@ DefaultPseudoModifierMode=Latch
 Resolve the effective mode from lowest to highest priority:
 
 ```text
-compiled fallback Latch < product global default < configured Surface instance override < declaration Mode override
+compiled fallback Latch < product global default < Device override < declaration Mode override
 ```
 
 `Mode=Momentary|Latch|Hybrid` on a declaration overrides only that declaration. Changing either configured default requires validation of every declaration that inherits it because the effective mode changes source-widget gesture validity.
@@ -220,26 +221,40 @@ The behavior schema includes:
 Timing settings use this precedence, from lowest to highest:
 
 ```text
-compiled fallback < product global settings < configured Surface instance override < binding override
+compiled fallback < product global settings < Device override < binding override
 ```
 
-Default behavior and user timing preferences belong to product configuration and configured Surface instances. They do not belong in a Vendor `Surface.txt` hardware template.
+Default behavior and user timing preferences belong to root product settings and configured Devices. They do not belong in a Vendor Surface hardware template or in a Page Surface assignment.
 
-Product overrides use one or more order-independent `Settings` lines after the required Version line:
+Product defaults use the root `Settings` block in the unversioned product `.conf`:
 
-```ini
-Version=7.0
-Settings DefaultModifierMode=Latch HoldDelayMs=1000 LongHoldDelayMs=2000
-Settings DoublePressWindowMs=400 ModifierTapWindowMs=100
+```text
+Settings {
+  DefaultModifierMode=Latch
+  HoldDelayMs=1000
+  LongHoldDelayMs=2000
+  DoublePressWindowMs=400
+  ModifierTapWindowMs=100
+}
 ```
 
-A configured Surface override is appended to its existing assignment line:
+A Device can override settings for every Page Surface assignment that uses that physical device:
 
-```ini
-Surface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0 HoldDelayMs=750 LongHoldDelayMs=1500
+```text
+Device fp2 {
+  Type=MIDI
+  Channels=1
+  Input=0
+  Output=0
+
+  Settings {
+    HoldDelayMs=750
+    LongHoldDelayMs=1500
+  }
+}
 ```
 
-An omitted Product value inherits the compiled default. An omitted Surface value inherits the effective Product value. A setting can appear only once in one scope. An invalid Product set is rejected as one unit and runtime uses all compiled defaults. An invalid Surface override set is rejected as one unit and that Surface uses the Product set. Other valid Surfaces continue to load.
+`Page.Surface.Settings` is not valid. An omitted Product value inherits the compiled default. An omitted Device value inherits the effective Product value. A setting can appear only once in one scope. An invalid root Settings block is rejected as one unit and runtime uses compiled defaults for that block. An invalid Device Settings block is rejected as one unit and that Device uses the resolved Product values. Other valid Devices continue to load.
 
 The timing schema includes:
 
@@ -269,7 +284,7 @@ The proposed implementation must replace or account for these current behaviors:
 - [`ActionContext::DoAction()`](../src/actions/action_context.cpp) owns Hold and DoublePress timing independently in each action context.
 - [`Widget`](../src/controls/widget.h) stores modifier, Hold, DoublePress, and Hold-fired state on the physical widget instead of the selected zone and normalized context.
 - `Action::IgnoresRelease()` is a fixed action trait. There is no current per-binding Press, Tap, or Release selector.
-- A parent or active SubZone can consume a widget before an IncludedZone receives it, even when the parent has no action for the current selector set.
+- A parent or active zone layer can consume a widget before an IncludedZone receives it, even when the parent has no action for the exact normalized binding event.
 
 The new runtime should use one deterministic button gesture recognizer per active physical widget context. Action contexts should consume recognized events instead of running independent timers.
 
@@ -293,7 +308,7 @@ Report an error for:
 - A selector written without `[]` or an input operator written without `()`.
 - An invalid `Mode` override or effective default modifier mode.
 - Use of a modifier alias as a physical widget name.
-- Press, Tap, Release, Hold, LongHold, DoublePress, Increase, Decrease, Touch, or Toggle semantics on a virtual event widget such as `OnZoneActivation`.
+- Press, Tap, Release, Hold, LongHold, DoublePress, Increase, Decrease, Touch, or Toggle semantics in an explicit lifecycle block such as `On ZoneActivation`.
 
 `[Touch]` and `[Toggle]` can be used together because they are independent channel states.
 
@@ -302,6 +317,8 @@ Report an error for:
 Resolve the binding against the selected surface and report an error when:
 
 - The physical widget does not exist.
+- An `@CH` family is missing any expected numbered widget for the configured surface channel count.
+- A normal binding uses `*`; wildcard widget patterns are valid only in schema fields that explicitly accept them.
 - A button event targets a widget without two-state press and release input.
 - `(Increase)` or `(Decrease)` targets a widget without relative input.
 - `[Touch]` or `[Toggle]` targets a widget without a valid channel number.
@@ -312,6 +329,28 @@ Resolve the binding against the selected surface and report an error when:
 - A modifier is assigned to a widget without two-state press and release input.
 
 Formal surface layout metadata has priority over inferred widget capabilities when it is available.
+
+## Action Value Properties
+
+Action metadata declares whether a binding accepts `Range`, `Delta`, `AccelerationDeltas`, `StepValues`, `TicksPerStep`, or `StateColors`. Unknown or unsupported properties are errors.
+
+Report an error when:
+
+- `Range` does not contain exactly two finite numbers or its minimum is not less than its maximum.
+- `Delta` is not positive.
+- `AccelerationDeltas` is empty or contains a non-positive or non-finite value.
+- `StepValues` is empty, contains a non-finite value, or repeats a value.
+- A `StepValues` entry is outside the explicit or action-defined effective range.
+- `StepValues` is combined with `Delta` or `AccelerationDeltas`.
+- `TicksPerStep` is used without `StepValues`, is empty, or contains a non-positive integer.
+- A color is not exact `#RRGGBB` or `#RRGGBBAA` syntax.
+- `StateColors=[Track]` also contains an explicit color.
+- The action or widget feedback does not support the requested state colors.
+- `RingStyle` is used on a widget without ring feedback or names a style that its ring processor does not support.
+
+Without `TicksPerStep`, each input tick advances one discrete step. If an acceleration level is higher than the available `AccelerationDeltas` or `TicksPerStep` entries, reuse the final entry. Report a warning for decreasing `AccelerationDeltas` because faster input then produces a smaller change.
+
+Ring feedback resolves in this order: explicit binding `RingStyle`, action-catalog `FeedbackShape` mapped by the selected processor, then processor default. Bindings cannot set `FeedbackShape`. Actions without a reliable shape, including `FXParam` and `TrackPanAutoRight`, use the processor default unless `RingStyle` is explicit.
 
 ## Gesture Reachability Rules
 
@@ -352,8 +391,8 @@ The initial trait set includes:
 - `GoHome`
 - `AllSurfacesGoHome`
 - `GoZone`
-- `GoSubZone`
-- `LeaveSubZone`
+- `EnterZoneLayer`
+- `ExitZoneLayer`
 - `GoFXSlot`
 - `ClearLastTouchedFXParam`
 - `ClearFocusedFX`
@@ -397,29 +436,35 @@ Report an error when:
 - `RepeatIntervalMs` is used outside Hold or LongHold.
 - A binding uses `DelayMs` outside Hold or LongHold.
 - A Hybrid modifier lacks a valid `ModifierTapWindowMs`.
-- One configured Surface resolves contradictory timing settings.
+- One configured Device resolves contradictory timing settings.
 
 Report a warning when a timing value is below the practical input polling interval or makes two gestures difficult to distinguish.
 
 ## Zone and Profile Rules
 
+Resolve each profile before validating bindings and dependencies. Main and FX use separate case-insensitive ID namespaces. In each collection, one User zone overrides only the Vendor zone with the same canonical filename stem; all other valid files from both sources remain active. Duplicate IDs inside one source are errors. An invalid User override keeps that ID invalid and does not silently expose Vendor behavior.
+
+Duplicate and reference diagnostics must include complete relative paths and links to every related declaration. Nested directories do not change zone identity. Partial-file validation defers missing-target diagnostics until the complete resolved profile index is available.
+
+Resolve `LearnFX.fxzon` against the Surface assignment that opened FX edit mode. `FXWidgets` must select at least one input-capable `Parameter` widget. Name and value display entries must resolve text-feedback widgets. Overlapping roles, missing `@CH` family members, unsupported entry defaults, ambiguous display pairing, duplicate active `MatchFX` values, and a conflict between copied generated bindings and a parameter assignment are errors linked to both sources. The saved FX-zone draft is then validated as a normal FX `.zon` file with no hidden Learn FX context.
+
 Report an error for:
 
-- `GoZone` or `GoSubZone` without a target.
+- `GoZone` or `EnterZoneLayer` without a target.
 - A missing target zone.
-- `GoZone` targeting a zone that is available only as a SubZone.
-- `GoSubZone` targeting a zone that is not declared in the enclosing zone's `SubZones` section.
-- One zone listed in both `IncludedZones` and `SubZones` of the same zone.
+- `GoZone` targeting a zone that is available only as a zone layer.
+- `EnterZoneLayer` targeting a zone that is not declared in the enclosing zone's `ZoneLayers` section.
+- One zone listed in both `IncludedZones` and `ZoneLayers` of the same zone.
 - A duplicate dependency entry.
-- A dependency, activation, or deactivation cycle.
+- A structural cycle through `IncludedZones` or `ZoneLayers`. Navigation return paths through `GoZone` are not structural cycles.
 - A zone-local pseudo-modifier that can remain active after its owning zone deactivates.
 
 Report a warning for:
 
-- `GoHome` or `LeaveSubZone` in Home.
-- A self-target transition whose toggle behavior is not explicit.
-- A parent binding that shadows an IncludedZone binding.
-- A SubZone binding that makes a parent binding unreachable.
+- `GoHome` or `ExitZoneLayer` in Home.
+- A self-target `GoZone` transition that has no effect.
+- A parent binding that shadows an `IncludedZones` binding.
+- A zone-layer binding that makes a parent binding unreachable.
 
 Run profile-level checks after applying the same User and Vendor layer override rules as runtime. Do not store zone-local modifier or gesture state permanently on the shared physical `Widget`.
 
@@ -428,15 +473,15 @@ Run profile-level checks after applying the same User and Vendor layer override 
 C++ is the authority for effective timing values, ranges, gesture semantics, and runtime validation.
 
 - [`settings_schema.conf`](../Scripts/settings_schema.conf) is the canonical metadata source for setting names, types, compiled defaults, ranges, scopes, categories, and cross-setting constraints. It currently defines input behavior and timing settings and can later define other product configuration metadata. It does not store user values.
-- Product configuration stores global values and configured Surface overrides.
-- The Bun editor reads schema metadata and user-selected values from the product INI.
-- Lua reads schema metadata for its settings interface, but it queries and changes effective values through structured C++ ExtState commands. Lua must not read or write the product INI directly or keep an independent timing source of truth.
+- Product configuration stores root values and Device overrides.
+- The Bun editor reads schema metadata and user-selected values from the product `.conf`.
+- Lua reads schema metadata for its settings interface, but it queries and changes effective values through structured C++ ExtState commands. Lua must not read or write the product `.conf` directly or keep an independent timing source of truth.
 - A Lua settings change is validated, applied live, and saved atomically by C++. A manual or Bun editor file change becomes active only after explicit Apply or Reload, or after CSI restarts.
-- C++ provides `Query`, `Apply`, and `Reload` through the generated `ReaCtrlSurf_SETTINGS_CMD` and `ReaCtrlSurf_SETTINGS` sections. Query reports each effective value, its `Compiled`, `Product`, or `Surface` source, and the value that would be inherited after removing the current override.
+- C++ provides `Query`, `Apply`, and `Reload` through the generated `ReaCtrlSurf_SETTINGS_CMD` and `ReaCtrlSurf_SETTINGS` sections. Query reports each effective value, its `Compiled`, `Product`, or `Device` source, and the value that would be inherited after removing the current override.
 - C++ validates product configuration, Zone loading, and OSK live apply before changing runtime state.
 - The Bun editor validates the same grammar, settings, surface capabilities, action traits, and cross-file relationships.
 - The legacy converter translates old unwrapped expressions and timing actions into the explicit grammar and persistent settings.
-- OSK serialization, labels, tooltips, and editing preserve bracketed selectors, parenthesized events, and effective overrides.
+- OSK serialization, labels, tooltips, and editing preserve bracketed selectors, parenthesized events, `@CH` widget-family qualifiers, and effective overrides.
 - One generated metadata schema must keep C++, Lua, and TypeScript setting names, ranges, enums, and action traits aligned.
 
 ## Test Contract
@@ -452,33 +497,33 @@ Extract a deterministic C++ button gesture recognizer with an injected clock. Co
 - Lost release recovery.
 - Momentary, Latch, and Hybrid modifier state.
 - Zone deactivation during every gesture phase.
-- Product global, Surface, declaration mode, and binding timing overrides.
+- Product global, Device, declaration mode, and binding timing overrides.
 - Multiple actions and context-changing action ordering.
 
 Add Bun tests for parsing, normalization, validation, quick fixes, conversion, Vendor compatibility, and complete configuration sets. Add Lua serialization and settings-command checks. Keep focused manual REAPER verification for real MIDI and OSC timing.
 
 ## Acceptance Criteria
 
-- Selectors, input events, transforms, and physical widget names are visually and grammatically distinct.
+- Selectors, input events, transforms, exact physical widget names, and `@CH` widget-family qualifiers are visually and grammatically distinct.
 - Physical widget names never create modifiers implicitly.
 - Diagnostics use normalized identity and do not depend on selector order, line order, or zone load order.
 - Momentary, Latch, and Hybrid source-widget Hold rules are enforced.
 - Tap, Hold, LongHold, and DoublePress reachability is deterministic before actions run.
-- Product global, configured Surface, declaration mode, and binding timing overrides resolve to one C++-owned effective value set.
+- Product global, Device, declaration mode, and binding timing overrides resolve to one C++-owned effective value set.
 - Every conflicting diagnostic identifies all related lines and paths when possible.
 - Lua, C++, the Bun editor, and the converter use the same names, values, and validation rules.
 - Existing Vendor zones are audited and converted before the new grammar becomes required.
 
 ## Short Implementation Plan
 
-- ✅ Define the shared product and Surface behavior and timing metadata source, defaults, ranges, scopes, cross-setting constraints, C++ generation input, Lua loader, and TypeScript loader.
+- ✅ Define the shared Product and Device behavior and timing metadata source, defaults, ranges, scopes, cross-setting constraints, C++ generation input, Lua loader, and TypeScript loader.
 - [ ] Define the explicit binding grammar, normalized binding types, declaration and binding overrides, modifier modes, action traits, and remaining generated cross-component metadata.
 - [ ] Implement the deterministic C++ gesture recognizer, scoped modifier state, configuration precedence, runtime validation, and persistent settings.
-  - ✅ Implement Product and Surface setting parsing, atomic scope validation, effective precedence, runtime timing application, atomic persistence, and reload without replacing valid runtime state on error.
+  - ✅ Implement the current Product and Surface setting behavior. Phase 3 moves the assignment-level scope to Device while preserving atomic scope validation, effective precedence, runtime timing application, atomic persistence, and reload without replacing valid runtime state on error.
 - [ ] Update Zone parsing, OSK live apply, ExtState settings commands, Lua settings UI, labels, tooltips, and serialization.
-  - ✅ Implement structured settings Query, Apply, and Reload commands plus the schema-driven OSK Product and Surface settings window.
+  - ✅ Implement structured settings Query, Apply, and Reload commands plus the schema-driven OSK settings window. Phase 3 changes its editable override scope from Surface to Device.
 - [ ] Update the Bun editor, complete-set validator, quick fixes, snippets, legacy converter, and Vendor configuration migration.
-  - ✅ Validate Product settings and Surface overrides in the Bun parser and CLI from the shared schema.
+  - ✅ Validate the current Product settings and Surface overrides in the Bun parser and CLI from the shared schema. Phase 4 changes this validation to Product and Device scopes.
 - [ ] Add C++, Bun, and Lua tests for parsing, timing, state transitions, overrides, conversion, and invalid combinations.
-  - ✅ Add focused C++ value-resolution tests, Bun Product and Surface setting tests, and Lua settings protocol self-checks.
+  - ✅ Add focused C++ value-resolution tests, Bun Product and Surface setting tests, and Lua settings protocol self-checks. Update their scope fixtures to Product and Device with the format 2 product `.conf`.
 - [ ] Audit all Vendor surfaces and zones, then perform focused manual MIDI, OSC, motor-fader, touch, and multi-surface verification.
