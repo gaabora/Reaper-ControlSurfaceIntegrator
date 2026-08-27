@@ -220,6 +220,8 @@ Ready when every vendor MIDI surface has an installable layout and ReaPack canno
 
 Ready when a function group can move between compatible surfaces without fixed vendor widget names or partial file changes.
 
+Format 2 replaces this completed Version 1 semantic-slot workflow with direct zone-fragment snippets. The current `Role`, `Input`, `Feedback`, `Required`, application-ID, conflict-action, and saved-marker implementation is migration input, not the future public snippet format. The replacement is specified and tracked in [ZONE_FORMAT_V2_PLAN.md](ZONE_FORMAT_V2_PLAN.md).
+
 ### Phase 8. Small zone-file creation from Lua OSK
 
 - ✅ Add a Lua command that asks C++ to create one minimal valid zone file.

@@ -84,9 +84,9 @@ The same brace rule applies to the new surface format:
 
 ```text
 Widget Fader {
-  Input Fader14Bit { Status=0xE0 }
+  Input Value { Encoding=MIDI14 Status=0xE0 }
   Input Touch { On=[0x90, 0x68, 0x7F] Off=[0x90, 0x68, 0x00] }
-  Feedback Fader14Bit { Status=0xE0 }
+  Feedback Value { Encoding=MIDI14 Status=0xE0 }
 }
 
 OSKLayout {
@@ -191,7 +191,7 @@ A discrete parameter uses ordered values and can require a different number of i
 Rotary1 FXParam 0 Range=[0.0, 1.0] StepValues=[0.0, 0.5, 1.0] TicksPerStep=[4, 2, 1]
 ```
 
-Legacy MIDI encoder direction blocks such as `[ > 01-3f < 41-7f ]` belong to the Surface input protocol, not to action values. The Surface contract below converts the exact standard range to `Encoding=SignedBit` only when no WidgetClass supplied the current runtime behavior. When a WidgetClass exists, the importer converts its `AccelerationValues` to an EncoderProfile and removes the ignored inline range with a notice.
+Legacy MIDI encoder direction blocks such as `[ > 01-3f < 41-7f ]` belong to the Surface input protocol, not to action values. The Surface contract below converts the exact standard range to `Encoding=MIDI7 Mode=SignedBit` only when no WidgetClass supplied the current runtime behavior. When a WidgetClass exists, the importer converts its `AccelerationValues` to an EncoderProfile and removes the ignored inline range with a notice.
 
 The importer must decode each legacy value type. It must not copy one old anonymous bracket group into one new generic list.
 
@@ -365,7 +365,32 @@ IncludedZones {
 
 `IncludedZones` means that each referenced independent zone remains active at the same time as the current zone. Each referenced zone keeps its own explicit `Target` and channel-qualified bindings. For example, `Home` can own global transport bindings while a `Target=Tracks` zone expands only its `@CH` bindings for the surface channels.
 
-A functional snippet is different. The editor inserts snippet bindings into the current zone draft, and those bindings use the current zone context. A snippet does not create or activate an independent runtime zone.
+A functional snippet is different. It is an editor-only fragment that uses normal zone-body syntax. The editor inserts its resolved statements into the current zone draft, and those statements use the destination zone context. A snippet does not create or activate an independent runtime zone.
+
+A format 2 snippet has no semantic Slot, Role, Requires, Binding wrapper, application ID, or generated marker comments:
+
+```text
+@Meta { Version=2 Name="Transport controls" }
+
+PlayButton Play
+[Shift]+PlayButton Reaper 40044
+StopButton Stop
+RecordButton Record
+```
+
+The `.snippet` extension identifies a zone fragment. Its body uses the same statements and binding grammar as a normal zone body. `Name` and `Description` are optional display metadata; the filename stem remains the snippet ID. The runtime never loads `.snippet` files.
+
+Each physical widget token is a source mapping name. Repeated use of the same exact name is one mapping unit, and one `Name@CH` family is one channel-family mapping unit. The snippet can therefore be written and edited like normal zone text without `$Widget` placeholders. Before insertion, the Bun editor:
+
+- validates syntax, action names, action parameters, selectors, events, and named binding properties without pretending that source mapping names exist on the target Surface;
+- derives required input and feedback capabilities from action metadata, the binding expression, modifier declarations, and named properties such as `StateColors` and `RingStyle`;
+- selects an exact compatible target widget or widget family automatically and shows a dropdown when there is no unique compatible match;
+- treats each standard or pseudo-modifier selector as a separate token-aware mapping and lets the user keep it, replace it with another valid modifier, or remove it;
+- applies one confirmed mapping consistently to every occurrence, including a mapped physical modifier declaration and its pseudo-modifier selector;
+- lets the user explicitly omit one source widget and all statements that depend on it;
+- validates the complete resolved fragment against the selected Surface and destination zone context before insertion.
+
+An incompatible widget or modifier choice is not accepted. Removing a selector or omitting a source widget can expose duplicates or unreachable bindings, which the normal destination-zone validator reports in the preview. The editor inserts plain resolved zone statements after the current cursor line, or at the normal end-of-body position when the cursor is on the metadata line. It changes only the unsaved draft. Applying the same snippet twice has no special replace behavior; any duplicate is an ordinary zone diagnostic. No snippet provenance remains in the saved zone.
 
 Legacy `IncludedZones` sections are converted directly to brace-based `IncludedZones`. The importer does not try to classify or flatten them into snippets.
 
@@ -522,9 +547,10 @@ The selected Device `Type` must equal the Surface metadata `Protocol`. A mismatc
 A Surface document accepts these order-independent top-level blocks after `@Meta`:
 
 - zero or more `EncoderProfile` blocks;
+- zero or more `ValueProfile`, `ColorProfile`, `RingProfile`, `MeterProfile`, and `TextProfile` blocks;
 - zero or one `ColorCalibration` block;
 - one or more `Widget` blocks;
-- zero or one `OSKLayout` block when `Protocol=MIDI`.
+- zero or one `OSKLayout` block for either protocol.
 
 Block IDs and references are case-sensitive. Duplicate Widget or EncoderProfile IDs are errors linked to every declaration. Unknown blocks and properties are errors. The parser builds one typed Surface model; hardware input, feedback capabilities, validation, Learn FX, and OSK all consume that model.
 
@@ -542,6 +568,7 @@ EncoderProfile Rotary {
 
 Widget RotaryBig {
   Input Encoder {
+    Encoding=MIDI7
     Message=[0xB0, 0x10]
     Profile=Rotary
   }
@@ -549,6 +576,7 @@ Widget RotaryBig {
 
 Widget RotaryBigPush {
   Input Press {
+    Encoding=MIDIExact
     On=[0x90, 0x20, 0x7F]
     Off=[0x90, 0x20, 0x00]
   }
@@ -556,30 +584,32 @@ Widget RotaryBigPush {
 
 Widget Solo {
   Input Press {
+    Encoding=MIDIExact
     On=[0x90, 0x08, 0x7F]
     Off=[0x90, 0x08, 0x00]
   }
-  Feedback TwoState {
+  Feedback State {
+    Encoding=MIDIExact
     On=[0x90, 0x08, 0x7F]
     Off=[0x90, 0x08, 0x00]
   }
 }
 ```
 
-`Widget` contains zero or one quoted `Alias` property and one or more `Input` or `Feedback` blocks. It can contain several typed blocks, such as fader input, touch input, motor feedback, and color feedback. `Input Type` and `Feedback Type` use separate closed namespaces, so the same short type can exist in both. The public Feedback type drops the redundant legacy `FB_` prefix.
+`Widget` contains zero or one quoted `Alias` property and one or more `Input` or `Feedback` blocks. It can contain several typed blocks, such as fader input, touch input, motor feedback, and color feedback. `Input Type` and `Feedback Type` use separate closed namespaces, so the same short type can exist in both. Format 2 uses universal primitive names. The legacy `FB_` prefix and device-model names are not part of these public namespaces.
 
-Every registered Input and Feedback type has one shared schema entry that defines its protocol, allowed named properties, required properties, message matching rule, runtime decoder or processor, and derived capabilities. C++, Bun, Lua metadata, Learn FX, and OSK must use this catalog. They must not infer capabilities by searching type-name text. Adding a processor without adding its schema entry is a build-generation error.
+Every primitive and Encoding has one shared schema entry that defines its protocol, allowed named properties, required properties, message matching or output-ownership rule, reusable runtime codec, and derived capabilities. C++, Bun, Lua metadata, Learn FX, and OSK must use this catalog. They must not infer capabilities by searching type-name text. Adding a codec without adding its schema entry is a build-generation error.
 
-The initial Input catalog replaces the current public runtime names as follows:
+The current Input inventory used for migration is:
 
-| Protocol | Public Input type | Named properties | Derived input capability | Legacy input |
+| Protocol | Current registered type | Named properties | Derived input capability | Legacy input |
 |---|---|---|---|---|
 | MIDI | `Press` | required three-byte `On`; optional three-byte `Off` | press; release only when Off exists | `Press` |
 | MIDI | `AnyPress` | required two-byte `Message` prefix | press without release | `AnyPress` |
 | MIDI | `Fader14Bit` | required `Status` byte | absolute | `Fader14Bit` |
 | MIDI | `FaderportClassicFader14Bit` | required three-byte `MSBMessage` and `LSBMessage` | absolute | same name |
 | MIDI | `Fader7Bit` | required two-byte `Message` prefix | absolute | `Fader7Bit` |
-| MIDI | `Encoder` | required two-byte `Message` prefix and exactly one Profile or Encoding | relative | `Encoder`, `MFTEncoder`, `EncoderPlain`, `Encoder7Bit` |
+| MIDI | `Encoder` | required two-byte `Message` prefix and exactly one Profile or Mode | relative | `Encoder`, `MFTEncoder`, `EncoderPlain`, `Encoder7Bit` |
 | MIDI | `Touch` | required three-byte `On` and `Off` | touch | `Touch` |
 | OSC | `Control` | required `Address` | numeric value | `Control` |
 | OSC | `AnyPress` | required `Address` | press without release | `AnyPress` |
@@ -587,11 +617,13 @@ The initial Input catalog replaces the current public runtime names as follows:
 | OSC | `X32Fader` | required `Address` | absolute | `X32Fader` |
 | OSC | `X32RotaryToEncoder` | required `Address` | relative | `X32RotaryToEncoder` |
 
-`EncoderPlain` converts to `Encoding=SignedBitFixed`; `Encoder7Bit` converts to `Encoding=Relative7Bit`; and `MFTEncoder` converts to a generated local EncoderProfile. These legacy names do not remain in the runtime catalog.
+`EncoderPlain` converts to `Encoding=MIDI7 Mode=SignedBitFixed`; `Encoder7Bit` converts to `Encoding=MIDI7 Mode=Relative7Bit`; and `MFTEncoder` converts to `Encoding=MIDI7` plus a generated local EncoderProfile. These legacy names do not remain in the runtime catalog.
 
-The initial Feedback catalog groups processors by their public property shape. Types in one row share the listed syntax but keep their own processor behavior and capability entry:
+`FaderportClassicFader14Bit`, `X32Fader`, and `X32RotaryToEncoder` are current behavior labels, not accepted final public type names. Their byte assembly, value curve, and relative conversion must move into generic Input primitives and Surface metadata during the universalization stage below.
 
-| Property shape | Public Feedback types |
+The current Feedback special-case inventory groups registered C++ processors by their legacy property shape:
+
+| Property shape | Current registered Feedback types |
 |---|---|
 | `On` and `Off` MIDI messages | `TwoState` |
 | one `Message` | `NovationLaunchpadMiniRGB7Bit`, `MFT_RGB`, `AsparionRGB`, `FaderportRGB`, `FaderportTwoStateRGB`, `Fader7Bit`, `Encoder`, `AsparionEncoder`, `ConsoleOneVUMeter`, `ConsoleOneGainReductionMeter`, `SCE24LEDButton`, `SCE24Encoder` |
@@ -603,11 +635,238 @@ The initial Feedback catalog groups processors by their public property shape. T
 | no properties | `MCUTimeDisplay`, `MCUAssignmentDisplay` |
 | `Address` | OSC `Value`, `Integer`, `X32`, `X32Integer`, `X32Fader`, `X32RotaryToEncoder` |
 
-These names come from the current registered C++ processors, not from every public example file. A legacy Surface line whose type is misspelled, stale, or not registered produces an unknown-type diagnostic with close catalog suggestions. The importer does not preserve a non-working type only because it exists in a public example.
+These are migration inputs, not approved format 2 public type names. They come from the current registered C++ processors, not from every public example file. A legacy Surface line whose type is misspelled, stale, or not registered produces an unknown-type diagnostic with close suggestions. The importer does not preserve a non-working type only because it exists in a public example.
+
+The following table records the current behavior that universal format 2 Feedback must preserve:
+
+| Capabilities | Current registered Feedback types |
+|---|---|
+| `Toggle` | `TwoState`, `SCE24LEDButton` |
+| `Color` | `NovationLaunchpadMiniRGB7Bit`, `MFT_RGB`, `FaderportRGB` |
+| `Color`, `TrackColor` | `AsparionRGB` |
+| `Toggle`, `Color` | `FaderportTwoStateRGB` |
+| `Toggle`, `Color`, `Text` | `SCE24OLEDButton` |
+| `Value` | `Fader14Bit`, `FaderportClassicFader14Bit`, `Fader7Bit`, `FaderportValueBar`, `FP8ScribbleStripMode`, `FP16ScribbleStripMode`, `MCUTimeDisplay`, `MCUAssignmentDisplay` |
+| `Value`, `Ring` | `Encoder`, `AsparionEncoder` |
+| `Value`, `Ring`, `Color` | `SCE24Encoder` |
+| `Value`, `Meter` | `ConsoleOneVUMeter`, `ConsoleOneGainReductionMeter`, `FPVUMeter`, `QConProXMasterVUMeter`, `MCUVUMeter`, `MCUXTVUMeter`, `AsparionVUMeterL`, `AsparionVUMeterR` |
+| `Text` | all `MCUDisplay*`, `MCUXTDisplay*`, `IconDisplay*`, `AsparionDisplay*`, `C4Display*`, `FP8ScribbleLine*`, `FP16ScribbleLine*`, `QConLiteDisplay*`, and `SCE24EncoderText` types |
+| `Text`, `TrackColor` | `XTouchDisplayUpper`, `XTouchDisplayLower`, `XTouchXTDisplayUpper`, `XTouchXTDisplayLower` |
+| OSC `Value` | `Value`, `Integer`, `X32Integer`, `X32Fader`, `X32RotaryToEncoder` |
+| OSC `Value`, `Color` | `X32` |
+
+`Meter` and `Ring` include numeric value feedback. `TrackColor` is separate from general `Color`: it allows automatic track-color updates but does not imply that `StateColors` can drive the processor. A replacement gets only its declared capabilities, even if its C++ class inherits unused base overloads.
+
+Format 2 replaces device-named processors with this closed semantic primitive catalog:
+
+| Direction | Primitive | Runtime meaning and derived capabilities |
+|---|---|---|
+| Input | `Press` | Button event input. It derives `Press`; an explicit Off message also derives `Release` |
+| Input | `Value` | Absolute numeric input normalized for an Action after its declared value conversion |
+| Input | `Encoder` | Relative signed delta input with a declared encoding or EncoderProfile |
+| Input | `Touch` | Touch-state input routed to the channel touch context, not to a normal value Action |
+| Feedback | `State` | Discrete state output. It derives `Toggle` |
+| Feedback | `Value` | Numeric output. Motor faders use this primitive with echo or touch suppression metadata instead of a separate device or motor type |
+| Feedback | `Color` | RGB or palette output. It derives `Color`; `TrackColor=true` also derives `TrackColor`; an optional state brightness or state palette input also derives `Toggle` |
+| Feedback | `Ring` | Numeric ring output with a closed supported RingStyle map. It derives `Value` and `Ring`; optional segment color metadata also derives `Color` |
+| Feedback | `Meter` | Numeric level or gain-reduction output with its own mapping and refresh policy. It derives `Value` and `Meter` |
+| Feedback | `Text` | Text output with width, encoding, clear value, and optional layout fields. Optional state and color fields can also derive `Toggle`, `Color`, or `TrackColor` |
+
+`AnyPress`, `Fader7Bit`, `Fader14Bit`, split FaderPort values, OSC Control, and X32 value types are encodings of these primitives, not public primitive names. `TwoState` becomes `State`. A physical widget can contain several primitive blocks when they own different output keys. One combined hardware packet uses one owning primitive block with additional declared input fields instead of several blocks that compete for the same output key.
+
+Primitive and encoding are separate. The primitive selects runtime meaning and capability validation. An optional `Encoding` selects one closed reusable protocol shape. A format 2 Encoding name describes data representation, such as `MIDI7`, `MIDI14`, `MIDISplit`, `MIDIExact`, `OSCFloat`, `OSCInt`, or `OSCString`; it cannot name a product or device. The default is inferred only when one representation is possible from the declared properties. Otherwise `Encoding` is required.
+
+Surface metadata supplies the device data needed by those primitives and encodings:
+
+- MIDI messages, OSC addresses, and SysEx prefix and suffix bytes;
+- input and output value width, byte order, scaling curve, lookup table, and clamp range;
+- display channel, row, width, margins, font, and field positions;
+- color encoding, palette, channel scaling, and track-color support;
+- ring-style codes and the supported `RingStyle` subset;
+- all derived physical output keys and widget capabilities.
+
+Public format 2 type names cannot contain a product or device model such as `Asparion`, `Faderport`, `XTouch`, `SCE24`, or `QCon`. The design must not create an unrestricted scripting or bytecode language inside a Surface file. If one behavior cannot be expressed by the shared primitives and declarative data, the plan must first extract the smallest reusable codec and document why it is not device-specific. A new device that uses an existing protocol shape must require only a Surface file change, not a new C++ class.
+
+Current processors that generate REAPER-specific content themselves, such as MCU time and assignment displays, must be split. A normal Action supplies the value or formatted text, and a universal Feedback primitive only encodes and sends it to the device.
+
+The source inventory identifies these required reusable encoding cases. They must be resolved before the catalog task is complete:
+
+| Current special case | Required format 2 representation |
+|---|---|
+| FaderPort Classic split fader messages | `Value` with one split-value encoding, declared bit width, MSB message, and LSB message |
+| X32 fader piecewise dB conversion | Reversible ValueProfile metadata referenced by `Input Value` and `Feedback Value` |
+| X32 rotary-to-encoder acknowledgement | `Input Encoder` acknowledgement metadata that sends a declared constant after accepted input; it is not normal Action feedback |
+| FaderPort state-sensitive RGB brightness | One `Feedback Color` block with RGB messages plus declarative active and inactive brightness scales |
+| SCE24 OLED button | One `Feedback Text` block with state, fixed text, foreground color, background color, margins, font, and SysEx encoding fields |
+| SCE24 colored encoder ring | One `Feedback Ring` block with RingStyle mapping and declarative segment color ranges |
+| MCU, XTouch, ICON, QCon, Asparion, and FaderPort text variants | Shared text encodings with declared SysEx prefix, suffix, text width, padding, row, channel, and offset data |
+| MCU, QCon, FaderPort, Asparion, and Console One meters | Shared MeterProfile threshold or linear metadata plus declared MIDI output placement and refresh policy |
+| XTouch track-color packet shared by several displays | One Surface-level feedback group that owns the packet and references its member display widgets; per-widget duplicate output ownership remains invalid |
+| MCU time and assignment displays | Normal Actions produce text or state; `Feedback Text` or `Feedback State` only encodes and sends it |
+
+The current FPVUMeter calculation can produce `0x80..0xA0` in a MIDI data-byte position. Format 2 cannot silently preserve bytes that violate the MIDI seven-bit data rule. Migration must report this case, and the final MeterProfile needs device documentation or hardware verification before the bundled FaderPort meter is converted.
+
+Value conversion, color palette, ring map, meter map, and text encoding data use reusable top-level profiles inside one Surface document when more than one Widget uses the same data. A profile contains declarative constants, ordered points, lookup entries, or thresholds. It cannot execute actions, inspect REAPER state, branch on device names, or contain general arithmetic.
+
+#### Reusable Surface profiles
+
+All profile IDs are case-sensitive and local to one Surface document. Duplicate IDs within one profile kind are errors. Primitive blocks use the explicit `ValueProfile=`, `ColorProfile=`, `RingProfile=`, `MeterProfile=`, or `TextProfile=` property, so a combined primitive can reference more than one kind without an overloaded Profile field. A reference to the wrong kind is an error. `Input Encoder` keeps its existing `Profile=` property because it can reference only EncoderProfile. An unreferenced profile is a warning. Device names are allowed in local profile IDs because the ID is data owned by that Surface, not a public runtime type.
+
+`ValueProfile` converts a scalar before Action input and performs the inverse conversion for feedback when `Direction=Both`:
+
+```text
+ValueProfile FaderCurve {
+  InputUnit=Normalized
+  OutputUnit=Decibels
+  Direction=Both
+  Interpolation=Linear
+  Point Input=0.0 Output=-90.0
+  Point Input=0.0625 Output=-60.0
+  Point Input=0.25 Output=-30.0
+  Point Input=0.5 Output=-10.0
+  Point Input=1.0 Output=10.0
+}
+```
+
+`InputUnit` and `OutputUnit` use `Normalized`, `Integer`, or `Decibels`. Point Input is always the device-side value and Point Output is always the product-side value. `Direction=Decode` uses the listed direction, `Encode` uses its inverse, and `Both` permits both. An Input reference requires Decode or Both; a Feedback reference requires Encode or Both. `Interpolation` is `Linear` or `Step`. At least two Point entries are required. Input values must increase strictly. Encode and Both require Linear interpolation plus strictly monotonic Output values so the inverse is unique. Values outside the first and last point clamp to the nearest endpoint. Decibels are converted through the product's one shared amplitude conversion instead of a device codec.
+
+`ColorProfile` maps RGB colors to a device palette:
+
+```text
+ColorProfile BasicPalette {
+  Match=Nearest
+  Default=0
+  Entry Color=#000000 Value=0
+  Entry Color=#FF0000 Value=1
+  Entry Color=#00FF00 Value=2
+  Entry Color=#FFFFFF Value=7
+}
+```
+
+`Match` is `Nearest` or `Exact`. Default is a non-negative integer and defaults to zero. Entry colors and non-negative integer Values must each be unique. `Nearest` uses the smallest squared distance in calibrated RGB space and resolves an equal-distance tie by source order. `Exact` uses Default when no Entry matches. ColorCalibration runs before palette lookup. Direct RGB output does not require a ColorProfile.
+
+`RingProfile` converts normalized value and RingStyle into separate reusable output fields:
+
+```text
+RingProfile StandardRing {
+  Quantize=Floor
+  ValueOffset=1
+  Style Dot Code=0 Steps=11
+  Style BoostCut Code=1 Steps=11
+  Style Fill Code=2 Steps=11
+  Style Spread Code=3 Steps=6
+}
+```
+
+`Quantize` is `Floor` or `Round`. ValueOffset is an integer. Each Style name is one global RingStyle, each non-negative Code is unique, and Steps is a positive integer count of output positions. A normalized value is clamped to zero through one and quantized across zero through `Steps - 1`, then ValueOffset is added. The profile produces `RingValue` and `RingStyleCode`; the Widget output encoding decides which MIDI bytes or OSC argument receive them. Only listed styles are supported by that feedback block.
+
+`MeterProfile` is either linear or threshold-based:
+
+```text
+MeterProfile LinearMeter {
+  Mode=Linear
+  InputUnit=Normalized
+  InputRange=[0.0, 1.0]
+  OutputRange=[0, 127]
+  Quantize=Floor
+}
+
+MeterProfile SteppedMeter {
+  Mode=Steps
+  InputUnit=Decibels
+  Default=0
+  Step Minimum=-60.3 Output=1
+  Step Minimum=-54.1 Output=2
+  Step Minimum=0.1 Output=14
+}
+```
+
+`InputUnit` is `Normalized` or `Decibels`. Linear mode requires increasing two-value InputRange and OutputRange lists plus `Quantize=Floor|Round`; it rejects Step and Default. Steps mode requires Default plus one or more Steps in strictly increasing Minimum order and rejects the range and Quantize properties. It selects the last Step whose Minimum is not greater than the input. Output values are non-negative integers.
+
+`TextProfile` defines text conversion without defining its MIDI or OSC destination:
+
+```text
+TextProfile SevenCharacterDisplay {
+  Encoding=ASCII7
+  Width=7
+  Padding=Space
+  ClearText=""
+  SilenceAsEmpty=true
+}
+```
+
+Encoding is `ASCII7` or `UTF8`; MIDI text requires `ASCII7`. Width is a positive integer when present. Padding is `Space` or `None`; `Space` requires Width. ClearText is a quoted string and defaults to empty. SilenceAsEmpty defaults to false and converts the product's negative-infinity display text to empty before width and padding are applied.
+
+#### Protocol encodings
+
+`Encoding` is a closed protocol-shape enum. It does not select runtime meaning and cannot add a capability. The selected primitive, Surface Protocol, and Encoding must be one of these combinations:
+
+| Encoding | Protocol | Allowed primitives | Required transport properties |
+|---|---|---|---|
+| `MIDIExact` | MIDI | Input `Press`, Input `Touch`, Feedback `State` | three-byte `On`; `Off` is optional for Press and required for Touch and State |
+| `MIDIPrefix` | MIDI | Input `Press` | two-byte `Message`; any third data byte produces Press and no Release |
+| `MIDI7` | MIDI | Input or Feedback `Value`, Input `Encoder`, Feedback `Ring`, Feedback `Meter` | one- or two-byte Message prefix as restricted below |
+| `MIDI14` | MIDI | Input or Feedback `Value` | one Status byte; incoming or outgoing data byte 1 is LSB and data byte 2 is MSB |
+| `MIDISplit` | MIDI | Input or Feedback `Value` | two-byte `MSBMessage` and `LSBMessage` prefixes, `Bits`, and `Commit` |
+| `MIDIRGB` | MIDI | Feedback `Color` | optional three-byte `Enable`; two-byte `Red`, `Green`, and `Blue` prefixes |
+| `MIDIPalette` | MIDI | Feedback `Color` | two-byte `Message` prefix and `ColorProfile` |
+| `MIDISysEx` | MIDI | any Feedback primitive | one non-empty `Payload` list |
+| `MIDICharacters` | MIDI | Feedback `Text` | `Status`, `StartData`, `Direction`, and `TextProfile` |
+| `OSCFloat` | OSC | Input `Press`, `Touch`, `Value`, or `Encoder`; Feedback `State`, `Value`, `Ring`, or `Meter` | `Address` |
+| `OSCInt` | OSC | Input `Press`, `Touch`, `Value`, or `Encoder`; Feedback `State`, `Value`, `Color`, `Ring`, or `Meter` | `Address` |
+| `OSCString` | OSC | Feedback `Text` | `Address` |
+
+Numeric primitives are `Value`, `Encoder`, `State`, `Ring`, and `Meter` where that direction exists. `Press` and `Touch` can also use OSCFloat or OSCInt. `Match=Any` emits Press for every message and is invalid for Touch. `Match=NonZero` treats non-zero as On and zero as Off. `Match=Exact` requires OnValue; OffValue is optional for Press and required for Touch. State feedback defaults to OffValue zero and OnValue one. Value and Encoder default to no ValueProfile. Color with OSCInt requires ColorProfile.
+
+For MIDI7 Input Value and Encoder, Message is exactly two bytes and the incoming third byte is the value. For MIDI7 Feedback Value, Ring, and Meter, Message is one or two bytes and the encoded value is appended as the final MIDI data byte. All produced bytes must fit zero through `0x7F`. A Ring block requires RingProfile and emits its RingValue; a Meter block requires MeterProfile and emits its mapped value. `ValueBase` is an optional data byte combined with the mapped value through `Combine=Replace|Add|BitOr`, defaulting to Replace with base zero. Add must not overflow `0x7F`; BitOr requires disjoint set bits between every possible mapped value and ValueBase.
+
+MIDI14 always represents a normalized value with 14 data bits. Status must be a pitch-bend status from `0xE0` through `0xEF`. Input reconstructs `(MSB << 7) | LSB`; Feedback sends LSB and then MSB in the same message. A ValueProfile is applied outside this packing.
+
+MIDISplit supports `Bits=8..14`. MSBMessage and LSBMessage are distinct two-byte MIDI prefixes. Commit is `MSB` or `LSB` and identifies which arriving part publishes a complete Input value. Feedback sends the non-commit part first and the commit part second. Unused high bits are zero. The two parts use up to seven bits each, with the low part holding the least significant bits. This replaces the FaderPort Classic two-message codec without naming that device.
+
+MIDIRGB appends one calibrated seven-bit channel value to each Red, Green, and Blue prefix and sends the optional Enable message first. `InactiveBrightness` and `ActiveBrightness` are finite values from zero through one. When either is present, both are required, state input is enabled for the Color primitive, and it also derives Toggle. TrackColor defaults to false. Direct RGB uses ColorCalibration but no ColorProfile.
+
+MIDIPalette appends the selected ColorProfile integer value to Message. The value must fit one MIDI data byte. TrackColor defaults to false.
+
+MIDISysEx automatically adds leading `0xF0` and trailing `0xF7`. Payload is an ordered list containing MIDI data-byte constants and fields from this closed set:
+
+- `State7`, `Value7`, `ValueLSB7`, `ValueMSB7`;
+- `Red7`, `Green7`, `Blue7`, `PaletteValue`;
+- `RingValue`, `RingStyleCode`, `MeterValue`;
+- `TopMargin7`, `BottomMargin7`, `Font7`;
+- `BackgroundRed7`, `BackgroundGreen7`, `BackgroundBlue7`;
+- `TextRed7`, `TextGreen7`, `TextBlue7`;
+- `Text`.
+
+Each field requires the matching primitive input or profile. Text requires TextProfile and must be the final Payload entry because its encoded length can vary. Margin and font fields use primitive defaults and can be overridden only by binding properties explicitly declared as supported by that Feedback schema. State-specific background, text color, or brightness properties enable state input and derive Toggle. No field can contain an expression, offset, condition, loop, action, or arbitrary property lookup. Device and channel constants are resolved into literal Payload bytes in each Widget declaration.
+
+MIDICharacters sends one three-byte message per encoded character. Status is a MIDI status byte, StartData is a data byte, Direction is `Ascending` or `Descending`, and TextProfile supplies Width and encoded text. The second byte starts at StartData and changes by one per character; the third byte is the character. TextProfile Width is required. This supports character-addressed time or assignment displays after a normal Action supplies their text.
+
+OSCFloat sends or accepts one 32-bit float argument, OSCInt one 32-bit integer argument, and OSCString one string argument. Address is explicit and starts with `/`; no encoding adds `/Color` or rewrites an address. ValueProfile, ColorProfile, RingProfile, MeterProfile, and TextProfile run before output or after input as applicable.
+
+Input Encoder with OSCFloat or OSCInt requires either ValueProfile or `Scale`, where Scale is a non-zero finite multiplier applied to the signed received value. It can contain:
+
+```text
+Acknowledge {
+  Encoding=OSCInt
+  Address="/control/ack"
+  Value=64
+}
+```
+
+Acknowledge is optional, sends one declared constant only after accepted input, and owns its output Address. It cannot reference Action state or normal feedback. This replaces the X32 rotary acknowledgement behavior.
+
+Feedback Value accepts `EchoGuardMs=0..10000` and `SuppressWhileTouched=true|false`, both defaulting to zero or false. EchoGuardMs suppresses output for that many milliseconds after the same Widget accepts Value input. SuppressWhileTouched requires Touch input on the same channel. These properties describe motor and bidirectional controls without a Motor primitive.
+
+Feedback Meter accepts `Refresh=OnChange|Continuous`, defaulting to OnChange. Continuous requires `RefreshIntervalMs=10..5000` and resends the current mapped value even when it has not changed. OnChange rejects RefreshIntervalMs. Clear sends the MeterProfile Default or the lower Linear OutputRange endpoint.
+
+These encodings cover the simple one-output cases. The encoding catalog is not complete until two composition cases have exact syntax: one Ring primitive that sends normal value feedback plus separate color-configuration SysEx, and one Surface-level FeedbackGroup that owns a packet assembled from several member widgets, such as XTouch track colors. The solution must reuse the fields above and cannot add device-named encodings or allow two declarations to own the same physical output key.
 
 MIDI bytes use `0x00` through `0xFF`. MIDI data bytes must also be at most `0x7F`; status-byte positions require a valid status value. `Message`, `On`, and `Off` are typed lists with exact lengths defined by the selected Input or Feedback type. A diagnostic points to the exact byte or missing property instead of reporting only an invalid Widget block.
 
-Incoming MIDI match keys must be unique after each Input type applies its declared status, data-byte, and value matching mask. Two Inputs that can consume the same physical message are an error linked to both blocks. Several Feedback blocks can send to the same address only when their catalog entries declare that combination compatible.
+Incoming MIDI match keys must be unique after each Input type applies its declared status, data-byte, and value matching mask. `Press` and `Touch` match their complete On and Off messages; `AnyPress`, `Fader7Bit`, and `Encoder` match their two-byte prefixes; `Fader14Bit` matches its Status; and `FaderportClassicFader14Bit` matches both declared two-byte prefixes. Two Inputs that can consume the same physical message are an error linked to both blocks.
+
+Each universal Feedback declaration derives all physical output keys that it can send. One output key has one owning Feedback block. Any overlap is an error linked to both blocks, including overlap between different Widgets or different primitives. The initial format has no output-sharing exception. Several Feedback blocks on one Widget are valid only when their derived output keys do not overlap.
 
 #### Encoder profiles
 
@@ -622,37 +881,39 @@ Incoming MIDI match keys must be unique after each Input type applies its declar
 
 Increase and Decrease values cannot overlap. Their list position is the zero-based acceleration level. The lists can have different lengths. Runtime clamps a level beyond the resolved `AccelerationDeltas` list to its last value, matching the format 2 action-value rule. A binding property overrides the corresponding EncoderProfile default. A profile does not define action range or discrete `StepValues`.
 
-`Input Encoder` requires a two-byte MIDI `Message` prefix and exactly one of:
+`Input Encoder` with `Encoding=MIDI7` requires a two-byte MIDI `Message` prefix and exactly one of:
 
 - `Profile=ProfileId`, which maps the incoming third byte through that EncoderProfile;
-- `Encoding=SignedBit`, which uses bit 6 as direction and bits 0 through 5 as magnitude;
-- `Encoding=SignedBitFixed`, which uses bit 6 as direction and emits one fixed tick;
-- `Encoding=Relative7Bit`, which compares consecutive values and emits one directional tick.
+- `Mode=SignedBit`, which uses bit 6 as direction and bits 0 through 5 as magnitude;
+- `Mode=SignedBitFixed`, which uses bit 6 as direction and emits one fixed tick;
+- `Mode=Relative7Bit`, which compares consecutive values and emits one directional tick.
 
 Unknown third-byte values in a profile do not produce input. Duplicate profile values and an unknown Profile reference are errors. The old special `MFTEncoder` table becomes a normal EncoderProfile during import.
 
-Legacy inline encoder text such as `[ > 01-3f < 41-7f ]` is not copied. With a legacy WidgetClass, the importer uses the class `AccelerationValues` table and reports that the ignored inline text was removed. Without a WidgetClass, the exact standard range converts to `Encoding=SignedBit`. Any other inline range that does not describe current runtime behavior remains unresolved and produces a preview diagnostic instead of a guessed mapping.
+Legacy inline encoder text such as `[ > 01-3f < 41-7f ]` is not copied. With a legacy WidgetClass, the importer uses the class `AccelerationValues` table and reports that the ignored inline text was removed. Without a WidgetClass, the exact standard range converts to `Encoding=MIDI7 Mode=SignedBit`. Any other inline range that does not describe current runtime behavior remains unresolved and produces a preview diagnostic instead of a guessed mapping.
 
 #### OSC widgets
 
-OSC uses the same Widget, Input, and Feedback structure with OSC-specific catalog types and a named `Address` property:
+OSC uses the same Widget, Input, and Feedback structure with OSC-specific universal catalog types and a named `Address` property:
 
 ```text
-@Meta { Version=2 Protocol=OSC Name="X32" }
+@Meta { Version=2 Protocol=OSC Name="OSC Hardware Surface" }
 
 Widget ChannelFader1 {
-  Input X32Fader { Address="/ch/01/mix/fader" }
-  Feedback X32Fader { Address="/ch/01/mix/fader" }
+  Input Value { Encoding=OSCFloat Address="/control/1" }
+  Feedback Value { Encoding=OSCFloat Address="/control/1" }
 }
 ```
 
-An OSC address is a non-empty quoted string that starts with `/`. A slash never starts a comment. Only `//` starts a comment. Duplicate incoming OSC address and decoder combinations are errors. Feedback address reuse follows the same catalog compatibility rule as MIDI feedback.
+Device-specific value conversion, such as the current X32 fader curve, uses `ValueProfile=FaderCurve` on both universal `Value` blocks. A bidirectional profile keeps input and feedback conversion symmetric.
 
-OSC Surface templates cannot contain `OSKLayout`. This preserves the current product decision that tablet OSC interfaces are not mirrored in the desktop OSK.
+An OSC address is a non-empty quoted string that starts with `/`. A slash never starts a comment. Only `//` starts a comment. One incoming OSC address has one owning Input block and one outgoing OSC address has one owning Feedback block. Duplicate ownership is an error linked to both blocks.
+
+An OSC Surface can contain `OSKLayout`. This is required for hardware OSC devices such as Behringer X32. A tablet application that already provides its own GUI can omit the block and is then not offered as a desktop OSK surface.
 
 #### OSK layout
 
-`OSKLayout` is part of the MIDI Surface document and does not have a separate version:
+`OSKLayout` is part of a MIDI or OSC Surface document and does not have a separate version:
 
 ```text
 OSKLayout {
@@ -681,7 +942,18 @@ ColorCalibration {
 }
 ```
 
-The block is active when present. Its exact properties, defaults, and ranges must be stored in the same Surface schema catalog as color-capable Feedback types. It is invalid when no Widget uses color feedback.
+The block is active when present and accepts:
+
+| Property | Default | Value and rule |
+|---|---|---|
+| `InputMax` | `255` | Integer from `1` through `255` |
+| `OutputMax` | Feedback processor default | Integer from `1` through `255` when present |
+| `NeutralTolerancePercent` | `0` | Integer from `0` through `100`; zero disables neutral-color detection |
+| `RedScale`, `GreenScale`, `BlueScale` | `1.0` | Positive finite channel scale |
+| `NeutralRedScale`, `NeutralGreenScale`, `NeutralBlueScale` | `1.0` | Positive finite scale applied to near-neutral colors |
+| `NeutralCurve` | `1.0` | Positive finite neutral-color brightness curve |
+
+Block presence replaces the old `Enabled` property. An omitted OutputMax keeps each Feedback processor's native maximum, such as `127` for a seven-bit device. The final channel value is clamped from zero through the effective OutputMax. `ColorCalibration` is invalid when the Surface has no `Color` or `TrackColor` Feedback capability.
 
 ## Remaining design decisions
 
@@ -1172,20 +1444,34 @@ Validation reports an error for an unknown key, unknown enum, invalid property c
 - ✅ Define the global `RingStyle` type, processor capabilities and defaults, the complete action `FeedbackShape` set, current processor mappings, actions without automatic shape, and explicit binding overrides.
 - ✅ Specify the unversioned product `.conf` block schemas, identifiers, required and optional fields, defaults, Product and Device settings scopes, links, diagnostics, and shared semantic model ownership.
 - ✅ Specify the Surface document structure, protocol identity, Widget/Input/Feedback blocks, EncoderProfile behavior, MIDI and OSC address rules, OSK layout, color calibration placement, and legacy encoder-range handling.
-- ✅ Inventory the currently registered Input and Feedback processors, remove obsolete encoder input types, and group their format 2 public names by named property shape.
-- [ ] Define the exact message matching rule, compatible output sharing, and derived capability set for every Feedback catalog entry.
-- [ ] Confirm ColorCalibration property defaults, ranges, and compatibility with color-capable Feedback entries.
-- [ ] Specify the brace-based snippet schema using the common lexical grammar.
+- ✅ Inventory the currently registered Input and Feedback processors, obsolete encoder input types, property shapes, matching behavior, and capabilities that format 2 must preserve.
+- ✅ Define the closed semantic Input and Feedback primitive catalog and separate primitive meaning from reusable protocol Encoding.
+- ✅ Define exact reusable Value, Color, Ring, Meter, and Text profile blocks, references, interpolation, lookup, quantization, and validation rules.
+- ✅ Define the basic closed MIDI and OSC Encoding matrix, scalar packing, RGB and palette output, bounded SysEx fields, text characters, echo suppression, meter refresh, and encoder acknowledgement.
+- [ ] Define exact composition syntax for Ring value plus configuration output and Surface-level shared FeedbackGroup packets.
+- [ ] Review every remaining codec and keep it only when its smallest reusable behavior cannot be expressed safely as declarative data. Do not keep device-model names in the public schema.
+- [ ] Finalize the universal catalog's exact message matching, single-owner output keys, named properties, and derived capability sets.
+- ✅ Confirm ColorCalibration property defaults, ranges, processor-native OutputMax behavior, and compatibility with color-capable Feedback entries.
+- ✅ Specify snippets as versioned editor-only zone fragments with no semantic slot wrapper, explicit requirements, application identity, or saved provenance markers.
 - [ ] Add representative valid and invalid fixture files for every top-level format before runtime implementation starts.
 - [ ] Update the Phase 4 conversion matrix and add golden legacy-input/output fixtures for every remaining Phase 2 syntax or action decision before marking that decision complete.
 
 Ready when the normative specification and fixtures let C++, Bun, Lua, and documentation implement the same grammar without interpretation differences.
 
-## [ ] Phase 3: One C++ parser model
+## [ ] Phase 3: Universal Surface I/O and one C++ parser model
+
+### [ ] Universal Surface I/O layer
+
+- [ ] Implement universal Surface Input decoders and Feedback primitives, then generate their C++, TypeScript, and Lua catalog from one schema. Reject runtime registrations without matching metadata.
+- [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
+- [ ] Verify that a new device which uses an existing protocol shape needs only a Surface file and no new C++ class.
+- [ ] Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them.
+- [ ] Parse and publish `OSKLayout` through common ControlSurface initialization so MIDI and OSC Surfaces use the same OSK path.
+
+### [ ] Shared parser and runtime model
 
 - [ ] Implement one lexer for metadata, brace blocks, lists, properties, quotes, comments, wildcard selectors, and `@CH` qualifiers.
 - [ ] Parse each zone, surface, Learn FX, and snippet file once into a typed document model with source locations.
-- [ ] Generate the C++, TypeScript, and Lua Surface Input/Feedback catalog from one schema and reject runtime processor registrations without matching metadata.
 - [ ] Compile each `@CH` binding into channel-specific action contexts without cloning the containing zone document or its channel-neutral bindings.
 - [ ] Resolve Vendor and User Main/FX sources into one per-zone active set before roles, references, dependencies, or runtime objects are validated.
 - [ ] Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
@@ -1234,13 +1520,16 @@ The initial conversion matrix is:
 | Remaining numeric values inside an anonymous action value group | `StepValues=[...]` in original order |
 | Anonymous RGB, hexadecimal, or `Track` color block | `StateColors=[...]` |
 | Legacy `StepSize` and `AccelerationValues` entries for one WidgetClass | One local `EncoderProfile` with `Delta`, `Increase`, `Decrease`, and optional `AccelerationDeltas` |
-| Legacy WidgetClass on an encoder Widget | `Profile=ProfileId` on its typed `Input Encoder` block; the runtime class name is removed |
-| Exact inline encoder range `[ > 01-3f < 41-7f ]` without a WidgetClass | `Encoding=SignedBit` |
+| Legacy WidgetClass on an encoder Widget | `Encoding=MIDI7 Profile=ProfileId` on its typed `Input Encoder` block; the runtime class name is removed |
+| Exact inline encoder range `[ > 01-3f < 41-7f ]` without a WidgetClass | `Encoding=MIDI7 Mode=SignedBit` |
 | Inline encoder range on a Widget that already uses a WidgetClass | Removed with an import notice because current runtime ignores it and uses the class lookup table |
 | Other inline encoder direction range | Unresolved import diagnostic; do not infer behavior that the current runtime did not implement |
 | `Widget Name ... WidgetEnd` and positional hardware processor lines | `Widget Name { ... }` with catalog-driven `Input Type { ... }` and `Feedback Type { ... }` blocks whose message bytes or OSC address use named properties |
-| Legacy `OSKLayout Version=1`, Row blocks, and bare hexadecimal colors | Versionless `OSKLayout { Row { ... } }` inside the format 2 MIDI Surface; colors gain the required `#` prefix |
+| Device-named legacy Input or `FB_*` processor | Universal Input or Feedback primitive plus declarative message, value conversion, display, color, ring, meter, or SysEx metadata; unresolved diagnostic when no approved primitive or reusable codec can preserve the behavior |
+| Legacy `OSKLayout Version=1`, Row blocks, and bare hexadecimal colors | Versionless `OSKLayout { Row { ... } }` inside the format 2 Surface for either protocol; colors gain the required `#` prefix |
 | Legacy `ColorCalibration ... ColorCalibrationEnd` | Typed `ColorCalibration { ... }` block |
+| `Snippet Version=1`, semantic Binding blocks, Role/Input/Feedback/Required fields, and nested Action lines | Format 2 `.snippet` with `@Meta` and direct zone binding lines; each old Binding ID becomes its source widget mapping name, `NoMod` is removed, modifier names become selectors, and inferred requirement fields are dropped |
+| Saved `// @snippet` and `// @snippet-end` application markers | Marker comments are removed while their resolved zone statements remain ordinary destination-zone content |
 | `BlockName ... BlockNameEnd` | `BlockName { ... }` |
 | Hash-prefixed Learn FX directives and Learn FX pseudo-zones | `LearnFX.fxzon` plus normal generated FX bindings; `FXRowLayout` is dropped |
 | Legacy single-slash comment lines | `//` comments when the line is recognized as a legacy comment; OSC address tokens remain data |
@@ -1253,6 +1542,7 @@ Every conversion-matrix row requires at least one golden legacy-input and format
 If one legacy file is referenced both as a SubZone and as an independent zone, the importer cannot silently assign one format 2 `Role`. The preview reports both reference locations and asks the user to keep one role or create a renamed copy for one use. A file referenced as a SubZone by several parents is not ambiguous and converts to one reusable `Role=Layer` document.
 
 - [ ] Add lossless format 2 parsing, validation, syntax highlighting, quick fixes, and cross-file references.
+- [ ] Replace semantic snippet slots, explicit capability fields, application IDs, conflict actions, and saved marker comments with direct zone-fragment parsing and token-aware widget plus modifier mapping. Derive compatibility from the normal action, binding, and Surface catalogs, and insert only into the unsaved destination draft.
 - [ ] Create the declarative Bun-only action rename registry and validate its destinations against the current action catalog.
 - [ ] Keep the conversion matrix and golden fixture pairs synchronized with every later format or action rename.
 - [ ] Show a Zone Layer badge, all current parent references, and context-valid navigation actions in the editor. Offer `ExitZoneLayer` only for zone layers.
@@ -1261,8 +1551,8 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert old `Zone ... ZoneEnd`, `BlockName ... BlockNameEnd`, and surface blocks during legacy import.
 - [ ] Convert legacy `Widget|` channel placeholders to `Widget@CH` and include exact, missing-family, and non-channel wildcard golden fixtures.
 - [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
-- [ ] Convert legacy Surface Widget blocks through the completed Input and Feedback catalog. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
-- [ ] Convert MIDI `OSKLayout Version=1` and ColorCalibration blocks to their format 2 Surface blocks. Do not create OSKLayout for OSC templates.
+- [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
+- [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Do not invent a layout when the source has none.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists.
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
 - [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
@@ -1281,6 +1571,7 @@ Ready when old public CSI examples can be imported into format 2 without runtime
 - [ ] Change `PRODUCT_CONFIG_FILENAME` to the selected `.conf` filename and update every generated consumer and package path.
 - [ ] Remove duplicated ring-style lists from Learn FX data and remove repeated standard `RingStyle` properties where action metadata produces the same result.
 - [ ] Remove duplicate bundled zone IDs and verify User and Vendor layer behavior.
+- [ ] Add or complete OSK layouts for bundled hardware OSC templates where a desktop mirror is useful, starting with Behringer X32. Keep layouts optional for OSC tablet applications.
 - [ ] Update OSK zone creation to write only format 2.
 - [ ] Remove format 1 support from runtime after the importer and bundled data are complete.
 - [ ] Update the Wiki and durable developer contracts.

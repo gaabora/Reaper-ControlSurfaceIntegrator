@@ -327,6 +327,8 @@ Resolve the binding against the selected surface and report an error when:
 - `(InvertFB)` is used without numeric or toggle feedback.
 - An input action is assigned to a display-only widget.
 - A modifier is assigned to a widget without two-state press and release input.
+- Two Surface Input blocks can consume the same physical MIDI message or OSC address.
+- Two Surface Feedback blocks can write to the same derived MIDI output key or OSC address.
 
 Typed Surface `Input` and `Feedback` catalog entries are the only authority for widget capabilities. `OSKLayout` can change presentation and connect a visible control to compatible target Widgets, but it cannot add or override a hardware capability.
 
@@ -345,7 +347,7 @@ Report an error when:
 - `TicksPerStep` is used without `StepValues`, is empty, or contains a non-positive integer.
 - A color is not exact `#RRGGBB` or `#RRGGBBAA` syntax.
 - `StateColors=[Track]` also contains an explicit color.
-- The action or widget feedback does not support the requested state colors.
+- `StateColors` is used without general `Color` feedback. Automatic `TrackColor` support alone does not make `StateColors` valid.
 - `RingStyle` is used on a widget without ring feedback or names a style that its ring processor does not support.
 
 Without `TicksPerStep`, each input tick advances one discrete step. If an acceleration level is higher than the available `AccelerationDeltas` or `TicksPerStep` entries, reuse the final entry. Report a warning for decreasing `AccelerationDeltas` because faster input then produces a smaller change.
@@ -473,7 +475,7 @@ Run profile-level checks after applying the same User and Vendor layer override 
 C++ is the authority for effective timing values, ranges, gesture semantics, and runtime validation.
 
 - [`settings_schema.conf`](../Scripts/settings_schema.conf) is the canonical metadata source for setting names, types, compiled defaults, ranges, scopes, categories, and cross-setting constraints. It currently defines input behavior and timing settings and can later define other product configuration metadata. It does not store user values.
-- The generated Surface schema catalog is the canonical source for Input and Feedback type names, protocols, named properties, MIDI or OSC matching rules, compatible output sharing, and derived widget capabilities.
+- The generated Surface schema catalog is the canonical source for universal Input and Feedback primitive names, protocols, named properties, MIDI or OSC matching rules, output ownership, and derived widget capabilities. Device-specific messages, curves, display fields, color and ring mappings, meter mappings, and reusable SysEx data belong to typed Surface metadata instead of device-named public types.
 - Product configuration stores root values and Device overrides.
 - The Bun editor reads schema metadata and user-selected values from the product `.conf`.
 - Lua reads schema metadata for its settings interface, but it queries and changes effective values through structured C++ ExtState commands. Lua must not read or write the product `.conf` directly or keep an independent timing source of truth.
