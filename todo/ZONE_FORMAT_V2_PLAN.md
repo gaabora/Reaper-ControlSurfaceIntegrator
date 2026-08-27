@@ -548,6 +548,7 @@ A Surface document accepts these order-independent top-level blocks after `@Meta
 
 - zero or more `EncoderProfile` blocks;
 - zero or more `ValueProfile`, `ColorProfile`, `RingProfile`, `MeterProfile`, and `TextProfile` blocks;
+- zero or more `FeedbackGroup` blocks;
 - zero or one `ColorCalibration` block;
 - one or more `Widget` blocks;
 - zero or one `OSKLayout` block for either protocol.
@@ -596,7 +597,7 @@ Widget Solo {
 }
 ```
 
-`Widget` contains zero or one quoted `Alias` property and one or more `Input` or `Feedback` blocks. It can contain several typed blocks, such as fader input, touch input, motor feedback, and color feedback. `Input Type` and `Feedback Type` use separate closed namespaces, so the same short type can exist in both. Format 2 uses universal primitive names. The legacy `FB_` prefix and device-model names are not part of these public namespaces.
+`Widget` contains zero or one quoted `Alias`, zero or one positive integer `Channel`, and one or more `Input` or `Feedback` blocks. It can contain several typed blocks, such as fader input, touch input, motor feedback, and color feedback. Channel is explicit format 2 metadata and is never inferred from the Widget ID. Several different Widgets can share one Channel, such as its fader, touch sensor, display, and meter. `Input Type` and `Feedback Type` use separate closed namespaces, so the same short type can exist in both. Format 2 uses universal primitive names. The legacy `FB_` prefix and device-model names are not part of these public namespaces.
 
 Every primitive and Encoding has one shared schema entry that defines its protocol, allowed named properties, required properties, message matching or output-ownership rule, reusable runtime codec, and derived capabilities. C++, Bun, Lua metadata, Learn FX, and OSK must use this catalog. They must not infer capabilities by searching type-name text. Adding a codec without adding its schema entry is a build-generation error.
 
@@ -698,13 +699,18 @@ The source inventory identifies these required reusable encoding cases. They mus
 | X32 rotary-to-encoder acknowledgement | `Input Encoder` acknowledgement metadata that sends a declared constant after accepted input; it is not normal Action feedback |
 | FaderPort state-sensitive RGB brightness | One `Feedback Color` block with RGB messages plus declarative active and inactive brightness scales |
 | SCE24 OLED button | One `Feedback Text` block with state, fixed text, foreground color, background color, margins, font, and SysEx encoding fields |
-| SCE24 colored encoder ring | One `Feedback Ring` block with RingStyle mapping and declarative segment color ranges |
+| Generic, SCE24, and Asparion encoder rings | One `Feedback Ring` block with RingProfile, declarative RingStyle byte placement, and optional segment color configuration |
 | MCU, XTouch, ICON, QCon, Asparion, and FaderPort text variants | Shared text encodings with declared SysEx prefix, suffix, text width, padding, row, channel, and offset data |
 | MCU, QCon, FaderPort, Asparion, and Console One meters | Shared MeterProfile threshold or linear metadata plus declared MIDI output placement and refresh policy |
 | XTouch track-color packet shared by several displays | One Surface-level feedback group that owns the packet and references its member display widgets; per-widget duplicate output ownership remains invalid |
 | MCU time and assignment displays | Normal Actions produce text or state; `Feedback Text` or `Feedback State` only encodes and sends it |
 
 The current FPVUMeter calculation can produce `0x80..0xA0` in a MIDI data-byte position. Format 2 cannot silently preserve bytes that violate the MIDI seven-bit data rule. Migration must report this case, and the final MeterProfile needs device documentation or hardware verification before the bundled FaderPort meter is converted.
+
+Two other legacy outputs still need a small universal representation before this review can close:
+
+- `FaderportValueBar` sends the numeric value and its `BarStyle` through two different MIDI messages. It is a bar, not a ring, so format 2 must not reuse RingStyle only to avoid one primitive or codec decision.
+- `MFT_RGB` sends a palette value and then one constant companion message. Its branch that treats selected RGB bytes as arbitrary MIDI commands is not Color feedback and will not remain in a universal Color primitive. The importer must report any actual use of that branch instead of hiding commands inside colors.
 
 Value conversion, color palette, ring map, meter map, and text encoding data use reusable top-level profiles inside one Surface document when more than one Widget uses the same data. A profile contains declarative constants, ordered points, lookup entries, or thresholds. It cannot execute actions, inspect REAPER state, branch on device names, or contain general arithmetic.
 
@@ -749,6 +755,8 @@ ColorProfile BasicPalette {
 
 ```text
 RingProfile StandardRing {
+  Segments=11
+  DefaultColor=#000000
   Quantize=Floor
   ValueOffset=1
   Style Dot Code=0 Steps=11
@@ -758,7 +766,7 @@ RingProfile StandardRing {
 }
 ```
 
-`Quantize` is `Floor` or `Round`. ValueOffset is an integer. Each Style name is one global RingStyle, each non-negative Code is unique, and Steps is a positive integer count of output positions. A normalized value is clamped to zero through one and quantized across zero through `Steps - 1`, then ValueOffset is added. The profile produces `RingValue` and `RingStyleCode`; the Widget output encoding decides which MIDI bytes or OSC argument receive them. Only listed styles are supported by that feedback block.
+Segments is an optional positive integer physical segment count and is required when a Ring uses color configuration. `DefaultColor` is optional, defaults to `#000000`, and is valid only when Segments is present. `Quantize` is `Floor` or `Round`. ValueOffset is an integer. Each Style name is one global RingStyle, each non-negative Code is unique, and Steps is a positive integer count of output positions not greater than Segments when Segments is present. A normalized value is clamped to zero through one and quantized across zero through `Steps - 1`, then ValueOffset is added. The profile produces `RingValue` and `RingStyleCode`; the Widget output encoding decides which MIDI bytes or OSC argument receive them. Only listed styles are supported by that feedback block.
 
 `MeterProfile` is either linear or threshold-based:
 
@@ -820,6 +828,8 @@ Numeric primitives are `Value`, `Encoder`, `State`, `Ring`, and `Meter` where th
 
 For MIDI7 Input Value and Encoder, Message is exactly two bytes and the incoming third byte is the value. For MIDI7 Feedback Value, Ring, and Meter, Message is one or two bytes and the encoded value is appended as the final MIDI data byte. All produced bytes must fit zero through `0x7F`. A Ring block requires RingProfile and emits its RingValue; a Meter block requires MeterProfile and emits its mapped value. `ValueBase` is an optional data byte combined with the mapped value through `Combine=Replace|Add|BitOr`, defaulting to Replace with base zero. Add must not overflow `0x7F`; BitOr requires disjoint set bits between every possible mapped value and ValueBase.
 
+MIDI7 Feedback Ring also requires `StyleTarget=Status|Data1|Value`. Status and Data1 require a two-byte Message; Value selects the appended value byte. `StyleShift` is an integer from zero through six and defaults to zero. `StyleCombine` is `Add` or `BitOr` and defaults to BitOr. The RingStyleCode is shifted, then combined into the selected target after ValueBase and RingValue are resolved. Every possible result must remain a valid status or data byte, and BitOr requires disjoint bits. For example, a common encoder ring uses `StyleTarget=Value StyleShift=4 StyleCombine=BitOr`; an Asparion-style output uses `StyleTarget=Status StyleShift=0 StyleCombine=Add`. This is byte placement metadata, not a device-specific encoding.
+
 MIDI14 always represents a normalized value with 14 data bits. Status must be a pitch-bend status from `0xE0` through `0xEF`. Input reconstructs `(MSB << 7) | LSB`; Feedback sends LSB and then MSB in the same message. A ValueProfile is applied outside this packing.
 
 MIDISplit supports `Bits=8..14`. MSBMessage and LSBMessage are distinct two-byte MIDI prefixes. Commit is `MSB` or `LSB` and identifies which arriving part publishes a complete Input value. Feedback sends the non-commit part first and the commit part second. Unused high bits are zero. The two parts use up to seven bits each, with the low part holding the least significant bits. This replaces the FaderPort Classic two-message codec without naming that device.
@@ -836,6 +846,8 @@ MIDISysEx automatically adds leading `0xF0` and trailing `0xF7`. Payload is an o
 - `TopMargin7`, `BottomMargin7`, `Font7`;
 - `BackgroundRed7`, `BackgroundGreen7`, `BackgroundBlue7`;
 - `TextRed7`, `TextGreen7`, `TextBlue7`;
+- `SegmentMasks`, `SegmentRed7`, `SegmentGreen7`, `SegmentBlue7`;
+- `SlotColors`;
 - `Text`.
 
 Each field requires the matching primitive input or profile. Text requires TextProfile and must be the final Payload entry because its encoded length can vary. Margin and font fields use primitive defaults and can be overridden only by binding properties explicitly declared as supported by that Feedback schema. State-specific background, text color, or brightness properties enable state input and derive Toggle. No field can contain an expression, offset, condition, loop, action, or arbitrary property lookup. Device and channel constants are resolved into literal Payload bytes in each Widget declaration.
@@ -860,7 +872,55 @@ Feedback Value accepts `EchoGuardMs=0..10000` and `SuppressWhileTouched=true|fal
 
 Feedback Meter accepts `Refresh=OnChange|Continuous`, defaulting to OnChange. Continuous requires `RefreshIntervalMs=10..5000` and resends the current mapped value even when it has not changed. OnChange rejects RefreshIntervalMs. Clear sends the MeterProfile Default or the lower Linear OutputRange endpoint.
 
-These encodings cover the simple one-output cases. The encoding catalog is not complete until two composition cases have exact syntax: one Ring primitive that sends normal value feedback plus separate color-configuration SysEx, and one Surface-level FeedbackGroup that owns a packet assembled from several member widgets, such as XTouch track colors. The solution must reuse the fields above and cannot add device-named encodings or allow two declarations to own the same physical output key.
+#### Ring color configuration
+
+One Ring feedback can own its normal value output and an optional color-configuration output:
+
+```text
+Widget Rotary1 {
+  Channel=1
+  Feedback Ring {
+    Encoding=MIDI7
+    Message=[0xB0, 0x30]
+    RingProfile=StandardRing
+
+    Configure {
+      Encoding=MIDISysEx
+      Payload=[0x00, 0x02, 0x38, 0x01, 0x30, SegmentMasks, SegmentRed7, SegmentGreen7, SegmentBlue7]
+    }
+  }
+}
+```
+
+`Configure` is valid only inside Feedback Ring, uses `Encoding=MIDISysEx`, and requires a RingProfile with Segments. Its Payload contains each of `SegmentMasks`, `SegmentRed7`, `SegmentGreen7`, and `SegmentBlue7` exactly once and in that order. SegmentMasks expands to `ceil(Segments / 7)` MIDI data bytes. Bit zero of its first byte selects segment zero, and remaining bits and bytes continue in segment order. The three color fields each produce one calibrated seven-bit component.
+
+A zone binding can set `RingColors=[#FF0000]` to use one color for every segment or provide exactly Segments colors in physical segment order. If RingColors is omitted, every segment uses the RingProfile DefaultColor. The runtime groups equal calibrated colors in first-appearance order and sends one Configure packet per group. SegmentMasks selects that group's segments. Configure packets are sent when the resolved RingColors value changes or when the binding becomes the Ring feedback owner, not for every Ring value update.
+
+RingColors is valid only when the target Widget has a Ring Configure block. Every action in one ordered multi-action binding that supplies RingColors must resolve the same list. Different lists are an error because one Ring cannot have several simultaneous color owners. Configure remains part of its containing Ring feedback and does not create a second capability or independent owner.
+
+#### Surface feedback groups
+
+A `FeedbackGroup` is a Surface-level owner for one output packet assembled from several Widgets. The initial format supports only track-color groups:
+
+```text
+FeedbackGroup TrackColors {
+  Capability=TrackColor
+  Encoding=MIDISysEx
+  ColorProfile=BasicPalette
+  EmptyColor=#FFFFFF
+  UseTrackColorWhen=SourceTextPresent
+  Payload=[0x00, 0x00, 0x66, 0x14, 0x72, SlotColors]
+
+  Slot Source=DisplayUpper1 Members=[DisplayUpper1, DisplayLower1]
+  Slot Source=DisplayUpper2 Members=[DisplayUpper2, DisplayLower2]
+}
+```
+
+The initial FeedbackGroup schema requires `Capability=TrackColor`, `Encoding=MIDISysEx`, ColorProfile, Payload, and one or more Slot lines. Payload contains `SlotColors` exactly once. SlotColors expands to one palette data byte per Slot in declaration order. No other dynamic MIDISysEx field is valid in this block. EmptyColor defaults to `#000000`. `UseTrackColorWhen` is `Always` or `SourceTextPresent` and defaults to Always. SourceTextPresent uses EmptyColor while the Source Widget's most recent Text feedback is empty.
+
+Each Slot Source and Member references a declared Widget with an explicit positive Channel. A Source occurs in its own non-empty Members list. All Members in one Slot have the same Channel as Source, and different Slots have different channels. A Widget can belong to only one TrackColor FeedbackGroup. Group membership derives TrackColor capability for every Member but does not derive Color, Text, Toggle, or any action feedback property.
+
+The group updates when a slot's resolved track color changes and, with SourceTextPresent, when its source text changes between empty and non-empty. It does not inspect action names or configuration state. The FeedbackGroup owns the complete SysEx output. Its member Widgets do not own parts of that packet. Two groups with the same fixed Payload prefix before SlotColors, or any other output with that key, are an error.
 
 MIDI bytes use `0x00` through `0xFF`. MIDI data bytes must also be at most `0x7F`; status-byte positions require a valid status value. `Message`, `On`, and `Off` are typed lists with exact lengths defined by the selected Input or Feedback type. A diagnostic points to the exact byte or missing property instead of reporting only an invalid Widget block.
 
@@ -1448,7 +1508,7 @@ Validation reports an error for an unknown key, unknown enum, invalid property c
 - ✅ Define the closed semantic Input and Feedback primitive catalog and separate primitive meaning from reusable protocol Encoding.
 - ✅ Define exact reusable Value, Color, Ring, Meter, and Text profile blocks, references, interpolation, lookup, quantization, and validation rules.
 - ✅ Define the basic closed MIDI and OSC Encoding matrix, scalar packing, RGB and palette output, bounded SysEx fields, text characters, echo suppression, meter refresh, and encoder acknowledgement.
-- [ ] Define exact composition syntax for Ring value plus configuration output and Surface-level shared FeedbackGroup packets.
+- ✅ Define exact composition syntax for Ring value plus configuration output and Surface-level shared FeedbackGroup packets.
 - [ ] Review every remaining codec and keep it only when its smallest reusable behavior cannot be expressed safely as declarative data. Do not keep device-model names in the public schema.
 - [ ] Finalize the universal catalog's exact message matching, single-owner output keys, named properties, and derived capability sets.
 - ✅ Confirm ColorCalibration property defaults, ranges, processor-native OutputMax behavior, and compatibility with color-capable Feedback entries.
@@ -1464,6 +1524,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 
 - [ ] Implement universal Surface Input decoders and Feedback primitives, then generate their C++, TypeScript, and Lua catalog from one schema. Reject runtime registrations without matching metadata.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
+- [ ] Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
 - [ ] Verify that a new device which uses an existing protocol shape needs only a Surface file and no new C++ class.
 - [ ] Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them.
 - [ ] Parse and publish `OSKLayout` through common ControlSurface initialization so MIDI and OSC Surfaces use the same OSK path.
@@ -1525,7 +1586,10 @@ The initial conversion matrix is:
 | Inline encoder range on a Widget that already uses a WidgetClass | Removed with an import notice because current runtime ignores it and uses the class lookup table |
 | Other inline encoder direction range | Unresolved import diagnostic; do not infer behavior that the current runtime did not implement |
 | `Widget Name ... WidgetEnd` and positional hardware processor lines | `Widget Name { ... }` with catalog-driven `Input Type { ... }` and `Feedback Type { ... }` blocks whose message bytes or OSC address use named properties |
+| Legacy Widget numeric suffix used as a processor channel | Explicit `Channel=N` in that Widget; unresolved diagnostic when a processor requires a channel and the legacy Widget ID has no unambiguous numeric suffix |
 | Device-named legacy Input or `FB_*` processor | Universal Input or Feedback primitive plus declarative message, value conversion, display, color, ring, meter, or SysEx metadata; unresolved diagnostic when no approved primitive or reusable codec can preserve the behavior |
+| Legacy Ring processor with normal value output and separate color SysEx | One Feedback Ring with RingProfile Segments and nested Configure; existing zone segment colors become RingColors |
+| Legacy XTouch display track-color processors that assemble one shared packet | Text feedback on each display Widget plus one Surface-level TrackColor FeedbackGroup with explicit Channel, Slot Source, and Members references |
 | Legacy `OSKLayout Version=1`, Row blocks, and bare hexadecimal colors | Versionless `OSKLayout { Row { ... } }` inside the format 2 Surface for either protocol; colors gain the required `#` prefix |
 | Legacy `ColorCalibration ... ColorCalibrationEnd` | Typed `ColorCalibration { ... }` block |
 | `Snippet Version=1`, semantic Binding blocks, Role/Input/Feedback/Required fields, and nested Action lines | Format 2 `.snippet` with `@Meta` and direct zone binding lines; each old Binding ID becomes its source widget mapping name, `NoMod` is removed, modifier names become selectors, and inferred requirement fields are dropped |
@@ -1552,6 +1616,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert legacy `Widget|` channel placeholders to `Widget@CH` and include exact, missing-family, and non-channel wildcard golden fixtures.
 - [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
 - [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
+- [ ] Add explicit Channel metadata where legacy processor behavior used a Widget numeric suffix. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report missing or ambiguous channel and group membership instead of inferring it at runtime.
 - [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Do not invent a layout when the source has none.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists.
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
