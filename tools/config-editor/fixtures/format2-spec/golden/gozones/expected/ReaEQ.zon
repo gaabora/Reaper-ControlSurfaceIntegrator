@@ -1,0 +1,3 @@
+@Meta { Version=2 MatchFX="VST: ReaEQ (Cockos)" }
+
+Fader1 FXParam 0

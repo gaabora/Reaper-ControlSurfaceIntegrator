@@ -1,0 +1,4 @@
+GoZones.zon:9 legacy.gozones.navigator.conflict: Conflicted declares NavType=SelectedTrack in Conflicted.zon but GoZones assigns TrackNavigator. Choose one target before import.
+GoZones.zon:10 legacy.gozones.navigator.unsupported: FixedTrackNavigator has no format 2 public Target. Choose a supported target before import.
+GoZones.zon:11 legacy.gozones.navigator.unknown: Unknown navigator name: MysteryNavigator.
+GoZones.zon:12 legacy.gozones.zone.missing: GoZones references MissingZone, but no matching zone file was selected.

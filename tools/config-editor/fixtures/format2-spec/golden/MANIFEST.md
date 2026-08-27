@@ -14,10 +14,10 @@ Each scenario compares every file under `legacy/` with `expected/` and any `diag
 - `osc-x32`: converts an OSCX32 Device, Page assignment, X32 fader curve, rotary delta scaling and acknowledgement, and an OSC OSK layout.
 - `links`: converts an order-dependent Broadcaster and Listener record to one explicit same-Page Link with only enabled share categories.
 - `magic-targets`: converts every current magic Main zone name to explicit Role, Target, and optional BankTarget metadata.
+- `gozones`: drops the deprecated loading manifest, converts recognized navigator metadata, removes ineffective standalone navigator lines, preserves magic-name precedence, and reports missing, unknown, unsupported, or conflicting entries.
 
 ## [ ] Remaining golden scenarios
 
-- [ ] Deprecated GoZones loading metadata and removal of standalone navigator-name lines.
 - [ ] Normal MFT palette output with Companion and command-shaped color detection from a complete selected Surface plus zone set.
 - [ ] SCE24 ring color ranges, uniform ring color, push color, and Ring Configure output.
 - [ ] XTouch text conversion and shared TrackColor FeedbackGroup output.

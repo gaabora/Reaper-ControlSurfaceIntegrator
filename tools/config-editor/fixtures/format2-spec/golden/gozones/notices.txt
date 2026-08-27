@@ -1,0 +1,5 @@
+GoZones.zon: dropped because format 2 discovers Main zone documents directly.
+Mixer.zon:2: removed standalone MasterTrackNavigator because standalone navigator lines did not select the legacy zone navigator.
+Inspector.zon:2: removed standalone SelectedTrackNavigator because standalone navigator lines did not select the legacy zone navigator.
+GoZones.zon:8: kept Target=MasterTrack from the magic legacy zone name and removed the conflicting ignored TrackNavigator entry.
+ReaEQ.zon:2: removed standalone FocusedFXNavigator because an FX zone receives its runtime context from activation.

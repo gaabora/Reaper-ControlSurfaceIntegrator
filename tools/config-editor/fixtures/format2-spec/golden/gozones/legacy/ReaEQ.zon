@@ -1,0 +1,4 @@
+Zone "VST: ReaEQ (Cockos)"
+  FocusedFXNavigator
+  Fader1 FXParam 0
+ZoneEnd

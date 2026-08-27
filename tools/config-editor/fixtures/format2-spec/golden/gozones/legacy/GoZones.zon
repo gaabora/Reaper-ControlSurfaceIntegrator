@@ -1,0 +1,13 @@
+Zone GoZones
+  Mixer TrackNavigator
+  Inspector SelectedTrackNavigator
+  MasterView MasterTrackNavigator
+  FocusView FocusedFXNavigator
+  Transport
+  HeaderNavigator
+  MasterTrack TrackNavigator
+  Conflicted TrackNavigator
+  Pinned FixedTrackNavigator
+  Mystery MysteryNavigator
+  MissingZone TrackNavigator
+ZoneEnd
