@@ -328,7 +328,7 @@ Resolve the binding against the selected surface and report an error when:
 - An input action is assigned to a display-only widget.
 - A modifier is assigned to a widget without two-state press and release input.
 
-Formal surface layout metadata has priority over inferred widget capabilities when it is available.
+Typed Surface `Input` and `Feedback` catalog entries are the only authority for widget capabilities. `OSKLayout` can change presentation and connect a visible control to compatible target Widgets, but it cannot add or override a hardware capability.
 
 ## Action Value Properties
 
@@ -473,13 +473,14 @@ Run profile-level checks after applying the same User and Vendor layer override 
 C++ is the authority for effective timing values, ranges, gesture semantics, and runtime validation.
 
 - [`settings_schema.conf`](../Scripts/settings_schema.conf) is the canonical metadata source for setting names, types, compiled defaults, ranges, scopes, categories, and cross-setting constraints. It currently defines input behavior and timing settings and can later define other product configuration metadata. It does not store user values.
+- The generated Surface schema catalog is the canonical source for Input and Feedback type names, protocols, named properties, MIDI or OSC matching rules, compatible output sharing, and derived widget capabilities.
 - Product configuration stores root values and Device overrides.
 - The Bun editor reads schema metadata and user-selected values from the product `.conf`.
 - Lua reads schema metadata for its settings interface, but it queries and changes effective values through structured C++ ExtState commands. Lua must not read or write the product `.conf` directly or keep an independent timing source of truth.
 - A Lua settings change is validated, applied live, and saved atomically by C++. A manual or Bun editor file change becomes active only after explicit Apply or Reload, or after CSI restarts.
 - C++ provides `Query`, `Apply`, and `Reload` through the generated `ReaCtrlSurf_SETTINGS_CMD` and `ReaCtrlSurf_SETTINGS` sections. Query reports each effective value, its `Compiled`, `Product`, or `Device` source, and the value that would be inherited after removing the current override.
 - C++ validates product configuration, Zone loading, and OSK live apply before changing runtime state.
-- The Bun editor validates the same grammar, settings, surface capabilities, action traits, and cross-file relationships.
+- The Bun editor validates the same grammar, settings, catalog-derived surface capabilities, action traits, and cross-file relationships.
 - The legacy converter translates old unwrapped expressions and timing actions into the explicit grammar and persistent settings.
 - OSK serialization, labels, tooltips, and editing preserve bracketed selectors, parenthesized events, `@CH` widget-family qualifiers, and effective overrides.
 - One generated metadata schema must keep C++, Lua, and TypeScript setting names, ranges, enums, and action traits aligned.

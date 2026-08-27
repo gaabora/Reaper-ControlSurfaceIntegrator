@@ -84,9 +84,9 @@ The same brace rule applies to the new surface format:
 
 ```text
 Widget Fader {
-  Fader14Bit e0 7f 7f
-  FB_Fader14Bit e0 7f 7f
-  Touch 90 68 7f 90 68 00
+  Input Fader14Bit { Status=0xE0 }
+  Input Touch { On=[0x90, 0x68, 0x7F] Off=[0x90, 0x68, 0x00] }
+  Feedback Fader14Bit { Status=0xE0 }
 }
 
 OSKLayout {
@@ -191,7 +191,7 @@ A discrete parameter uses ordered values and can require a different number of i
 Rotary1 FXParam 0 Range=[0.0, 1.0] StepValues=[0.0, 0.5, 1.0] TicksPerStep=[4, 2, 1]
 ```
 
-Legacy MIDI encoder direction blocks such as `[ > 01-3f < 41-7f ]` belong to the Surface input protocol, not to action values. Their format 2 replacement remains part of the Surface schema decision. The importer must not emit unverified `Increase` or `Decrease` properties when the current `RotaryWidgetClass` path ignores the old block and uses `AccelerationValues` instead.
+Legacy MIDI encoder direction blocks such as `[ > 01-3f < 41-7f ]` belong to the Surface input protocol, not to action values. The Surface contract below converts the exact standard range to `Encoding=SignedBit` only when no WidgetClass supplied the current runtime behavior. When a WidgetClass exists, the importer converts its `AccelerationValues` to an EncoderProfile and removes the ignored inline range with a notice.
 
 The importer must decode each legacy value type. It must not copy one old anonymous bracket group into one new generic list.
 
@@ -513,11 +513,181 @@ Product configuration validation is local where the block boundaries remain know
 
 All C++ consumers use one parsed `IntegratorConfig` model. The native configuration dialog must not open and interpret the same file a second time. The Bun editor and C++ must use the same field names, nesting, defaults, and validation rules.
 
+### ✅ Surface structure and encoder input
+
+A Surface template describes hardware or an OSC endpoint layout. It does not select REAPER ports, set a surface-channel count, or contain user behavior settings. Those values belong to the product `Device` and Page `Surface` assignment.
+
+The selected Device `Type` must equal the Surface metadata `Protocol`. A mismatch skips that Page Surface assignment and links both declarations in the diagnostic.
+
+A Surface document accepts these order-independent top-level blocks after `@Meta`:
+
+- zero or more `EncoderProfile` blocks;
+- zero or one `ColorCalibration` block;
+- one or more `Widget` blocks;
+- zero or one `OSKLayout` block when `Protocol=MIDI`.
+
+Block IDs and references are case-sensitive. Duplicate Widget or EncoderProfile IDs are errors linked to every declaration. Unknown blocks and properties are errors. The parser builds one typed Surface model; hardware input, feedback capabilities, validation, Learn FX, and OSK all consume that model.
+
+The normal MIDI form is:
+
+```text
+@Meta { Version=2 Protocol=MIDI Name="FaderPort V2" }
+
+EncoderProfile Rotary {
+  Delta=0.003
+  Increase=[0x01, 0x02, 0x03]
+  Decrease=[0x41, 0x42, 0x43]
+  AccelerationDeltas=[0.005, 0.01, 0.02]
+}
+
+Widget RotaryBig {
+  Input Encoder {
+    Message=[0xB0, 0x10]
+    Profile=Rotary
+  }
+}
+
+Widget RotaryBigPush {
+  Input Press {
+    On=[0x90, 0x20, 0x7F]
+    Off=[0x90, 0x20, 0x00]
+  }
+}
+
+Widget Solo {
+  Input Press {
+    On=[0x90, 0x08, 0x7F]
+    Off=[0x90, 0x08, 0x00]
+  }
+  Feedback TwoState {
+    On=[0x90, 0x08, 0x7F]
+    Off=[0x90, 0x08, 0x00]
+  }
+}
+```
+
+`Widget` contains zero or one quoted `Alias` property and one or more `Input` or `Feedback` blocks. It can contain several typed blocks, such as fader input, touch input, motor feedback, and color feedback. `Input Type` and `Feedback Type` use separate closed namespaces, so the same short type can exist in both. The public Feedback type drops the redundant legacy `FB_` prefix.
+
+Every registered Input and Feedback type has one shared schema entry that defines its protocol, allowed named properties, required properties, message matching rule, runtime decoder or processor, and derived capabilities. C++, Bun, Lua metadata, Learn FX, and OSK must use this catalog. They must not infer capabilities by searching type-name text. Adding a processor without adding its schema entry is a build-generation error.
+
+The initial Input catalog replaces the current public runtime names as follows:
+
+| Protocol | Public Input type | Named properties | Derived input capability | Legacy input |
+|---|---|---|---|---|
+| MIDI | `Press` | required three-byte `On`; optional three-byte `Off` | press; release only when Off exists | `Press` |
+| MIDI | `AnyPress` | required two-byte `Message` prefix | press without release | `AnyPress` |
+| MIDI | `Fader14Bit` | required `Status` byte | absolute | `Fader14Bit` |
+| MIDI | `FaderportClassicFader14Bit` | required three-byte `MSBMessage` and `LSBMessage` | absolute | same name |
+| MIDI | `Fader7Bit` | required two-byte `Message` prefix | absolute | `Fader7Bit` |
+| MIDI | `Encoder` | required two-byte `Message` prefix and exactly one Profile or Encoding | relative | `Encoder`, `MFTEncoder`, `EncoderPlain`, `Encoder7Bit` |
+| MIDI | `Touch` | required three-byte `On` and `Off` | touch | `Touch` |
+| OSC | `Control` | required `Address` | numeric value | `Control` |
+| OSC | `AnyPress` | required `Address` | press without release | `AnyPress` |
+| OSC | `Touch` | required `Address` | touch | `Touch` |
+| OSC | `X32Fader` | required `Address` | absolute | `X32Fader` |
+| OSC | `X32RotaryToEncoder` | required `Address` | relative | `X32RotaryToEncoder` |
+
+`EncoderPlain` converts to `Encoding=SignedBitFixed`; `Encoder7Bit` converts to `Encoding=Relative7Bit`; and `MFTEncoder` converts to a generated local EncoderProfile. These legacy names do not remain in the runtime catalog.
+
+The initial Feedback catalog groups processors by their public property shape. Types in one row share the listed syntax but keep their own processor behavior and capability entry:
+
+| Property shape | Public Feedback types |
+|---|---|
+| `On` and `Off` MIDI messages | `TwoState` |
+| one `Message` | `NovationLaunchpadMiniRGB7Bit`, `MFT_RGB`, `AsparionRGB`, `FaderportRGB`, `FaderportTwoStateRGB`, `Fader7Bit`, `Encoder`, `AsparionEncoder`, `ConsoleOneVUMeter`, `ConsoleOneGainReductionMeter`, `SCE24LEDButton`, `SCE24Encoder` |
+| `Status` | `Fader14Bit` |
+| `MSBMessage` and `LSBMessage` | `FaderportClassicFader14Bit` |
+| `Channel` | `FaderportValueBar`, `FPVUMeter`, `QConProXMasterVUMeter`, `MCUVUMeter`, `MCUXTVUMeter`, `AsparionVUMeterL`, `AsparionVUMeterR`, `MCUDisplayUpper`, `MCUDisplayLower`, `MCUXTDisplayUpper`, `MCUXTDisplayLower`, `IconDisplay1Upper`, `IconDisplay1Lower`, `IconDisplay2Upper`, `IconDisplay2Lower`, `AsparionDisplayUpper`, `AsparionDisplayLower`, `AsparionDisplayEncoder`, `XTouchDisplayUpper`, `XTouchDisplayLower`, `XTouchXTDisplayUpper`, `XTouchXTDisplayLower`, `FP8ScribbleLine1`, `FP8ScribbleLine2`, `FP8ScribbleLine3`, `FP8ScribbleLine4`, `FP16ScribbleLine1`, `FP16ScribbleLine2`, `FP16ScribbleLine3`, `FP16ScribbleLine4`, `FP8ScribbleStripMode`, `FP16ScribbleStripMode`, `QConLiteDisplayUpper`, `QConLiteDisplayUpperMid`, `QConLiteDisplayLowerMid`, `QConLiteDisplayLower` |
+| `Row` and `Channel` | `C4DisplayUpper`, `C4DisplayLower` |
+| `Message`, `TopMargin`, `BottomMargin`, and `Font` | `SCE24OLEDButton`, `SCE24EncoderText` |
+| no properties | `MCUTimeDisplay`, `MCUAssignmentDisplay` |
+| `Address` | OSC `Value`, `Integer`, `X32`, `X32Integer`, `X32Fader`, `X32RotaryToEncoder` |
+
+These names come from the current registered C++ processors, not from every public example file. A legacy Surface line whose type is misspelled, stale, or not registered produces an unknown-type diagnostic with close catalog suggestions. The importer does not preserve a non-working type only because it exists in a public example.
+
+MIDI bytes use `0x00` through `0xFF`. MIDI data bytes must also be at most `0x7F`; status-byte positions require a valid status value. `Message`, `On`, and `Off` are typed lists with exact lengths defined by the selected Input or Feedback type. A diagnostic points to the exact byte or missing property instead of reporting only an invalid Widget block.
+
+Incoming MIDI match keys must be unique after each Input type applies its declared status, data-byte, and value matching mask. Two Inputs that can consume the same physical message are an error linked to both blocks. Several Feedback blocks can send to the same address only when their catalog entries declare that combination compatible.
+
+#### Encoder profiles
+
+`EncoderProfile` replaces `StepSize`, `AccelerationValues`, and `WidgetClass`. It is a reusable local lookup table, not a widget capability or runtime class name.
+
+| Property | Required | Value and rule |
+|---|---|---|
+| `Increase` | Yes | Non-empty list of unique MIDI data bytes |
+| `Decrease` | Yes | Non-empty list of unique MIDI data bytes |
+| `Delta` | No | Positive finite default delta for a binding without its own `Delta` |
+| `AccelerationDeltas` | No | Non-empty list of positive finite defaults for a binding without its own `AccelerationDeltas` |
+
+Increase and Decrease values cannot overlap. Their list position is the zero-based acceleration level. The lists can have different lengths. Runtime clamps a level beyond the resolved `AccelerationDeltas` list to its last value, matching the format 2 action-value rule. A binding property overrides the corresponding EncoderProfile default. A profile does not define action range or discrete `StepValues`.
+
+`Input Encoder` requires a two-byte MIDI `Message` prefix and exactly one of:
+
+- `Profile=ProfileId`, which maps the incoming third byte through that EncoderProfile;
+- `Encoding=SignedBit`, which uses bit 6 as direction and bits 0 through 5 as magnitude;
+- `Encoding=SignedBitFixed`, which uses bit 6 as direction and emits one fixed tick;
+- `Encoding=Relative7Bit`, which compares consecutive values and emits one directional tick.
+
+Unknown third-byte values in a profile do not produce input. Duplicate profile values and an unknown Profile reference are errors. The old special `MFTEncoder` table becomes a normal EncoderProfile during import.
+
+Legacy inline encoder text such as `[ > 01-3f < 41-7f ]` is not copied. With a legacy WidgetClass, the importer uses the class `AccelerationValues` table and reports that the ignored inline text was removed. Without a WidgetClass, the exact standard range converts to `Encoding=SignedBit`. Any other inline range that does not describe current runtime behavior remains unresolved and produces a preview diagnostic instead of a guessed mapping.
+
+#### OSC widgets
+
+OSC uses the same Widget, Input, and Feedback structure with OSC-specific catalog types and a named `Address` property:
+
+```text
+@Meta { Version=2 Protocol=OSC Name="X32" }
+
+Widget ChannelFader1 {
+  Input X32Fader { Address="/ch/01/mix/fader" }
+  Feedback X32Fader { Address="/ch/01/mix/fader" }
+}
+```
+
+An OSC address is a non-empty quoted string that starts with `/`. A slash never starts a comment. Only `//` starts a comment. Duplicate incoming OSC address and decoder combinations are errors. Feedback address reuse follows the same catalog compatibility rule as MIDI feedback.
+
+OSC Surface templates cannot contain `OSKLayout`. This preserves the current product decision that tablet OSC interfaces are not mirrored in the desktop OSK.
+
+#### OSK layout
+
+`OSKLayout` is part of the MIDI Surface document and does not have a separate version:
+
+```text
+OSKLayout {
+  Row {
+    Spacer Width=0.25
+    Widget RotaryBig Shape=Round Width=1.5 Height=1.5 PressTarget=RotaryBigPush
+    Spacer Width=0.25
+  }
+}
+```
+
+Each Row contains one or more `Widget` or `Spacer` entries. A layout Widget references one declared hardware Widget. A visible Widget can occur only once. A referenced press, scroll, value, or touch target does not need its own visible cell.
+
+The initial layout properties remain `Shape`, `Width`, `Height`, `Top`, `Group`, `Label`, `Color`, `Role`, `PressTarget`, `ScrollTarget`, `ValueTarget`, `TouchTarget`, and `RotaryStyle`. Colors use `#RRGGBB` or `#RRGGBBAA`. Positive Width and Height default to `1`; Top defaults to `0`; Spacer Width is positive and defaults to `0.5`. Input and Feedback capability strings are derived from the typed Widget blocks and are not editable OSK layout properties.
+
+Target properties must reference a Widget with the matching derived capability. For example, `PressTarget` requires press input and `ScrollTarget` requires relative input. `Role`, when omitted, is derived from capabilities. Explicit Role can change presentation but cannot add a missing hardware capability.
+
+`ColorCalibration` keeps device color conversion separate from the visual OSK layout:
+
+```text
+ColorCalibration {
+  OutputMax=127
+  NeutralTolerancePercent=5
+  NeutralRedScale=0.80
+  NeutralCurve=2.0
+}
+```
+
+The block is active when present. Its exact properties, defaults, and ranges must be stored in the same Surface schema catalog as color-capable Feedback types. It is invalid when no Widget uses color feedback.
+
 ## Remaining design decisions
 
 - ✅ Expose only `Role`, `Target`, and optional `BankTarget` in Main zone metadata. Derive navigator, track set, lifetime, activation scope, link routing, and internal FX context in the typed runtime model.
 - ✅ Load each zone document once, use `@CH` to expand only channel-qualified bindings, and reject bare anonymous square-bracket groups in format 2.
-- ✅ Confirm the zone action property names `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep`. Keep legacy MIDI encoder direction ranges in the pending Surface schema decision.
+- ✅ Confirm the zone action property names `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep`, and resolve legacy MIDI encoder direction ranges in the typed Surface contract.
 - ✅ Define `@CH` surface-channel expansion plus wildcard case handling, escaping, match ordering, overlap handling, and no-match diagnostics.
 - ✅ Store `LearnFX.fxzon` in the zone profile root beside `Main/` and `FX/` because a zone profile can be selected independently from a surface file.
 - ✅ Confirm the complete global `FeedbackShape` set, current ring-processor mappings, and actions that intentionally have no automatic shape.
@@ -793,11 +963,11 @@ Document identity comes from its profile-relative filename. Metadata does not re
 |---|---|
 | Main `.zon` | `Version`, `Role`, `Target`, `BankTarget`, `Alias` |
 | FX `.zon` | `Version`, `MatchFX`, `Alias` |
-| Surface `.txt` | `Version`, `Name`, `Description` |
+| Surface `.txt` | `Version`, `Protocol`, `Name`, `Description` |
 | `LearnFX.fxzon` | `Version` |
 | `.snippet` | `Version`, `Name`, `Description` |
 
-`Version=2` is required for every document in this table. `Name`, `Description`, `MatchFX`, and `Alias` are quoted strings. All other values are closed enums. An omitted optional key uses the documented default and does not produce a warning.
+`Version=2` is required for every document in this table. `Protocol=MIDI|OSC` is required in a Surface document. `Name`, `Description`, `MatchFX`, and `Alias` are quoted strings. All other values are closed enums. An omitted optional key uses the documented default and does not produce a warning.
 
 Surface and snippet IDs are their lowercase filename stems. A Main zone ID is its filename stem and is compared case-insensitively inside the active Main profile. An FX zone ID is its filename stem, while `MatchFX` is its external plugin lookup key. `LearnFX.fxzon` has a fixed filename and no separate ID.
 
@@ -995,13 +1165,17 @@ Validation reports an error for an unknown key, unknown enum, invalid property c
 - ✅ Define binding, `IncludedZones`, reusable `Role=Layer` overlays, `GoZone`, `GoHome`, `EnterZoneLayer`, `ExitZoneLayer`, exact-event fallback, and lifecycle schemas without treating navigation references as structural recursion.
 - ✅ Specify true wildcard matching, case handling, escaping, match order, and no-match diagnostics separately from `@CH`.
 - ✅ Specify the valid prefix selector, postfix `@CH`, and named property list positions. Reject anonymous bracket groups.
-- ✅ Confirm the names and value rules for `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, `TicksPerStep`, and `StateColors`. Defer raw MIDI encoder direction ranges to the Surface schema.
+- ✅ Confirm the names and value rules for `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, `TicksPerStep`, and `StateColors`, and keep raw MIDI encoder decoding in the typed Surface schema.
 - ✅ Define case-insensitive per-zone Main/FX overlays, uniqueness scopes, complete duplicate diagnostics, and distinct whole-file Surface, snippet, and Learn FX override rules.
 - ✅ Define transactional User-zone rename, collision checks, Vendor-referrer overrides, stale-reference handling, and updates of every typed reference.
 - ✅ Define `LearnFX.fxzon`, OSK FX edit mode, widget eligibility, display pairing, generated-binding copy semantics, live draft preview, explicit save, and legacy directive handling.
 - ✅ Define the global `RingStyle` type, processor capabilities and defaults, the complete action `FeedbackShape` set, current processor mappings, actions without automatic shape, and explicit binding overrides.
 - ✅ Specify the unversioned product `.conf` block schemas, identifiers, required and optional fields, defaults, Product and Device settings scopes, links, diagnostics, and shared semantic model ownership.
-- [ ] Specify brace-based surface and snippet schemas using the common lexical grammar.
+- ✅ Specify the Surface document structure, protocol identity, Widget/Input/Feedback blocks, EncoderProfile behavior, MIDI and OSC address rules, OSK layout, color calibration placement, and legacy encoder-range handling.
+- ✅ Inventory the currently registered Input and Feedback processors, remove obsolete encoder input types, and group their format 2 public names by named property shape.
+- [ ] Define the exact message matching rule, compatible output sharing, and derived capability set for every Feedback catalog entry.
+- [ ] Confirm ColorCalibration property defaults, ranges, and compatibility with color-capable Feedback entries.
+- [ ] Specify the brace-based snippet schema using the common lexical grammar.
 - [ ] Add representative valid and invalid fixture files for every top-level format before runtime implementation starts.
 - [ ] Update the Phase 4 conversion matrix and add golden legacy-input/output fixtures for every remaining Phase 2 syntax or action decision before marking that decision complete.
 
@@ -1011,6 +1185,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 
 - [ ] Implement one lexer for metadata, brace blocks, lists, properties, quotes, comments, wildcard selectors, and `@CH` qualifiers.
 - [ ] Parse each zone, surface, Learn FX, and snippet file once into a typed document model with source locations.
+- [ ] Generate the C++, TypeScript, and Lua Surface Input/Feedback catalog from one schema and reject runtime processor registrations without matching metadata.
 - [ ] Compile each `@CH` binding into channel-specific action contexts without cloning the containing zone document or its channel-neutral bindings.
 - [ ] Resolve Vendor and User Main/FX sources into one per-zone active set before roles, references, dependencies, or runtime objects are validated.
 - [ ] Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
@@ -1058,7 +1233,14 @@ The initial conversion matrix is:
 | `Minimum>Maximum` inside an anonymous action value group | `Range=[Minimum, Maximum]` with normalized ascending bounds |
 | Remaining numeric values inside an anonymous action value group | `StepValues=[...]` in original order |
 | Anonymous RGB, hexadecimal, or `Track` color block | `StateColors=[...]` |
-| Legacy Surface encoder direction block | Defer to the format 2 Surface input-protocol schema; do not infer `Increase` or `Decrease` when current runtime ignores the block |
+| Legacy `StepSize` and `AccelerationValues` entries for one WidgetClass | One local `EncoderProfile` with `Delta`, `Increase`, `Decrease`, and optional `AccelerationDeltas` |
+| Legacy WidgetClass on an encoder Widget | `Profile=ProfileId` on its typed `Input Encoder` block; the runtime class name is removed |
+| Exact inline encoder range `[ > 01-3f < 41-7f ]` without a WidgetClass | `Encoding=SignedBit` |
+| Inline encoder range on a Widget that already uses a WidgetClass | Removed with an import notice because current runtime ignores it and uses the class lookup table |
+| Other inline encoder direction range | Unresolved import diagnostic; do not infer behavior that the current runtime did not implement |
+| `Widget Name ... WidgetEnd` and positional hardware processor lines | `Widget Name { ... }` with catalog-driven `Input Type { ... }` and `Feedback Type { ... }` blocks whose message bytes or OSC address use named properties |
+| Legacy `OSKLayout Version=1`, Row blocks, and bare hexadecimal colors | Versionless `OSKLayout { Row { ... } }` inside the format 2 MIDI Surface; colors gain the required `#` prefix |
+| Legacy `ColorCalibration ... ColorCalibrationEnd` | Typed `ColorCalibration { ... }` block |
 | `BlockName ... BlockNameEnd` | `BlockName { ... }` |
 | Hash-prefixed Learn FX directives and Learn FX pseudo-zones | `LearnFX.fxzon` plus normal generated FX bindings; `FXRowLayout` is dropped |
 | Legacy single-slash comment lines | `//` comments when the line is recognized as a legacy comment; OSC address tokens remain data |
@@ -1079,7 +1261,8 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert old `Zone ... ZoneEnd`, `BlockName ... BlockNameEnd`, and surface blocks during legacy import.
 - [ ] Convert legacy `Widget|` channel placeholders to `Widget@CH` and include exact, missing-family, and non-channel wildcard golden fixtures.
 - [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
-- [ ] Convert legacy Surface `StepSize`, `AccelerationValues`, and encoder direction blocks only after the typed Surface input-protocol schema is complete. Report ignored, redundant, or ambiguous old direction blocks in preview.
+- [ ] Convert legacy Surface Widget blocks through the completed Input and Feedback catalog. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
+- [ ] Convert MIDI `OSKLayout Version=1` and ColorCalibration blocks to their format 2 Surface blocks. Do not create OSKLayout for OSC templates.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists.
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
 - [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
