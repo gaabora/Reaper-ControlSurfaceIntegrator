@@ -11,12 +11,12 @@ Each scenario compares every file under `legacy/` with `expected/` and any `diag
 - `learn-fx`: converts FXWidgetLayout, FXPrologue, FXEpilogue, and supported hash directives, and drops FXRowLayout with notices.
 - `snippet`: converts a version 1 semantic snippet to a direct format 2 zone fragment.
 - `unresolved`: covers a non-standard encoder range, invalid FPVUMeter data, missing channel metadata, command-shaped MFT colors, conflicting per-zone display modes, and a file used as both a layer and an independent zone.
+- `osc-x32`: converts an OSCX32 Device, Page assignment, X32 fader curve, rotary delta scaling and acknowledgement, and an OSC OSK layout.
+- `links`: converts an order-dependent Broadcaster and Listener record to one explicit same-Page Link with only enabled share categories.
+- `magic-targets`: converts every current magic Main zone name to explicit Role, Target, and optional BankTarget metadata.
 
 ## [ ] Remaining golden scenarios
 
-- [ ] OSC Device and Surface conversion, including X32 ValueProfile and encoder acknowledgement.
-- [ ] Broadcaster and Listener conversion to explicit Link blocks.
-- [ ] Every remaining magic Target and BankTarget combination.
 - [ ] Deprecated GoZones loading metadata and removal of standalone navigator-name lines.
 - [ ] Normal MFT palette output with Companion and command-shaped color detection from a complete selected Surface plus zone set.
 - [ ] SCE24 ring color ranges, uniform ring color, push color, and Ring Configure output.

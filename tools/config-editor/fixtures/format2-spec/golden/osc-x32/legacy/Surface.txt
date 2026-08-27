@@ -1,0 +1,16 @@
+Widget Fader1
+  X32Fader /ch/01/mix/fader
+  FB_X32FaderProcessor /ch/01/mix/fader
+WidgetEnd
+
+Widget Pan1
+  X32RotaryToEncoder /ch/01/mix/pan
+  FB_X32RotaryToEncoder /ch/01/mix/pan
+WidgetEnd
+
+OSKLayout Version=1
+  Row
+    Widget Fader1 Height=2.0
+    Widget Pan1 Shape=Round
+  RowEnd
+OSKLayoutEnd

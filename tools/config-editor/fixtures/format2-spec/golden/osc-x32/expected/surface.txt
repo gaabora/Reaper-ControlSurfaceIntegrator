@@ -1,0 +1,36 @@
+@Meta { Version=2 Protocol=OSC Name="Imported X32 Surface" }
+
+ValueProfile X32FaderCurve {
+  InputUnit=Normalized
+  OutputUnit=Decibels
+  Direction=Both
+  Interpolation=Linear
+  Point Input=0.0 Output=-90.0
+  Point Input=0.0625 Output=-60.0
+  Point Input=0.25 Output=-30.0
+  Point Input=0.5 Output=-10.0
+  Point Input=1.0 Output=10.0
+}
+
+Widget Fader1 {
+  Channel=1
+  Input Value { Encoding=OSCFloat Address="/ch/01/mix/fader" ValueProfile=X32FaderCurve }
+  Feedback Value { Encoding=OSCFloat Address="/ch/01/mix/fader" ValueProfile=X32FaderCurve EchoGuardMs=30 }
+}
+
+Widget Pan1 {
+  Channel=1
+  Input Encoder {
+    Encoding=OSCFloat
+    Address="/ch/01/mix/pan"
+    Scale=-0.00078125
+    Acknowledge { Encoding=OSCInt Address="/ch/01/mix/pan" Value=64 }
+  }
+}
+
+OSKLayout {
+  Row {
+    Widget Fader1 Height=2.0
+    Widget Pan1 Shape=Round
+  }
+}
