@@ -1,0 +1,4 @@
+@Meta { Version=2 Role=Layer }
+
+Rotary@CH TrackPan RingStyle=Dot
+Play ExitZoneLayer

@@ -1,0 +1,41 @@
+@Meta { Version=2 Protocol=OSC Name="Format 2 OSC fixture" }
+
+ValueProfile FaderCurve {
+  InputUnit=Normalized
+  OutputUnit=Decibels
+  Direction=Both
+  Interpolation=Linear
+  Point Input=0.0 Output=-90.0
+  Point Input=0.5 Output=-10.0
+  Point Input=1.0 Output=10.0
+}
+
+Widget Fader1 {
+  Channel=1
+  Input Value { Encoding=OSCFloat Address="/ch/01/mix/fader" ValueProfile=FaderCurve }
+  Feedback Value { Encoding=OSCFloat Address="/ch/01/mix/fader" ValueProfile=FaderCurve EchoGuardMs=50 }
+}
+
+Widget Rotary1 {
+  Channel=1
+  Input Encoder {
+    Encoding=OSCFloat
+    Address="/ch/01/mix/pan"
+    Scale=0.01
+    Acknowledge { Encoding=OSCInt Address="/ch/01/mix/pan/ack" Value=64 }
+  }
+}
+
+Widget Mute1 {
+  Channel=1
+  Input Press { Encoding=OSCInt Address="/ch/01/mix/on" Match=NonZero }
+  Feedback State { Encoding=OSCInt Address="/ch/01/mix/on" OffValue=0 OnValue=1 }
+}
+
+OSKLayout {
+  Row {
+    Widget Fader1 Height=2.0
+    Widget Rotary1 Shape=Round ScrollTarget=Rotary1
+    Widget Mute1 Shape=Round
+  }
+}

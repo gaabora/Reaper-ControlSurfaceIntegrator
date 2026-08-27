@@ -1,0 +1,5 @@
+Zone Track
+  ScribbleStripMode Mode=0
+  ValueBar| TrackPanAutoLeft BarStyle=BiPolar
+  Fader| TrackVolume
+ZoneEnd

@@ -1,0 +1,4 @@
+Zone Mixer
+  ScribbleStripMode Mode=2
+  ButtonA GoSubZone Shared
+ZoneEnd

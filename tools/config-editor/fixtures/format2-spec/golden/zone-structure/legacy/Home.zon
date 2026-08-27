@@ -1,0 +1,13 @@
+Zone Home
+  IncludedZones
+    Channel
+  IncludedZonesEnd
+
+  SubZones
+    Pan
+  SubZonesEnd
+
+  OnZoneActivation ToggleUseLocalModifiers
+  Play Play
+  Hold+Play GoSubZone Pan
+ZoneEnd

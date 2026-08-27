@@ -1,0 +1,6 @@
+@Meta { Version=2 Target=Tracks }
+
+// old comment
+Fader@CH TrackVolume Range=[0.0, 1.0] AccelerationDeltas=[0.005, 0.02]
+Rotary@CH TrackPan Delta=0.5
+ButtonA@CH TrackSolo StateColors=[#000000, #FFFF00]

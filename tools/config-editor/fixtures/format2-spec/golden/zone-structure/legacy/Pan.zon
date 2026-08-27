@@ -1,0 +1,4 @@
+Zone Pan
+  Rotary| TrackPan RingStyle=Dot
+  Play LeaveSubZone
+ZoneEnd

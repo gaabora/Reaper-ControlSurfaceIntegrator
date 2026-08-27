@@ -1,0 +1,6 @@
+@Meta { Version=2 }
+
+FXWidgets {
+  Parameter Rotary*
+  Parameter Rotary1
+}

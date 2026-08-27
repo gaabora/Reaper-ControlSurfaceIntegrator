@@ -1,0 +1,5 @@
+@Meta { Version=2 MatchFX="VST3: ReaEQ (Cockos)" Alias="ReaEQ" }
+
+Rotary1 FXParam 0 Range=[0.0, 1.0] Delta=0.005 RingStyle=Dot
+DisplayUpper1 FXParamNameDisplay 0
+DisplayLower1 FXParamValueDisplay 0

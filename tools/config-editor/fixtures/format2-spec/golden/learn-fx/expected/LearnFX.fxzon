@@ -1,0 +1,18 @@
+@Meta { Version=2 }
+
+FXWidgets {
+  Parameter Fader@CH
+  Parameter Rotary@CH RingStyle=Dot
+  NameDisplay DisplayUpper@CH
+  ValueDisplay DisplayLower@CH
+}
+
+GeneratedBindings {
+  On ZoneActivation {
+    ToggleUseLocalModifiers
+  }
+
+  On ZoneDeactivation {
+    ToggleUseLocalModifiers
+  }
+}

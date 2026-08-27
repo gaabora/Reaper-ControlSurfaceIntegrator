@@ -1,0 +1,16 @@
+@Meta { Version=2 Role=Home Alias="Home" }
+
+IncludedZones {
+  Channel
+}
+
+ZoneLayers {
+  Pan
+}
+
+Play Play
+(Hold)+Play EnterZoneLayer Pan
+
+On ZoneActivation {
+  ToggleUseLocalModifiers
+}

@@ -1,0 +1,140 @@
+@Meta { Version=2 Protocol=MIDI Name="Format 2 MIDI fixture" }
+
+EncoderProfile RelativeEncoder {
+  Delta=0.003
+  Increase=[0x01, 0x02]
+  Decrease=[0x41, 0x42]
+  AccelerationDeltas=[0.005, 0.01]
+}
+
+ColorProfile EightColors {
+  Match=Nearest
+  Default=0
+  Entry Color=#000000 Value=0
+  Entry Color=#FF0000 Value=1
+  Entry Color=#00FF00 Value=2
+  Entry Color=#FFFFFF Value=7
+}
+
+RingProfile ElevenSegmentRing {
+  Segments=11
+  DefaultColor=#000000
+  Quantize=Floor
+  ValueOffset=1
+  Style Dot Code=0 Steps=11
+  Style BoostCut Code=1 Steps=11
+  Style Fill Code=2 Steps=11
+  Style Spread Code=3 Steps=6
+}
+
+BarProfile StandardBar {
+  Default=Off
+  Style Normal Code=0
+  Style Bipolar Code=1
+  Style Fill Code=2
+  Style Spread Code=3
+  Style Off Code=4
+}
+
+TextProfile SevenCharacters {
+  Encoding=ASCII7
+  Width=7
+  Padding=Space
+  ClearText=""
+  SilenceAsEmpty=true
+}
+
+TextProfile StyledDisplay {
+  Encoding=ASCII7
+  Width=30
+  Padding=Space
+  DefaultAlignment=Center
+  Alignment Center Code=0
+  Alignment Left Code=1
+  Alignment Right Code=2
+  InvertCode=4
+  PresentationCombine=BitOr
+}
+
+Widget Play {
+  Input Press { Encoding=MIDIExact On=[0x90, 0x5E, 0x7F] Off=[0x90, 0x5E, 0x00] }
+  Feedback State { Encoding=MIDIExact On=[0x90, 0x5E, 0x7F] Off=[0x90, 0x5E, 0x00] }
+}
+
+Widget Fader1 {
+  Channel=1
+  Input Value { Encoding=MIDI14 Status=0xE0 }
+  Input Touch { Encoding=MIDIExact On=[0x90, 0x68, 0x7F] Off=[0x90, 0x68, 0x00] }
+  Feedback Value { Encoding=MIDI14 Status=0xE0 SuppressWhileTouched=true }
+}
+
+Widget Rotary1 {
+  Channel=1
+  Input Encoder { Encoding=MIDI7 Message=[0xB0, 0x10] Profile=RelativeEncoder }
+  Feedback Ring {
+    Encoding=MIDI7
+    Message=[0xB0, 0x30]
+    RingProfile=ElevenSegmentRing
+    StyleTarget=Value
+    StyleShift=4
+    StyleCombine=BitOr
+    Configure {
+      Encoding=MIDISysEx
+      Payload=[0x00, 0x02, 0x38, 0x01, 0x30, SegmentMasks, SegmentRed7, SegmentGreen7, SegmentBlue7]
+    }
+  }
+}
+
+Widget ValueBar1 {
+  Channel=1
+  Feedback Bar { Encoding=MIDI7 Message=[0xB0, 0x31] StyleMessage=[0xB0, 0x39] BarProfile=StandardBar }
+}
+
+Widget PaletteButton1 {
+  Channel=1
+  Feedback Color { Encoding=MIDIPalette Message=[0xB1, 0x00] ColorProfile=EightColors Companion=[0xB2, 0x00, 0x2F] CompanionOrder=After }
+}
+
+Widget DisplayUpper1 {
+  Channel=1
+  Feedback Text { Encoding=MIDISysEx TextProfile=SevenCharacters Payload=[0x00, 0x00, 0x66, 0x14, 0x12, 0x00, Text] }
+}
+
+Widget DisplayLower1 {
+  Channel=1
+  Feedback Text { Encoding=MIDISysEx TextProfile=SevenCharacters Payload=[0x00, 0x00, 0x66, 0x14, 0x12, 0x38, Text] }
+}
+
+Widget StyledText {
+  Feedback Text { Encoding=MIDISysEx TextProfile=StyledDisplay Payload=[0x00, 0x01, 0x06, 0x16, 0x12, 0x00, 0x00, TextPresentationCode, Text] }
+}
+
+FeedbackGroup TrackColors {
+  Capability=TrackColor
+  Encoding=MIDISysEx
+  ColorProfile=EightColors
+  EmptyColor=#FFFFFF
+  UseTrackColorWhen=SourceTextPresent
+  Payload=[0x00, 0x00, 0x66, 0x14, 0x72, SlotColors]
+  Slot Source=DisplayUpper1 Members=[DisplayUpper1, DisplayLower1]
+}
+
+ColorCalibration {
+  OutputMax=127
+  RedScale=1.0
+  GreenScale=1.0
+  BlueScale=1.0
+}
+
+OSKLayout {
+  Row {
+    Widget Play Shape=Round
+    Widget Fader1 Height=2.0 TouchTarget=Fader1
+    Widget Rotary1 Shape=Round ScrollTarget=Rotary1
+    Widget ValueBar1
+  }
+  Row {
+    Widget DisplayUpper1 Width=2.0
+    Widget DisplayLower1 Width=2.0
+  }
+}

@@ -1,0 +1,19 @@
+Widget OddEncoder
+  Encoder b0 10 7f [ > 02-20 < 50-70 ]
+WidgetEnd
+
+Widget Meter
+  FB_FPVUMeter 0
+WidgetEnd
+
+Widget ColorWithoutChannel
+  FB_AsparionRGB 90 10 7f
+WidgetEnd
+
+Widget ColorButton
+  FB_MFT_RGB b1 00 7f
+WidgetEnd
+
+Widget ScribbleStripMode
+  FB_FP8ScribbleStripMode 0
+WidgetEnd

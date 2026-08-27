@@ -1,0 +1,2 @@
+FXRowLayout.zon: dropped because format 2 derives real widgets and modifier combinations from the selected Surface.
+#RingStyle and #SupportsColor lists: validated against Surface capabilities and dropped because format 2 does not repeat capability lists.

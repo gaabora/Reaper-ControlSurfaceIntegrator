@@ -1,0 +1,9 @@
+@Meta { Version=2 Protocol=OSC Name="Input collision" }
+
+Widget Fader {
+  Input Value { Encoding=OSCFloat Address="/control/value" }
+}
+
+Widget Button {
+  Input Press { Encoding=OSCInt Address="/control/value" Match=NonZero }
+}

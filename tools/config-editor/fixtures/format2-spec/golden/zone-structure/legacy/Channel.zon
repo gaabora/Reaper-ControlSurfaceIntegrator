@@ -1,0 +1,6 @@
+Zone Track TrackNavigator
+  / old comment
+  Fader| TrackVolume [ 0.00>1.00 (0.005,0.02) ]
+  Rotary| TrackPan [ 0.5 ]
+  ButtonA| TrackSolo { 0 0 0 255 255 0 }
+ZoneEnd

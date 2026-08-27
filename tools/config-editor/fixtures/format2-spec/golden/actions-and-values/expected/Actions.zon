@@ -1,0 +1,45 @@
+@Meta { Version=2 Target=Tracks }
+
+On SurfaceInitialization {
+  Reaper 40044
+}
+
+On TrackSelection {
+  Reaper 40044
+}
+
+On PageEnter {
+  Reaper 40044
+}
+
+On PageExit {
+  Reaper 40044
+}
+
+On PlaybackStart {
+  Reaper 40044
+}
+
+On PlaybackStop {
+  Reaper 40044
+}
+
+On RecordStart {
+  Reaper 40044
+}
+
+On RecordStop {
+  Reaper 40044
+}
+
+On ZoneActivation {
+  Reaper 40044
+}
+
+On ZoneDeactivation {
+  Reaper 40044
+}
+
+ButtonA ToggleSelectedTrackFX
+ButtonB GoZone Mixer
+Rotary TrackAutoMode Range=[0.0, 1.0] StepValues=[0.0, 0.5, 1.0] TicksPerStep=[4, 2, 1]

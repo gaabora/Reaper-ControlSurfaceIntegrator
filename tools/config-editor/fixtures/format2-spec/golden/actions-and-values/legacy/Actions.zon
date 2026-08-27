@@ -1,0 +1,15 @@
+Zone Track
+  OnInitialization Reaper 40044
+  OnTrackSelection Reaper 40044
+  OnPageEnter Reaper 40044
+  OnPageLeave Reaper 40044
+  OnPlayStart Reaper 40044
+  OnPlayStop Reaper 40044
+  OnRecordStart Reaper 40044
+  OnRecordStop Reaper 40044
+  OnZoneActivation Reaper 40044
+  OnZoneDeactivation Reaper 40044
+  ButtonA GoZone SelectedTrackFX
+  ButtonB GoZone Mixer
+  Rotary TrackAutoMode [ 0.00>1.00 (4,2,1) 0.0 0.5 1.0 ]
+ZoneEnd

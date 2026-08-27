@@ -1,0 +1,56 @@
+@Meta { Version=2 Protocol=MIDI Name="Imported Surface" }
+
+EncoderProfile RotaryWidgetClass {
+  Delta=0.003
+  Increase=[0x01, 0x02]
+  Decrease=[0x41, 0x42]
+  AccelerationDeltas=[0.005, 0.01]
+}
+
+RingProfile RotaryRing {
+  Quantize=Floor
+  ValueOffset=1
+  Style Dot Code=0 Steps=11
+  Style BoostCut Code=1 Steps=11
+  Style Fill Code=2 Steps=11
+  Style Spread Code=3 Steps=6
+}
+
+BarProfile StandardBar {
+  Default=Off
+  Style Normal Code=0
+  Style Bipolar Code=1
+  Style Fill Code=2
+  Style Spread Code=3
+  Style Off Code=4
+}
+
+Widget Fader1 {
+  Channel=1
+  Input Value { Encoding=MIDI14 Status=0xE0 }
+  Input Touch { Encoding=MIDIExact On=[0x90, 0x68, 0x7F] Off=[0x90, 0x68, 0x00] }
+  Feedback Value { Encoding=MIDI14 Status=0xE0 SuppressWhileTouched=true }
+}
+
+Widget Rotary1 {
+  Channel=1
+  Input Encoder { Encoding=MIDI7 Message=[0xB0, 0x20] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[0xB0, 0x40] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
+}
+
+Widget ValueBar1 {
+  Channel=1
+  Feedback Bar { Encoding=MIDI7 Message=[0xB0, 0x30] StyleMessage=[0xB0, 0x38] BarProfile=StandardBar }
+}
+
+Widget ScribbleStripMode {
+  Feedback Value { Encoding=MIDISysEx InitialValue=0.0 Payload=[0x00, 0x01, 0x06, 0x02, 0x13, 0x00, Value7] }
+}
+
+OSKLayout {
+  Row {
+    Widget Fader1 Height=2.0
+    Widget Rotary1 Shape=Round
+    Widget ValueBar1
+  }
+}

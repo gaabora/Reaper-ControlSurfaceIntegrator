@@ -1,0 +1,36 @@
+StepSize
+  RotaryWidgetClass 0.003
+StepSizeEnd
+
+AccelerationValues
+  RotaryWidgetClass Dec 41 42
+  RotaryWidgetClass Inc 01 02
+  RotaryWidgetClass Val 0.005 0.01
+AccelerationValuesEnd
+
+Widget Fader1
+  Fader14Bit e0 7f 7f
+  FB_Fader14Bit e0 7f 7f
+  Touch 90 68 7f 90 68 00
+WidgetEnd
+
+Widget Rotary1 RotaryWidgetClass
+  Encoder b0 20 7f [ > 01-3f < 41-7f ]
+  FB_Encoder b0 20 7f
+WidgetEnd
+
+Widget ValueBar1
+  FB_FaderportValueBar 0
+WidgetEnd
+
+Widget ScribbleStripMode
+  FB_FP8ScribbleStripMode 0
+WidgetEnd
+
+OSKLayout Version=1
+  Row
+    Widget Fader1 Height=2.0
+    Widget Rotary1 Shape=Round
+    Widget ValueBar1
+  RowEnd
+OSKLayoutEnd

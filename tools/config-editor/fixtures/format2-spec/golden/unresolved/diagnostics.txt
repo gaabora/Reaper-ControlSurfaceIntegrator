@@ -1,0 +1,6 @@
+Surface.txt:2 legacy.encoder.range.unresolved: The inline encoder range is not the standard signed-bit range and no WidgetClass defines its current behavior.
+Surface.txt:6 legacy.meter.invalid-midi-data: FPVUMeter can generate data values above 0x7F. Verify the hardware protocol before conversion.
+Surface.txt:10 legacy.widget.channel.unresolved: Track-color feedback requires a channel, but the processor has no channel argument and the Widget ID has no unambiguous numeric suffix.
+Home.zon:3 legacy.color.command.unresolved: This MFT_RGB color is interpreted as an arbitrary MIDI command and cannot become Color feedback.
+Home.zon:2 legacy.surface.initial-value.conflict: ScribbleStripMode uses Mode=0 here and Mode=2 in Mixer.zon. Format 2 has no per-zone hardware mode syntax.
+Shared.zon:1 legacy.zone.role.ambiguous: Shared is referenced as a SubZone from Mixer.zon and as an independent IncludedZone from Other.zon. Choose one role or create a renamed copy.

@@ -1614,8 +1614,8 @@ Validation reports an error for an unknown key, unknown enum, invalid property c
 - ✅ Finalize the universal catalog's exact message matching, single-owner output keys, named properties, and derived capability sets.
 - ✅ Confirm ColorCalibration property defaults, ranges, processor-native OutputMax behavior, and compatibility with color-capable Feedback entries.
 - ✅ Specify snippets as versioned editor-only zone fragments with no semantic slot wrapper, explicit requirements, application identity, or saved provenance markers.
-- [ ] Add representative valid and invalid fixture files for every top-level format before runtime implementation starts.
-- [ ] Update the Phase 4 conversion matrix and add golden legacy-input/output fixtures for every remaining Phase 2 syntax or action decision before marking that decision complete.
+- ✅ Add representative valid and invalid fixture files for every top-level format under `tools/config-editor/fixtures/format2-spec` before runtime implementation starts.
+- [ ] Complete the golden legacy-input/output scenarios listed in `tools/config-editor/fixtures/format2-spec/golden/MANIFEST.md`. Keep the Phase 4 conversion matrix and manifest synchronized with every later format or action rename.
 
 Ready when the normative specification and fixtures let C++, Bun, Lua, and documentation implement the same grammar without interpretation differences.
 
@@ -1688,7 +1688,8 @@ The initial conversion matrix is:
 | Inline encoder range on a Widget that already uses a WidgetClass | Removed with an import notice because current runtime ignores it and uses the class lookup table |
 | Other inline encoder direction range | Unresolved import diagnostic; do not infer behavior that the current runtime did not implement |
 | `Widget Name ... WidgetEnd` and positional hardware processor lines | `Widget Name { ... }` with catalog-driven `Input Type { ... }` and `Feedback Type { ... }` blocks whose message bytes or OSC address use named properties |
-| Legacy Widget numeric suffix used as a processor channel | Explicit `Channel=N` in that Widget; unresolved diagnostic when a processor requires a channel and the legacy Widget ID has no unambiguous numeric suffix |
+| Legacy processor with an explicit zero-based channel argument | Explicit one-based `Channel=N+1` in that Widget; an incompatible second processor channel on the same Widget is unresolved |
+| Legacy processor that obtains its channel only from the Widget numeric suffix | Explicit `Channel=N` in that Widget; unresolved diagnostic when the processor requires a channel and the Widget ID has no unambiguous numeric suffix |
 | Device-named legacy Input or `FB_*` processor | Universal Input or Feedback primitive plus declarative message, value conversion, display, color, ring, meter, or SysEx metadata; unresolved diagnostic when no approved primitive or reusable codec can preserve the behavior |
 | Legacy Ring processor with normal value output and separate color SysEx | One Feedback Ring with RingProfile Segments and nested Configure; existing zone segment colors become RingColors |
 | `FB_FaderportValueBar` and legacy `BarStyle` | Feedback Bar with one shared BarProfile, explicit value Message and StyleMessage; `BiPolar` becomes `Bipolar` |
@@ -1725,7 +1726,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert legacy `Widget|` channel placeholders to `Widget@CH` and include exact, missing-family, and non-channel wildcard golden fixtures.
 - [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
 - [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
-- [ ] Add explicit Channel metadata where legacy processor behavior used a Widget numeric suffix. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report missing or ambiguous channel and group membership instead of inferring it at runtime.
+- [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
 - [ ] Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.

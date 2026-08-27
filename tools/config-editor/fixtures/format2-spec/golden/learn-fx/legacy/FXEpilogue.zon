@@ -1,0 +1,3 @@
+Zone FXEpilogue
+  OnZoneDeactivation ToggleUseLocalModifiers
+ZoneEnd
