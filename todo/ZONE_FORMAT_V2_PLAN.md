@@ -1095,7 +1095,7 @@ OSKLayout {
 
 Each Row contains one or more `Widget` or `Spacer` entries. A layout Widget references one declared hardware Widget. A visible Widget can occur only once. A referenced press, scroll, value, or touch target does not need its own visible cell.
 
-The initial layout properties remain `Shape`, `Width`, `Height`, `Top`, `Group`, `Label`, `Color`, `Role`, `PressTarget`, `ScrollTarget`, `ValueTarget`, `TouchTarget`, and `RotaryStyle`. Colors use `#RRGGBB` or `#RRGGBBAA`. Positive Width and Height default to `1`; Top defaults to `0`; Spacer Width is positive and defaults to `0.5`. Input and Feedback capability strings are derived from the typed Widget blocks and are not editable OSK layout properties.
+The initial layout properties remain `Shape`, `Width`, `Height`, `Top`, `Group`, `Label`, `Color`, `Role`, `PressTarget`, `ScrollTarget`, `ValueTarget`, `TouchTarget`, and `RotaryStyle`. OSK layout colors use opaque `#RRGGBB`; alpha is not part of the OSK visual contract. Positive Width and Height default to `1`; Top defaults to `0`; Spacer Width is positive and defaults to `0.5`. Input and Feedback capability strings are derived from the typed Widget blocks and are not editable OSK layout properties.
 
 Target properties must reference a Widget with the matching derived capability. For example, `PressTarget` requires press input and `ScrollTarget` requires relative input. `Role`, when omitted, is derived from capabilities. Explicit Role can change presentation but cannot add a missing hardware capability.
 
@@ -1391,7 +1391,7 @@ Numeric action behavior uses only named properties. Action metadata declares whi
 
 `Delta` and `AccelerationDeltas` can be used together. `Delta` handles relative input without an acceleration level; `AccelerationDeltas` handles indexed acceleration input. A decreasing acceleration-delta list is valid but produces a warning because faster input then changes the value by a smaller amount.
 
-Colors use exact `#RRGGBB` or `#RRGGBBAA` syntax. Six-digit colors get alpha `FF`. `[Track]` cannot be combined with explicit colors. The property is valid only when action and widget feedback metadata support indexed or track color. Unsupported colors, too few colors for a fixed known state count, and extra unreachable colors are diagnostics.
+All format 2 Surface and Zone colors use exact opaque `#RRGGBB` syntax. Device feedback has no alpha-compositing contract. OSK and OSD transparency stays in separate UI appearance settings. `[Track]` cannot be combined with explicit colors. The property is valid only when action and widget feedback metadata support indexed or track color. Unsupported colors, too few colors for a fixed known state count, and extra unreachable colors are diagnostics.
 
 FixedText is required when the action does not produce text. Without FixedText, the action must expose text feedback. TextColors and BackgroundColors require an action with discrete state feedback and use the same state-index rules as StateColors. Their presence derives Toggle and Color for the Text feedback. Constant TextColor and BackgroundColor derive Color but not Toggle. Presentation properties cannot add Text capability to a Widget whose Surface declaration has no Feedback Text block.
 
@@ -1405,7 +1405,7 @@ Touch TrackAutoMode 2 StateColors=[ #141400, #FFFF00 ]
 ValueBar@CH TrackPan BarStyle=Bipolar
 ```
 
-Legacy import identifies the old anonymous values by their parsed type, not only their punctuation. Decimal parenthesis lists become `AccelerationDeltas`, one decimal parenthesis value becomes `Delta`, integer parenthesis lists become `TicksPerStep`, `Minimum>Maximum` becomes `Range`, remaining numbers become `StepValues`, and anonymous RGB or `Track` blocks become `StateColors`. If one old group is ambiguous or contains a combination rejected by format 2, preview reports it and leaves that binding unresolved instead of guessing.
+Legacy import identifies the old anonymous values by their parsed type, not only their punctuation. Decimal parenthesis lists become `AccelerationDeltas`, one decimal parenthesis value becomes `Delta`, integer parenthesis lists become `TicksPerStep`, `Minimum>Maximum` becomes `Range`, remaining numbers become `StepValues`, and anonymous RGB or `Track` blocks become `StateColors`. Every legacy `#RRGGBBAA` device color becomes `#RRGGBB` because existing hardware feedback and OSK behavior ignore the final alpha byte. If one old group is ambiguous or contains a combination rejected by format 2, preview reports it and leaves that binding unresolved instead of guessing.
 
 ### ✅ Simple document metadata and derived runtime context
 
@@ -1643,6 +1643,14 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 ### [ ] Universal Surface I/O layer
 
 - [ ] Implement universal Surface Input decoders and Feedback primitives, then generate their C++, TypeScript, and Lua catalog from one schema. Reject runtime registrations without matching metadata.
+  - ✅ Add the canonical `surface_io_schema.conf`, generate its C++ view, and make the typed Surface parser validate primitive names, protocol/encoding compatibility, required and allowed properties, nested blocks, and derived capabilities from that catalog.
+  - ✅ Add catalog-owned value rules for MIDI messages and bytes, OSC addresses, identifiers, booleans, enums, finite numbers, ranges, colors, lists, plus typed validation of `Acknowledge` and `Configure` transport blocks.
+  - ✅ Add catalog-owned cross-property constraints for encoder source selection, OSC matching, paired brightness, companion output, and continuous meter refresh. Parse `EncoderProfile` into a typed model and validate `Input Encoder Profile` references.
+  - ✅ Parse `ValueProfile` and `ColorProfile` into typed models from catalog-owned profile and repeatable-line schemas. Validate point order, reversible value curves, palette uniqueness, complete hue coverage, reference kind, and input or feedback direction.
+  - ✅ Parse `RingProfile`, `BarProfile`, `MeterProfile`, and `TextProfile` into typed models. Validate positional style arguments, unique style codes, mode-specific meter fields, text presentation codes, profile references, and MIDI-only byte or text restrictions.
+  - ✅ Parse `ColorCalibration`, TrackColor `FeedbackGroup`, and `OSKLayout` into typed models from Surface-level schemas. Validate Widget and profile references, group channels and membership, derived TrackColor capability, calibration applicability, visible layout uniqueness, and OSK target capabilities.
+  - [ ] Add TypeScript and Lua readers for the same catalog when their format 2 consumers are implemented.
+  - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - [ ] Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
 - [ ] Implement Bar feedback with separate value and style outputs, plus the bounded MIDIPalette Companion message.
@@ -1652,7 +1660,11 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 
 ### [ ] Shared parser and runtime model
 
-- [ ] Implement one lexer for metadata, brace blocks, lists, properties, quotes, comments, wildcard selectors, and `@CH` qualifiers.
+- ✅ Implement one isolated common lexer for UTF-8 BOM, source paths, byte offsets, one-based line and column locations, quoted strings, comments, newlines, bare values, and structural delimiters.
+- ✅ Parse the required first `@Meta` block into typed document metadata and validate delimiter pairs, allowed keys, duplicates, values, required Surface protocol, and Role/Target/BankTarget combinations.
+- ✅ Build the shared syntax tree for line declarations and nested brace blocks, parse scalar and list properties, and provide one strict Widget selector parser for exact IDs, `@CH`, and context-approved terminal wildcards.
+- ✅ Parse the Surface top-level structure, named profile and group IDs, singleton calibration and OSK blocks, Widget identity and local properties, plus typed Input and Feedback block shells without creating runtime objects.
+- [ ] Build document-specific semantic parsers for Surface, Main zone, FX zone, Learn FX, and snippet bodies on the shared syntax tree.
 - [ ] Parse each zone, surface, Learn FX, and snippet file once into a typed document model with source locations.
 - [ ] Compile each `@CH` binding into channel-specific action contexts without cloning the containing zone document or its channel-neutral bindings.
 - [ ] Resolve Vendor and User Main/FX sources into one per-zone active set before roles, references, dependencies, or runtime objects are validated.
@@ -1762,8 +1774,8 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
-- [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Do not invent a layout when the source has none.
-- [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists.
+- [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. Do not invent a layout when the source has none.
+- [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
 - [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
 - [ ] Convert Learn FX pseudo-zones into `LearnFX.fxzon`, derive supported entry defaults, report ambiguous display/default targets, and do not convert `FXRowLayout`.

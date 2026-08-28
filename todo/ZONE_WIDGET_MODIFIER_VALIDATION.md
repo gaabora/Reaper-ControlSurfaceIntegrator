@@ -345,7 +345,7 @@ Report an error when:
 - A `StepValues` entry is outside the explicit or action-defined effective range.
 - `StepValues` is combined with `Delta` or `AccelerationDeltas`.
 - `TicksPerStep` is used without `StepValues`, is empty, or contains a non-positive integer.
-- A color is not exact `#RRGGBB` or `#RRGGBBAA` syntax.
+- A color is not exact opaque `#RRGGBB` syntax.
 - `StateColors=[Track]` also contains an explicit color.
 - `StateColors` is used without general `Color` feedback. Automatic `TrackColor` support alone does not make `StateColors` valid.
 - `RingStyle` is used on a widget without ring feedback or names a style that its ring processor does not support.

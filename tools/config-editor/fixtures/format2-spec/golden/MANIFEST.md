@@ -19,7 +19,7 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `sce24-ring`: converts SCE24 ring value and color output to a universal Ring profile and Configure block, expands range colors, and restores the declared push color in the first three physical segments.
 - `xtouch-text`: splits legacy XTouch display behavior into normal Text feedback and one shared TrackColor FeedbackGroup with exact channels, slots, members, and hue-range color mapping.
 - `text-feedback`: converts SCE24 text and OLED output plus FaderPort scribble text to universal Text feedback, including fixed text, alignment, inversion, margins, font, constant colors, and state-indexed colors.
-- `osk-color-calibration`: converts MIDI and OSC OSK layouts without a layout version, prefixes six- and eight-digit layout colors with `#`, and converts an enabled legacy device color calibration block.
+- `osk-color-calibration`: converts MIDI and OSC OSK layouts without a layout version, normalizes layout colors to opaque `#RRGGBB`, removes ignored legacy alpha bytes, and converts an enabled legacy device color calibration block.
 - `overrides`: selects complete User Surface and snippet documents by ID while resolving Main and FX zones per ID without hiding unrelated Vendor zones.
 - `saved-snippet`: removes saved snippet application markers while preserving the resolved bindings in their original order.
 - `widget-channel`: extracts the complete trailing Widget number only for a legacy processor that depends on the Widget channel.

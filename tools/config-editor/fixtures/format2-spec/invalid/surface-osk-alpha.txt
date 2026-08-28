@@ -1,0 +1,11 @@
+@Meta { Version=2 Protocol=MIDI Name="OSK alpha color" }
+
+Widget Play {
+  Input Press { Encoding=MIDIExact On=[0x90, 0x5E, 0x7F] Off=[0x90, 0x5E, 0x00] }
+}
+
+OSKLayout {
+  Row {
+    Widget Play Shape=Round Color=#55BBFF80
+  }
+}

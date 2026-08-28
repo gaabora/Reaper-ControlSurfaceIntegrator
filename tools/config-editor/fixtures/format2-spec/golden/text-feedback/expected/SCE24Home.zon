@@ -1,4 +1,4 @@
 @Meta { Version=2 Role=Home }
 
-Display1A1 TrackNameDisplay TopMargin=1 BottomMargin=30 Font=4 TextColor=#FFFFFFFF BackgroundColor=#000000FF
-OLEDButtonDisplay11 Stop FixedText="STOP" TopMargin=0 BottomMargin=63 Font=6 TextColors=[ #FFFFFFFF, #0000FF00 ] BackgroundColors=[ #000000FF, #FFFF0000 ]
+Display1A1 TrackNameDisplay TopMargin=1 BottomMargin=30 Font=4 TextColor=#FFFFFF BackgroundColor=#000000
+OLEDButtonDisplay11 Stop FixedText="STOP" TopMargin=0 BottomMargin=63 Font=6 TextColors=[ #FFFFFF, #0000FF ] BackgroundColors=[ #000000, #FFFF00 ]

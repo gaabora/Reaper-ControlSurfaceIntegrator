@@ -1,0 +1,5 @@
+#pragma once
+
+namespace SurfaceIoSchema {
+inline constexpr const char* Source = R"SurfaceSchema(@SURFACE_IO_SCHEMA_SOURCE@)SurfaceSchema";
+}

@@ -20,6 +20,6 @@ Widget Fader1 {
 
 OSKLayout {
   Row {
-    Widget Fader1 Shape=Fader Height=3.0 Color=#112233FF
+    Widget Fader1 Shape=Fader Height=3.0 Color=#112233
   }
 }

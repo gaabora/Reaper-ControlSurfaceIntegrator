@@ -2,7 +2,7 @@
 
 RingProfile SCE24Ring {
   Segments=18
-  DefaultColor=#000000FF
+  DefaultColor=#000000
   Quantize=Floor
   ValueOffset=65
   Style Dot Code=0 Steps=15

@@ -13,8 +13,8 @@ Widget Display1A1 {
     TopMargin=0
     BottomMargin=15
     Font=2
-    BackgroundColor=#000000FF
-    TextColor=#000000FF
+    BackgroundColor=#000000
+    TextColor=#000000
     Payload=[ 0x00, 0x02, 0x38, 0x01, 0x20, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ]
   }
 }
@@ -26,8 +26,8 @@ Widget OLEDButtonDisplay11 {
     TopMargin=0
     BottomMargin=15
     Font=2
-    BackgroundColor=#000000FF
-    TextColor=#000000FF
+    BackgroundColor=#000000
+    TextColor=#000000
     Payload=[ 0x00, 0x02, 0x38, 0x01, 0x6D, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ]
   }
 }

@@ -11,6 +11,7 @@
 - Zone and surface-template parsing, zone activation, widgets, feedback, and message generation.
 - OSK/OSD ExtState bridges and shared surface behavior.
 - Product and Surface setting parsing, effective-value resolution, atomic persistence, and the settings and Devices ExtState bridges.
+- Shared format 2 lexical analysis and typed document parsing before runtime object construction.
 
 ## Local Contracts
 
@@ -44,6 +45,9 @@
 - Persist OSK enabled state per surface and restore/open enabled OSK surfaces after CSI startup initialization.
 - The pre-release Lua bridge uses only documented `ReaCtrlSurf_*` sections and scoped configuration statuses; do not add legacy aliases without a publication requirement.
 - Surface-independent behavior belongs here; protocol-specific behavior belongs in `midi/` or `osc/`.
+- Keep the format 2 lexer independent from legacy `GetTokens()` and preserve source offsets plus one-based line and column locations for every token and diagnostic.
+- Build format 2 document-specific parsers on the shared syntax tree. Do not tokenize or scan the same source again inside Surface, Zone, Learn FX, OSK, or snippet consumers.
+- Read format 2 primitive names, capabilities, encoding compatibility, properties, value and relationship rules, nested transport blocks, reusable profiles, and Surface-level block schemas from the CMake-generated view of `Scripts/surface_io_schema.conf`. Do not add a second C++ catalog.
 
 ## Work Guidance
 

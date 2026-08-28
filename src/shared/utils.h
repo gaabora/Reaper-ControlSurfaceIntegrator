@@ -222,8 +222,10 @@ inline void TrimLine(string& line) {
 #include "types.h"
 
 inline bool GetColorValue(const char* hexColor, rgba_color& colorValue) {
-    if (strlen(hexColor) == 7)
+    if (strlen(hexColor) == 7) {
+        colorValue.a = 255;
         return sscanf(hexColor, "#%2x%2x%2x", &colorValue.r, &colorValue.g, &colorValue.b) == 3;
+    }
     if (strlen(hexColor) == 9)
         return sscanf(hexColor, "#%2x%2x%2x%2x", &colorValue.r, &colorValue.g, &colorValue.b, &colorValue.a) == 4;
     return false;

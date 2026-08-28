@@ -142,10 +142,10 @@ struct osd_data {
 // struct rgba_color
 // -------------------------------------------------------------------------
 struct rgba_color {
-    int r;
-    int g;
-    int b;
-    int a;
+    int r = 0;
+    int g = 0;
+    int b = 0;
+    int a = 255;
 
     bool operator == (const rgba_color& other) const { return r == other.r && g == other.g && b == other.b && a == other.a; }
 

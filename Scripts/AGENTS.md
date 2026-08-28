@@ -9,6 +9,7 @@
 - `Control Panel.lua`, `OSK on-screen keyboard.lua`, `OSD on-screen display.lua`, `Notifications.lua`, and `OSK state debug.lua` entry scripts.
 - `product_identity.conf` canonical public identity and `product_identity.lua` runtime loader.
 - `settings_schema.conf` canonical setting metadata plus its `settings_schema.lua` loader.
+- `surface_io_schema.conf` canonical format 2 primitive, capability, protocol encoding, property value and relationship rules, nested transport blocks, reusable profiles, and Surface-level block metadata.
 - `settings_protocol.lua` C++ request/response client and `settings_ui.lua` embedded Product and Surface settings page.
 - `devices_protocol.lua` C++ request/response client, `devices_model.lua` complete draft serializer, and `control_panel_devices.lua` device editor and runtime status page.
 - `control_panel_appearance.lua` OSK, OSD, and Notifications appearance draft, validation, preview, Save, and Revert behavior.
@@ -26,6 +27,7 @@
 - `Scripts/` is the source runtime directory. Developers may link it to `REAPER/Scripts/<ProductScriptDirectory>`; CMake install copies normal files for packages and must not create the link.
 - Load public display names, stable action IDs, paths, and ExtState sections through `product_identity.lua`, which reads `product_identity.conf`; do not duplicate identity values in Lua modules.
 - Load setting names, types, compiled defaults, ranges, scopes, categories, and constraints through `settings_schema.lua`. Do not store user-selected values in `settings_schema.conf`. Lua obtains current effective user values through C++ instead of reading or writing the product INI directly.
+- Read format 2 Surface primitive and encoding metadata from `surface_io_schema.conf`. Do not add a separate Lua primitive or encoding list.
 - Use `settings_protocol.lua` for Query, Apply, and Reload. Do not write product settings through `settings_store.lua`; that module owns only Lua-persistent Control Panel, OSK, OSD, and Notifications preferences.
 - Use the Page and Surface options returned by every successful settings Query for the General Surface selector. Do not accept an arbitrary Surface name from the user.
 - Use `devices_protocol.lua` for Devices Query, validation, Apply, and User Zone profile operations. Do not read or interpret the product INI directly in Lua.

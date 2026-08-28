@@ -1,3 +1,3 @@
 MIDISurface.txt: Enabled=Yes was removed because block presence enables ColorCalibration; all non-default calibration values were preserved.
 MIDISurface.txt: OSKLayout Version=1 became a versionless nested block, and Color=55bbff became Color=#55BBFF.
-OSCSurface.txt: the OSC hardware layout was preserved, and Color=112233ff became Color=#112233FF.
+OSCSurface.txt: the OSC hardware layout was preserved, and Color=112233ff became the opaque OSK color Color=#112233.

@@ -203,6 +203,7 @@ def prepare(args):
     script_paths = sorted((root / "Scripts").glob("*.lua"))
     script_paths.append(root / "Scripts" / "product_identity.conf")
     script_paths.append(root / "Scripts" / "settings_schema.conf")
+    script_paths.append(root / "Scripts" / "surface_io_schema.conf")
     for script_path in script_paths:
         require_regular_file(script_path, "shared script source")
         source_file = script_path.name
