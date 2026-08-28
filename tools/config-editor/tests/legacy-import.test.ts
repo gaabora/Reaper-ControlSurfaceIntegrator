@@ -105,7 +105,7 @@ describe("legacy CSI import", () => {
         const diagnostic = preview.diagnostics.find((candidate) => candidate.code === "zones.dependency.missing");
 
         expect(diagnostic?.message).toContain("matching legacy zone is not selected for import");
-        expect(diagnostic?.line).toBe(3);
+        expect(diagnostic?.line).toBe(4);
         expect(diagnostic?.related).toEqual([{ line: 2, path: "Zones/GoZones/Transport.zon" }]);
     });
 

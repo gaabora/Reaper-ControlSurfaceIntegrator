@@ -1,0 +1,14 @@
+Widget SoloButton1
+  Press b1 00 7f b1 00 00
+  FB_MFT_RGB b1 00 7f
+WidgetEnd
+
+Widget MuteButton1
+  Press b1 01 7f b1 01 00
+  FB_MFT_RGB b1 01 7f
+WidgetEnd
+
+Widget ModeButton
+  Press b1 02 7f b1 02 00
+  FB_MFT_RGB b1 02 7f
+WidgetEnd

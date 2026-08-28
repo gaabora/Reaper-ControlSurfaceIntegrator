@@ -1,0 +1,1 @@
+Home.zon:2 legacy.color.command.unresolved: The selected Surface resolves ModeButton to FB_MFT_RGB, where RGB value [177, 31, 1] is sent as the raw MIDI command [0xB1, 0x1F, 0x01]. Choose an explicit replacement before import.

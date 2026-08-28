@@ -3,5 +3,5 @@
 Fader@CH TrackVolume
 Rotary@CH TrackPan
 ValueBar@CH TrackPan BarStyle=Bipolar
-PaletteButton@CH TrackSolo StateColors=[#000000, #00FF00]
+PaletteButton@CH TrackSolo StateColors=[ #000000, #00FF00 ]
 DisplayUpper@CH TrackNameDisplay TextAlign=Center

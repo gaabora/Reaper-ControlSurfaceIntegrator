@@ -1,0 +1,3 @@
+Surface.txt: the fixed 128-entry legacy MFT color table became one shared MFTPalette ColorProfile.
+Surface.txt: every FB_MFT_RGB destination keeps its normal palette Message and gets the legacy mode message as an After Companion with status incremented by one and value 0x2F.
+Home.zon: no expected output is produced until its command-shaped color is resolved; the Surface and Track.zon remain independently convertible.

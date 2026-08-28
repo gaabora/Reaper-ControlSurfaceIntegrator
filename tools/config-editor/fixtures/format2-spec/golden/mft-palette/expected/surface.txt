@@ -1,0 +1,151 @@
+@Meta { Version=2 Protocol=MIDI Name="Imported MIDI Fighter Twister Surface" }
+
+ColorProfile MFTPalette {
+  Match=Nearest
+  Default=0
+  Entry Color=#000000 Value=0
+  Entry Color=#0000FF Value=1
+  Entry Color=#0015FF Value=2
+  Entry Color=#0022FF Value=3
+  Entry Color=#002EFF Value=4
+  Entry Color=#003BFF Value=5
+  Entry Color=#0044FF Value=6
+  Entry Color=#0050FF Value=7
+  Entry Color=#005DFF Value=8
+  Entry Color=#006AFF Value=9
+  Entry Color=#0077FF Value=10
+  Entry Color=#007FFF Value=11
+  Entry Color=#008CFF Value=12
+  Entry Color=#0099FF Value=13
+  Entry Color=#00A5FF Value=14
+  Entry Color=#00B2FF Value=15
+  Entry Color=#00BFFF Value=16
+  Entry Color=#00C7FF Value=17
+  Entry Color=#00D4FF Value=18
+  Entry Color=#00E1FF Value=19
+  Entry Color=#00EEFF Value=20
+  Entry Color=#00FAFF Value=21
+  Entry Color=#00FFFA Value=22
+  Entry Color=#00FFED Value=23
+  Entry Color=#00FFE1 Value=24
+  Entry Color=#00FFD4 Value=25
+  Entry Color=#00FFC7 Value=26
+  Entry Color=#00FFBF Value=27
+  Entry Color=#00FFB2 Value=28
+  Entry Color=#00FFA5 Value=29
+  Entry Color=#00FF99 Value=30
+  Entry Color=#00FF8C Value=31
+  Entry Color=#00FF7F Value=32
+  Entry Color=#00FF77 Value=33
+  Entry Color=#00FF6A Value=34
+  Entry Color=#00FF5D Value=35
+  Entry Color=#00FF50 Value=36
+  Entry Color=#00FF43 Value=37
+  Entry Color=#00FF3B Value=38
+  Entry Color=#00FF2E Value=39
+  Entry Color=#00FF21 Value=40
+  Entry Color=#00FF15 Value=41
+  Entry Color=#00FF08 Value=42
+  Entry Color=#00FF00 Value=43
+  Entry Color=#0CFF00 Value=44
+  Entry Color=#19FF00 Value=45
+  Entry Color=#26FF00 Value=46
+  Entry Color=#33FF00 Value=47
+  Entry Color=#3FFF00 Value=48
+  Entry Color=#48FF00 Value=49
+  Entry Color=#54FF00 Value=50
+  Entry Color=#61FF00 Value=51
+  Entry Color=#6EFF00 Value=52
+  Entry Color=#7BFF00 Value=53
+  Entry Color=#83FF00 Value=54
+  Entry Color=#90FF00 Value=55
+  Entry Color=#9DFF00 Value=56
+  Entry Color=#AAFF00 Value=57
+  Entry Color=#B6FF00 Value=58
+  Entry Color=#BFFF00 Value=59
+  Entry Color=#CBFF00 Value=60
+  Entry Color=#D8FF00 Value=61
+  Entry Color=#E5FF00 Value=62
+  Entry Color=#F2FF00 Value=63
+  Entry Color=#FFFF00 Value=64
+  Entry Color=#FFF600 Value=65
+  Entry Color=#FFE900 Value=66
+  Entry Color=#FFDC00 Value=67
+  Entry Color=#FFD000 Value=68
+  Entry Color=#FFC300 Value=69
+  Entry Color=#FFBB00 Value=70
+  Entry Color=#FFAE00 Value=71
+  Entry Color=#FFA100 Value=72
+  Entry Color=#FF9400 Value=73
+  Entry Color=#FF8700 Value=74
+  Entry Color=#FF7F00 Value=75
+  Entry Color=#FF7200 Value=76
+  Entry Color=#FF6600 Value=77
+  Entry Color=#FF5900 Value=78
+  Entry Color=#FF4C00 Value=79
+  Entry Color=#FF3F00 Value=80
+  Entry Color=#FF3700 Value=81
+  Entry Color=#FF2A00 Value=82
+  Entry Color=#FF1D00 Value=83
+  Entry Color=#FF1000 Value=84
+  Entry Color=#FF0400 Value=85
+  Entry Color=#FF0004 Value=86
+  Entry Color=#FF0010 Value=87
+  Entry Color=#FF001D Value=88
+  Entry Color=#FF002A Value=89
+  Entry Color=#FF0037 Value=90
+  Entry Color=#FF003F Value=91
+  Entry Color=#FF004C Value=92
+  Entry Color=#FF0059 Value=93
+  Entry Color=#FF0066 Value=94
+  Entry Color=#FF0072 Value=95
+  Entry Color=#FF007F Value=96
+  Entry Color=#FF0087 Value=97
+  Entry Color=#FF0094 Value=98
+  Entry Color=#FF00A1 Value=99
+  Entry Color=#FF00AE Value=100
+  Entry Color=#FF00BA Value=101
+  Entry Color=#FF00C3 Value=102
+  Entry Color=#FF00D0 Value=103
+  Entry Color=#FF00DD Value=104
+  Entry Color=#FF00E9 Value=105
+  Entry Color=#FF00F6 Value=106
+  Entry Color=#FF00FF Value=107
+  Entry Color=#F200FF Value=108
+  Entry Color=#E500FF Value=109
+  Entry Color=#D800FF Value=110
+  Entry Color=#CC00FF Value=111
+  Entry Color=#BF00FF Value=112
+  Entry Color=#B600FF Value=113
+  Entry Color=#A900FF Value=114
+  Entry Color=#9D00FF Value=115
+  Entry Color=#9000FF Value=116
+  Entry Color=#8300FF Value=117
+  Entry Color=#7B00FF Value=118
+  Entry Color=#6E00FF Value=119
+  Entry Color=#6100FF Value=120
+  Entry Color=#5500FF Value=121
+  Entry Color=#4800FF Value=122
+  Entry Color=#3F00FF Value=123
+  Entry Color=#3200FF Value=124
+  Entry Color=#2600FF Value=125
+  Entry Color=#1900FF Value=126
+  Entry Color=#F0F0E1 Value=127
+}
+
+Widget SoloButton1 {
+  Channel=1
+  Input Press { Encoding=MIDIExact On=[0xB1, 0x00, 0x7F] Off=[0xB1, 0x00, 0x00] }
+  Feedback Color { Encoding=MIDIPalette Message=[0xB1, 0x00] ColorProfile=MFTPalette Companion=[0xB2, 0x00, 0x2F] CompanionOrder=After }
+}
+
+Widget MuteButton1 {
+  Channel=1
+  Input Press { Encoding=MIDIExact On=[0xB1, 0x01, 0x7F] Off=[0xB1, 0x01, 0x00] }
+  Feedback Color { Encoding=MIDIPalette Message=[0xB1, 0x01] ColorProfile=MFTPalette Companion=[0xB2, 0x01, 0x2F] CompanionOrder=After }
+}
+
+Widget ModeButton {
+  Input Press { Encoding=MIDIExact On=[0xB1, 0x02, 0x7F] Off=[0xB1, 0x02, 0x00] }
+  Feedback Color { Encoding=MIDIPalette Message=[0xB1, 0x02] ColorProfile=MFTPalette Companion=[0xB2, 0x02, 0x2F] CompanionOrder=After }
+}

@@ -1,0 +1,4 @@
+Zone Track
+  SoloButton| TrackSolo { 242 255 0 255 115 0 }
+  MuteButton| TrackMute { 0 0 255 0 255 0 }
+ZoneEnd

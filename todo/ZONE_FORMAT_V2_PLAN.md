@@ -100,10 +100,10 @@ OSKLayout {
 Action state colors use a named list instead of an anonymous RGB block:
 
 ```text
-Touch TrackAutoMode 2 StateColors=[#141400, #FFFF00] // Touch
+Touch TrackAutoMode 2 StateColors=[ #141400, #FFFF00 ] // Touch
 ```
 
-The first color represents state `0`, the second color represents state `1`, and later colors represent later indexed states. `StateColors=[Track]` uses the current track color.
+The first color represents state `0`, the second color represents state `1`, and later colors represent later indexed states. `StateColors=[ Track ]` uses the current track color.
 
 ### Zone identity and FX matching
 
@@ -1382,7 +1382,7 @@ Examples:
 Rotary FXParam 0 Range=[0.0, 1.0] Delta=0.005 AccelerationDeltas=[0.005, 0.02, 0.1]
 RotaryPush TrackPan StepValues=[0.5]
 Rotary TrackAutoMode StepValues=[0, 1, 2, 3, 4] TicksPerStep=[4, 2, 1]
-Touch TrackAutoMode 2 StateColors=[#141400, #FFFF00]
+Touch TrackAutoMode 2 StateColors=[ #141400, #FFFF00 ]
 ValueBar@CH TrackPan BarStyle=Bipolar
 ```
 
@@ -1685,7 +1685,7 @@ The initial conversion matrix is:
 | Integer parenthesis list inside an anonymous action value group | `TicksPerStep=[...]` when the binding also has discrete step values |
 | `Minimum>Maximum` inside an anonymous action value group | `Range=[Minimum, Maximum]` with normalized ascending bounds |
 | Remaining numeric values inside an anonymous action value group | `StepValues=[...]` in original order |
-| Anonymous RGB, hexadecimal, or `Track` color block | `StateColors=[...]` |
+| Anonymous RGB, hexadecimal, or `Track` color block | `StateColors=[ ... ]` |
 | Legacy `StepSize` and `AccelerationValues` entries for one WidgetClass | One local `EncoderProfile` with `Delta`, `Increase`, `Decrease`, and optional `AccelerationDeltas` |
 | Legacy WidgetClass on an encoder Widget | `Encoding=MIDI7 Profile=ProfileId` on its typed `Input Encoder` block; the runtime class name is removed |
 | Exact inline encoder range `[ > 01-3f < 41-7f ]` without a WidgetClass | `Encoding=MIDI7 Mode=SignedBit` |
@@ -1718,6 +1718,8 @@ Action renames live in one declarative Bun-only registry separate from the gener
 Every conversion-matrix row requires at least one golden legacy-input and format-2-output fixture. Context-sensitive conversions require fixtures for every branch and for ambiguous input. Ambiguous input produces a focused diagnostic and remains unchanged until the user resolves it. The import preview lists every renamed action and structural conversion before files are written.
 
 `GoZones.zon` is legacy loading metadata, not zone composition. A listed zone without a navigator imports normally and receives no Target from the manifest. A recognized long navigator maps to Target only when it agrees with the zone's accepted legacy `NavType` and magic-name behavior. A conflicting declaration is an import error linked to both locations. A magic name keeps its actual legacy runtime behavior when a conflicting GoZones navigator was ignored by the old branch order, and the preview reports that removal. `FixedTrackNavigator`, an unknown navigator, and a listed zone without a selected matching file remain unresolved. Exact standalone navigator-name lines are removed with a notice and never create Target metadata because the old zone-body parser did not use them.
+
+MFT color migration requires the selected Surface and zone set. The importer converts the fixed legacy 128-entry color table to one shared nearest-match ColorProfile. Each `FB_MFT_RGB` output becomes MIDIPalette with its original two-byte destination and an After Companion whose status is the original status plus one, whose data byte is unchanged, and whose value is `0x2F`. A zone RGB value is command-shaped only when its resolved destination Widget uses `FB_MFT_RGB`, its red value is decimal `177` or `181`, and its green value is decimal `31`. That binding remains unresolved and the diagnostic shows the exact raw MIDI command. The same RGB value on another feedback type remains normal color data. One unresolved command-shaped binding does not block independently valid Surface or zone outputs.
 
 If one legacy file is referenced both as a SubZone and as an independent zone, the importer cannot silently assign one format 2 `Role`. The preview reports both reference locations and asks the user to keep one role or create a renamed copy for one use. A file referenced as a SubZone by several parents is not ambiguous and converts to one reusable `Role=Layer` document.
 

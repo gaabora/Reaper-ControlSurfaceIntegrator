@@ -15,10 +15,10 @@ Each scenario compares every file under `legacy/` with `expected/` and any `diag
 - `links`: converts an order-dependent Broadcaster and Listener record to one explicit same-Page Link with only enabled share categories.
 - `magic-targets`: converts every current magic Main zone name to explicit Role, Target, and optional BankTarget metadata.
 - `gozones`: drops the deprecated loading manifest, converts recognized navigator metadata, removes ineffective standalone navigator lines, preserves magic-name precedence, and reports missing, unknown, unsupported, or conflicting entries.
+- `mft-palette`: converts the complete legacy MFT palette and per-widget mode Companion, converts normal zone colors, and detects the raw-command branch only after resolving the selected Surface widget.
 
 ## [ ] Remaining golden scenarios
 
-- [ ] Normal MFT palette output with Companion and command-shaped color detection from a complete selected Surface plus zone set.
 - [ ] SCE24 ring color ranges, uniform ring color, push color, and Ring Configure output.
 - [ ] XTouch text conversion and shared TrackColor FeedbackGroup output.
 - [ ] Fixed text, alignment, inversion, margins, font, constant colors, and state-indexed text/background colors.
