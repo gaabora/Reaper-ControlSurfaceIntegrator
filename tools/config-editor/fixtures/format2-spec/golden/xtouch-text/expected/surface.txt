@@ -1,0 +1,53 @@
+@Meta { Version=2 Protocol=MIDI Name="Imported XTouch Surface" }
+
+TextProfile SevenCharacters {
+  Encoding=ASCII7
+  Width=7
+  Padding=Space
+  ClearText=""
+  SilenceAsEmpty=true
+}
+
+ColorProfile XTouchColors {
+  Match=HueRanges
+  Default=7
+  MinimumBrightness=0.10
+  MaximumNeutralSaturation=0.10
+  HueRange Minimum=330 Maximum=20 Value=1
+  HueRange Minimum=20 Maximum=80 Value=3
+  HueRange Minimum=80 Maximum=160 Value=2
+  HueRange Minimum=160 Maximum=210 Value=6
+  HueRange Minimum=210 Maximum=250 Value=4
+  HueRange Minimum=250 Maximum=330 Value=5
+}
+
+Widget DisplayUpper1 {
+  Channel=1
+  Feedback Text { Encoding=MIDISysEx TextProfile=SevenCharacters Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x00, Text ] }
+}
+
+Widget DisplayUpper2 {
+  Channel=2
+  Feedback Text { Encoding=MIDISysEx TextProfile=SevenCharacters Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x07, Text ] }
+}
+
+Widget DisplayLower1 {
+  Channel=1
+  Feedback Text { Encoding=MIDISysEx TextProfile=SevenCharacters Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x38, Text ] }
+}
+
+Widget DisplayLower2 {
+  Channel=2
+  Feedback Text { Encoding=MIDISysEx TextProfile=SevenCharacters Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x3F, Text ] }
+}
+
+FeedbackGroup TrackColors {
+  Capability=TrackColor
+  Encoding=MIDISysEx
+  ColorProfile=XTouchColors
+  EmptyColor=#FFFFFF
+  UseTrackColorWhen=SourceTextPresent
+  Payload=[ 0x00, 0x00, 0x66, 0x14, 0x72, SlotColors ]
+  Slot Source=DisplayUpper1 Members=[ DisplayUpper1, DisplayLower1 ]
+  Slot Source=DisplayUpper2 Members=[ DisplayUpper2, DisplayLower2 ]
+}

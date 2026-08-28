@@ -1,0 +1,4 @@
+Zone Track
+  DisplayUpper| TrackNameDisplay { Track }
+  DisplayLower| TrackVolumeDisplay
+ZoneEnd

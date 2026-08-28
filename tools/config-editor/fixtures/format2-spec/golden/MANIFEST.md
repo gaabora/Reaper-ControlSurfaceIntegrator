@@ -17,10 +17,10 @@ Each scenario compares every file under `legacy/` with `expected/` and any `diag
 - `gozones`: drops the deprecated loading manifest, converts recognized navigator metadata, removes ineffective standalone navigator lines, preserves magic-name precedence, and reports missing, unknown, unsupported, or conflicting entries.
 - `mft-palette`: converts the complete legacy MFT palette and per-widget mode Companion, converts normal zone colors, and detects the raw-command branch only after resolving the selected Surface widget.
 - `sce24-ring`: converts SCE24 ring value and color output to a universal Ring profile and Configure block, expands range colors, and restores the declared push color in the first three physical segments.
+- `xtouch-text`: splits legacy XTouch display behavior into normal Text feedback and one shared TrackColor FeedbackGroup with exact channels, slots, members, and hue-range color mapping.
 
 ## [ ] Remaining golden scenarios
 
-- [ ] XTouch text conversion and shared TrackColor FeedbackGroup output.
 - [ ] Fixed text, alignment, inversion, margins, font, constant colors, and state-indexed text/background colors.
 - [ ] OSC and MIDI OSKLayout plus ColorCalibration conversion, including `#` color prefixes.
 - [ ] Surface and snippet whole-file User overrides plus per-zone Main and FX overlay selection.

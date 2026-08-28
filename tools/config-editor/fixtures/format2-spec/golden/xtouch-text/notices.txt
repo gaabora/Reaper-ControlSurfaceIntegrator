@@ -1,0 +1,3 @@
+Surface.txt: the XTouch display processor was split into normal Text feedback and one TrackColors FeedbackGroup that owns the shared color packet.
+Surface.txt: explicit one-based Channel values came from the legacy zero-based display processor channel arguments.
+Track.zon:2: the anonymous Track color was removed because TrackColors now supplies track color to every declared group member.

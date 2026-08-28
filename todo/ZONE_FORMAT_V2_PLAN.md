@@ -762,7 +762,26 @@ ColorProfile BasicPalette {
 }
 ```
 
-`Match` is `Nearest` or `Exact`. Default is a non-negative integer and defaults to zero. Entry colors and non-negative integer Values must each be unique. `Nearest` uses the smallest squared distance in calibrated RGB space and resolves an equal-distance tie by source order. `Exact` uses Default when no Entry matches. ColorCalibration runs before palette lookup. Direct RGB output does not require a ColorProfile.
+`Match` is `Nearest`, `Exact`, or `HueRanges`. Default is a non-negative integer and defaults to zero. `Nearest` and `Exact` require Entry lines whose colors and non-negative integer Values are each unique. `Nearest` uses the smallest squared distance in calibrated RGB space and resolves an equal-distance tie by source order. `Exact` uses Default when no Entry matches.
+
+`HueRanges` is the universal representation for a small hue-based device palette:
+
+```text
+ColorProfile HuePalette {
+  Match=HueRanges
+  Default=7
+  MinimumBrightness=0.10
+  MaximumNeutralSaturation=0.10
+  HueRange Minimum=330 Maximum=20 Value=1
+  HueRange Minimum=20 Maximum=80 Value=3
+  HueRange Minimum=80 Maximum=160 Value=2
+  HueRange Minimum=160 Maximum=210 Value=6
+  HueRange Minimum=210 Maximum=250 Value=4
+  HueRange Minimum=250 Maximum=330 Value=5
+}
+```
+
+It rejects Entry lines and requires finite `MinimumBrightness` and `MaximumNeutralSaturation` values from zero through one. A calibrated RGB color is converted to HSV. Brightness less than or equal to MinimumBrightness and saturation less than or equal to MaximumNeutralSaturation select Default. Other colors select the one HueRange whose degree interval contains their hue. Minimum is inclusive and Maximum is exclusive. Minimum greater than Maximum declares the one wraparound interval through zero degrees. Hue values use zero inclusive through 360 exclusive. Ranges must cover that complete interval exactly once without gaps or overlap, and each non-negative Value is unique. ColorCalibration runs before every ColorProfile lookup. Direct RGB output does not require a ColorProfile.
 
 `RingProfile` converts normalized value and RingStyle into separate reusable output fields:
 
@@ -1723,6 +1742,8 @@ Every conversion-matrix row requires at least one golden legacy-input and format
 MFT color migration requires the selected Surface and zone set. The importer converts the fixed legacy 128-entry color table to one shared nearest-match ColorProfile. Each `FB_MFT_RGB` output becomes MIDIPalette with its original two-byte destination and an After Companion whose status is the original status plus one, whose data byte is unchanged, and whose value is `0x2F`. A zone RGB value is command-shaped only when its resolved destination Widget uses `FB_MFT_RGB`, its red value is decimal `177` or `181`, and its green value is decimal `31`. That binding remains unresolved and the diagnostic shows the exact raw MIDI command. The same RGB value on another feedback type remains normal color data. One unresolved command-shaped binding does not block independently valid Surface or zone outputs.
 
 SCE24 ring migration intentionally repairs the ineffective legacy `PushColor` path. The old processor reserves 18 configurable bits: positions `0..2` are the push LEDs and positions `3..17` are the 15-value ring. The old runtime checked `PushColor` only when an internal `Push` property existed, but no current parser or action supplied that property. Format 2 does not retain this dead branch. The importer combines `PushColor` with `LEDRingColor` on the same binding into one explicit 18-entry RingColors list. It expands each inclusive `LEDRingColors` range into the same list and fills unspecified positions from the RingProfile DefaultColor. Overlapping ranges, positions outside `0..17`, malformed colors, and different competing lists on one ordered multi-action binding are unresolved errors. The generated Surface uses an 18-segment RingProfile with 15 value steps, eight Spread steps, and one nested Configure packet schema. Runtime code then needs no SCE24 name branch.
+
+XTouch display migration uses the complete selected Surface. Every recognized XTouch, XTouchXT, MCU, or MCUXT display processor becomes independent Text feedback with a one-based Channel from its explicit legacy argument. One XTouch track-color processor identifies the shared color-packet family and display type. The importer groups the complete numbered upper and lower display families by Channel, requires one unambiguous upper Source per slot, and emits one FeedbackGroup whose Members contain every paired display on that Channel. Its HueRanges ColorProfile preserves the current hue sectors and neutral thresholds. The group uses SourceTextPresent and white EmptyColor, so an empty upper display keeps that slot white. Legacy anonymous `{ Track }` colors on member bindings are removed with a notice because the group supplies track color. Missing channels, duplicate row members, incomplete families, conflicting display types, and more than one possible Source remain unresolved instead of creating competing packet owners.
 
 If one legacy file is referenced both as a SubZone and as an independent zone, the importer cannot silently assign one format 2 `Role`. The preview reports both reference locations and asks the user to keep one role or create a renamed copy for one use. A file referenced as a SubZone by several parents is not ambiguous and converts to one reusable `Role=Layer` document.
 
