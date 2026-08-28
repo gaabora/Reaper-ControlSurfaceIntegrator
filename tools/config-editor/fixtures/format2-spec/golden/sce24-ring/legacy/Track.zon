@@ -1,0 +1,5 @@
+Zone Track
+  Rotary| TrackVolume RingStyle=Fill LEDRingColor=#0000ffff PushColor=#003f00ff
+  Shift+Rotary| TrackPan RingStyle=Dot LEDRingColors="3-7-#ff0000ff+8-17-#00ff00ff"
+  RotaryPush| TrackVolume [ 0.716 ]
+ZoneEnd

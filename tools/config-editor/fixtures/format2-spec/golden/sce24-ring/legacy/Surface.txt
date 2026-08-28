@@ -1,0 +1,8 @@
+Widget Rotary1
+  EncoderPlain b0 00 7f
+  FB_SCE24Encoder b0 00 7f
+WidgetEnd
+
+Widget RotaryPush1
+  Press 90 20 7f 90 20 00
+WidgetEnd

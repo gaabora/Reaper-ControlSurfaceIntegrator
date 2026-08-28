@@ -1,0 +1,33 @@
+@Meta { Version=2 Protocol=MIDI Name="Imported SCE24 Surface" }
+
+RingProfile SCE24Ring {
+  Segments=18
+  DefaultColor=#000000FF
+  Quantize=Floor
+  ValueOffset=65
+  Style Dot Code=0 Steps=15
+  Style BoostCut Code=1 Steps=15
+  Style Fill Code=2 Steps=15
+  Style Spread Code=3 Steps=8
+}
+
+Widget Rotary1 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x00 ] Mode=SignedBitFixed }
+  Feedback Ring {
+    Encoding=MIDI7
+    Message=[ 0xB0, 0x00 ]
+    RingProfile=SCE24Ring
+    StyleTarget=Value
+    StyleShift=4
+    StyleCombine=BitOr
+
+    Configure {
+      Encoding=MIDISysEx
+      Payload=[ 0x00, 0x02, 0x38, 0x01, 0x00, SegmentMasks, SegmentRed7, SegmentGreen7, SegmentBlue7 ]
+    }
+  }
+}
+
+Widget RotaryPush1 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x20, 0x7F ] Off=[ 0x90, 0x20, 0x00 ] }
+}
