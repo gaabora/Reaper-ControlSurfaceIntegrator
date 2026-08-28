@@ -1,0 +1,7 @@
+Widget Display1A1
+  FB_SCE24EncoderText 90 20 7f 0 15 2
+WidgetEnd
+
+Widget OLEDButtonDisplay11
+  FB_SCE24OLEDButton 90 0d 7f 0 15 2
+WidgetEnd

@@ -1,0 +1,4 @@
+@Meta { Version=2 Target=Tracks }
+
+Fader@CH TrackVolume
+Mute@CH TrackMute

@@ -1,0 +1,5 @@
+@Meta { Version=2 Protocol=MIDI Name="Vendor MCU" }
+
+Widget Play {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }
+}

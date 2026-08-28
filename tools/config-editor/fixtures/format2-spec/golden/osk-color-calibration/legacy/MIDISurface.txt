@@ -1,0 +1,25 @@
+ColorCalibration
+  Enabled Yes
+  InputMax 255
+  OutputMax 127
+  NeutralTolerancePercent 5
+  RedScale 0.95
+  GreenScale 1.0
+  BlueScale 0.90
+  NeutralRedScale 0.80
+  NeutralGreenScale 0.85
+  NeutralBlueScale 0.90
+  NeutralCurve 2.0
+ColorCalibrationEnd
+
+Widget Touch
+  Press 90 4d 7f 90 4d 00
+  FB_FaderportRGB 90 4d 7f
+WidgetEnd
+
+OSKLayout Version=1
+  Row
+    Spacer Width=0.25
+    Widget Touch Shape=Round Width=1.5 Height=1.5 Top=0.25 Color=55bbff Label="Touch mode"
+  RowEnd
+OSKLayoutEnd

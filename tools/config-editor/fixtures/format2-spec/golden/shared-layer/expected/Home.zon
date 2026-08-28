@@ -1,0 +1,7 @@
+@Meta { Version=2 Role=Home }
+
+ZoneLayers {
+  Pan
+}
+
+ButtonA EnterZoneLayer Pan

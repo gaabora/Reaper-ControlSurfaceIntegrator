@@ -1,0 +1,3 @@
+@Meta { Version=2 MatchFX="VST3: Equalizer" }
+
+Fader@CH FXParam 0

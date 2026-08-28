@@ -1,0 +1,4 @@
+SCE24Surface.txt: processor margin, font, and color defaults moved to each universal Text Feedback block; matching Payload fields permit zone overrides.
+SCE24Home.zon: DisplayText became FixedText, and Off/On text and background colors became state-indexed lists in Off, On order.
+FaderPortSurface.txt: the legacy alignment and inversion codes became one local TextProfile; the zero-based display channel became Channel=1 while the exact SysEx channel byte remains 0x00.
+FaderPortTrack.zon: TextInvert=Yes became TextInvert=true.

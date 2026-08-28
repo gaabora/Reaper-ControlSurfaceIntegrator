@@ -1,0 +1,10 @@
+Widget Fader1
+  X32Fader /ch/01/mix/fader
+  FB_X32FaderProcessor /ch/01/mix/fader
+WidgetEnd
+
+OSKLayout Version=1
+  Row
+    Widget Fader1 Shape=Fader Height=3.0 Color=112233ff
+  RowEnd
+OSKLayoutEnd

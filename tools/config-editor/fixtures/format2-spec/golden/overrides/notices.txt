@@ -1,0 +1,5 @@
+Surface fp: User/FP.txt replaces the complete Vendor/fp.txt document; VendorOnly is not merged into the active Surface.
+Snippet transport: User/TRANSPORT.snippet replaces the complete Vendor/transport.snippet document; the missing Stop binding is not inherited.
+Main zone track: User/fp/Main/track.zon replaces only Vendor/fp/Main/Track.zon by case-insensitive ID.
+Main zones Home, EQ, and Mixer remain active from their own selected files. Creating the track override does not hide them.
+FX zone eq: User/fp/FX/eq.zon replaces Vendor/fp/FX/EQ.zon. Main EQ remains active because Main and FX use separate ID namespaces.

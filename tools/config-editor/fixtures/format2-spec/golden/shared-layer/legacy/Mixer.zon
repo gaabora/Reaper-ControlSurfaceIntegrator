@@ -1,0 +1,6 @@
+Zone Mixer
+  SubZones
+    Pan
+  SubZonesEnd
+  ButtonB GoSubZone Pan
+ZoneEnd

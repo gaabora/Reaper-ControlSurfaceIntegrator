@@ -1,0 +1,1 @@
+Home.zon: the transport snippet application markers were removed; Record, all three resolved snippet bindings, and Cycle remain in their original order.

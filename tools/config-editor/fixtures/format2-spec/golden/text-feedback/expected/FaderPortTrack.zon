@@ -1,0 +1,3 @@
+@Meta { Version=2 Target=Tracks }
+
+ScribbleLine1_1 TrackNameDisplay TextAlign=Left TextInvert=true

@@ -1,0 +1,7 @@
+@Meta { Version=2 }
+
+ZoneLayers {
+  Pan
+}
+
+ButtonB EnterZoneLayer Pan

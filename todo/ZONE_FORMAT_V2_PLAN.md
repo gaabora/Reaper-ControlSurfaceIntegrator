@@ -932,7 +932,7 @@ MIDISysEx automatically adds leading `0xF0` and trailing `0xF7`. Payload is an o
 - `SlotColors`;
 - `Text`.
 
-Each field requires the matching primitive input or profile. Text requires TextProfile and must be the final Payload entry because its encoded length can vary. Margin and font fields use primitive defaults and can be overridden only by binding properties explicitly declared as supported by that Feedback schema. State-specific background, text color, or brightness properties enable state input and derive Toggle. No field can contain an expression, offset, condition, loop, action, or arbitrary property lookup. Device and channel constants are resolved into literal Payload bytes in each Widget declaration.
+Each field requires the matching primitive input or profile. Text requires TextProfile and must be the final Payload entry because its encoded length can vary. A Text Feedback block whose Payload contains `TopMargin7`, `BottomMargin7`, or `Font7` must declare the matching `TopMargin`, `BottomMargin`, or `Font` default on that block. A Payload that contains background or text RGB fields must declare the matching `BackgroundColor` or `TextColor` default. The presence of these Payload fields permits the same named binding overrides; no separate supported-properties list is needed. State-specific background, text color, or brightness properties enable state input and derive Toggle. No field can contain an expression, offset, condition, loop, action, or arbitrary property lookup. Device and channel constants are resolved into literal Payload bytes in each Widget declaration.
 
 MIDICharacters sends one three-byte message per encoded character. Status is a MIDI status byte, StartData is a data byte, Direction is `Ascending` or `Descending`, and TextProfile supplies Width and encoded text. The second byte starts at StartData and changes by one per character; the third byte is the character. TextProfile Width is required. This supports character-addressed time or assignment displays after a normal Action supplies their text.
 
@@ -1231,7 +1231,7 @@ The initial reliable semantic action groups are:
 
 Ready when every current special case has a source-linked explicit replacement and no behavior depends on an undocumented name. ✅
 
-## [ ] Phase 2: Format 2 specification
+## ✅ Phase 2: Format 2 specification
 
 The confirmed format direction above is input to this phase, not the complete grammar. Main zone identity remains the `.zon` filename stem. `@Meta` carries format and behavior metadata. `MatchFX` identifies an external plugin match, not the zone itself. Format 2 uses `@CH`; legacy `Widget|` is accepted only by the importer and converted during migration.
 
@@ -1634,7 +1634,7 @@ Validation reports an error for an unknown key, unknown enum, invalid property c
 - ✅ Confirm ColorCalibration property defaults, ranges, processor-native OutputMax behavior, and compatibility with color-capable Feedback entries.
 - ✅ Specify snippets as versioned editor-only zone fragments with no semantic slot wrapper, explicit requirements, application identity, or saved provenance markers.
 - ✅ Add representative valid and invalid fixture files for every top-level format under `tools/config-editor/fixtures/format2-spec` before runtime implementation starts.
-- [ ] Complete the golden legacy-input/output scenarios listed in `tools/config-editor/fixtures/format2-spec/golden/MANIFEST.md`. Keep the Phase 4 conversion matrix and manifest synchronized with every later format or action rename.
+- ✅ Complete the current golden legacy-input/output scenarios listed in `tools/config-editor/fixtures/format2-spec/golden/MANIFEST.md`. Keep the Phase 4 conversion matrix and manifest synchronized with every later format or action rename.
 
 Ready when the normative specification and fixtures let C++, Bun, Lua, and documentation implement the same grammar without interpretation differences.
 
@@ -1720,7 +1720,7 @@ The initial conversion matrix is:
 | `FB_MFT_RGB` normal palette output | Feedback Color with MIDIPalette, a generated ColorProfile, and the constant mode Companion message |
 | `FB_MFT_RGB` RGB value used as an arbitrary MIDI command | Unresolved import diagnostic; commands are not preserved as colors |
 | Legacy TextAlign and TextInvert display properties | `TextAlign=Left|Center|Right` and Boolean `TextInvert`; the generated TextProfile contains the device codes |
-| Legacy `DisplayText`, margin, font, text-color, and background-color properties | `FixedText`, `TopMargin`, `BottomMargin`, `Font`, `TextColor`, `BackgroundColor`, `TextColors`, and `BackgroundColors`; On/Off pairs become state-indexed lists in Off, On order |
+| Legacy `DisplayText`, margin, font, text-color, and background-color properties | `FixedText`, `TopMargin`, `BottomMargin`, `Font`, `TextColor`, `BackgroundColor`, `TextColors`, and `BackgroundColors`; processor defaults move to the Text Feedback block; On/Off pairs become state-indexed lists in Off, On order |
 | Repeated `ScribbleStripMode Mode=N` with one common N | One Feedback Value `InitialValue` in the Surface; repeated zone lines are removed |
 | `ScribbleStripMode` with different modes in different zones | Unresolved import diagnostic; format 2 does not add per-zone hardware configuration syntax without a real bundled use case |
 | Legacy XTouch display track-color processors that assemble one shared packet | Text feedback on each display Widget plus one Surface-level TrackColor FeedbackGroup with explicit Channel, Slot Source, and Members references |

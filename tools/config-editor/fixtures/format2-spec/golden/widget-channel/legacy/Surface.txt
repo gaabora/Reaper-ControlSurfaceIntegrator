@@ -1,0 +1,7 @@
+Widget TrackColor1
+  FB_AsparionRGB 90 10 7f
+WidgetEnd
+
+Widget TrackColor10
+  FB_AsparionRGB 90 19 7f
+WidgetEnd

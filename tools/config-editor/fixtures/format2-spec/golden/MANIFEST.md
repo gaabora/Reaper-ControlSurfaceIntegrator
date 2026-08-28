@@ -1,6 +1,6 @@
 # Migration golden coverage
 
-Each scenario compares every file under `legacy/` with `expected/` and any `diagnostics.txt` or `notices.txt` file.
+Migration scenarios compare every file under `legacy/` with `expected/` and any `diagnostics.txt` or `notices.txt` file. Resolver scenarios compare a complete `input/` tree with the active files under `expected/`. Diagnostic-only scenarios keep all relevant source and destination files and list the required diagnostics without an expected converted file.
 
 ## ✅ Covered scenarios
 
@@ -18,12 +18,15 @@ Each scenario compares every file under `legacy/` with `expected/` and any `diag
 - `mft-palette`: converts the complete legacy MFT palette and per-widget mode Companion, converts normal zone colors, and detects the raw-command branch only after resolving the selected Surface widget.
 - `sce24-ring`: converts SCE24 ring value and color output to a universal Ring profile and Configure block, expands range colors, and restores the declared push color in the first three physical segments.
 - `xtouch-text`: splits legacy XTouch display behavior into normal Text feedback and one shared TrackColor FeedbackGroup with exact channels, slots, members, and hue-range color mapping.
+- `text-feedback`: converts SCE24 text and OLED output plus FaderPort scribble text to universal Text feedback, including fixed text, alignment, inversion, margins, font, constant colors, and state-indexed colors.
+- `osk-color-calibration`: converts MIDI and OSC OSK layouts without a layout version, prefixes six- and eight-digit layout colors with `#`, and converts an enabled legacy device color calibration block.
+- `overrides`: selects complete User Surface and snippet documents by ID while resolving Main and FX zones per ID without hiding unrelated Vendor zones.
+- `saved-snippet`: removes saved snippet application markers while preserving the resolved bindings in their original order.
+- `widget-channel`: extracts the complete trailing Widget number only for a legacy processor that depends on the Widget channel.
+- `shared-layer`: converts one legacy SubZone referenced by several parents to one reusable Layer without reporting an ambiguity.
+- `ambiguous-display`: rejects two possible upper-display sources for the same shared display-color channel.
+- `destination-collision`: rejects an imported zone ID that already exists in the same User profile and collection, including case-only spelling differences.
 
-## [ ] Remaining golden scenarios
+## ✅ Current golden coverage complete
 
-- [ ] Fixed text, alignment, inversion, margins, font, constant colors, and state-indexed text/background colors.
-- [ ] OSC and MIDI OSKLayout plus ColorCalibration conversion, including `#` color prefixes.
-- [ ] Surface and snippet whole-file User overrides plus per-zone Main and FX overlay selection.
-- [ ] Saved snippet marker removal while preserving resolved binding content.
-- [ ] Action rename registry entries after their final names and parameter transformations are approved.
-- [ ] Case-sensitive and ambiguous branches for Widget channel extraction, zone-layer role selection, display pairing, and destination collisions.
+No additional action rename has a final approved name or parameter transformation. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.

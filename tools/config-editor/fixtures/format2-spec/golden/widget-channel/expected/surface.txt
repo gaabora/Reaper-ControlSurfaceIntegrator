@@ -1,0 +1,11 @@
+@Meta { Version=2 Protocol=MIDI Name="Imported Asparion Surface" }
+
+Widget TrackColor1 {
+  Channel=1
+  Feedback Color { Encoding=MIDIRGB Red=[ 0x91, 0x10 ] Green=[ 0x92, 0x10 ] Blue=[ 0x93, 0x10 ] TrackColor=true }
+}
+
+Widget TrackColor10 {
+  Channel=10
+  Feedback Color { Encoding=MIDIRGB Red=[ 0x91, 0x19 ] Green=[ 0x92, 0x19 ] Blue=[ 0x93, 0x19 ] TrackColor=true }
+}

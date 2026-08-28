@@ -1,0 +1,26 @@
+@Meta { Version=2 Protocol=MIDI Name="Imported MIDI Surface" }
+
+ColorCalibration {
+  InputMax=255
+  OutputMax=127
+  NeutralTolerancePercent=5
+  RedScale=0.95
+  GreenScale=1.0
+  BlueScale=0.90
+  NeutralRedScale=0.80
+  NeutralGreenScale=0.85
+  NeutralBlueScale=0.90
+  NeutralCurve=2.0
+}
+
+Widget Touch {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x4D, 0x7F ] Off=[ 0x90, 0x4D, 0x00 ] }
+  Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x4D, 0x7F ] Red=[ 0x91, 0x4D ] Green=[ 0x92, 0x4D ] Blue=[ 0x93, 0x4D ] }
+}
+
+OSKLayout {
+  Row {
+    Spacer Width=0.25
+    Widget Touch Shape=Round Width=1.5 Height=1.5 Top=0.25 Color=#55BBFF Label="Touch mode"
+  }
+}

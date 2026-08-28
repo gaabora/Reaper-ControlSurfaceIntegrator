@@ -1,0 +1,11 @@
+Widget DisplayUpper1
+  FB_XTouchDisplayUpper 0
+WidgetEnd
+
+Widget DisplayUpper01
+  FB_XTouchDisplayUpper 0
+WidgetEnd
+
+Widget DisplayLower1
+  FB_XTouchDisplayLower 0
+WidgetEnd

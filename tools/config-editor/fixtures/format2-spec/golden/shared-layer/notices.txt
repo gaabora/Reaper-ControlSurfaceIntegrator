@@ -1,0 +1,1 @@
+Pan.zon: references from both Home.zon and Mixer.zon agree that Pan is a reusable Layer, so one Role=Layer document is used by both parents.

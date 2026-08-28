@@ -1,0 +1,4 @@
+Zone Pan
+  Rotary TrackPan
+  RotaryPush TrackPan [ 0.5 ]
+ZoneEnd

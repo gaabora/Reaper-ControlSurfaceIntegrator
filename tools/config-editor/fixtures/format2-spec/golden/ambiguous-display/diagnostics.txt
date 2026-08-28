@@ -1,0 +1,1 @@
+Surface.txt:5 legacy.display.source.ambiguous: DisplayUpper1 and DisplayUpper01 both resolve as the upper Text source for shared display-color channel 1. Choose one source or correct the legacy processor channel before import.

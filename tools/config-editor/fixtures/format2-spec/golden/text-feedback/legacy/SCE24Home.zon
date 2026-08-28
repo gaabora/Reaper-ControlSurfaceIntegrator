@@ -1,0 +1,4 @@
+Zone Home
+  Display1A1 TrackNameDisplay TopMargin=1 BottomMargin=30 Font=4 TextColor=#ffffffff BackgroundColor=#000000ff
+  OLEDButtonDisplay11 Stop DisplayText=STOP TopMargin=0 BottomMargin=63 Font=6 TextColorOn=#0000ff00 BackgroundColorOn=#ffff0000 TextColorOff=#ffffffff BackgroundColorOff=#000000ff
+ZoneEnd

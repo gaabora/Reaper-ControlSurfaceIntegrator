@@ -1,0 +1,9 @@
+Zone Home
+  Record Record
+  // @snippet Application=transport Source=transport
+  Play Play
+  Shift+Play Reaper 40044
+  Stop Stop
+  // @snippet-end Application=transport
+  Cycle CycleTimeline
+ZoneEnd

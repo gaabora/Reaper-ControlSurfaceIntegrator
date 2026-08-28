@@ -1,0 +1,1 @@
+Surface.txt: FB_AsparionRGB uses the Widget channel for track-color lookup, so TrackColor1 became Channel=1 and TrackColor10 became Channel=10 from each complete trailing integer.

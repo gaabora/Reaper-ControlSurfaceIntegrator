@@ -1,0 +1,7 @@
+@Meta { Version=2 Role=Home }
+
+Record Record
+Play Play
+[Shift]+Play Reaper 40044
+Stop Stop
+Cycle CycleTimeline
