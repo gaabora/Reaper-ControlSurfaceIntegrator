@@ -74,3 +74,4 @@ struct Format2DocumentParseResult {
 };
 
 Format2DocumentParseResult ParseFormat2DocumentSource(const std::string& source, const std::string& sourcePath, Format2DocumentKind kind);
+void ValidateFormat2Delimiters(Format2LexResult& lexical);

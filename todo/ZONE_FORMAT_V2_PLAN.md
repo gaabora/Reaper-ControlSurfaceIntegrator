@@ -473,7 +473,9 @@ compiled default < root Settings < Device.Settings
 
 `settings_schema.conf` declares whether each setting supports `Product`, `Device`, or both scopes. Existing behavior and timing settings that currently use the `Surface` scope move to `Device`; product-only logging settings remain product-only. A setting is valid only in a matching block. If a manually edited root Settings block is invalid, runtime reports it and uses compiled defaults for that block. If one Device Settings block is invalid, that device inherits the resolved root settings. Other valid configuration blocks still load.
 
-`Device` IDs use the lowercase stable-ID grammar and are unique in the file. Common properties are:
+`Page`, `Device`, and Page-local `Surface` IDs use unquoted ASCII identifiers. An ID starts with a letter and then contains only letters, digits, or `_`. IDs preserve their source spelling for display, compare case-insensitively in their scope, and cannot contain spaces or quoted text. Users write `_` where a visible separator is needed, such as `Surface FP_v2`. Separate display-name properties are not used.
+
+`Device` IDs are unique in the file. Common properties are:
 
 | Property | Required | Value and default |
 |---|---|---|
@@ -508,12 +510,12 @@ Device x32 {
 | `Protocol` | No | `Generic` or `X32`; default `Generic` |
 | `ReceivePort` | Yes | Integer from `1` through `65535` |
 | `TransmitPort` | Yes | Integer from `1` through `65535` |
-| `Address` | Yes | Non-empty quoted host name or IP address |
+| `Address` | Yes | Non-empty unquoted host name or IP address |
 | `MaxPacketsPerRun` | No | Positive integer; default `200` |
 
 MIDI-only properties on OSC and OSC-only properties on MIDI are errors. A valid configured port that is not currently available is a runtime warning, not a syntax error; only that device and its dependent Surface instances are skipped.
 
-`Page` uses a required quoted display name. Page names are non-empty and unique case-insensitively. Page properties are optional booleans with these defaults:
+`Page` uses its required block ID as its displayed name. Page IDs are unique case-insensitively. Page properties are optional booleans with these defaults:
 
 | Property | Default |
 |---|---|
@@ -522,7 +524,7 @@ MIDI-only properties on OSC and OSC-only properties on MIDI are errors. A valid 
 | `ScrollLink` | `false` |
 | `ScrollSync` | `false` |
 
-Each Page contains at least one `Surface` block and zero or more `Link` blocks. A Surface block ID uses the lowercase stable-ID grammar and is unique inside that Page. It accepts:
+Each Page contains at least one `Surface` block and zero or more `Link` blocks. A Surface block ID uses the common unquoted identifier grammar and is unique case-insensitively inside that Page. It accepts:
 
 | Property | Required | Value and default |
 |---|---|---|
@@ -1658,6 +1660,9 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 - ✅ Compile each `#` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
 - ✅ Resolve Vendor and User Main/FX sources by case-insensitive zone ID into one deterministic per-zone active set before later role, reference, dependency, or runtime validation. A unique User source overrides only the matching Vendor source, an invalid User source blocks Vendor fallback, and same-layer duplicates leave that ID unavailable with source-linked diagnostics.
 - [ ] Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
+  - ✅ Define unquoted case-insensitive `Page`, `Device`, and Page-local `Surface` identifiers with source spelling preserved for display.
+  - ✅ Add a brace-format C++ source parser that uses the shared lexer, syntax tree, and delimiter validator and returns the existing `IntegratorConfig` model.
+  - [ ] Change the generated product filename to `.conf`, replace legacy config writers and native-dialog parsing, switch runtime and protocol consumers to the brace parser, and remove the legacy line parser.
 - [ ] Change generated setting scope metadata and effective-value resolution from `Surface` to `Device`. Reject settings inside Page Surface assignments.
 - [ ] Expose ring feedback capabilities and resolved action feedback shapes through runtime and generated editor metadata.
 - [ ] Replace the native Learn FX dialog with OSK FX edit mode, one in-memory live-preview draft, and atomic User FX-zone save through the shared validated model.

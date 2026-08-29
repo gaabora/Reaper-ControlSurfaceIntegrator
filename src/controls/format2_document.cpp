@@ -25,6 +25,31 @@ static Format2TokenKind MatchingFormat2OpeningDelimiter(Format2TokenKind kind) {
     return Format2TokenKind::LeftParenthesis;
 }
 
+void ValidateFormat2Delimiters(Format2LexResult& lexical) {
+    std::vector<const Format2Token*> openings;
+    for (const Format2Token& token : lexical.tokens) {
+        if (IsFormat2OpeningDelimiter(token.kind)) {
+            openings.push_back(&token);
+            continue;
+        }
+        if (!IsFormat2ClosingDelimiter(token.kind)) continue;
+        const Format2TokenKind expectedOpening = MatchingFormat2OpeningDelimiter(token.kind);
+        std::size_t matchingIndex = openings.size();
+        while (matchingIndex > 0 && openings[matchingIndex - 1]->kind != expectedOpening) matchingIndex--;
+        if (matchingIndex == 0) {
+            lexical.diagnostics.push_back({"format2.delimiter.unexpected", "Unexpected closing delimiter " + token.text, token.location});
+            continue;
+        }
+        while (openings.size() > matchingIndex) {
+            const Format2Token* unclosed = openings.back();
+            lexical.diagnostics.push_back({"format2.delimiter.unclosed", "Opening delimiter " + unclosed->text + " is not closed before " + token.text, unclosed->location});
+            openings.pop_back();
+        }
+        openings.pop_back();
+    }
+    for (const Format2Token* unclosed : openings) lexical.diagnostics.push_back({"format2.delimiter.unclosed", "Opening delimiter " + unclosed->text + " is not closed before EOF", unclosed->location});
+}
+
 static bool IsFormat2MetadataKeyAllowed(Format2DocumentKind kind, const std::string& key) {
     if (key == "Version") return true;
     if (kind == Format2DocumentKind::MainZone) return key == "Role" || key == "Target" || key == "BankTarget" || key == "Alias";
@@ -46,7 +71,7 @@ public:
     }
 
     Format2DocumentParseResult Parse() {
-        this->ValidateDelimiters();
+        ValidateFormat2Delimiters(this->result_.lexical);
         this->ParseMetadata();
         this->ValidateMetadata();
         this->result_.body = ParseFormat2Syntax(this->result_.lexical, this->result_.bodyTokenIndex);
@@ -71,32 +96,6 @@ private:
 
     void AddDiagnostic(const std::string& code, const std::string& message, const Format2SourceLocation& location) {
         this->result_.lexical.diagnostics.push_back({ code, message, location });
-    }
-
-    void ValidateDelimiters() {
-        std::vector<const Format2Token*> openings;
-        for (const Format2Token& token : this->result_.lexical.tokens) {
-            if (IsFormat2OpeningDelimiter(token.kind)) {
-                openings.push_back(&token);
-                continue;
-            }
-            if (!IsFormat2ClosingDelimiter(token.kind)) continue;
-
-            const Format2TokenKind expectedOpening = MatchingFormat2OpeningDelimiter(token.kind);
-            std::size_t matchingIndex = openings.size();
-            while (matchingIndex > 0 && openings[matchingIndex - 1]->kind != expectedOpening) matchingIndex--;
-            if (matchingIndex == 0) {
-                this->AddDiagnostic("format2.delimiter.unexpected", "Unexpected closing delimiter " + token.text, token.location);
-                continue;
-            }
-            while (openings.size() > matchingIndex) {
-                const Format2Token* unclosed = openings.back();
-                this->AddDiagnostic("format2.delimiter.unclosed", "Opening delimiter " + unclosed->text + " is not closed before " + token.text, unclosed->location);
-                openings.pop_back();
-            }
-            openings.pop_back();
-        }
-        for (const Format2Token* unclosed : openings) this->AddDiagnostic("format2.delimiter.unclosed", "Opening delimiter " + unclosed->text + " is not closed before EOF", unclosed->location);
     }
 
     void ParseMetadata() {

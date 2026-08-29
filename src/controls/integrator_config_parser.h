@@ -19,6 +19,8 @@ struct MidiIoConfig {
     int outputPort = 0;
     int refreshRate = 0;
     int maxMessagesPerRun = 0;
+    SettingOverrides settingOverrides;
+    SettingsValues effectiveSettings;
 };
 
 struct OscIoConfig {
@@ -30,11 +32,14 @@ struct OscIoConfig {
     std::string transmitToPort;
     std::string transmitToIpAddress;
     int maxPacketsPerRun = 0;
+    SettingOverrides settingOverrides;
+    SettingsValues effectiveSettings;
 };
 
 struct SurfaceAssignmentConfig {
     int lineNumber = 0;
     std::string surfaceName;
+    std::string deviceId;
     std::string surfaceId;
     std::string mainZoneProfileId;
     std::string fxZoneProfileId;
@@ -80,3 +85,4 @@ struct IntegratorConfig {
 
 IntegratorConfig ParseIntegratorConfig(const std::string& configPath);
 IntegratorConfig ParseIntegratorConfigSource(const std::string& source, const std::string& configPath);
+IntegratorConfig ParseFormat2IntegratorConfigSource(const std::string& source, const std::string& configPath);
