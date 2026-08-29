@@ -25,15 +25,14 @@ local function nextRequestId()
     return tostring(timestamp) .. "_" .. tostring(requestCounter)
 end
 
-local function buildRequest(command, scope, surfaceName, pageName, changes, requestId)
+local function buildRequest(command, scope, deviceId, changes, requestId)
     local lines = {
         "Version=1",
         "RequestId=" .. tostring(requestId),
         "Command=" .. tostring(command),
     }
     if scope and scope ~= "" then lines[#lines + 1] = "Scope=" .. tostring(scope) end
-    if pageName and pageName ~= "" then lines[#lines + 1] = "Page=" .. tostring(pageName) end
-    if surfaceName and surfaceName ~= "" then lines[#lines + 1] = "Surface=" .. tostring(surfaceName) end
+    if deviceId and deviceId ~= "" then lines[#lines + 1] = "Device=" .. tostring(deviceId) end
     for settingName, change in pairs(changes or {}) do
         if type(change) == "table" and change.unset == true then
             lines[#lines + 1] = "Unset." .. settingName .. "=1"
@@ -52,51 +51,37 @@ function module.ParseResponse(source)
     if properties.Status ~= "OK" and properties.Status ~= "ERROR" then return nil, "Settings response Status must be OK or ERROR" end
     local response = {
         message = properties.Message or "",
+        deviceId = properties.Device or "",
+        deviceOptions = {},
         inheritedValues = {},
         ok = properties.Status == "OK",
-        pageName = properties.Page or "",
         scope = properties.Scope or "",
         sources = {},
-        surfaceName = properties.Surface or "",
-        surfaceOptions = {},
         values = {},
     }
-    local surfaceOptionsByIndex = {}
-    local maximumSurfaceOptionIdx = 0
+    local deviceOptionsByIndex = {}
+    local maximumDeviceOptionIdx = 0
     for key, value in pairs(properties) do
         local valueName = key:match("^Value%.([A-Z][A-Za-z0-9]*)$")
         local sourceName = key:match("^Source%.([A-Z][A-Za-z0-9]*)$")
         local inheritedName = key:match("^Inherited%.([A-Z][A-Za-z0-9]*)$")
-        local optionPageIdx = tonumber(key:match("^SurfaceOption%.(%d+)%.Page$"))
-        local optionSurfaceIdx = tonumber(key:match("^SurfaceOption%.(%d+)%.Surface$"))
+        local deviceOptionIdx = tonumber(key:match("^DeviceOption%.(%d+)$"))
         if valueName then response.values[valueName] = value end
         if sourceName then response.sources[sourceName] = value end
         if inheritedName then response.inheritedValues[inheritedName] = value end
-        if optionPageIdx then
-            surfaceOptionsByIndex[optionPageIdx] = surfaceOptionsByIndex[optionPageIdx] or {}
-            surfaceOptionsByIndex[optionPageIdx].pageName = value
-            maximumSurfaceOptionIdx = math.max(maximumSurfaceOptionIdx, optionPageIdx)
-        end
-        if optionSurfaceIdx then
-            surfaceOptionsByIndex[optionSurfaceIdx] = surfaceOptionsByIndex[optionSurfaceIdx] or {}
-            surfaceOptionsByIndex[optionSurfaceIdx].surfaceName = value
-            maximumSurfaceOptionIdx = math.max(maximumSurfaceOptionIdx, optionSurfaceIdx)
-        end
+        if deviceOptionIdx then deviceOptionsByIndex[deviceOptionIdx] = value maximumDeviceOptionIdx = math.max(maximumDeviceOptionIdx, deviceOptionIdx) end
     end
-    for optionIdx = 1, maximumSurfaceOptionIdx do
-        local option = surfaceOptionsByIndex[optionIdx]
-        if option and option.pageName and option.surfaceName then response.surfaceOptions[#response.surfaceOptions + 1] = option end
-    end
+    for optionIdx = 1, maximumDeviceOptionIdx do if deviceOptionsByIndex[optionIdx] then response.deviceOptions[#response.deviceOptions + 1] = deviceOptionsByIndex[optionIdx] end end
     return response
 end
 
-function module.Send(command, scope, surfaceName, pageName, changes)
+function module.Send(command, scope, deviceId, changes)
     if not reaper then return nil, "REAPER API is not available" end
     if reaper.HasExtState(identity.extState.settingsCommand, "Request") then return nil, "Another settings request is pending" end
     local requestId = nextRequestId()
     local responseKey = "Response_" .. requestId
     reaper.DeleteExtState(identity.extState.settings, responseKey, false)
-    reaper.SetExtState(identity.extState.settingsCommand, "Request", buildRequest(command, scope, surfaceName, pageName, changes, requestId), false)
+    reaper.SetExtState(identity.extState.settingsCommand, "Request", buildRequest(command, scope, deviceId, changes, requestId), false)
     return requestId
 end
 
@@ -116,12 +101,12 @@ function module.Cancel(requestId)
     reaper.DeleteExtState(identity.extState.settings, "Response_" .. tostring(requestId), false)
 end
 
-function module.Query(scope, surfaceName, pageName)
-    return module.Send("Query", scope, surfaceName, pageName)
+function module.Query(scope, deviceId)
+    return module.Send("Query", scope, deviceId)
 end
 
-function module.Apply(scope, changes, surfaceName, pageName)
-    return module.Send("Apply", scope, surfaceName, pageName, changes)
+function module.Apply(scope, changes, deviceId)
+    return module.Send("Apply", scope, deviceId, changes)
 end
 
 function module.Reload()
@@ -129,14 +114,14 @@ function module.Reload()
 end
 
 function module.RunSelfChecks()
-    local request = buildRequest("Apply", "Surface", "fp2", "Home", { HoldDelayMs = { value = 750 }, LongHoldDelayMs = { unset = true } }, "test_1")
+    local request = buildRequest("Apply", "Device", "fp2", { HoldDelayMs = { value = 750 }, LongHoldDelayMs = { unset = true } }, "test_1")
     assert(request:find("Set.HoldDelayMs=750", 1, true), "settings request set")
     assert(request:find("Unset.LongHoldDelayMs=1", 1, true), "settings request unset")
-    local response = assert(module.ParseResponse("Version=1\nStatus=OK\nScope=Surface\nPage=Home\nSurface=fp2\nSurfaceOption.1.Page=Home\nSurfaceOption.1.Surface=fp2\nValue.HoldDelayMs=750\nSource.HoldDelayMs=Surface\nInherited.HoldDelayMs=1000\n"))
+    local response = assert(module.ParseResponse("Version=1\nStatus=OK\nScope=Device\nDevice=fp2\nDeviceOption.1=fp2\nValue.HoldDelayMs=750\nSource.HoldDelayMs=Device\nInherited.HoldDelayMs=1000\n"))
     assert(response.ok and response.values.HoldDelayMs == "750", "settings response value")
-    assert(response.sources.HoldDelayMs == "Surface", "settings response source")
+    assert(response.sources.HoldDelayMs == "Device", "settings response source")
     assert(response.inheritedValues.HoldDelayMs == "1000", "settings response inherited value")
-    assert(response.surfaceOptions[1].pageName == "Home" and response.surfaceOptions[1].surfaceName == "fp2", "settings response Surface options")
+    assert(response.deviceOptions[1] == "fp2", "settings response Device options")
 end
 
 return module

@@ -319,8 +319,8 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
                 return false;
             }
             surfaceNames[surface.surfaceName] = true;
-            if (ioTypes.count(surface.surfaceName) == 0) {
-                errorMessage = "Surface assignment " + page.name + " / " + surface.surfaceName + " has no matching I/O definition";
+            if (ioTypes.count(surface.deviceId) == 0) {
+                errorMessage = "Surface assignment " + page.name + " / " + surface.surfaceName + " references an unknown Device: " + surface.deviceId;
                 return false;
             }
             if (SurfaceSourceStatus(productPaths, surface.surfaceId) == "Missing" || SurfaceSourceStatus(productPaths, surface.surfaceId) == "Invalid") {
@@ -397,7 +397,7 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
             PublishDevicesResponse(request.requestId, false, "The device configuration changed outside this Control Panel. Revert to reload it before saving.");
             return;
         }
-        const IntegratorConfig candidate = ParseIntegratorConfigSource(request.source, productPaths.ConfigFile().string());
+        const IntegratorConfig candidate = ParseFormat2IntegratorConfigSource(request.source, productPaths.ConfigFile().string());
         if (!ValidateDevicesConfig(candidate, productPaths, errorMessage)) {
             PublishDevicesResponse(request.requestId, false, errorMessage);
             return;
@@ -420,9 +420,8 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         DAW::SendCommandMessage(REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES);
         return;
     }
-    const IntegratorConfig config = ParseIntegratorConfig(productPaths.ConfigFile().string());
+    const IntegratorConfig config = ParseFormat2IntegratorConfigSource(configSource, productPaths.ConfigFile().string());
     string body;
-    AppendDevicesProperty(body, "ConfigVersion", s_MajorVersionToken);
     AppendDevicesProperty(body, "Revision", sourceError.empty() ? DevicesConfigRevision(configSource) : "");
     AppendDevicesProperty(body, "FatalError", config.fatalError);
     AppendSettingOverrides(body, "Product.", config.productSettingOverrides);
@@ -445,6 +444,7 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         AppendDevicesProperty(body, prefix + "OutputName", io.outputPort >= 0 && GetMIDIOutputName(io.outputPort, deviceName, sizeof(deviceName)) ? deviceName : "");
         AppendDevicesProperty(body, prefix + "RefreshRate", io.refreshRate);
         AppendDevicesProperty(body, prefix + "MaxMessages", io.maxMessagesPerRun);
+        AppendSettingOverrides(body, prefix, io.settingOverrides);
         AppendDevicesProperty(body, prefix + "Active", HasRuntimeMidiIo(this->midiSurfacesIO_, io.name) ? 1 : 0);
         char inputDeviceName[512] = {};
         const bool resolvedInput = io.inputPort >= 0 && GetMIDIInputName(io.inputPort, inputDeviceName, sizeof(inputDeviceName));
@@ -464,6 +464,7 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         AppendDevicesProperty(body, prefix + "TransmitPort", io.transmitToPort);
         AppendDevicesProperty(body, prefix + "Address", io.transmitToIpAddress);
         AppendDevicesProperty(body, prefix + "MaxPackets", io.maxPacketsPerRun);
+        AppendSettingOverrides(body, prefix, io.settingOverrides);
         const bool active = HasRuntimeOscIo(this->oscSurfacesIO_, io.name);
         AppendDevicesProperty(body, prefix + "Active", active ? 1 : 0);
         AppendDevicesProperty(body, prefix + "RuntimeIssue", active ? "" : "OSC endpoint did not open");
@@ -488,17 +489,17 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
             const string surfacePrefix = prefix + "Surface." + to_string(surfaceIdx + 1) + ".";
             AppendDevicesProperty(body, surfacePrefix + "Line", surface.lineNumber);
             AppendDevicesProperty(body, surfacePrefix + "Name", surface.surfaceName);
+            AppendDevicesProperty(body, surfacePrefix + "DeviceId", surface.deviceId);
             AppendDevicesProperty(body, surfacePrefix + "SurfaceId", surface.surfaceId);
             AppendDevicesProperty(body, surfacePrefix + "MainProfile", surface.mainZoneProfileId);
             AppendDevicesProperty(body, surfacePrefix + "FxProfile", surface.fxZoneProfileId);
             AppendDevicesProperty(body, surfacePrefix + "StartChannel", surface.startChannel);
             AppendDevicesProperty(body, surfacePrefix + "Active", HasRuntimeSurface(runtimePage, surface.surfaceName) ? 1 : 0);
-            AppendDevicesProperty(body, surfacePrefix + "IoType", ConfiguredIoType(config, surface.surfaceName));
-            AppendDevicesProperty(body, surfacePrefix + "IoActive", HasRuntimeIo(this->midiSurfacesIO_, this->oscSurfacesIO_, surface.surfaceName) ? 1 : 0);
+            AppendDevicesProperty(body, surfacePrefix + "IoType", ConfiguredIoType(config, surface.deviceId));
+            AppendDevicesProperty(body, surfacePrefix + "IoActive", HasRuntimeIo(this->midiSurfacesIO_, this->oscSurfacesIO_, surface.deviceId) ? 1 : 0);
             AppendDevicesProperty(body, surfacePrefix + "TemplateSource", SurfaceSourceStatus(productPaths, surface.surfaceId));
             AppendDevicesProperty(body, surfacePrefix + "MainSource", MainProfileSourceStatus(productPaths, surface.mainZoneProfileId));
             AppendDevicesProperty(body, surfacePrefix + "FxSource", FxProfileSourceStatus(productPaths, surface.fxZoneProfileId));
-            AppendSettingOverrides(body, surfacePrefix, surface.settingOverrides);
         }
         AppendDevicesProperty(body, prefix + "ListenerCount", static_cast<int>(page.listeners.size()));
         for (size_t listenerIdx = 0; listenerIdx < page.listeners.size(); ++listenerIdx) {

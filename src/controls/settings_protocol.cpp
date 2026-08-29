@@ -9,8 +9,7 @@ struct SettingsCommandRequest {
     string requestId;
     string command;
     string scope;
-    string pageName;
-    string surfaceName;
+    string deviceId;
     std::map<string, std::optional<string>> changes;
 };
 
@@ -56,8 +55,7 @@ static bool ParseSettingsCommandRequest(const string& payload, SettingsCommandRe
     request.requestId = properties["RequestId"];
     request.command = properties["Command"];
     request.scope = properties["Scope"];
-    request.pageName = properties["Page"];
-    request.surfaceName = properties["Surface"];
+    request.deviceId = properties["Device"];
     if (properties["Version"] != "1") {
         errorMessage = "Settings request Version must be 1";
         return false;
@@ -70,12 +68,12 @@ static bool ParseSettingsCommandRequest(const string& payload, SettingsCommandRe
         errorMessage = "Settings Command must be Query, Apply, or Reload";
         return false;
     }
-    if (request.command != "Reload" && request.scope != "Product" && request.scope != "Surface") {
-        errorMessage = "Settings Scope must be Product or Surface";
+    if (request.command != "Reload" && request.scope != "Product" && request.scope != "Device") {
+        errorMessage = "Settings Scope must be Product or Device";
         return false;
     }
-    if (request.scope == "Surface" && request.surfaceName.empty()) {
-        errorMessage = "Surface settings require Surface";
+    if (request.scope == "Device" && request.deviceId.empty()) {
+        errorMessage = "Device settings require Device";
         return false;
     }
 
@@ -86,7 +84,7 @@ static bool ParseSettingsCommandRequest(const string& payload, SettingsCommandRe
         else if (property.first.rfind("Unset.", 0) == 0) {
             settingName = property.first.substr(6);
             unset = true;
-        } else if (property.first == "Version" || property.first == "RequestId" || property.first == "Command" || property.first == "Scope" || property.first == "Page" || property.first == "Surface") continue;
+        } else if (property.first == "Version" || property.first == "RequestId" || property.first == "Command" || property.first == "Scope" || property.first == "Device") continue;
         else {
             errorMessage = "Unknown settings request property: " + property.first;
             return false;
@@ -204,54 +202,54 @@ static bool BuildRuntimeSettingsApplications(vector<unique_ptr<Page>>& runtimePa
     return true;
 }
 
-static ControlSurface* FindRuntimeSettingsSurface(vector<unique_ptr<Page>>& pages, const string& pageName, const string& surfaceName, string& resolvedPageName, string& errorMessage) {
-    ControlSurface* result = nullptr;
-    for (auto& page : pages) {
-        if (!pageName.empty() && page->GetName() != pageName) continue;
-        for (auto& surface : page->GetSurfaces()) {
-            if (surface->GetName() != surfaceName) continue;
-            if (result) {
-                errorMessage = pageName.empty() ? "Surface=" + surfaceName + " exists on more than one runtime Page; specify Page" : "More than one runtime Surface=" + surfaceName + " exists on Page=" + pageName;
-                return nullptr;
-            }
-            result = surface.get();
-            resolvedPageName = page->GetName();
-        }
+static bool IsSameSettingsDeviceId(const string& first, const string& second) {
+    if (first.size() != second.size()) return false;
+    for (size_t characterIdx = 0; characterIdx < first.size(); characterIdx++) {
+        char firstCharacter = first[characterIdx];
+        char secondCharacter = second[characterIdx];
+        if (firstCharacter >= 'A' && firstCharacter <= 'Z') firstCharacter = static_cast<char>(firstCharacter - 'A' + 'a');
+        if (secondCharacter >= 'A' && secondCharacter <= 'Z') secondCharacter = static_cast<char>(secondCharacter - 'A' + 'a');
+        if (firstCharacter != secondCharacter) return false;
     }
-    if (!result) errorMessage = pageName.empty() ? "Cannot find runtime Surface=" + surfaceName : "Cannot find runtime Surface=" + surfaceName + " on Page=" + pageName;
-    return result;
+    return true;
 }
 
-static string BuildSettingsQueryBody(const SettingsCommandRequest& request, const SettingsValues& productSettings, const SettingOverrides& productOverrides, vector<unique_ptr<Page>>& pages, string& errorMessage) {
-    const SettingsValues* effectiveSettings = &productSettings;
-    const SettingOverrides* surfaceOverrides = nullptr;
-    string resolvedPageName = request.pageName;
-    if (request.scope == "Surface") {
-        ControlSurface* surface = FindRuntimeSettingsSurface(pages, request.pageName, request.surfaceName, resolvedPageName, errorMessage);
-        if (!surface) return "";
-        effectiveSettings = &surface->GetSettings();
-        surfaceOverrides = &surface->GetSettingOverrides();
+static bool FindConfiguredDeviceSettings(const IntegratorConfig& config, const string& deviceId, const SettingOverrides*& overrides, const SettingsValues*& effectiveSettings) {
+    for (const MidiIoConfig& device : config.midiIo) {
+        if (!IsSameSettingsDeviceId(device.name, deviceId)) continue;
+        overrides = &device.settingOverrides;
+        effectiveSettings = &device.effectiveSettings;
+        return true;
     }
+    for (const OscIoConfig& device : config.oscIo) {
+        if (!IsSameSettingsDeviceId(device.name, deviceId)) continue;
+        overrides = &device.settingOverrides;
+        effectiveSettings = &device.effectiveSettings;
+        return true;
+    }
+    return false;
+}
 
-    string body = "Scope=" + request.scope + "\n";
-    if (request.scope == "Surface") body += "Page=" + resolvedPageName + "\nSurface=" + request.surfaceName + "\n";
-    int surfaceOptionIdx = 0;
-    for (const auto& page : pages) {
-        for (const auto& surface : page->GetSurfaces()) {
-            surfaceOptionIdx++;
-            const string optionPrefix = "SurfaceOption." + std::to_string(surfaceOptionIdx) + ".";
-            body += optionPrefix + "Page=" + page->GetName() + "\n";
-            body += optionPrefix + "Surface=" + surface->GetName() + "\n";
-        }
+static string BuildSettingsQueryBody(const SettingsCommandRequest& request, const IntegratorConfig& config, string& errorMessage) {
+    const SettingsValues* effectiveSettings = &config.productSettings;
+    const SettingOverrides* deviceOverrides = nullptr;
+    if (request.scope == "Device" && !FindConfiguredDeviceSettings(config, request.deviceId, deviceOverrides, effectiveSettings)) {
+        errorMessage = "Cannot find Device=" + request.deviceId;
+        return "";
     }
+    string body = "Scope=" + request.scope + "\n";
+    if (request.scope == "Device") body += "Device=" + request.deviceId + "\n";
+    int deviceOptionIdx = 0;
+    for (const MidiIoConfig& device : config.midiIo) body += "DeviceOption." + std::to_string(++deviceOptionIdx) + "=" + device.name + "\n";
+    for (const OscIoConfig& device : config.oscIo) body += "DeviceOption." + std::to_string(++deviceOptionIdx) + "=" + device.name + "\n";
     for (const Settings::Definition& definition : Settings::Definitions) {
         if (!SettingAllowsScope(definition, request.scope)) continue;
         string source = "Compiled";
-        if (surfaceOverrides && surfaceOverrides->valid && surfaceOverrides->values.count(definition.name) > 0) source = "Surface";
-        else if (productOverrides.valid && productOverrides.values.count(definition.name) > 0) source = "Product";
+        if (deviceOverrides && deviceOverrides->valid && deviceOverrides->values.count(definition.name) > 0) source = "Device";
+        else if (config.productSettingOverrides.valid && config.productSettingOverrides.values.count(definition.name) > 0) source = "Product";
         body += "Value." + string(definition.name) + "=" + effectiveSettings->GetString(definition.name) + "\n";
         body += "Source." + string(definition.name) + "=" + source + "\n";
-        body += "Inherited." + string(definition.name) + "=" + (request.scope == "Surface" ? productSettings.GetString(definition.name) : string(definition.defaultValue)) + "\n";
+        body += "Inherited." + string(definition.name) + "=" + (request.scope == "Device" ? config.productSettings.GetString(definition.name) : string(definition.defaultValue)) + "\n";
     }
     return body;
 }
@@ -268,12 +266,6 @@ void CSurfIntegrator::PollAndHandleSettingsCommands() {
         return;
     }
 
-    if (request.command == "Query") {
-        const string body = BuildSettingsQueryBody(request, this->productSettings_, this->productSettingOverrides_, this->pages_, errorMessage);
-        PublishSettingsResponse(request.requestId, errorMessage.empty(), errorMessage.empty() ? body : errorMessage);
-        return;
-    }
-
     const filesystem::path configPath = ProductPaths::FromReaperResourcePath().ConfigFile();
     string source;
     if (!ReadSettingsConfigSource(configPath, source, errorMessage)) {
@@ -282,18 +274,9 @@ void CSurfIntegrator::PollAndHandleSettingsCommands() {
     }
 
     if (request.command == "Apply") {
-        if (request.scope == "Surface" && request.pageName.empty()) {
-            string resolvedPageName;
-            if (!FindRuntimeSettingsSurface(this->pages_, "", request.surfaceName, resolvedPageName, errorMessage)) {
-                PublishSettingsResponse(request.requestId, false, errorMessage);
-                return;
-            }
-            request.pageName = resolvedPageName;
-        }
         SettingsConfigEditRequest editRequest;
         editRequest.scope = request.scope;
-        editRequest.pageName = request.pageName;
-        editRequest.surfaceName = request.surfaceName;
+        editRequest.deviceId = request.deviceId;
         editRequest.changes = request.changes;
         string editedSource;
         if (!EditSettingsConfigSource(source, editRequest, editedSource, errorMessage)) {
@@ -303,9 +286,15 @@ void CSurfIntegrator::PollAndHandleSettingsCommands() {
         source = std::move(editedSource);
     }
 
-    IntegratorConfig candidate = ParseIntegratorConfigSource(source, configPath.string());
+    IntegratorConfig candidate = ParseFormat2IntegratorConfigSource(source, configPath.string());
     if (!candidate.fatalError.empty()) errorMessage = candidate.fatalError;
     else if (!candidate.settingsValid) errorMessage = FormatSettingsConfigIssues(candidate);
+
+    if (request.command == "Query" && errorMessage.empty()) {
+        const string body = BuildSettingsQueryBody(request, candidate, errorMessage);
+        PublishSettingsResponse(request.requestId, errorMessage.empty(), errorMessage.empty() ? body : errorMessage);
+        return;
+    }
 
     vector<RuntimeSettingsApplication> applications;
     if (errorMessage.empty() && !BuildRuntimeSettingsApplications(this->pages_, candidate, applications, errorMessage)) applications.clear();

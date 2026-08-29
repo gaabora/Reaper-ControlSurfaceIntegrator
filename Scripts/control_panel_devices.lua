@@ -109,8 +109,8 @@ local function uniqueIoName(data, baseName)
     for oscIdx, device in ipairs(data.osc) do names[device.name] = true end
     if not names[baseName] then return baseName end
     local suffix = 2
-    while names[baseName .. " " .. suffix] do suffix = suffix + 1 end
-    return baseName .. " " .. suffix
+    while names[baseName .. "_" .. suffix] do suffix = suffix + 1 end
+    return baseName .. "_" .. suffix
 end
 
 local function uniquePageName(data, baseName)
@@ -118,21 +118,14 @@ local function uniquePageName(data, baseName)
     for pageIdx, page in ipairs(data.pages) do names[page.name] = true end
     if not names[baseName] then return baseName end
     local suffix = 2
-    while names[baseName .. " " .. suffix] do suffix = suffix + 1 end
-    return baseName .. " " .. suffix
+    while names[baseName .. "_" .. suffix] do suffix = suffix + 1 end
+    return baseName .. "_" .. suffix
 end
 
 local function renameIo(data, oldName, newName)
     if oldName == newName then return end
     for pageIdx, page in ipairs(data.pages) do
-        local renamedOnPage = false
-        for surfaceIdx, surface in ipairs(page.surfaces) do if surface.name == oldName then surface.name = newName renamedOnPage = true end end
-        if renamedOnPage then
-            for listenerIdx, listener in ipairs(page.listeners) do
-                if listener.broadcaster == oldName then listener.broadcaster = newName end
-                if listener.listener == oldName then listener.listener = newName end
-            end
-        end
+        for surfaceIdx, surface in ipairs(page.surfaces) do if surface.deviceId == oldName then surface.deviceId = newName end end
     end
 end
 
@@ -184,10 +177,11 @@ local function removeIoAndReferences(data, kind, deviceIdx)
     if not device then return end
     for pageIdx, page in ipairs(data.pages) do
         for surfaceIdx = #page.surfaces, 1, -1 do
-            if page.surfaces[surfaceIdx].name == device.name then
+            if page.surfaces[surfaceIdx].deviceId == device.name then
+                local removedSurfaceName = page.surfaces[surfaceIdx].name
                 table.remove(page.surfaces, surfaceIdx)
                 for listenerIdx = #page.listeners, 1, -1 do
-                    if page.listeners[listenerIdx].broadcaster == device.name or page.listeners[listenerIdx].listener == device.name then table.remove(page.listeners, listenerIdx) end
+                    if page.listeners[listenerIdx].broadcaster == removedSurfaceName or page.listeners[listenerIdx].listener == removedSurfaceName then table.remove(page.listeners, listenerIdx) end
                 end
             end
         end
@@ -204,7 +198,7 @@ local function requestIoRemoval(data, kind, deviceIdx)
     local device = devices[deviceIdx]
     if not device then return end
     local assignments = {}
-    for pageIdx, page in ipairs(data.pages) do for surfaceIdx, surface in ipairs(page.surfaces) do if surface.name == device.name then assignments[#assignments + 1] = page.name .. " / " .. surface.name end end end
+    for pageIdx, page in ipairs(data.pages) do for surfaceIdx, surface in ipairs(page.surfaces) do if surface.deviceId == device.name then assignments[#assignments + 1] = page.name .. " / " .. surface.name end end end
     if #assignments == 0 then
         removeIoAndReferences(data, kind, deviceIdx)
         return
@@ -218,7 +212,7 @@ local function duplicateIo(data, kind, deviceIdx)
     if not device then return end
     local copy = model.Clone(device)
     copy.active = false
-    copy.name = uniqueIoName(data, device.name .. " Copy")
+    copy.name = uniqueIoName(data, device.name .. "_Copy")
     copy.runtimeIssue = ""
     table.insert(devices, deviceIdx + 1, copy)
     state.ioKind = kind
@@ -254,13 +248,13 @@ local function renderIoList(ctx, data, fonts)
     local visible = beginRoundedList(ctx, "##IoDefinitionsList", LIST_CHILD_HEIGHT)
     if visible then
         if imgui.Button(ctx, "Add MIDI", 95, 0) then
-            data.midi[#data.midi + 1] = { active = false, channels = 8, inputName = "", inputPort = -1, maxMessages = 200, name = uniqueIoName(data, "MIDI"), outputName = "", outputPort = -1, refreshRate = 15, runtimeIssue = "" }
+            data.midi[#data.midi + 1] = { active = false, channels = 8, inputName = "", inputPort = -1, maxMessages = 200, name = uniqueIoName(data, "MIDI"), outputName = "", outputPort = -1, refreshRate = 15, runtimeIssue = "", settingOverrides = {} }
             state.ioKind = "MIDI"
             state.ioIndex = #data.midi
         end
         imgui.SameLine(ctx)
         if imgui.Button(ctx, "Add OSC", 95, 0) then
-            data.osc[#data.osc + 1] = { active = false, address = "127.0.0.1", channels = 8, maxPackets = 0, name = uniqueIoName(data, "OSC"), receivePort = "8000", runtimeIssue = "", transmitPort = "9000", type = "OSC" }
+            data.osc[#data.osc + 1] = { active = false, address = "127.0.0.1", channels = 8, maxPackets = 0, name = uniqueIoName(data, "OSC"), receivePort = "8000", runtimeIssue = "", settingOverrides = {}, transmitPort = "9000", type = "OSC" }
             state.ioKind = "OSC"
             state.ioIndex = #data.osc
         end
@@ -348,7 +342,7 @@ end
 
 local function availableIoItems(data, page)
     local assigned = {}
-    for surfaceIdx, surface in ipairs(page.surfaces) do assigned[surface.name] = true end
+    for surfaceIdx, surface in ipairs(page.surfaces) do assigned[surface.deviceId] = true end
     local items = {}
     for itemIdx, item in ipairs(ioItems(data)) do if not assigned[item.value] then items[#items + 1] = item end end
     return items
@@ -386,7 +380,7 @@ local function newSurface(data, page)
     local profileId = defaultProfileId(data, surfaceId)
     local template = findTemplate(data, surfaceId)
     local profile = findProfile(data, profileId)
-    return { active = false, fxProfile = profileId, fxSource = profile and profile.fxSource or "Missing", ioActive = false, ioType = "", mainProfile = profileId, mainSource = profile and profile.mainSource or "Missing", name = ioDefinitions[1].value, settingOverrides = {}, startChannel = 0, surfaceId = surfaceId, templateSource = template and template.source or "Missing", useDifferentFx = false }
+    return { active = false, deviceId = ioDefinitions[1].value, fxProfile = profileId, fxSource = profile and profile.fxSource or "Missing", ioActive = false, ioType = "", mainProfile = profileId, mainSource = profile and profile.mainSource or "Missing", name = ioDefinitions[1].value, startChannel = 0, surfaceId = surfaceId, templateSource = template and template.source or "Missing", useDifferentFx = false }
 end
 
 local function duplicatePage(data, pageIdx)
@@ -395,7 +389,7 @@ local function duplicatePage(data, pageIdx)
     local copy = model.Clone(page)
     copy.active = false
     copy.current = false
-    copy.name = uniquePageName(data, page.name .. " Copy")
+    copy.name = uniquePageName(data, page.name .. "_Copy")
     for surfaceIdx, surface in ipairs(copy.surfaces) do surface.active = false surface.ioActive = false end
     for listenerIdx, listener in ipairs(copy.listeners) do listener.active = false end
     table.insert(data.pages, pageIdx + 1, copy)
@@ -463,6 +457,7 @@ local function duplicateSurface(data, page, surfaceIdx)
     copy.active = false
     copy.ioActive = false
     copy.ioType = ""
+    copy.deviceId = unusedIo[1].value
     copy.name = unusedIo[1].value
     table.insert(page.surfaces, surfaceIdx + 1, copy)
     state.surfaceIndex = surfaceIdx + 1
@@ -524,7 +519,8 @@ local function renderAssignmentEditor(ctx, data, page, surface, fonts)
     sectionHeader(ctx, "Surface assignment", fonts)
     local changed
     if beginForm(ctx, "##AssignmentMasterForm") then
-        fieldRow(ctx, "I/O definition", function() changed, surface.name = ui.ComboEnum(ctx, "##AssignmentIo", surface.name, ioItems(data)) end)
+        fieldRow(ctx, "Surface ID", function() changed, surface.name = textField(ctx, "AssignmentName", surface.name) end)
+        fieldRow(ctx, "I/O definition", function() changed, surface.deviceId = ui.ComboEnum(ctx, "##AssignmentIo", surface.deviceId, ioItems(data)) end)
         fieldRow(ctx, "Surface template", function()
             changed, surface.surfaceId = ui.ComboEnum(ctx, "##AssignmentTemplate", surface.surfaceId, templateItems(data))
             if changed then local template = findTemplate(data, surface.surfaceId) surface.templateSource = template and template.source or "Missing" if surface.mainProfile == "" then surface.mainProfile = defaultProfileId(data, surface.surfaceId) end end
@@ -554,7 +550,7 @@ local function renderAssignmentEditor(ctx, data, page, surface, fonts)
     imgui.Text(ctx, "Zone profile actions")
     renderProfileActions(ctx, data, surface)
     local ioFound = false
-    for itemIdx, item in ipairs(ioItems(data)) do if item.value == surface.name then ioFound = true end end
+    for itemIdx, item in ipairs(ioItems(data)) do if item.value == surface.deviceId then ioFound = true end end
     if not ioFound then localError(ctx, "Select an existing I/O definition") end
     local duplicateAssignment = false
     for surfaceIdx, otherSurface in ipairs(page.surfaces) do if otherSurface ~= surface and otherSurface.name == surface.name then duplicateAssignment = true end end

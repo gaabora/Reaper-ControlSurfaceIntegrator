@@ -10,7 +10,7 @@
 - Page and track navigation state.
 - Zone and surface-template parsing, zone activation, widgets, feedback, and message generation.
 - OSK/OSD ExtState bridges and shared surface behavior.
-- Product and Surface setting parsing, effective-value resolution, atomic persistence, and the settings and Devices ExtState bridges.
+- Product and Device setting parsing, effective-value resolution, atomic persistence, and the settings and Devices ExtState bridges.
 - Shared format 2 lexical analysis and typed document parsing before runtime object construction.
 
 ## Local Contracts
@@ -21,10 +21,10 @@
 - Treat only `//` as Surface and Zone comments. Preserve single slash tokens as data so OSC addresses such as `/ch/01/mix/fader` reach the OSC widget parser.
 - Treat the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives as metadata, not as comments.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
-- Parse Product overrides from `Settings` lines and Surface overrides from their `Surface=` assignment. Resolve compiled defaults, Product, and Surface in that order. Reject one invalid scope as a unit instead of partially applying it.
+- Parse Product overrides from the root `Settings` block and Device overrides from its nested `Settings` block. Resolve compiled defaults, Product, and Device in that order. Reject one invalid scope as a unit instead of partially applying it.
 - Apply canonical Product `DebugLevel`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay` values to the legacy runtime globals after initial configuration load, Apply, and Reload. `FXParamsWrite` remains owned by the native dialog.
 - Keep `ReaCtrlSurf_SETTINGS_CMD` requests correlated with `ReaCtrlSurf_SETTINGS` responses. Apply must validate before atomic file replacement. Reload must keep current runtime values when validation or runtime matching fails.
-- Include every runtime Page and Surface assignment in each successful settings Query response so Lua can select a valid Surface scope without reading the product INI.
+- Include every configured Device ID in each successful settings Query response so Lua can select a valid Device scope without reading the product configuration.
 - Keep `ReaCtrlSurf_DEVICES_CMD` Query responses complete. Include saved MIDI and OSC definitions, currently named REAPER MIDI port options, standalone editor availability, Pages, Surface assignments, Zone profile availability, listeners, parser issues, and matching runtime status without hiding valid assignments that have missing resources. Validate complete Lua drafts in C++, reject stale revisions, replace the configuration atomically, and reconnect CSI only after a successful Apply. Zone profile operations may create or copy only under the User root. Launch the optional standalone editor only from its typed product Tools path.
 - Register bundled OSK, OSD, and Notifications ReaScripts through the shared ReaScript command resolver.
 - Consume the OSK `Open` command without changing enabled surfaces when at least one is enabled. If none is enabled, enable every current-Page surface, republish its data, and open the OSK ReaScript.
@@ -33,10 +33,10 @@
 - Publish the selected track name with its adjacent track names and selected track color to OSD after track selection. Publish edit cursor position as `[bar/beat]` during CSI cursor movement, rewind, and fast-forward.
 - Treat an explicit action-line OSD value as authoritative text and mark it in the shared payload. Do not interpret template variable names in C++; Lua owns their definitions and expansion.
 - Load configuration, surfaces, zones, logs, backups, snippets, and generated files through the generated product identity and `ProductPaths`; do not add runtime fallback to legacy CSI paths.
-- Parse the product INI into value-only configuration records before creating runtime objects. Missing files and incompatible versions are fatal. A malformed IO, Page child, Surface, or Listener entry must report its line and must not stop other valid entries from loading. Apply Listener relationships only after all available Surfaces are created.
+- Parse the brace-format product configuration into value-only records before creating runtime objects. A missing file or unrecoverable document structure is fatal. A malformed Device, Page child, Surface, or Link must report its line and must not stop other valid entries from loading. Apply Link relationships only after all available Surfaces are created.
 - During the format 2 product-config transition, the brace parser must return the existing `IntegratorConfig` model and reuse the common lexer, syntax tree, and delimiter validation. Switch the generated filename, runtime, protocols, writers, and editor together before removing the legacy line parser.
 - Serialize the format 2 product configuration through `SerializeFormat2IntegratorConfig`; do not add a second canonical C++ writer for individual consumers.
-- In the format 2 product configuration, resolve settings as compiled defaults, Product, then Device. A Page Surface assignment cannot contain settings. Keep the legacy Surface-scoped protocol unchanged until the coordinated product-config consumer and writer switch.
+- In the format 2 product configuration, resolve settings as compiled defaults, Product, then Device. A Page Surface assignment cannot contain settings.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.
 - Vendor zones are read-only. Use User Main when its directory exists, otherwise use Vendor Main. Load Vendor and User FX zones together, with an exact User `Zone` name overriding Vendor. Create the User FX directory during initialization. A Vendor Main edit requires confirmation and an atomic Main-only copy. A Vendor FX edit copies only that file to the matching User FX path. Reload zones after activating either User copy.
 - Keep OSK zone creation in `zone_file_creator.*`. Accept only the supported fixed scaffold destinations, create one complete temporary file before rename, reject case-insensitive file or zone-name duplicates, and never edit a parent zone as part of creation.

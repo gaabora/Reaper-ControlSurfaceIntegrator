@@ -32,11 +32,16 @@ local function boolean(properties, key)
     return properties[key] == "1"
 end
 
-local function parseSurface(properties, prefix)
+local function parseSettingOverrides(properties, prefix)
     local settingOverrides = {}
     for settingIdx = 1, number(properties, prefix .. "SettingCount") do settingOverrides[properties[prefix .. "Setting." .. settingIdx .. ".Name"] or ""] = properties[prefix .. "Setting." .. settingIdx .. ".Value"] or "" end
+    return settingOverrides
+end
+
+local function parseSurface(properties, prefix)
     return {
         active = boolean(properties, prefix .. "Active"),
+        deviceId = properties[prefix .. "DeviceId"] or "",
         fxProfile = properties[prefix .. "FxProfile"] or "",
         fxSource = properties[prefix .. "FxSource"] or "Missing",
         ioActive = boolean(properties, prefix .. "IoActive"),
@@ -48,7 +53,6 @@ local function parseSurface(properties, prefix)
         startChannel = number(properties, prefix .. "StartChannel"),
         surfaceId = properties[prefix .. "SurfaceId"] or "",
         templateSource = properties[prefix .. "TemplateSource"] or "Missing",
-        settingOverrides = settingOverrides,
         useDifferentFx = (properties[prefix .. "FxProfile"] or "") ~= (properties[prefix .. "MainProfile"] or ""),
     }
 end
@@ -59,15 +63,15 @@ function module.ParseResponse(source)
     if properties.Version ~= "1" then return nil, "Devices response Version must be 1" end
     if properties.Status == "ERROR" then return nil, properties.Message or "Devices query failed" end
     if properties.Status ~= "OK" then return nil, "Devices response Status must be OK or ERROR" end
-    local response = { configVersion = properties.ConfigVersion or "", currentPage = properties.CurrentPage or "", editorAvailable = boolean(properties, "EditorAvailable"), fatalError = properties.FatalError or "", issues = {}, message = properties.Message or "", midi = {}, midiInputOptions = {}, midiOutputOptions = {}, osc = {}, pages = {}, productSettingOverrides = {}, profileOptions = {}, revision = properties.Revision or "", skippedSurfaceCount = number(properties, "SkippedSurfaceCount"), surfaceOptions = {} }
+    local response = { currentPage = properties.CurrentPage or "", editorAvailable = boolean(properties, "EditorAvailable"), fatalError = properties.FatalError or "", issues = {}, message = properties.Message or "", midi = {}, midiInputOptions = {}, midiOutputOptions = {}, osc = {}, pages = {}, productSettingOverrides = {}, profileOptions = {}, revision = properties.Revision or "", skippedSurfaceCount = number(properties, "SkippedSurfaceCount"), surfaceOptions = {} }
     for settingIdx = 1, number(properties, "Product.SettingCount") do response.productSettingOverrides[properties["Product.Setting." .. settingIdx .. ".Name"] or ""] = properties["Product.Setting." .. settingIdx .. ".Value"] or "" end
     for midiIdx = 1, number(properties, "MidiCount") do
         local prefix = "Midi." .. midiIdx .. "."
-        response.midi[#response.midi + 1] = { active = boolean(properties, prefix .. "Active"), channels = number(properties, prefix .. "Channels"), inputName = properties[prefix .. "InputName"] or "", inputPort = number(properties, prefix .. "InputPort"), line = number(properties, prefix .. "Line"), maxMessages = number(properties, prefix .. "MaxMessages"), name = properties[prefix .. "Name"] or "", outputName = properties[prefix .. "OutputName"] or "", outputPort = number(properties, prefix .. "OutputPort"), refreshRate = number(properties, prefix .. "RefreshRate"), runtimeIssue = properties[prefix .. "RuntimeIssue"] or "" }
+        response.midi[#response.midi + 1] = { active = boolean(properties, prefix .. "Active"), channels = number(properties, prefix .. "Channels"), inputName = properties[prefix .. "InputName"] or "", inputPort = number(properties, prefix .. "InputPort"), line = number(properties, prefix .. "Line"), maxMessages = number(properties, prefix .. "MaxMessages"), name = properties[prefix .. "Name"] or "", outputName = properties[prefix .. "OutputName"] or "", outputPort = number(properties, prefix .. "OutputPort"), refreshRate = number(properties, prefix .. "RefreshRate"), runtimeIssue = properties[prefix .. "RuntimeIssue"] or "", settingOverrides = parseSettingOverrides(properties, prefix) }
     end
     for oscIdx = 1, number(properties, "OscCount") do
         local prefix = "Osc." .. oscIdx .. "."
-        response.osc[#response.osc + 1] = { active = boolean(properties, prefix .. "Active"), address = properties[prefix .. "Address"] or "", channels = number(properties, prefix .. "Channels"), line = number(properties, prefix .. "Line"), maxPackets = number(properties, prefix .. "MaxPackets"), name = properties[prefix .. "Name"] or "", receivePort = properties[prefix .. "ReceivePort"] or "", runtimeIssue = properties[prefix .. "RuntimeIssue"] or "", transmitPort = properties[prefix .. "TransmitPort"] or "", type = properties[prefix .. "Type"] or "" }
+        response.osc[#response.osc + 1] = { active = boolean(properties, prefix .. "Active"), address = properties[prefix .. "Address"] or "", channels = number(properties, prefix .. "Channels"), line = number(properties, prefix .. "Line"), maxPackets = number(properties, prefix .. "MaxPackets"), name = properties[prefix .. "Name"] or "", receivePort = properties[prefix .. "ReceivePort"] or "", runtimeIssue = properties[prefix .. "RuntimeIssue"] or "", transmitPort = properties[prefix .. "TransmitPort"] or "", type = properties[prefix .. "Type"] or "", settingOverrides = parseSettingOverrides(properties, prefix) }
     end
     for pageIdx = 1, number(properties, "PageCount") do
         local prefix = "Page." .. pageIdx .. "."

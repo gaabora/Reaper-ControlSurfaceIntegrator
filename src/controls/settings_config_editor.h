@@ -7,8 +7,7 @@
 
 struct SettingsConfigEditRequest {
     std::string scope;
-    std::string pageName;
-    std::string surfaceName;
+    std::string deviceId;
     std::map<std::string, std::optional<std::string>> changes;
 };
 

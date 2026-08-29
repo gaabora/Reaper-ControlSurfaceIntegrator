@@ -208,7 +208,7 @@ void CSurfIntegrator::Init() {
 
     IntegratorConfig config;
     try {
-        config = ParseIntegratorConfig(configPath);
+        config = ParseFormat2IntegratorConfig(configPath);
     } catch (const std::exception& error) {
         LogToConsole("[ERROR] FAILED to parse %s: %s\n", configPath.c_str(), error.what());
         return;

@@ -3,8 +3,10 @@
 #include "format2_document.h"
 
 #include <charconv>
+#include <fstream>
 #include <map>
 #include <set>
+#include <sstream>
 #include <utility>
 
 static std::string FoldFormat2ConfigId(const std::string& value) {
@@ -377,4 +379,21 @@ private:
 IntegratorConfig ParseFormat2IntegratorConfigSource(const std::string& source, const std::string& configPath) {
     Format2IntegratorConfigParser parser(source, configPath);
     return parser.Parse();
+}
+
+IntegratorConfig ParseFormat2IntegratorConfig(const std::string& configPath) {
+    std::ifstream configFile(configPath, std::ios::binary);
+    if (!configFile.is_open()) {
+        IntegratorConfig config;
+        config.fatalError = "Unable to open configuration file: " + configPath;
+        return config;
+    }
+    std::ostringstream source;
+    source << configFile.rdbuf();
+    if (!configFile.good() && !configFile.eof()) {
+        IntegratorConfig config;
+        config.fatalError = "Unable to read configuration file: " + configPath;
+        return config;
+    }
+    return ParseFormat2IntegratorConfigSource(source.str(), configPath);
 }

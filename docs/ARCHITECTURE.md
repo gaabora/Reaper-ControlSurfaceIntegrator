@@ -323,19 +323,19 @@ Widget WidgetName2 /button1 button
 
 ### Product Configuration File
 
-The product INI is stored below `Data/<ProductResourceDirectory>` and uses the filename from `Scripts/product_identity.conf`.
+The brace-format product configuration is stored below `Data/<ProductResourceDirectory>` and uses the `.conf` filename from `Scripts/product_identity.conf`.
 
-The loader first parses MIDI and OSC IO, Pages, Surface assignments, and Listener relationships into value-only records. It then creates runtime objects in separate passes. A missing file or incompatible version stops initialization. An invalid individual entry is logged with its line number and skipped without stopping other Surfaces.
+The loader first parses MIDI and OSC Devices, Pages, Surface assignments, and Link relationships into value-only records. It then creates runtime objects in separate passes. A missing file or unrecoverable document structure stops initialization. An invalid individual block is logged with its line number and skipped without stopping other Surfaces.
 
 ## Execution Model
 
 ### Initialization
 1. REAPER loads plugin via `ReaperPluginEntry()`
 2. `CSurfIntegrator::Init()` called
-3. Product INI parsed without runtime side effects
+3. Product configuration parsed without runtime side effects
 4. IO and Pages created
 5. Valid Surfaces created independently and their zones indexed
-6. Listener relationships applied after Surfaces
+6. Link relationships applied after Surfaces
 7. Home zones activated
 
 ### Main Loop (30x/sec)

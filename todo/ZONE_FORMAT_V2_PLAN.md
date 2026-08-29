@@ -1663,12 +1663,14 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Define unquoted case-insensitive `Page`, `Device`, and Page-local `Surface` identifiers with source spelling preserved for display.
   - ✅ Add a brace-format C++ source parser that uses the shared lexer, syntax tree, and delimiter validator and returns the existing `IntegratorConfig` model.
   - ✅ Add one canonical C++ brace-format serializer for Product Settings, MIDI and OSC Devices, Device Settings, Page Surfaces, and Links.
-  - [ ] Change the generated product filename to `.conf`, replace legacy config writers and native-dialog parsing, switch runtime and protocol consumers to the brace parser, and remove the legacy line parser.
+  - ✅ Change the generated product filename to `.conf` and switch runtime, Settings protocol, Devices protocol, and the Lua Devices writer to the brace parser and serializer.
+  - [ ] Replace native-dialog parsing and writing, switch the Bun product-config consumer, and remove the legacy line parser.
 - [ ] Change generated setting scope metadata and effective-value resolution from `Surface` to `Device`. Reject settings inside Page Surface assignments.
   - ✅ Change the canonical generated setting scopes to `Product,Device`, resolve each valid Device block as compiled defaults, Product, then Device, and let an invalid Device Settings block inherit Product values.
   - ✅ Reject nested Settings blocks in Page Surface assignments through the typed Page child schema.
   - ✅ Pass the referenced Device settings through the existing runtime Surface construction model and resolve Page Surface I/O through its explicit `Device` ID.
-  - [ ] Switch the settings protocol, Lua settings UI, product-config writers, and Bun product-config consumer from Page Surface selection to Device selection together with the brace-format runtime cutover.
+  - ✅ Switch the Settings protocol and Lua settings UI from Page Surface selection to Device selection.
+  - [ ] Switch the Bun product-config consumer from Surface settings to Device settings.
 - [ ] Expose ring feedback capabilities and resolved action feedback shapes through runtime and generated editor metadata.
 - [ ] Replace the native Learn FX dialog with OSK FX edit mode, one in-memory live-preview draft, and atomic User FX-zone save through the shared validated model.
 - [ ] Validate the complete active profile before runtime objects are created.

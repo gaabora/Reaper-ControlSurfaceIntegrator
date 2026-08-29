@@ -11,6 +11,8 @@ local schema = schemaLoader.Load()
 local state = {
     draftExplicit = {},
     draftValues = {},
+    deviceId = "",
+    deviceOptions = {},
     error = "",
     inheritedValues = {},
     initialized = false,
@@ -18,18 +20,15 @@ local state = {
     message = "",
     originalExplicit = {},
     originalValues = {},
-    pageName = "",
     pendingKind = "",
     requestId = nil,
     requestStartedAt = 0,
     scope = "Product",
-    surfaceName = "",
-    surfaceOptions = {},
 }
 
 local SCOPE_ITEMS = {
     { label = "Product", value = "Product" },
-    { label = "Surface", value = "Surface" },
+    { label = "Device", value = "Device" },
 }
 local SETTING_LABELS = {
     DefaultModifierMode = "Default modifier mode",
@@ -43,24 +42,21 @@ local SETTING_LABELS = {
     HoldRepeatIntervalMs = "Hold repeat interval",
 }
 
-local function findSurfaceOptionIdx(pageName, surfaceName)
-    for optionIdx, option in ipairs(state.surfaceOptions) do
-        if option.pageName == pageName and option.surfaceName == surfaceName then return optionIdx end
-    end
+local function findDeviceOptionIdx(deviceId)
+    for optionIdx, option in ipairs(state.deviceOptions) do if option == deviceId then return optionIdx end end
     return nil
 end
 
-local function selectSurfaceOption(optionIdx)
-    local option = state.surfaceOptions[optionIdx]
+local function selectDeviceOption(optionIdx)
+    local option = state.deviceOptions[optionIdx]
     if not option then return false end
-    state.pageName = option.pageName
-    state.surfaceName = option.surfaceName
+    state.deviceId = option
     return true
 end
 
-local function buildSurfaceItems()
+local function buildDeviceItems()
     local items = {}
-    for optionIdx, option in ipairs(state.surfaceOptions) do items[#items + 1] = { label = option.pageName .. " / " .. option.surfaceName, value = optionIdx } end
+    for optionIdx, option in ipairs(state.deviceOptions) do items[#items + 1] = { label = option, value = optionIdx } end
     return items
 end
 
@@ -83,23 +79,19 @@ local function startRequest(kind, requestId, requestError)
 end
 
 local function queryCurrentScope()
-    if state.scope == "Surface" and state.surfaceName == "" then
-        state.error = "No configured Surface is selected"
+    if state.scope == "Device" and state.deviceId == "" then
+        state.error = "No configured Device is selected"
         state.loaded = false
         return false
     end
-    local surfaceName = state.scope == "Surface" and state.surfaceName or nil
-    local pageName = state.scope == "Surface" and state.pageName or nil
-    return startRequest("Query", protocol.Query(state.scope, surfaceName, pageName))
+    local deviceId = state.scope == "Device" and state.deviceId or nil
+    return startRequest("Query", protocol.Query(state.scope, deviceId))
 end
 
 local function loadResponse(response)
     state.loaded = true
-    state.surfaceOptions = response.surfaceOptions or {}
-    if response.scope == "Surface" then
-        state.pageName = response.pageName
-        state.surfaceName = response.surfaceName
-    end
+    state.deviceOptions = response.deviceOptions or {}
+    if response.scope == "Device" then state.deviceId = response.deviceId end
     state.originalExplicit = {}
     state.originalValues = {}
     state.inheritedValues = {}
@@ -227,8 +219,8 @@ local function renderSetting(ctx, definition)
         state.draftExplicit[settingName] = true
         state.draftValues[settingName] = value
     end
-    local tooltip = state.scope == "Surface" and (state.draftExplicit[settingName] and "Surface value. Right-click to use the Product value." or "Using the Product value.") or (state.draftExplicit[settingName] and "Product value. Right-click to reset to the default." or "Using the default value.")
-    local resetLabel = state.draftExplicit[settingName] and (state.scope == "Surface" and "Use Product value" or "Reset to default") or nil
+    local tooltip = state.scope == "Device" and (state.draftExplicit[settingName] and "Device value. Right-click to use the Product value." or "Using the Product value.") or (state.draftExplicit[settingName] and "Product value. Right-click to reset to the default." or "Using the default value.")
+    local resetLabel = state.draftExplicit[settingName] and (state.scope == "Device" and "Use Product value" or "Reset to default") or nil
     ui.ValueSourceActions(ctx, tooltip, resetLabel, function()
         state.draftExplicit[settingName] = false
         state.draftValues[settingName] = state.inheritedValues[settingName]
@@ -241,7 +233,7 @@ function module.Initialize()
     queryCurrentScope()
 end
 
-function module.SetContext(surfaceName, pageName)
+function module.SetContext(deviceId)
     if module.IsDirty() or state.pendingKind == "Apply" or state.pendingKind == "Reload" then return false, "Save or Revert the current General draft first" end
     if state.requestId then
         protocol.Cancel(state.requestId)
@@ -250,9 +242,8 @@ function module.SetContext(surfaceName, pageName)
     end
     state.initialized = true
     clearLoadedState()
-    state.scope = surfaceName and surfaceName ~= "" and "Surface" or "Product"
-    state.surfaceName = surfaceName or ""
-    state.pageName = pageName or ""
+    state.scope = deviceId and deviceId ~= "" and "Device" or "Product"
+    state.deviceId = deviceId or ""
     queryCurrentScope()
     return true
 end
@@ -291,9 +282,8 @@ function module.Save()
     end
     local changes = buildChanges()
     if not hasChanges(changes) then return true end
-    local surfaceName = state.scope == "Surface" and state.surfaceName or nil
-    local pageName = state.scope == "Surface" and state.pageName or nil
-    return startRequest("Apply", protocol.Apply(state.scope, changes, surfaceName, pageName))
+    local deviceId = state.scope == "Device" and state.deviceId or nil
+    return startRequest("Apply", protocol.Apply(state.scope, changes, deviceId))
 end
 
 function module.Revert()
@@ -331,28 +321,27 @@ local function renderContextSelectors(ctx)
         end)
         if scopeChanged then
             clearLoadedState()
-            if state.scope == "Surface" and not findSurfaceOptionIdx(state.pageName, state.surfaceName) and not selectSurfaceOption(1) then
-                state.pageName = ""
-                state.surfaceName = ""
+            if state.scope == "Device" and not findDeviceOptionIdx(state.deviceId) and not selectDeviceOption(1) then
+                state.deviceId = ""
             end
             queryCurrentScope()
         end
-        if state.scope == "Surface" then
+        if state.scope == "Device" then
             imgui.TableNextRow(ctx)
             imgui.TableSetColumnIndex(ctx, 0)
             imgui.AlignTextToFramePadding(ctx)
-            imgui.Text(ctx, "Surface")
+            imgui.Text(ctx, "Device")
             imgui.TableSetColumnIndex(ctx, 1)
-            local surfaceItems = buildSurfaceItems()
-            if #surfaceItems == 0 then
-                imgui.TextDisabled(ctx, "No configured Surfaces")
+            local deviceItems = buildDeviceItems()
+            if #deviceItems == 0 then
+                imgui.TextDisabled(ctx, "No configured Devices")
             else
-                local selectedOptionIdx = findSurfaceOptionIdx(state.pageName, state.surfaceName) or 1
-                local surfaceChanged
+                local selectedOptionIdx = findDeviceOptionIdx(state.deviceId) or 1
+                local deviceChanged
                 ui.Disabled(ctx, state.requestId ~= nil or module.IsDirty(), function()
-                    surfaceChanged, selectedOptionIdx = ui.ComboEnum(ctx, "##GeneralSurface", selectedOptionIdx, surfaceItems)
+                    deviceChanged, selectedOptionIdx = ui.ComboEnum(ctx, "##GeneralDevice", selectedOptionIdx, deviceItems)
                 end)
-                if surfaceChanged and selectSurfaceOption(selectedOptionIdx) then
+                if deviceChanged and selectDeviceOption(selectedOptionIdx) then
                     clearLoadedState()
                     queryCurrentScope()
                 end

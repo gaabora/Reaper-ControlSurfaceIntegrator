@@ -26,7 +26,7 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 | `ReaCtrlSurf_CONTROL_PANEL` | C++ and Lua | Control Panel lifecycle requests, window state, and Lua-persistent shell state |
 | `ReaCtrlSurf_LOG` | C++ to Lua | Current temporary log session ID, directory, and active file |
 | `ReaCtrlSurf_LOG_CMD` | Lua to C++ | Native open-file and open-folder requests |
-| `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Surface setting Query, Apply, and Reload requests |
+| `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Device setting Query, Apply, and Reload requests |
 | `ReaCtrlSurf_SETTINGS` | C++ to Lua | Correlated setting responses and effective values |
 | `ReaCtrlSurf_DEVICES_CMD` | Lua to C++ | Complete device configuration Query, validation, Apply, User Zone profile requests, and standalone editor launch |
 | `ReaCtrlSurf_DEVICES` | C++ to Lua | Saved device configuration, resource availability, parser issues, and matching runtime status |
@@ -40,13 +40,12 @@ Version=1
 RequestId=1
 Command=Open|Close|Focus|SelectTab
 Tab=Devices|General|Appearance|Logging
-Surface=fp2
-Page=Home
+Device=fp2
 LogSessionId=session-1724250000000000-0
 LogOffset=1842
 ```
 
-`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Close` performs the normal close flow and shows the Save, Don't Save, and Cancel prompt when the draft is dirty. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Surface` and `Page` are optional navigation context for General. They identify which configured Surface scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current session record that Logging selects and scrolls into view. This lifecycle section does not carry configuration values.
+`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Close` performs the normal close flow and shows the Save, Don't Save, and Cancel prompt when the draft is dirty. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Device` is optional navigation context for General. It identifies which configured Device scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current session record that Logging selects and scrolls into view. This lifecycle section does not carry configuration values.
 
 Lua writes the session-only `State` key as `Open` after startup and `Closed` during shutdown. The stable `_REACTRLSURF_OPEN_CONTROL_PANEL` action uses this lifecycle state for its toggle value. The user action opens a closed panel and sends `Close` to an open panel. Programmatic calls from the native dialog, OSK, and Notifications still open, focus, or select a tab without toggling the panel closed.
 
@@ -235,7 +234,7 @@ C++ consumes and deletes the request, parses the current product configuration, 
 
 `Validate` and `Apply` include the `ExpectedRevision` returned by Query and the complete draft as one-based `ConfigLine.<index>` properties. C++ rejects an outdated revision, parses and validates the complete candidate, and checks names, numeric ranges, Surface templates, Main Zone profiles, assignment I/O references, and Page-local listener relationships. `Apply` replaces the configuration atomically, prepares missing User FX directories, and asks REAPER to reconnect CSI. `CreateProfile` creates a minimal Main scaffold and empty FX directory only under the User profile root. `CopyProfile` copies Vendor Main to the matching User profile and never changes Vendor files. `OpenEditor` launches the installed standalone editor through the system shell. Query returns `EditorAvailable=1` only when its platform executable exists in the product Tools directory.
 
-Lua builds the complete candidate through `devices_model.lua`. The serializer includes the Product and Surface setting overrides returned by Query, so a Devices save does not omit settings owned by General or Logging. The Control Panel keeps the queried snapshot for Revert and considers only the serialized candidate when calculating Devices dirty state. Apply requires user confirmation because reconnecting CSI temporarily disconnects active surfaces.
+Lua builds the complete candidate through `devices_model.lua`. The serializer includes the Product and Device setting overrides returned by Query, so a Devices save does not omit settings owned by General or Logging. The Control Panel keeps the queried snapshot for Revert and considers only the serialized candidate when calculating Devices dirty state. Apply requires user confirmation because reconnecting CSI temporarily disconnects active surfaces.
 
 Every response starts with `Version=1` and `Status=OK|ERROR`. An error adds `Message`. A successful response contains:
 
@@ -250,13 +249,13 @@ Every response starts with `Version=1` and `Status=OK|ERROR`. An error adds `Mes
 
 Counts and nested records use one-based property prefixes such as `Midi.1.*`, `Osc.1.*`, `Page.1.Surface.1.*`, `Page.1.Listener.1.*`, and `Issue.1.*`. Protocol values cannot contain line breaks; C++ replaces them with spaces.
 
-The Devices page requests this snapshot when the Control Panel starts and when the user selects `Reload saved configuration`. The page uses three ordered master-detail sections: I/O Devices, Pages & Surfaces, and Listeners. The response also returns a configuration revision, the union of User and Vendor Zone profile IDs, the available Surface template IDs, and Product and Surface setting overrides required to serialize a complete draft without reading the product INI.
+The Devices page requests this snapshot when the Control Panel starts and when the user selects `Reload saved configuration`. The page uses three ordered master-detail sections: I/O Devices, Pages & Surfaces, and Listeners. The response also returns a configuration revision, the union of User and Vendor Zone profile IDs, the available Surface template IDs, and Product and Device setting overrides required to serialize a complete draft without reading the product configuration.
 
-## Product and Surface Settings Protocol
+## Product and Device Settings Protocol
 
 Lua writes one session-only `Request` entry in `ReaCtrlSurf_SETTINGS_CMD`. Lua must wait while this entry exists. C++ consumes and deletes it, then writes `Response_<RequestId>` in `ReaCtrlSurf_SETTINGS`. Lua consumes and deletes its response.
 
-A Lua client can cancel only its own pending request before C++ consumes it. Cancellation removes the matching request and any matching response; it is not a new C++ command. General uses cancellation when its Product or Surface query context changes before C++ consumes the old request, when no C++ response arrives before its timeout, and during Control Panel shutdown.
+A Lua client can cancel only its own pending request before C++ consumes it. Cancellation removes the matching request and any matching response; it is not a new C++ command. General uses cancellation when its Product or Device query context changes before C++ consumes the old request, when no C++ response arrives before its timeout, and during Control Panel shutdown.
 
 Every request is a newline-separated property list:
 
@@ -264,14 +263,13 @@ Every request is a newline-separated property list:
 Version=1
 RequestId=172345_1
 Command=Query|Apply|Reload
-Scope=Product|Surface
-Page=Home
-Surface=fp2
+Scope=Product|Device
+Device=fp2
 Set.HoldDelayMs=750
 Unset.LongHoldDelayMs=1
 ```
 
-`Query` requires `Scope`. `Surface` scope requires `Surface`; `Page` is optional when the runtime Surface name is unique across Pages. `Apply` requires at least one `Set.<name>` or `Unset.<name>`. `Reload` ignores scope and reads settings from the product INI. Lua does not read or write the INI directly.
+`Query` requires `Scope`. `Device` scope requires one Device ID returned by Query. `Apply` requires at least one `Set.<name>` or `Unset.<name>`. `Reload` ignores scope and reads settings from the product configuration. Lua does not read or write that file directly.
 
 Every response starts with:
 
@@ -280,28 +278,26 @@ Version=1
 Status=OK|ERROR
 ```
 
-An error response adds `Message=<text>`. A successful Apply or Reload adds a completion message. A successful Query adds `Scope`, optional `Page` and `Surface`, and three properties for each setting:
+An error response adds `Message=<text>`. A successful Apply or Reload adds a completion message. A successful Query adds `Scope`, optional `Device`, and three properties for each setting:
 
 ```text
 Value.HoldDelayMs=750
-Source.HoldDelayMs=Surface
+Source.HoldDelayMs=Device
 Inherited.HoldDelayMs=1000
 ```
 
-Every successful Query also returns the current runtime Page and Surface assignments as one-based option pairs:
+Every successful Query also returns the configured Device IDs as one-based options:
 
 ```text
-SurfaceOption.1.Page=Home
-SurfaceOption.1.Surface=fp2
-SurfaceOption.2.Page=Mix
-SurfaceOption.2.Surface=xtouch
+DeviceOption.1=fp2
+DeviceOption.2=xtouch
 ```
 
-General renders these pairs as one Surface dropdown. The Page value keeps equal Surface names on different Pages unambiguous. Lua does not accept a raw Surface name for this selector.
+General renders these IDs as one Device dropdown. Lua does not accept an arbitrary Device ID for this selector.
 
 The schema supports `Boolean`, `Enum`, and `Integer` setting types. Boolean values use `0` and `1` in protocol and configuration payloads. The Product-scope Logging category currently owns `DebugLevel`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay`.
 
-`Source` is `Compiled`, `Product`, or `Surface`. `Inherited` is the value that becomes effective when the explicit override is removed. C++ validates the complete candidate scope before changing runtime state. Apply writes a complete temporary file, atomically replaces the product INI, and then applies the already validated values. Reload leaves current runtime values unchanged when the file has invalid settings or cannot be matched safely to the current Pages and Surfaces.
+`Source` is `Compiled`, `Product`, or `Device`. `Inherited` is the value that becomes effective when the explicit override is removed. C++ validates the complete candidate scope before changing runtime state. Apply writes a complete temporary file, atomically replaces the product configuration, and then applies the already validated values. Reload leaves current runtime values unchanged when the file has invalid settings or cannot be matched safely to the current Pages and Surfaces.
 
 ## Lua Appearance Persistent Settings
 

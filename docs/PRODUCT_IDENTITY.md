@@ -12,7 +12,7 @@ Current provisional values are:
 | Stable product ID | `reacontrolsurface` |
 | Resource directory | `ReaControlSurface` |
 | Resource install directory | `Data/ReaControlSurface` |
-| Configuration file | `ReaControlSurface.ini` |
+| Configuration file | `ReaControlSurface.conf` |
 | ExtState prefix | `ReaCtrlSurf` |
 | REAPER registration ID | `ReaControlSurface` |
 | Plugin filename | `reaper_csurf_integrator` |
@@ -47,7 +47,7 @@ The C++ action registry uses `PRODUCT_CONTROL_PANEL_ACTION_ID` and `PRODUCT_NOTI
 ```text
 Data/
   ReaControlSurface/
-    ReaControlSurface.ini
+    ReaControlSurface.conf
     Tools/config-editor-reacontrolsurface[.exe]
     Surfaces/
       Vendor/<surface-id>.txt

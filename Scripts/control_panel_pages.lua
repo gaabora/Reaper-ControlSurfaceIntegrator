@@ -207,8 +207,8 @@ function module.RevertAll()
     return true
 end
 
-function module.SetGeneralContext(surfaceName, pageName)
-    return general.SetContext(surfaceName, pageName)
+function module.SetGeneralContext(deviceId)
+    return general.SetContext(deviceId)
 end
 
 function module.NavigateLogging(sessionId, byteOffset)

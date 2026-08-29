@@ -10,7 +10,7 @@
 - `product_identity.conf` canonical public identity and `product_identity.lua` runtime loader.
 - `settings_schema.conf` canonical setting metadata plus its `settings_schema.lua` loader.
 - `surface_io_schema.conf` canonical format 2 primitive, capability, protocol encoding, property value and relationship rules, nested transport blocks, reusable profiles, and Surface-level block metadata.
-- `settings_protocol.lua` C++ request/response client and `settings_ui.lua` embedded Product and Surface settings page.
+- `settings_protocol.lua` C++ request/response client and `settings_ui.lua` embedded Product and Device settings page.
 - `devices_protocol.lua` C++ request/response client, `devices_model.lua` complete draft serializer, and `control_panel_devices.lua` device editor and runtime status page.
 - `control_panel_appearance.lua` OSK, OSD, and Notifications appearance draft, validation, preview, Save, and Revert behavior.
 - `control_panel_logging.lua` simple current-session NOTICE, WARNING, and ERROR log view plus notification record navigation and native file/folder open requests.
@@ -26,18 +26,18 @@
 - Shared startup must treat a missing ReaImGui API, Lua module, or compatible shim as a missing dependency, show a clear recovery message, and open the filtered ReaPack package browser when ReaPack is available.
 - `Scripts/` is the source runtime directory. Developers may link it to `REAPER/Scripts/<ProductScriptDirectory>`; CMake install copies normal files for packages and must not create the link.
 - Load public display names, stable action IDs, paths, and ExtState sections through `product_identity.lua`, which reads `product_identity.conf`; do not duplicate identity values in Lua modules.
-- Load setting names, types, compiled defaults, ranges, scopes, categories, and constraints through `settings_schema.lua`. Do not store user-selected values in `settings_schema.conf`. Lua obtains current effective user values through C++ instead of reading or writing the product INI directly.
+- Load setting names, types, compiled defaults, ranges, scopes, categories, and constraints through `settings_schema.lua`. Do not store user-selected values in `settings_schema.conf`. Lua obtains current effective user values through C++ instead of reading or writing the product configuration directly.
 - Read format 2 Surface primitive and encoding metadata from `surface_io_schema.conf`. Do not add a separate Lua primitive or encoding list.
 - Use `settings_protocol.lua` for Query, Apply, and Reload. Do not write product settings through `settings_store.lua`; that module owns only Lua-persistent Control Panel, OSK, OSD, and Notifications preferences.
-- Use the Page and Surface options returned by every successful settings Query for the General Surface selector. Do not accept an arbitrary Surface name from the user.
-- Use `devices_protocol.lua` for Devices Query, validation, Apply, and User Zone profile operations. Do not read or interpret the product INI directly in Lua.
-- Keep complete Devices serialization in `devices_model.lua`. Preserve Product and Surface setting overrides returned by C++ so saving device routing does not remove settings owned by General or Logging.
+- Use the Device options returned by every successful settings Query for the General Device selector. Do not accept an arbitrary Device ID from the user.
+- Use `devices_protocol.lua` for Devices Query, validation, Apply, and User Zone profile operations. Do not read or interpret the product configuration directly in Lua.
+- Keep complete Devices serialization in `devices_model.lua`. Preserve Product and Device setting overrides returned by C++ so saving device routing does not remove settings owned by General or Logging.
 - Keep Devices as three ordered internal sections: I/O Devices, Pages & Surfaces, and Listeners. Use rounded bordered master-detail lists instead of expanding every record at once. Keep row Duplicate and `×` Remove actions in the list, keep saved draft values separate from runtime availability, and show Zone profile actions only for the selected assignment.
 - Populate MIDI input and output selectors from the named ports returned by the C++ Devices Query. Put `Not selected` first, omit unrelated unavailable slots, and keep only an unavailable saved port visible until the user selects another port.
 - Show Devices runtime state as one green `●` or red `×` plus a short action for the user. Do not repeat resolved input and output status below the MIDI form. Confirm removal of an assigned I/O definition, then remove its assignments and connected Listeners only after confirmation.
 - Keep the standalone editor and square reload actions at the right edge of the Devices internal section row. Launch the editor through C++; when it is absent, open ReaPack search for the separate `<PackagePrefix> Configuration Editor` package.
 - Keep Control Panel form controls at shared fixed widths. Do not use window-dependent dropdown widths or show a slider beside a duplicate numeric input.
-- Keep Product and Surface value sources out of permanent Override controls. Show the current source in the field tooltip. Use `Reset to default` for Product values and `Use Product value` for Surface values in the field context menu.
+- Keep Product and Device value sources out of permanent Override controls. Show the current source in the field tooltip. Use `Reset to default` for Product values and `Use Product value` for Device values in the field context menu.
 - Do not use horizontal separators in Lua UI unless the user requests them. The separator between visible Notifications records is explicitly approved.
 - Do not show a Control Panel heading that duplicates its selected sidebar item. Keep General labels left of fixed-width controls in the left half of its two-column layout.
 - Keep the Control Panel lifecycle protocol limited to the operations documented in `docs/LUA_CPP_EXTSTATE_INTERFACE.md`. Configuration values use their existing or later dedicated protocols instead of the lifecycle section.
@@ -119,7 +119,7 @@
 - Check standalone OSD top/bottom placement, left/center/right alignment, margins, size, font size, styling, Save, and Cancel.
 - Check standalone OSD at 100% width on macOS and on each available monitor.
 - Trigger NOTICE, WARNING, and ERROR logs and confirm that Lua notifications appear without opening the REAPER console.
-- Open General and verify that its Surface selector lists configured Page and Surface assignments and preserves Product and Surface inheritance.
+- Open General and verify that its Device selector lists configured Devices and preserves Product and Device inheritance.
 - Change every Appearance group and verify running OSK, OSD, and Notifications contexts preview each draft change before Save and restore persistent values after Revert.
 - Dismiss one notification and verify Notifications remains active and shows a later record.
 - Verify standalone OSD settings stay open after the message timeout when opened by right-clicking the visible overlay.

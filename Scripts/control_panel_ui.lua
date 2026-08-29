@@ -70,8 +70,8 @@ local function pollLifecycleRequests(state)
     if request.command == "Open" or request.command == "Focus" then state.focusRequested = true end
     if request.command == "SelectTab" then
         if pages.Find(request.tab) then
-            if request.tab == "General" and request.surface ~= "" then
-                local contextSet, contextError = pages.SetGeneralContext(request.surface, request.page)
+            if request.tab == "General" and request.device ~= "" then
+                local contextSet, contextError = pages.SetGeneralContext(request.device)
                 if not contextSet then state.lastStatus = tostring(contextError or "Cannot change General settings context") end
             end
             if request.tab == "Logging" and request.logSessionId ~= "" and request.logOffset ~= "" then
