@@ -10,7 +10,7 @@ Format2ZoneCompileResult CompileFormat2ZoneBindings(const std::vector<Format2Zon
             continue;
         }
         if (surfaceChannelCount < 1) {
-            result.diagnostics.push_back({"format2.zone.channel-count.required", "An @CH binding requires a positive Surface channel count", binding.widget.location});
+            result.diagnostics.push_back({"format2.zone.channel-count.required", "A binding with a terminal # channel placeholder requires a positive Surface channel count", binding.widget.location});
             continue;
         }
         for (int surfaceChannelOffset = 0; surfaceChannelOffset < surfaceChannelCount; surfaceChannelOffset++) {

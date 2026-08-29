@@ -1,7 +1,7 @@
 @Meta { Version=2 Target=Tracks Alias="Channel controls" }
 
-Fader@CH TrackVolume
-Rotary@CH TrackPan
-ValueBar@CH TrackPan BarStyle=Bipolar
-PaletteButton@CH TrackSolo StateColors=[ #000000, #00FF00 ]
-DisplayUpper@CH TrackNameDisplay TextAlign=Center
+Fader# TrackVolume
+Rotary# TrackPan
+ValueBar# TrackPan BarStyle=Bipolar
+PaletteButton# TrackSolo StateColors=[ #000000, #00FF00 ]
+DisplayUpper# TrackNameDisplay TextAlign=Center

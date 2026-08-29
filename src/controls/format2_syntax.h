@@ -43,7 +43,6 @@ struct Format2SyntaxNode {
 enum class Format2WidgetSelectorKind {
     Exact,
     ChannelFamily,
-    Pattern,
 };
 
 struct Format2WidgetSelector {
@@ -59,5 +58,5 @@ struct Format2WidgetSelectorParseResult {
 };
 
 std::vector<Format2SyntaxNode> ParseFormat2Syntax(Format2LexResult& lexical, std::size_t startTokenIndex);
-Format2WidgetSelectorParseResult ParseFormat2WidgetSelector(const Format2Token& token, bool allowPattern);
+Format2WidgetSelectorParseResult ParseFormat2WidgetSelector(const Format2Token& token);
 bool IsValidFormat2Identifier(const std::string& value);

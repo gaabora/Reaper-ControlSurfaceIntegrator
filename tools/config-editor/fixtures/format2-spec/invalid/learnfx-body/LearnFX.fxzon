@@ -1,7 +1,7 @@
 @Meta { Version=2 }
 
 FXWidgets {
-  NameDisplay DisplayUpper@CH
+  NameDisplay DisplayUpper#
 }
 
 GeneratedBindings {

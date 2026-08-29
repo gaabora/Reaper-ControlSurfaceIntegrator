@@ -99,7 +99,7 @@ private:
                 this->AddDiagnostic("format2.learn-fx.widget.role", "Unknown FXWidgets role: " + child.positionalTokens[0].text, child.positionalTokens[0].location);
                 continue;
             }
-            const Format2WidgetSelectorParseResult selectorResult = ParseFormat2WidgetSelector(child.positionalTokens[1], true);
+            const Format2WidgetSelectorParseResult selectorResult = ParseFormat2WidgetSelector(child.positionalTokens[1]);
             for (const Format2Diagnostic& diagnostic : selectorResult.diagnostics) this->AddDiagnostic(diagnostic.code, diagnostic.message, diagnostic.location);
             if (!selectorResult.selector) continue;
             entry.selector = *selectorResult.selector;

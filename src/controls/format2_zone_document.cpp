@@ -220,7 +220,7 @@ private:
             this->AddDiagnostic("format2.zone.binding.widget", "A binding requires one Widget after its selectors", node.location);
             return;
         }
-        const Format2WidgetSelectorParseResult widgetResult = ParseFormat2WidgetSelector(node.positionalTokens[tokenIdx], false);
+        const Format2WidgetSelectorParseResult widgetResult = ParseFormat2WidgetSelector(node.positionalTokens[tokenIdx]);
         for (const Format2Diagnostic& diagnostic : widgetResult.diagnostics) this->AddDiagnostic(diagnostic.code, diagnostic.message, diagnostic.location);
         if (!widgetResult.selector) return;
         tokenIdx++;

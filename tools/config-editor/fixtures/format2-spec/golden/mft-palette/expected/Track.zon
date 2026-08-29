@@ -1,4 +1,4 @@
 @Meta { Version=2 Target=Tracks }
 
-SoloButton@CH TrackSolo StateColors=[ #F2FF00, #FF7300 ]
-MuteButton@CH TrackMute StateColors=[ #0000FF, #00FF00 ]
+SoloButton# TrackSolo StateColors=[ #F2FF00, #FF7300 ]
+MuteButton# TrackMute StateColors=[ #0000FF, #00FF00 ]

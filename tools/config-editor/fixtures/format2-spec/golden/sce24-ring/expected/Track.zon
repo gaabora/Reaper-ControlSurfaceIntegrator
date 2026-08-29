@@ -1,5 +1,5 @@
 @Meta { Version=2 Target=Tracks }
 
-Rotary@CH TrackVolume RingStyle=Fill RingColors=[ #003F00, #003F00, #003F00, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF ]
-[Shift]+Rotary@CH TrackPan RingStyle=Dot RingColors=[ #000000, #000000, #000000, #FF0000, #FF0000, #FF0000, #FF0000, #FF0000, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00 ]
-RotaryPush@CH TrackVolume StepValues=[ 0.716 ]
+Rotary# TrackVolume RingStyle=Fill RingColors=[ #003F00, #003F00, #003F00, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF ]
+[Shift]+Rotary# TrackPan RingStyle=Dot RingColors=[ #000000, #000000, #000000, #FF0000, #FF0000, #FF0000, #FF0000, #FF0000, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00, #00FF00 ]
+RotaryPush# TrackVolume StepValues=[ 0.716 ]

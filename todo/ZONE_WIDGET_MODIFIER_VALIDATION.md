@@ -12,7 +12,7 @@ The left side of a binding has three explicit token classes:
 
 - Square brackets `[]` contain context selectors.
 - Parentheses `()` contain input events, direction selectors, or value transforms.
-- The last unwrapped name is an exact physical widget or a widget family with the `@CH` surface-channel qualifier.
+- The last unwrapped name is an exact physical widget or a widget family with the terminal `#` surface-channel placeholder.
 
 Context selectors include:
 
@@ -33,10 +33,10 @@ Examples:
 [Marker]+(DoublePress)+Play SomeAction
 [Touch]+(Increase)+Rotary1 SomeAction
 [Shift]+[SomeButton]+(Hold)+Play SomeAction
-[Shift]+Rotary@CH TrackPan
+[Shift]+Rotary# TrackPan
 ```
 
-An unwrapped name before the action is always a physical widget reference. A widget named `Marker`, `Touch`, or `Hold` remains valid because only wrapped tokens have special meaning. `@CH` is the exact case-sensitive postfix qualifier for expansion across physical surface channels. It is not a context selector and does not describe the zone's logical `Target`.
+An unwrapped name before the action is always a physical widget reference. A widget named `Marker`, `Touch`, or `Hold` remains valid because only wrapped tokens have special meaning. One terminal `#` is the numeric placeholder for expansion across physical surface channels. It is not a context selector and does not describe the zone's logical `Target`.
 
 An unqualified button binding uses the effective `DefaultButtonTrigger` setting:
 
@@ -317,8 +317,8 @@ Report an error for:
 Resolve the binding against the selected surface and report an error when:
 
 - The physical widget does not exist.
-- An `@CH` family is missing any expected numbered widget for the configured surface channel count.
-- A normal binding uses `*`; wildcard widget patterns are valid only in schema fields that explicitly accept them.
+- An `#` family is missing any expected numbered widget for the configured surface channel count.
+- A Widget reference uses `*` or another free wildcard instead of an exact ID or one terminal `#` channel placeholder.
 - A button event targets a widget without two-state press and release input.
 - `(Increase)` or `(Decrease)` targets a widget without relative input.
 - `[Touch]` or `[Toggle]` targets a widget without a valid channel number.
@@ -448,7 +448,7 @@ Resolve each profile before validating bindings and dependencies. Main and FX us
 
 Duplicate and reference diagnostics must include complete relative paths and links to every related declaration. Nested directories do not change zone identity. Partial-file validation defers missing-target diagnostics until the complete resolved profile index is available.
 
-Resolve `LearnFX.fxzon` against the Surface assignment that opened FX edit mode. `FXWidgets` must select at least one input-capable `Parameter` widget. Name and value display entries must resolve text-feedback widgets. Overlapping roles, missing `@CH` family members, unsupported entry defaults, ambiguous display pairing, duplicate active `MatchFX` values, and a conflict between copied generated bindings and a parameter assignment are errors linked to both sources. The saved FX-zone draft is then validated as a normal FX `.zon` file with no hidden Learn FX context.
+Resolve `LearnFX.fxzon` against the Surface assignment that opened FX edit mode. `FXWidgets` must select at least one input-capable `Parameter` widget. Name and value display entries must resolve text-feedback widgets. Overlapping roles, missing `#` family members, unsupported entry defaults, ambiguous display pairing, duplicate active `MatchFX` values, and a conflict between copied generated bindings and a parameter assignment are errors linked to both sources. The saved FX-zone draft is then validated as a normal FX `.zon` file with no hidden Learn FX context.
 
 Report an error for:
 
@@ -484,7 +484,7 @@ C++ is the authority for effective timing values, ranges, gesture semantics, and
 - C++ validates product configuration, Zone loading, and OSK live apply before changing runtime state.
 - The Bun editor validates the same grammar, settings, catalog-derived surface capabilities, action traits, and cross-file relationships.
 - The legacy converter translates old unwrapped expressions and timing actions into the explicit grammar and persistent settings.
-- OSK serialization, labels, tooltips, and editing preserve bracketed selectors, parenthesized events, `@CH` widget-family qualifiers, and effective overrides.
+- OSK serialization, labels, tooltips, and editing preserve bracketed selectors, parenthesized events, terminal `#` widget-family placeholders, and effective overrides.
 - One generated metadata schema must keep C++, Lua, and TypeScript setting names, ranges, enums, and action traits aligned.
 
 ## Test Contract
@@ -507,7 +507,7 @@ Add Bun tests for parsing, normalization, validation, quick fixes, conversion, V
 
 ## Acceptance Criteria
 
-- Selectors, input events, transforms, exact physical widget names, and `@CH` widget-family qualifiers are visually and grammatically distinct.
+- Selectors, input events, transforms, exact physical widget names, and terminal `#` widget-family placeholders are visually and grammatically distinct.
 - Physical widget names never create modifiers implicitly.
 - Diagnostics use normalized identity and do not depend on selector order, line order, or zone load order.
 - Momentary, Latch, and Hybrid source-widget Hold rules are enforced.

@@ -158,7 +158,7 @@ std::vector<Format2SyntaxNode> ParseFormat2Syntax(Format2LexResult& lexical, std
     return parser.Parse();
 }
 
-Format2WidgetSelectorParseResult ParseFormat2WidgetSelector(const Format2Token& token, bool allowPattern) {
+Format2WidgetSelectorParseResult ParseFormat2WidgetSelector(const Format2Token& token) {
     Format2WidgetSelectorParseResult result;
     if (token.kind != Format2TokenKind::Bare) {
         result.diagnostics.push_back({ "format2.widget-selector.token", "Widget selector must be one unquoted token", token.location });
@@ -168,30 +168,18 @@ Format2WidgetSelectorParseResult ParseFormat2WidgetSelector(const Format2Token& 
     Format2WidgetSelector selector;
     selector.source = token.text;
     selector.location = token.location;
-    const std::size_t qualifierPosition = token.text.find('@');
-    const std::size_t patternPosition = token.text.find('*');
-    if (qualifierPosition != std::string::npos && patternPosition != std::string::npos) {
-        result.diagnostics.push_back({ "format2.widget-selector.mixed", "A Widget selector cannot combine @CH and *", token.location });
+    const std::size_t channelPosition = token.text.find('#');
+    if (token.text.find('*') != std::string::npos) {
+        result.diagnostics.push_back({ "format2.widget-selector.wildcard", "Widget wildcards are not supported. Use a terminal # channel placeholder for a numbered Widget family", token.location });
         return result;
     }
-    if (qualifierPosition != std::string::npos) {
-        if (qualifierPosition == 0 || token.text.substr(qualifierPosition) != "@CH" || token.text.find('@', qualifierPosition + 1) != std::string::npos) {
-            result.diagnostics.push_back({ "format2.widget-selector.channel", "The only channel qualifier is terminal @CH", token.location });
+    if (channelPosition != std::string::npos) {
+        if (channelPosition == 0 || channelPosition != token.text.size() - 1 || token.text.find('#', channelPosition + 1) != std::string::npos) {
+            result.diagnostics.push_back({ "format2.widget-selector.channel", "A Widget channel placeholder must be one terminal # after an identifier", token.location });
             return result;
         }
         selector.kind = Format2WidgetSelectorKind::ChannelFamily;
-        selector.baseName = token.text.substr(0, qualifierPosition);
-    } else if (patternPosition != std::string::npos) {
-        if (!allowPattern) {
-            result.diagnostics.push_back({ "format2.widget-selector.pattern-context", "A wildcard is not allowed in this Widget position", token.location });
-            return result;
-        }
-        if (patternPosition == 0 || patternPosition != token.text.size() - 1 || token.text.find('*', patternPosition + 1) != std::string::npos) {
-            result.diagnostics.push_back({ "format2.widget-selector.pattern", "A Widget pattern must contain one terminal * after an identifier", token.location });
-            return result;
-        }
-        selector.kind = Format2WidgetSelectorKind::Pattern;
-        selector.baseName = token.text.substr(0, patternPosition);
+        selector.baseName = token.text.substr(0, channelPosition);
     } else {
         selector.kind = Format2WidgetSelectorKind::Exact;
         selector.baseName = token.text;

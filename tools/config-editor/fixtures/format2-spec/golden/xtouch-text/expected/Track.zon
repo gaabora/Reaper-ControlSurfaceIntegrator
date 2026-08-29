@@ -1,4 +1,4 @@
 @Meta { Version=2 Target=Tracks }
 
-DisplayUpper@CH TrackNameDisplay
-DisplayLower@CH TrackVolumeDisplay
+DisplayUpper# TrackNameDisplay
+DisplayLower# TrackVolumeDisplay

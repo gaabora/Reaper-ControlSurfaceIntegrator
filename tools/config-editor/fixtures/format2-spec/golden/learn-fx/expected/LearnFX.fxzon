@@ -1,10 +1,10 @@
 @Meta { Version=2 }
 
 FXWidgets {
-  Parameter Fader@CH
-  Parameter Rotary@CH RingStyle=Dot
-  NameDisplay DisplayUpper@CH
-  ValueDisplay DisplayLower@CH
+  Parameter Fader#
+  Parameter Rotary# RingStyle=Dot
+  NameDisplay DisplayUpper#
+  ValueDisplay DisplayLower#
 }
 
 GeneratedBindings {

@@ -1,4 +1,4 @@
 @Meta { Version=2 Target=Tracks }
 
-ValueBar@CH TrackPanAutoLeft BarStyle=Bipolar
-Fader@CH TrackVolume
+ValueBar# TrackPanAutoLeft BarStyle=Bipolar
+Fader# TrackVolume

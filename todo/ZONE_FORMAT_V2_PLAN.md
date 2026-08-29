@@ -125,19 +125,19 @@ Normal zones omit `Role`. A file name and the surface channel count must not sil
 
 Legacy `Fader|` is not a wildcard. Current C++ creates one zone object per surface channel and replaces `|` with that object's numeric suffix. Format 2 does not expose or preserve this implementation model.
 
-One format 2 zone document is loaded once. `@CH` after a widget family expands that binding for every surface channel and supplies the current surface-channel index to its widget selector, target resolution, bank target, validation, and action context. A binding without `@CH` creates one channel-neutral context.
+One format 2 zone document is loaded once. `#` after a widget family expands that binding for every surface channel and supplies the current surface-channel index to its widget selector, target resolution, bank target, validation, and action context. A binding without `#` creates one channel-neutral context.
 
-Do not replace legacy `Fader|` with `Fader*`. A true `Fader*` wildcard matches real widget names and can also match an unintended widget family. For example, `Rotary*` can match both `Rotary1` and `RotaryPush1`.
+Legacy `Fader|` converts directly to `Fader#`. Format 2 does not support free Widget wildcards, so `Fader*` is invalid instead of matching an unintended family.
 
 The recommended explicit replacement is a channel placeholder:
 
 ```text
 @Meta { Version=2 Target=Tracks }
 
-Fader@CH TrackVolume
-Rotary@CH TrackPan
-RotaryPush@CH TrackVolume StepValues=[0.716]
-ButtonA@CH TrackSolo
+Fader# TrackVolume
+Rotary# TrackPan
+RotaryPush# TrackVolume StepValues=[0.716]
+ButtonA# TrackSolo
 ```
 
 `Target=Tracks` resolves a separate track for each channel-qualified binding.
@@ -147,16 +147,16 @@ A repeated binding can use the same selected track while each channel selects a 
 ```text
 @Meta { Version=2 Target=SelectedTrack BankTarget=Sends }
 
-Fader@CH TrackSendVolume
+Fader# TrackSendVolume
 ```
 
 On an eight-channel surface, this initially maps the faders to sends 1 through 8 of the selected track. After one eight-channel bank step, they map to sends 9 through 16. The zero-based target indexes remain an internal runtime detail.
 
-`@CH` is not a glob and does not create several zone objects. Actual wildcard matching remains available only in schema fields that explicitly accept a widget pattern.
+`#` is a numeric channel placeholder, not a glob, and does not create several zone objects. Format 2 does not support free Widget wildcard matching.
 
 The token classes remain visually distinct:
 
-- `Fader@CH` is a postfix surface-channel expansion on a widget family.
+- `Fader#` contains a terminal numeric channel placeholder for a widget family.
 - `[Shift]+Fader1` is a prefix context selector defined by the binding grammar.
 - `StepValues=[0.0, 0.5, 1.0]` is a named value list after `=`.
 - A bare action suffix such as `[ 0.5 ]` is invalid in format 2.
@@ -174,8 +174,8 @@ RotaryPushP1 FXParam 21 [ 0 1 ]
 Format 2 converts them to named properties:
 
 ```text
-RotaryPush@CH TrackPan StepValues=[0.5]
-RotaryC@CH TrackVolume AccelerationDeltas=[0.0002, 0.001, 0.005, 0.01, 0.05]
+RotaryPush# TrackPan StepValues=[0.5]
+RotaryC# TrackVolume AccelerationDeltas=[0.0002, 0.001, 0.005, 0.01, 0.05]
 RotaryPushP1 FXParam 21 StepValues=[0, 1]
 ```
 
@@ -207,11 +207,11 @@ One dedicated `LearnFX.fxzon` file belongs to each zone profile. It contains the
 @Meta { Version=2 }
 
 FXWidgets {
-  Parameter Fader@CH
-  Parameter RotaryBig@CH RingStyle=Dot
-  Parameter RotaryBigPush@CH
-  NameDisplay DisplayUpper@CH
-  ValueDisplay DisplayLower@CH
+  Parameter Fader#
+  Parameter RotaryBig# RingStyle=Dot
+  Parameter RotaryBigPush#
+  NameDisplay DisplayUpper#
+  ValueDisplay DisplayLower#
 }
 
 GeneratedBindings {
@@ -228,7 +228,7 @@ GeneratedBindings {
 }
 ```
 
-`@CH` in `FXWidgets` selects the exact numbered family for the configured surface channels. A true trailing `*` remains available when the author intentionally wants a broader widget-name pattern. Ring styles and other feedback capabilities come from the matched widget feedback processor instead of a repeated profile list.
+`#` in `FXWidgets` selects the exact numbered family for the configured surface channels. Free Widget wildcard matching is not supported. Ring styles and other feedback capabilities come from the matched widget feedback processor instead of a repeated profile list.
 
 `FXWidgets` is required exactly once and must resolve at least one `Parameter` widget on the selected surface. `NameDisplay` and `ValueDisplay` entries are optional. One resolved widget can have only one role. Parameter widgets require numeric, relative, absolute, or two-state input. Display roles require text feedback. A capability mismatch or overlap links the selector and the real Surface widget.
 
@@ -243,7 +243,7 @@ FX edit mode works as follows:
 3. Widgets selected by `FXWidgets.Parameter` entries are assignment targets. Modifier buttons remain usable as mode controls but are not FX assignment targets. Widgets outside the whitelist are disabled and shown with a muted style.
 4. A physical or OSK parameter-widget click opens an FX-specific editor. It shows a searchable dropdown of the focused plugin's parameters, selects the current mapping, and offers only value and feedback properties supported by that action and widget.
 5. The user can remove a parameter mapping. A valid parameter can be assigned to more than one physical widget, but one normalized widget and modifier context cannot map two different parameters unless normal multi-action rules allow that exact group.
-6. Name and value displays default to a same-channel display family when one unambiguous `@CH` pairing exists. The user can select a different eligible display or no display. The draft writes normal `FXParamNameDisplay` and `FXParamValueDisplay` bindings with the same FX parameter index.
+6. Name and value displays default to a same-channel display family when one unambiguous `#` pairing exists. The user can select a different eligible display or no display. The draft writes normal `FXParamNameDisplay` and `FXParamValueDisplay` bindings with the same FX parameter index.
 7. Every accepted edit updates one in-memory draft and its live preview. It does not write the file. Closing or cancelling restores the pre-edit runtime mapping unless the user saved.
 8. Save validates the complete draft, target ID, `MatchFX`, User/Vendor collision, and surface capabilities, then writes one normal User `.zon` FX file atomically. The saved file contains no Learn FX directives or hidden template reference.
 
@@ -339,15 +339,15 @@ Bar feedback uses the same precedence with the separate global `BarStyle` enum: 
 Normal zones therefore do not repeat standard ring styles:
 
 ```text
-Rotary@CH TrackVolume
-[Shift]+Rotary@CH TrackPan
-[Option]+Rotary@CH TrackPanWidth
+Rotary# TrackVolume
+[Shift]+Rotary# TrackPan
+[Option]+Rotary# TrackPanWidth
 ```
 
 An explicit override remains available:
 
 ```text
-[Shift]+Rotary@CH TrackPan RingStyle=Dot
+[Shift]+Rotary# TrackPan RingStyle=Dot
 ```
 
 OSK uses the widget processor default for `FXParam`, lets the user select a supported style, and stores a non-default choice as an explicit FX-zone binding property.
@@ -365,7 +365,7 @@ IncludedZones {
 }
 ```
 
-`IncludedZones` means that each referenced independent zone remains active at the same time as the current zone. Each referenced zone keeps its own explicit `Target` and channel-qualified bindings. For example, `Home` can own global transport bindings while a `Target=Tracks` zone expands only its `@CH` bindings for the surface channels.
+`IncludedZones` means that each referenced independent zone remains active at the same time as the current zone. Each referenced zone keeps its own explicit `Target` and channel-qualified bindings. For example, `Home` can own global transport bindings while a `Target=Tracks` zone expands only its `#` bindings for the surface channels.
 
 A functional snippet is different. It is an editor-only fragment that uses normal zone-body syntax. The editor inserts its resolved statements into the current zone draft, and those statements use the destination zone context. A snippet does not create or activate an independent runtime zone.
 
@@ -382,7 +382,7 @@ RecordButton Record
 
 The `.snippet` extension identifies a zone fragment. Its body uses the same statements and binding grammar as a normal zone body. `Name` and `Description` are optional display metadata; the filename stem remains the snippet ID. The runtime never loads `.snippet` files.
 
-Each physical widget token is a source mapping name. Repeated use of the same exact name is one mapping unit, and one `Name@CH` family is one channel-family mapping unit. The snippet can therefore be written and edited like normal zone text without `$Widget` placeholders. Before insertion, the Bun editor:
+Each physical widget token is a source mapping name. Repeated use of the same exact name is one mapping unit, and one `Name#` family is one channel-family mapping unit. The snippet can therefore be written and edited like normal zone text without `$Widget` placeholders. Before insertion, the Bun editor:
 
 - validates syntax, action names, action parameters, selectors, events, and named binding properties without pretending that source mapping names exist on the target Surface;
 - derives required input and feedback capabilities from action metadata, the binding expression, modifier declarations, and named properties such as `StateColors` and `RingStyle`;
@@ -532,7 +532,7 @@ Each Page contains at least one `Surface` block and zero or more `Link` blocks. 
 | `FXProfile` | No | Zone profile stable ID; defaults to `MainProfile` |
 | `StartChannel` | No | Non-negative integer; default `0` |
 
-The same Device can be assigned on more than one Page. `StartChannel` is the zero-based starting channel of this Surface inside the Page. It does not change the surface-local numbering used by `@CH`. A missing template or required Main profile skips only that Surface instance. A missing or empty FX profile is valid.
+The same Device can be assigned on more than one Page. `StartChannel` is the zero-based starting channel of this Surface inside the Page. It does not change the surface-local numbering used by `#`. A missing template or required Main profile skips only that Surface instance. A missing or empty FX profile is valid.
 
 A Link block contains exactly `From`, `To`, and `Share`. `From` and `To` reference distinct Surface IDs in the same Page. `Share` is a non-empty list from the closed enum `Home`, `Modifiers`, `FXMenu`, `SelectedTrackFX`, `SelectedTrackSends`, and `SelectedTrackReceives`. One pair uses one Link block. Duplicate pairs, duplicate categories, more than one incoming source for the same target and category, and a directed cycle for any shared category are errors linked to all involved blocks.
 
@@ -1126,9 +1126,9 @@ Block presence replaces the old `Enabled` property. An omitted OutputMax keeps e
 ## Remaining design decisions
 
 - ✅ Expose only `Role`, `Target`, and optional `BankTarget` in Main zone metadata. Derive navigator, track set, lifetime, activation scope, link routing, and internal FX context in the typed runtime model.
-- ✅ Load each zone document once, use `@CH` to expand only channel-qualified bindings, and reject bare anonymous square-bracket groups in format 2.
+- ✅ Load each zone document once, use `#` to expand only channel-qualified bindings, and reject bare anonymous square-bracket groups in format 2.
 - ✅ Confirm the zone action property names `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep`, and resolve legacy MIDI encoder direction ranges in the typed Surface contract.
-- ✅ Define `@CH` surface-channel expansion plus wildcard case handling, escaping, match ordering, overlap handling, and no-match diagnostics.
+- ✅ Define terminal `#` surface-channel expansion with exact numbered-family ordering and missing-member diagnostics, and reject free Widget wildcards.
 - ✅ Store `LearnFX.fxzon` in the zone profile root beside `Main/` and `FX/` because a zone profile can be selected independently from a surface file.
 - ✅ Confirm the complete global `FeedbackShape` set, current ring-processor mappings, and actions that intentionally have no automatic shape.
 
@@ -1145,9 +1145,9 @@ The replacement column below names the required semantic field. Phase 2 confirms
 | Legacy `NavType` | Preprocessing accepts short values and stores one in `ZoneInfo.navigator`, but automatic loading adds only the zone ID to `zoneList`, so the stored value is discarded. Zone construction then compares stale `TrackNavigator`, `MasterTrackNavigator`, and `FocusedFXNavigator` strings from the deprecated `GoZones` second token | Parse public `Target` once, derive one typed internal navigator, and pass it to zone construction. Keep `FixedTrackNavigator` internal | [NavigatorType](../src/shared/types.h), [ZoneManager::PreProcessZoneFile(), Initialize(), LoadZones(), and GetNavigatorsForZone()](../src/controls/zone_manager.cpp) |
 | Lua and native zone creators | Publish stale long navigator names plus unsupported `VCANavigator` and `FolderNavigator` values | Generate only public format 2 `Role`, `Target`, and `BankTarget` values from one metadata contract | [osk_zone_create.lua](../Scripts/osk_zone_create.lua), [zone_file_creator.cpp](../src/controls/zone_file_creator.cpp) |
 | `MasterTrack` | Selects the master-track navigator and one instance | `Target=MasterTrack`; runtime derives the master-track navigator | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp) |
-| `Track` | Creates one track-navigator instance per surface channel and selects the normal track bank | `Target=Tracks`; each `@CH` binding resolves the matching channel track | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Page::AdjustBank()](../src/controls/page.h) |
+| `Track` | Creates one track-navigator instance per surface channel and selects the normal track bank | `Target=Tracks`; each `#` binding resolves the matching channel track | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Page::AdjustBank()](../src/controls/page.h) |
 | `VCA`, `Folder`, `SelectedTracks` | Create track-navigator instances, select a special track-list mode while active, and select the matching bank | `Target=VCA`, `Folder`, or `SelectedTracks`; runtime derives the track navigator, Page scope, track set, and bank | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::Activate()](../src/controls/zone.cpp), [Page::AdjustBank()](../src/controls/page.h) |
-| `TrackSend`, `TrackReceive`, `TrackFXMenu` | Create track-navigator instances and derive each zone slot from a separate bank offset | `Target=Tracks` plus `BankTarget=Sends`, `Receives`, or `FX`; `@CH` resolves tracks and runtime derives Page routing | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::GetSlotIndex()](../src/controls/zone.cpp), [ZoneManager::AdjustBank()](../src/controls/zone_manager.h) |
+| `TrackSend`, `TrackReceive`, `TrackFXMenu` | Create track-navigator instances and derive each zone slot from a separate bank offset | `Target=Tracks` plus `BankTarget=Sends`, `Receives`, or `FX`; `#` resolves tracks and runtime derives Page routing | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::GetSlotIndex()](../src/controls/zone.cpp), [ZoneManager::AdjustBank()](../src/controls/zone_manager.h) |
 | `SelectedTrack` | Creates one selected-track instance per surface channel, uses the instance slot, selects the selected-track bank, and deactivates on track deselection | `Target=SelectedTrack`; runtime derives navigator, banking, and lifetime | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::GetSlotIndex()](../src/controls/zone.cpp), [ZoneManager::OnTrackDeselection()](../src/controls/zone_manager.h) |
 | `SelectedTrackSend`, `SelectedTrackReceive`, `SelectedTrackFXMenu` | Create selected-track instances, add a dedicated bank offset to the instance slot, and deactivate on track deselection | `Target=SelectedTrack` plus `BankTarget=Sends`, `Receives`, or `FX`; runtime derives navigator, lifetime, and link category | [zone_manager.cpp](../src/controls/zone_manager.cpp), [zone.cpp](../src/controls/zone.cpp), [zone_manager.h](../src/controls/zone_manager.h) |
 | `MasterTrackFXMenu` | Creates one master-track instance per surface channel and derives each slot from the master FX-menu offset | `Target=MasterTrack BankTarget=FX`; runtime derives the master-track navigator and Page routing | [ZoneManager::GetNavigatorsForZone()](../src/controls/zone_manager.cpp), [Zone::GetSlotIndex()](../src/controls/zone.cpp) |
@@ -1233,7 +1233,7 @@ Ready when every current special case has a source-linked explicit replacement a
 
 ## ✅ Phase 2: Format 2 specification
 
-The confirmed format direction above is input to this phase, not the complete grammar. Main zone identity remains the `.zon` filename stem. `@Meta` carries format and behavior metadata. `MatchFX` identifies an external plugin match, not the zone itself. Format 2 uses `@CH`; legacy `Widget|` is accepted only by the importer and converted during migration.
+The confirmed format direction above is input to this phase, not the complete grammar. Main zone identity remains the `.zon` filename stem. `@Meta` carries format and behavior metadata. `MatchFX` identifies an external plugin match, not the zone itself. Format 2 uses `#`; legacy `Widget|` is accepted only by the importer and converted during migration.
 
 ### ✅ Common lexical grammar
 
@@ -1247,7 +1247,7 @@ The following rules are normative for format 2 `.zon`, surface `.txt`, `.fxzon`,
 - `{` opens a named block and `}` closes it. Every opened block must close before EOF. Legacy `BlockNameEnd` tokens are invalid.
 - `[` and `]` contain a comma-separated list after `=` or a selector/index in a grammar position that defines one. A bare anonymous value list after an action is invalid.
 - `(` and `)` contain an input event, direction selector, or value transform as defined by the binding grammar. They are not generic grouping characters.
-- `@Meta` is the document metadata marker. `@CH` is the exact case-sensitive postfix surface-channel qualifier in a widget reference. No other unquoted `@` qualifier is defined.
+- `@Meta` is the document metadata marker. One terminal `#` is the numeric surface-channel placeholder in a Widget reference. No other unquoted `@` marker is defined.
 - `=` separates a property name from its value. `+` joins explicit binding selectors. `,` separates list items.
 - A bare token continues until whitespace, a structural delimiter, or the start of `//`. It can contain protocol characters such as `/`, `:`, `-`, `.`, `*`, and hexadecimal byte text.
 - An identifier starts with an ASCII letter or `_` and then uses ASCII letters, digits, `_`, or `-`. Document schemas can apply stricter stable-ID and case rules.
@@ -1269,8 +1269,7 @@ block           = identifier, [ spacing, value ], spacing, "{", spacing, { state
 property        = identifier, spacing, "=", spacing, value ;
 list            = "[", spacing, value, { spacing, ",", spacing, value }, spacing, "]" ;
 value           = identifier | integer | decimal | quoted-string | bare-token | list ;
-widget-reference = identifier, [ "@CH" ] ;
-widget-pattern  = identifier, "*" ;
+widget-reference = identifier, [ "#" ] ;
 comment         = "//", { character except line-end }, line-end | EOF ;
 ```
 
@@ -1292,7 +1291,7 @@ Valid lexical examples:
 // A comment can precede metadata.
 @Meta { Version=2 Target=Tracks }
 
-[Shift]+Rotary@CH TrackPan StepValues=[0.0, 0.5, 1.0]
+[Shift]+Rotary# TrackPan StepValues=[0.0, 0.5, 1.0]
 ```
 
 ```text
@@ -1327,41 +1326,29 @@ The list has no named property and is invalid in format 2.
 
 The first line is data before `@Meta`, not a comment, so the document is invalid. The legacy importer converts recognized old single-slash comment lines to `//`.
 
-### ✅ Surface-channel expansion and widget patterns
+### ✅ Surface-channel expansion
 
-`@CH` is a structural widget-family qualifier. It always means surface channel and never means track, selected track, send, receive, or FX:
+`#` is a numeric widget-family placeholder. It always means surface channel and never means track, selected track, send, receive, or FX:
 
 ```text
 @Meta { Version=2 Target=Tracks }
 
-Fader@CH TrackVolume
-[Shift]+Rotary@CH TrackPan
+Fader# TrackVolume
+[Shift]+Rotary# TrackPan
 ```
 
-The `@CH` contract is:
+The `#` contract is:
 
-- `@CH` follows one non-empty widget-family identifier without whitespace and is valid only in a schema position that accepts a widget reference.
-- The spelling is exactly `@CH`. Bare `@`, `@Channel`, `@Track`, different casing, multiple qualifiers, and text after the qualifier are errors.
-- For a surface with channel count `N`, `Fader@CH` resolves in numeric channel order to the exact real widget names `Fader1` through `FaderN`.
+- `#` follows one non-empty widget-family identifier without whitespace and is valid only in a schema position that accepts a widget reference.
+- The placeholder is exactly one terminal `#`. Bare `#`, embedded `#`, repeated `#`, and text after it are errors.
+- `#` is data, not a comment marker. A leading `#RRGGBB` color remains an unambiguous scalar value because it appears in a value position instead of a Widget-reference position.
+- For a surface with channel count `N`, `Fader#` resolves in numeric channel order to the exact real widget names `Fader1` through `FaderN`.
 - Every expected real widget must exist on the selected surface. A missing family member is an error that names each missing widget. A family that resolves no widgets uses the same error code with the complete expected set.
 - One zone document and one source binding remain in the parsed model. Expansion creates channel-specific runtime action contexts; it does not clone the zone or its channel-neutral bindings.
-- `Target`, `BankTarget`, and action metadata decide how the supplied surface-channel index resolves a track, send, receive, FX, or other action target. The qualifier itself does not name that logical target.
-- A widget reference without `@CH` names one exact widget and creates a channel-neutral binding unless the concrete widget itself supplies channel state.
+- `Target`, `BankTarget`, and action metadata decide how the supplied surface-channel index resolves a track, send, receive, FX, or other action target. The placeholder itself does not name that logical target.
+- A widget reference without `#` names one exact widget and creates a channel-neutral binding unless the concrete widget itself supplies channel state.
 
-A true wildcard is a different feature. It is accepted only by schema fields declared as `WidgetPattern`. The initial format 2 `WidgetPattern` fields are the selectors inside `FXWidgets`; normal binding left sides do not accept wildcards.
-
-Wildcard rules are intentionally small:
-
-- A pattern is a non-empty widget identifier prefix followed by one terminal `*`, such as `DisplayLower*`.
-- `*` matches zero or more remaining characters in one real widget name. Bare `*`, embedded `*`, multiple `*`, `?`, character ranges, and escape syntax are not supported.
-- Widget identifiers cannot contain a literal `*`, so no wildcard escaping is needed.
-- Matching is case-sensitive. A case-only near match is an error with a quick-fix suggestion that uses the declared widget spelling.
-- Matching uses the real widgets of the selected resolved surface after Vendor/User selection and keeps their surface declaration order.
-- A pattern that matches no widgets is an error on the pattern. The diagnostic names the surface and offers nearby widget-family names when available.
-- If two entries in the same block select the same real widget, validation reports both entries as a duplicate selection instead of relying on source order.
-- `@CH` and `*` cannot appear in the same widget reference. Use `@CH` for a complete numbered channel family and `*` only for an intentional broader name match.
-
-For example, `Rotary@CH` resolves only `Rotary1` through `RotaryN`, while `Rotary*` can also match `RotaryPush1`. The editor offers a safe `Pattern -> @CH` quick fix only when the pattern result is exactly one complete numbered family for the selected surface.
+Free Widget wildcards are not part of format 2. `Rotary*`, bare `*`, `?`, character ranges, and escape-based patterns are errors. Authors use an exact Widget ID or one terminal `#` numbered family, so `Rotary#` can never select `RotaryPush1`.
 
 ### ✅ Action value and feedback properties
 
@@ -1402,7 +1389,7 @@ Rotary FXParam 0 Range=[0.0, 1.0] Delta=0.005 AccelerationDeltas=[0.005, 0.02, 0
 RotaryPush TrackPan StepValues=[0.5]
 Rotary TrackAutoMode StepValues=[0, 1, 2, 3, 4] TicksPerStep=[4, 2, 1]
 Touch TrackAutoMode 2 StateColors=[ #141400, #FFFF00 ]
-ValueBar@CH TrackPan BarStyle=Bipolar
+ValueBar# TrackPan BarStyle=Bipolar
 ```
 
 Legacy import identifies the old anonymous values by their parsed type, not only their punctuation. Decimal parenthesis lists become `AccelerationDeltas`, one decimal parenthesis value becomes `Delta`, integer parenthesis lists become `TicksPerStep`, `Minimum>Maximum` becomes `Range`, remaining numbers become `StepValues`, and anonymous RGB or `Track` blocks become `StateColors`. Every legacy `#RRGGBBAA` device color becomes `#RRGGBB` because existing hardware feedback and OSK behavior ignore the final alpha byte. If one old group is ambiguous or contains a combination rejected by format 2, preview reports it and leaves that binding unresolved instead of guessing.
@@ -1445,8 +1432,8 @@ The public values derive these internal behaviors:
 - `Target=SelectedTrack` uses the selected-track navigator and deactivates when that track context is lost.
 - `Target=MasterTrack` uses the master-track navigator.
 - `Target=FocusedFX` uses the focused-FX navigator.
-- `Target=Tracks` with a child `BankTarget` keeps `@CH` mapped to tracks and applies one shared banked send, receive, or FX index.
-- `Target=SelectedTrack` or `MasterTrack` with a child `BankTarget` keeps one track target and maps `@CH` to consecutive items in that bank.
+- `Target=Tracks` with a child `BankTarget` keeps `#` mapped to tracks and applies one shared banked send, receive, or FX index.
+- `Target=SelectedTrack` or `MasterTrack` with a child `BankTarget` keeps one track target and maps `#` to consecutive items in that bank.
 - Link routing is derived from `Target` and `BankTarget`, then filtered by the Page link configuration. It is not zone metadata.
 
 The runtime stores navigator, track set, lifetime, activation scope, link category, bank offset, and zero-based REAPER indexes in its typed model. These fields are not part of the file syntax.
@@ -1516,14 +1503,14 @@ The transaction checks current file hashes immediately before writing. A changed
 A normal binding is one line:
 
 ```text
-[context selectors]+(input event)+Widget@CH Action positional-parameters NamedProperty=Value
+[context selectors]+(input event)+Widget# Action positional-parameters NamedProperty=Value
 ```
 
 Only the parts required by that binding are present. Examples:
 
 ```text
-Fader@CH TrackVolume
-[Shift]+Rotary@CH TrackPan RingStyle=Dot
+Fader# TrackVolume
+[Shift]+Rotary# TrackPan RingStyle=Dot
 (Hold)+Play GoZone Mixer
 ```
 
@@ -1613,10 +1600,10 @@ Validation reports an error for an unknown key, unknown enum, invalid property c
 - ✅ Write the normative lexical grammar for `@Meta`, brace blocks, identifiers, selectors, lists, properties, strings, comments, whitespace, and EOF behavior.
 - ✅ Define the allowed metadata keys, value types, defaults, combinations, and diagnostics for zones, surfaces, snippets, and `LearnFX.fxzon`.
 - ✅ Expose only `Role`, `Target`, and optional `BankTarget`; derive navigator, track set, lifetime, activation scope, link category, banking state, and internal FX context from the completed Phase 1 inventory.
-- ✅ Load each zone document once. Expand `@CH` bindings across the surface, keep bindings without `@CH` channel-neutral, let zone layers inherit the activating context, and let the runtime activation context provide navigator and target-index data for FX zones.
+- ✅ Load each zone document once. Expand `#` bindings across the surface, keep bindings without `#` channel-neutral, let zone layers inherit the activating context, and let the runtime activation context provide navigator and target-index data for FX zones.
 - ✅ Define binding, `IncludedZones`, reusable `Role=Layer` overlays, `GoZone`, `GoHome`, `EnterZoneLayer`, `ExitZoneLayer`, exact-event fallback, and lifecycle schemas without treating navigation references as structural recursion.
-- ✅ Specify true wildcard matching, case handling, escaping, match order, and no-match diagnostics separately from `@CH`.
-- ✅ Specify the valid prefix selector, postfix `@CH`, and named property list positions. Reject anonymous bracket groups.
+- ✅ Reject free Widget wildcard matching and reserve one terminal `#` for exact numbered channel-family expansion.
+- ✅ Specify the valid prefix selector, terminal `#` channel placeholder, and named property list positions. Reject anonymous bracket groups.
 - ✅ Confirm the names and value rules for `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, `TicksPerStep`, `StateColors`, `RingStyle`, `RingColors`, and `BarStyle`, and keep raw MIDI encoder decoding in the typed Surface schema.
 - ✅ Define case-insensitive per-zone Main/FX overlays, uniqueness scopes, complete duplicate diagnostics, and distinct whole-file Surface, snippet, and Learn FX override rules.
 - ✅ Define transactional User-zone rename, collision checks, Vendor-referrer overrides, stale-reference handling, and updates of every typed reference.
@@ -1662,13 +1649,13 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 
 - ✅ Implement one isolated common lexer for UTF-8 BOM, source paths, byte offsets, one-based line and column locations, quoted strings, comments, newlines, bare values, and structural delimiters.
 - ✅ Parse the required first `@Meta` block into typed document metadata and validate delimiter pairs, allowed keys, duplicates, values, required Surface protocol, and Role/Target/BankTarget combinations.
-- ✅ Build the shared syntax tree for line declarations and nested brace blocks, parse scalar and list properties, and provide one strict Widget selector parser for exact IDs, `@CH`, and context-approved terminal wildcards.
+- ✅ Build the shared syntax tree for line declarations and nested brace blocks, parse scalar and list properties, and provide one strict Widget selector parser for exact IDs and one terminal `#` channel placeholder.
 - ✅ Parse the Surface top-level structure, named profile and group IDs, singleton calibration and OSK blocks, Widget identity and local properties, plus typed Input and Feedback block shells without creating runtime objects.
 - ✅ Parse Main zone, FX zone, and snippet bodies into typed bindings, modifier declarations, structural references, and lifecycle actions. Validate binding expression structure, selector combinations, relation entries, modifier declarations, FX matching metadata, and zone-layer restrictions without creating runtime objects.
 - ✅ Parse `LearnFX.fxzon` into typed FX widget roles, selectors, default properties, generated bindings, and lifecycle actions without lexing generated content again. Validate required and singleton blocks, roles, direct selector duplicates, filename identity, and generated-body restrictions before Surface resolution.
 - ✅ Build document-specific semantic parsers for Surface, Main zone, FX zone, Learn FX, and snippet bodies on the shared syntax tree.
 - ✅ Parse each zone, surface, Learn FX, and snippet source once through one typed-document entry point that preserves the shared syntax document, diagnostics, and source locations.
-- ✅ Compile each `@CH` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
+- ✅ Compile each `#` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
 - [ ] Resolve Vendor and User Main/FX sources into one per-zone active set before roles, references, dependencies, or runtime objects are validated.
 - [ ] Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
 - [ ] Change generated setting scope metadata and effective-value resolution from `Surface` to `Device`. Reject settings inside Page Surface assignments.
@@ -1712,7 +1699,7 @@ The initial conversion matrix is:
 | `OnPlayStart`, `OnPlayStop` | `On PlaybackStart { ... }`, `On PlaybackStop { ... }` |
 | `OnRecordStart`, `OnRecordStop` | `On RecordStart { ... }`, `On RecordStop { ... }` |
 | `OnZoneActivation`, `OnZoneDeactivation` | `On ZoneActivation { ... }`, `On ZoneDeactivation { ... }` |
-| `Widget|` | `Widget@CH` |
+| `Widget|` | `Widget#` |
 | Decimal parenthesis list inside an anonymous action value group | `AccelerationDeltas=[...]` |
 | One decimal parenthesis value inside an anonymous action value group | `Delta=...` |
 | Integer parenthesis list inside an anonymous action value group | `TicksPerStep=[...]` when the binding also has discrete step values |
@@ -1769,7 +1756,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Add safe User-zone rename with complete-profile reference updates, case-only filesystem handling, hash checks, and focused User overrides for Vendor referrers.
 - [ ] Replace whole-profile Main cloning with `Create User override` for one zone. Show a clear override confirmation when import or copy selects an existing Vendor ID.
 - [ ] Convert old `Zone ... ZoneEnd`, `BlockName ... BlockNameEnd`, and surface blocks during legacy import.
-- [ ] Convert legacy `Widget|` channel placeholders to `Widget@CH` and include exact, missing-family, and non-channel wildcard golden fixtures.
+- [ ] Convert legacy `Widget|` channel placeholders to `Widget#` and include exact, missing-family, and rejected-wildcard golden fixtures.
 - [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
 - [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
