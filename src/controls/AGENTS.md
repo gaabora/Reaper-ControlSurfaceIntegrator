@@ -47,6 +47,7 @@
 - Surface-independent behavior belongs here; protocol-specific behavior belongs in `midi/` or `osc/`.
 - Keep the format 2 lexer independent from legacy `GetTokens()` and preserve source offsets plus one-based line and column locations for every token and diagnostic.
 - Build format 2 document-specific parsers on the shared syntax tree. Do not tokenize or scan the same source again inside Surface, Zone, Learn FX, OSK, or snippet consumers.
+- Keep a compiled format 2 action-context specification as an index into its immutable source binding vector. Expand only `@CH` specifications and do not clone the typed zone or channel-neutral bindings.
 - Read format 2 primitive names, capabilities, encoding compatibility, properties, value and relationship rules, nested transport blocks, reusable profiles, and Surface-level block schemas from the CMake-generated view of `Scripts/surface_io_schema.conf`. Do not add a second C++ catalog.
 
 ## Work Guidance

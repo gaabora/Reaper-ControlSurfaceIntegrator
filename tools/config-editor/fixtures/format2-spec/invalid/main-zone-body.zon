@@ -1,0 +1,8 @@
+@Meta { Version=2 Role=Layer }
+
+IncludedZones {
+  Channel
+}
+
+(Hold)+(DoublePress)+Play GoZone Mixer
+Rotary* TrackPan

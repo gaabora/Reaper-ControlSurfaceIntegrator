@@ -1664,9 +1664,11 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 - ✅ Parse the required first `@Meta` block into typed document metadata and validate delimiter pairs, allowed keys, duplicates, values, required Surface protocol, and Role/Target/BankTarget combinations.
 - ✅ Build the shared syntax tree for line declarations and nested brace blocks, parse scalar and list properties, and provide one strict Widget selector parser for exact IDs, `@CH`, and context-approved terminal wildcards.
 - ✅ Parse the Surface top-level structure, named profile and group IDs, singleton calibration and OSK blocks, Widget identity and local properties, plus typed Input and Feedback block shells without creating runtime objects.
-- [ ] Build document-specific semantic parsers for Surface, Main zone, FX zone, Learn FX, and snippet bodies on the shared syntax tree.
-- [ ] Parse each zone, surface, Learn FX, and snippet file once into a typed document model with source locations.
-- [ ] Compile each `@CH` binding into channel-specific action contexts without cloning the containing zone document or its channel-neutral bindings.
+- ✅ Parse Main zone, FX zone, and snippet bodies into typed bindings, modifier declarations, structural references, and lifecycle actions. Validate binding expression structure, selector combinations, relation entries, modifier declarations, FX matching metadata, and zone-layer restrictions without creating runtime objects.
+- ✅ Parse `LearnFX.fxzon` into typed FX widget roles, selectors, default properties, generated bindings, and lifecycle actions without lexing generated content again. Validate required and singleton blocks, roles, direct selector duplicates, filename identity, and generated-body restrictions before Surface resolution.
+- ✅ Build document-specific semantic parsers for Surface, Main zone, FX zone, Learn FX, and snippet bodies on the shared syntax tree.
+- ✅ Parse each zone, surface, Learn FX, and snippet source once through one typed-document entry point that preserves the shared syntax document, diagnostics, and source locations.
+- ✅ Compile each `@CH` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
 - [ ] Resolve Vendor and User Main/FX sources into one per-zone active set before roles, references, dependencies, or runtime objects are validated.
 - [ ] Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
 - [ ] Change generated setting scope metadata and effective-value resolution from `Surface` to `Device`. Reject settings inside Page Surface assignments.

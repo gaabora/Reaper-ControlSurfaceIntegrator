@@ -1,0 +1,9 @@
+@Meta { Version=2 }
+
+FXWidgets {
+  NameDisplay DisplayUpper@CH
+}
+
+GeneratedBindings {
+  ShiftButton Modifier Shift
+}
