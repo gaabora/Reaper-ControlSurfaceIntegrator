@@ -52,15 +52,16 @@ static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integ
     const string mainZoneFolderPath = mainZoneFolder->string();
     const string vendorFxZoneFolderPath = vendorFxZoneFolder.string();
     const string userFxZoneFolderPath = userFxZoneFolder.string();
+    const string& deviceId = config.deviceId.empty() ? config.surfaceName : config.deviceId;
     for (const auto& io : midiIo) {
-        if (!IsSameString(config.surfaceName, io->GetName())) continue;
+        if (!IsSameString(deviceId, io->GetName())) continue;
         return make_unique<Midi_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get(), config.effectiveSettings, config.settingOverrides);
     }
     for (const auto& io : oscIo) {
-        if (!IsSameString(config.surfaceName, io->GetName())) continue;
+        if (!IsSameString(deviceId, io->GetName())) continue;
         return make_unique<OSC_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get(), config.effectiveSettings, config.settingOverrides);
     }
-    errorMessage = "Surface '" + config.surfaceName + "' has no valid matching SurfaceType definition";
+    errorMessage = "Surface '" + config.surfaceName + "' references unavailable Device '" + deviceId + "'";
     return nullptr;
 }
 

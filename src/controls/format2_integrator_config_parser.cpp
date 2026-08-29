@@ -27,7 +27,7 @@ public:
         const std::vector<Format2SyntaxNode> root = ParseFormat2Syntax(this->lexical_, 0);
         this->ParseRoot(root);
         this->ValidateReferences();
-        this->ApplyProductSettings();
+        this->ApplySettings();
         for (const Format2Diagnostic& diagnostic : this->lexical_.diagnostics) this->AddIssue(diagnostic.location.line, diagnostic.message);
         if (root.empty() && this->lexical_.diagnostics.empty()) this->config_.fatalError = "Product configuration is empty";
         return std::move(this->config_);
@@ -328,13 +328,49 @@ private:
         }
     }
 
-    void ApplyProductSettings() {
+    int FindSettingIssueLine(const SettingOverrides& overrides, const SettingValidationIssue& issue) const {
+        const auto lineNumber = overrides.lineNumbers.find(issue.settingName);
+        return lineNumber == overrides.lineNumbers.end() ? overrides.firstLineNumber : lineNumber->second;
+    }
+
+    void ApplyDeviceSettings(SettingOverrides& overrides, SettingsValues& effectiveSettings) {
+        effectiveSettings = this->config_.productSettings;
+        std::vector<SettingValidationIssue> issues;
+        if (this->config_.productSettings.TryApply(overrides, "Device", effectiveSettings, issues)) return;
+        overrides.valid = false;
+        for (const SettingValidationIssue& issue : issues) this->AddIssue(this->FindSettingIssueLine(overrides, issue), issue.message, true);
+    }
+
+    void ApplyDeviceSettingsToSurfaces() {
+        for (PageConfig& page : this->config_.pages) {
+            for (SurfaceAssignmentConfig& surface : page.surfaces) {
+                const std::string deviceId = FoldFormat2ConfigId(surface.deviceId);
+                for (const MidiIoConfig& device : this->config_.midiIo) {
+                    if (FoldFormat2ConfigId(device.name) != deviceId) continue;
+                    surface.settingOverrides = device.settingOverrides;
+                    surface.effectiveSettings = device.effectiveSettings;
+                    break;
+                }
+                for (const OscIoConfig& device : this->config_.oscIo) {
+                    if (FoldFormat2ConfigId(device.name) != deviceId) continue;
+                    surface.settingOverrides = device.settingOverrides;
+                    surface.effectiveSettings = device.effectiveSettings;
+                    break;
+                }
+            }
+        }
+    }
+
+    void ApplySettings() {
         SettingsValues defaults;
         std::vector<SettingValidationIssue> issues;
         if (!defaults.TryApply(this->config_.productSettingOverrides, "Product", this->config_.productSettings, issues)) {
             this->config_.productSettingOverrides.valid = false;
-            for (const SettingValidationIssue& issue : issues) this->AddIssue(this->config_.productSettingOverrides.firstLineNumber, issue.message, true);
+            for (const SettingValidationIssue& issue : issues) this->AddIssue(this->FindSettingIssueLine(this->config_.productSettingOverrides, issue), issue.message, true);
         }
+        for (MidiIoConfig& device : this->config_.midiIo) this->ApplyDeviceSettings(device.settingOverrides, device.effectiveSettings);
+        for (OscIoConfig& device : this->config_.oscIo) this->ApplyDeviceSettings(device.settingOverrides, device.effectiveSettings);
+        this->ApplyDeviceSettingsToSurfaces();
     }
 };
 

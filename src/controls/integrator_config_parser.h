@@ -86,3 +86,4 @@ struct IntegratorConfig {
 IntegratorConfig ParseIntegratorConfig(const std::string& configPath);
 IntegratorConfig ParseIntegratorConfigSource(const std::string& source, const std::string& configPath);
 IntegratorConfig ParseFormat2IntegratorConfigSource(const std::string& source, const std::string& configPath);
+bool SerializeFormat2IntegratorConfig(const IntegratorConfig& config, std::string& source, std::string& errorMessage);
