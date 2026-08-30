@@ -130,7 +130,7 @@ function module.Render(ctx, page, fonts)
     elseif page.id == "Logging" then
         logging.RenderPage(ctx)
     end
-    devices.RenderModal(ctx)
+    devices.RenderModal(ctx, fonts)
 end
 
 function module.ConsumeRequestedPage()

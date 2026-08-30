@@ -1,6 +1,55 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+
+enum class Format2MidiValueCombine {
+    Replace,
+    Add,
+    BitOr,
+};
+
+class Format2Midi7ValueFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<int> message_;
+    int valueBase_ = 0;
+    Format2MidiValueCombine combine_ = Format2MidiValueCombine::Replace;
+    int echoGuardMs_ = 0;
+    bool suppressWhileTouched_ = false;
+
+    int Encode(double value) const {
+        const int normalized = (int) (std::clamp(value, 0.0, 1.0) * 127.0);
+        if (this->combine_ == Format2MidiValueCombine::Add) return std::clamp(this->valueBase_ + normalized, 0, 127);
+        if (this->combine_ == Format2MidiValueCombine::BitOr) return this->valueBase_ | normalized;
+        return normalized;
+    }
+
+public:
+    Format2Midi7ValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& message, int valueBase, Format2MidiValueCombine combine, int echoGuardMs, bool suppressWhileTouched)
+        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), valueBase_(valueBase), combine_(combine), echoGuardMs_(echoGuardMs), suppressWhileTouched_(suppressWhileTouched) {}
+    virtual ~Format2Midi7ValueFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2Midi7ValueFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        const PropertyList properties;
+        this->ForceValue(properties, 0.0);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        if (this->suppressWhileTouched_ && this->surface_->GetIsChannelTouched(this->widget_->GetChannelNumber())) return;
+        if (this->echoGuardMs_ > 0 && GetTickCount() - this->widget_->GetLastIncomingMessageTime() < (DWORD) this->echoGuardMs_) return;
+        if (value == this->lastDoubleValue_) return;
+        this->ForceValue(properties, value);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        const int encoded = this->Encode(value);
+        if (this->message_.size() == 1) this->SendMidiMessage(this->message_[0], encoded, 0);
+        else this->SendMidiMessage(this->message_[0], this->message_[1], encoded);
+    }
+};
 
 class Format2MidiRgbFeedbackProcessor : public Midi_FeedbackProcessor
 {

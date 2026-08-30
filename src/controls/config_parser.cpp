@@ -229,7 +229,7 @@ void CSurfIntegrator::Init() {
     ApplyConfiguredListeners(config, this->pages_, configPath, summary);
     InitializeConfiguredPages(this->pages_, summary);
 
-    LogToConsole("[NOTICE] Configuration loaded: %d page(s), %d surface(s), %d skipped surface(s), %d issue(s)\n", static_cast<int>(this->pages_.size()), summary.loadedSurfaceCount, summary.skippedSurfaceCount, summary.issueCount);
+    if (g_debugLevel >= DEBUG_LEVEL_INFO) LogToConsole("[INFO] Configuration loaded: %d page(s), %d surface(s), %d skipped surface(s), %d issue(s)\n", static_cast<int>(this->pages_.size()), summary.loadedSurfaceCount, summary.skippedSurfaceCount, summary.issueCount);
     if (this->HasAnyOSKEnabled()) {
         this->PublishOSKSurfacesList();
         if (this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_]) {

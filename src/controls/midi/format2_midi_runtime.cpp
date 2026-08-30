@@ -39,10 +39,12 @@ vector<string> Format2MidiRuntimeLoader::MakeTokens(const string& type, const ve
 bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primitive) {
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiExact) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Touch" && primitive.encoding == Format2Encoding::MidiExact) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     return primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb;
 }
 
@@ -116,15 +118,33 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 tokens = MakeTokens("Fader14Bit", { statusByte, 0, 0 });
                 widget->MarkOskAbsoluteInput();
                 widget->MarkOskValueFeedback();
+            } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7) {
+                vector<int> message;
+                if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.size() != 2) continue;
+                const string key = to_string(message[0] * 0x10000 + message[1] * 0x100);
+                surface->AddMessageGenerator(key, make_unique<Format2Midi7ValueMessageGenerator>(surface->csi_, widget));
+                widget->MarkOskAbsoluteInput();
+                widget->MarkOskValueFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder" && primitive.encoding == Format2Encoding::Midi7) {
                 vector<int> message;
                 if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.size() != 2) continue;
                 const Format2PropertySyntax* profile = FindProperty(primitive, "Profile");
-                if (profile && !profile->value.list) widgetClass = profile->value.scalar.text;
-                tokens = MakeTokens("Encoder", { message[0], message[1], 0 });
+                const string key = to_string(message[0] * 0x10000 + message[1] * 0x100);
+                if (profile && !profile->value.list) {
+                    widgetClass = profile->value.scalar.text;
+                    surface->AddMessageGenerator(key, make_unique<AcceleratedPreconfiguredEncoder_Midi_MessageGenerator>(surface->csi_, widget, widgetClass));
+                } else {
+                    const Format2PropertySyntax* mode = FindProperty(primitive, "Mode");
+                    Format2MidiEncoderMode encoderMode = Format2MidiEncoderMode::SignedBit;
+                    if (mode && mode->value.scalar.text == "SignedBitFixed") encoderMode = Format2MidiEncoderMode::SignedBitFixed;
+                    else if (mode && mode->value.scalar.text == "Relative7Bit") encoderMode = Format2MidiEncoderMode::Relative7Bit;
+                    surface->AddMessageGenerator(key, make_unique<Format2Midi7EncoderMessageGenerator>(surface->csi_, widget, encoderMode));
+                }
                 widget->SetOskWidgetClass(widgetClass);
                 widget->MarkOskRelativeInput();
                 widget->MarkOskValueFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) {
                 vector<int> on;
                 vector<int> off;
@@ -137,6 +157,23 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 if (!status || status->value.list || !ReadByte(status->value.scalar, statusByte)) continue;
                 tokens = MakeTokens("FB_Fader14Bit", { statusByte, 0, 0 });
                 widget->MarkOskValueFeedback();
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7) {
+                vector<int> message;
+                if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.empty() || message.size() > 2) continue;
+                const Format2PropertySyntax* valueBase = FindProperty(primitive, "ValueBase");
+                const Format2PropertySyntax* combine = FindProperty(primitive, "Combine");
+                const Format2PropertySyntax* echoGuard = FindProperty(primitive, "EchoGuardMs");
+                const Format2PropertySyntax* suppressWhileTouched = FindProperty(primitive, "SuppressWhileTouched");
+                int valueBaseByte = 0;
+                if (valueBase) ReadByte(valueBase->value.scalar, valueBaseByte);
+                Format2MidiValueCombine combineMode = Format2MidiValueCombine::Replace;
+                if (combine && combine->value.scalar.text == "Add") combineMode = Format2MidiValueCombine::Add;
+                else if (combine && combine->value.scalar.text == "BitOr") combineMode = Format2MidiValueCombine::BitOr;
+                const int echoGuardMs = echoGuard ? atoi(echoGuard->value.scalar.text.c_str()) : 0;
+                const bool suppress = suppressWhileTouched && suppressWhileTouched->value.scalar.text == "true";
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7ValueFeedbackProcessor>(surface->csi_, surface, widget, message, valueBaseByte, combineMode, echoGuardMs, suppress));
+                widget->MarkOskValueFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb) {
                 vector<int> enable;
                 vector<int> red;
@@ -153,6 +190,8 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiRgbFeedbackProcessor>(surface->csi_, surface, widget, std::array<int, 2>{ red[0], red[1] }, std::array<int, 2>{ green[0], green[1] }, std::array<int, 2>{ blue[0], blue[1] }, enable, hasStateBrightness, inactiveBrightnessValue, activeBrightnessValue));
                 widget->MarkOskColorFeedback();
                 if (hasStateBrightness) widget->MarkOskToggleFeedback();
+                const Format2PropertySyntax* trackColor = FindProperty(primitive, "TrackColor");
+                if (trackColor && trackColor->value.scalar.text == "true") surface->AddTrackColorFeedbackProcessor(widget->GetFeedbackProcessors().back().get());
                 continue;
             } else continue;
 
@@ -165,6 +204,8 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
             context.size = (int) tokens.size();
             const Format2PropertySyntax* suppressWhileTouched = FindProperty(primitive, "SuppressWhileTouched");
             context.suppressWhileTouched = suppressWhileTouched && !suppressWhileTouched->value.list && suppressWhileTouched->value.scalar.text == "true";
+            const Format2PropertySyntax* echoGuard = FindProperty(primitive, "EchoGuardMs");
+            context.echoGuardMs = echoGuard && !echoGuard->value.list ? atoi(echoGuard->value.scalar.text.c_str()) : 0;
             if (context.size > 3) {
                 context.message1.midi_message[0] = atoi(tokens[1].c_str());
                 context.message1.midi_message[1] = atoi(tokens[2].c_str());

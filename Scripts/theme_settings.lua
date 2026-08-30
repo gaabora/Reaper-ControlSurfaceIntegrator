@@ -181,7 +181,7 @@ M.OSK_SCHEMA = {
     pad_v = { type = "number", default = 6, min = 0, max = 20, integer = true, label = "Vertical padding" },
     transparency = { type = "number", default = 0.6, min = 0.2, max = 1.0, label = "Window opacity", format = "%.2f" },
     btn_transparency = { type = "number", default = 0.9, min = 0.2, max = 1.0, label = "Button opacity", format = "%.2f" },
-    inactive_led_boost = { type = "number", default = 50, min = 0, max = 100, integer = true, label = "Inactive RGB LED boost" },
+    inactive_led_boost = { type = "number", default = 50, min = 0, max = 100, integer = true, label = "Inactive OSK button brightness boost" }, -- Adds brightness to inactive buttons on OSK and config table swatches so color looks closer to real LED. Does not change saved colors or device feedback.
     arrow_angle = { type = "number", default = 120, min = 60, max = 150, integer = true, label = "Arrow angle" },
     titlebar_enabled = { type = "boolean", default = true, label = "Show title bar" },
 }
