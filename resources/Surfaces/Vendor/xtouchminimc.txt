@@ -1,201 +1,191 @@
-// @format surface 1
-// ===========================================
-// Surface file for the Behringer X-TOUCH mini
-// MUST be in MC mode
-// ===========================================
+@Meta { Version=2 Protocol=MIDI Name="XTouchMiniMC" }
 
-StepSize
-    RotaryWidgetClass 0.003
-StepSizeEnd
+EncoderProfile RotaryWidgetClass {
+  Delta=0.003
+  Increase=[ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 ]
+  Decrease=[ 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48 ]
+  AccelerationDeltas=[ 0.005, 0.01, 0.02, 0.04, 0.05, 0.06, 0.08, 0.1 ]
+}
 
-AccelerationValues
-    RotaryWidgetClass Dec 41     42    43    44    45    46    47     48
-    RotaryWidgetClass Inc 01     02    03    04    05    06    07     08
-    RotaryWidgetClass Val 0.005  0.01  0.02  0.04  0.05  0.06  0.08   0.1
-AccelerationValuesEnd
+Widget Rotary1 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x10 ] Profile=RotaryWidgetClass }
+}
 
-Widget Rotary1 RotaryWidgetClass
-	Encoder b0 10 7f
-	FB_Encoder b0 10 7f
-WidgetEnd
+Widget Rotary2 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x11 ] Profile=RotaryWidgetClass }
+}
 
-Widget Rotary2 RotaryWidgetClass
-	Encoder b0 11 7f
-	FB_Encoder b0 11 7f
-WidgetEnd
+Widget Rotary3 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x12 ] Profile=RotaryWidgetClass }
+}
 
-Widget Rotary3 RotaryWidgetClass
-	Encoder b0 12 7f
-	FB_Encoder b0 12 7f
-WidgetEnd
+Widget Rotary4 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x13 ] Profile=RotaryWidgetClass }
+}
 
-Widget Rotary4 RotaryWidgetClass
-	Encoder b0 13 7f
-	FB_Encoder b0 13 7f
-WidgetEnd
+Widget Rotary5 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x14 ] Profile=RotaryWidgetClass }
+}
 
-Widget Rotary5 RotaryWidgetClass
-	Encoder b0 14 7f
-	FB_Encoder b0 14 7f
-WidgetEnd
+Widget Rotary6 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x15 ] Profile=RotaryWidgetClass }
+}
 
-Widget Rotary6 RotaryWidgetClass
-	Encoder b0 15 7f
-	FB_Encoder b0 15 7f
-WidgetEnd
+Widget Rotary7 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x16 ] Profile=RotaryWidgetClass }
+}
 
-Widget Rotary7 RotaryWidgetClass
-	Encoder b0 16 7f
-	FB_Encoder b0 16 7f
-WidgetEnd
+Widget Rotary8 {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x17 ] Profile=RotaryWidgetClass }
+}
 
-Widget Rotary8 RotaryWidgetClass
-	Encoder b0 17 7f
-	FB_Encoder b0 17 7f
-WidgetEnd
+Widget RotaryPush1 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x20, 0x7F ] Off=[ 0x90, 0x20, 0x00 ] }
+}
 
-Widget RotaryPush1
-	Press 90 20 7f 90 20 00
-WidgetEnd
+Widget RotaryPush2 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x21, 0x7F ] Off=[ 0x90, 0x21, 0x00 ] }
+}
 
-Widget RotaryPush2
-	Press 90 21 7f 90 21 00
-WidgetEnd
+Widget RotaryPush3 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x22, 0x7F ] Off=[ 0x90, 0x22, 0x00 ] }
+}
 
-Widget RotaryPush3
-	Press 90 22 7f 90 22 00 
-WidgetEnd
+Widget RotaryPush4 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x23, 0x7F ] Off=[ 0x90, 0x23, 0x00 ] }
+}
 
-Widget RotaryPush4
-	Press 90 23 7f 90 23 00
-WidgetEnd
+Widget RotaryPush5 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x24, 0x7F ] Off=[ 0x90, 0x24, 0x00 ] }
+}
 
-Widget RotaryPush5
-	Press 90 24 7f 90 24 00
-WidgetEnd
+Widget RotaryPush6 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x25, 0x7F ] Off=[ 0x90, 0x25, 0x00 ] }
+}
 
-Widget RotaryPush6
-	Press 90 25 7f 90 25 00
-WidgetEnd
+Widget RotaryPush7 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x26, 0x7F ] Off=[ 0x90, 0x26, 0x00 ] }
+}
 
-Widget RotaryPush7
-	Press 90 26 7f 90 26 00
-WidgetEnd
+Widget RotaryPush8 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x27, 0x7F ] Off=[ 0x90, 0x27, 0x00 ] }
+}
 
-Widget RotaryPush8
-	Press 90 27 7f 90 27 00
-WidgetEnd
+Widget Fader {
+  Input Value { Encoding=MIDI14 Status=0xE8 }
+}
 
+Widget ButtonA1 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x59, 0x7F ] Off=[ 0x90, 0x59, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x59, 0x7F ] Off=[ 0x90, 0x59, 0x00 ] }
+}
 
-Widget Fader
-	Fader14Bit e8 7f 7f
-WidgetEnd
+Widget ButtonA2 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5A, 0x7F ] Off=[ 0x90, 0x5A, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5A, 0x7F ] Off=[ 0x90, 0x5A, 0x00 ] }
+}
 
-Widget ButtonA1
-	Press 90 59 7f 90 59 00
-	FB_TwoState 90 59 7f 90 59 00
-WidgetEnd
+Widget ButtonA3 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x28, 0x7F ] Off=[ 0x90, 0x28, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x28, 0x7F ] Off=[ 0x90, 0x28, 0x00 ] }
+}
 
-Widget ButtonA2
-	Press 90 5a 7f 90 5a 00
-	FB_TwoState 90 5a 7f 90 5a 00
-WidgetEnd
+Widget ButtonA4 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x29, 0x7F ] Off=[ 0x90, 0x29, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x29, 0x7F ] Off=[ 0x90, 0x29, 0x00 ] }
+}
 
-Widget ButtonA3
-	Press 90 28 7f 90 28 00
-	FB_TwoState 90 28 7f 90 28 00
-WidgetEnd
+Widget ButtonA5 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x2A, 0x7F ] Off=[ 0x90, 0x2A, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x2A, 0x7F ] Off=[ 0x90, 0x2A, 0x00 ] }
+}
 
-Widget ButtonA4
-	Press 90 29 7f 90 29 00
-	FB_TwoState 90 29 7f 90 29 00
-WidgetEnd
+Widget ButtonA6 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x2B, 0x7F ] Off=[ 0x90, 0x2B, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x2B, 0x7F ] Off=[ 0x90, 0x2B, 0x00 ] }
+}
 
-Widget ButtonA5
-	Press 90 2a 7f  90 2a 00
-	FB_TwoState 90 2a 7f 90 2a 00
-WidgetEnd
+Widget ButtonA7 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x2C, 0x7F ] Off=[ 0x90, 0x2C, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x2C, 0x7F ] Off=[ 0x90, 0x2C, 0x00 ] }
+}
 
-Widget ButtonA6
-	Press 90 2b 7f 90 2b 00
-	FB_TwoState 90 2b 7f 90 2b 00
-WidgetEnd
+Widget ButtonA8 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x2D, 0x7F ] Off=[ 0x90, 0x2D, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x2D, 0x7F ] Off=[ 0x90, 0x2D, 0x00 ] }
+}
 
-Widget ButtonA7
-	Press 90 2c 7f 90 2c 00
-	FB_TwoState 90 2c 7f 90 2c 00
-WidgetEnd
+Widget LayerA {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x54, 0x7F ] Off=[ 0x90, 0x54, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x54, 0x7F ] Off=[ 0x90, 0x54, 0x00 ] }
+}
 
-Widget ButtonA8
-	Press 90 2d 7f 90 2d 00
-	FB_TwoState 90 2d 7f 90 2d 00
-WidgetEnd
+Widget ButtonB1 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x57, 0x7F ] Off=[ 0x90, 0x57, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x57, 0x7F ] Off=[ 0x90, 0x57, 0x00 ] }
+}
 
+Widget ButtonB2 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x58, 0x7F ] Off=[ 0x90, 0x58, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x58, 0x7F ] Off=[ 0x90, 0x58, 0x00 ] }
+}
 
-Widget LayerA
-	Press 90 54 7f 90 54 00
-	FB_TwoState 90 54 7f 90 54 00
-WidgetEnd
+Widget ButtonB3 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5B, 0x7F ] Off=[ 0x90, 0x5B, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5B, 0x00 ] Off=[ 0x90, 0x5B, 0x00 ] }
+}
 
-Widget ButtonB1 Alias=MC
-	Press 90 57 7f 90 57 00
-	FB_TwoState 90 57 7f 90 57 00
-WidgetEnd
+Widget ButtonB4 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5C, 0x7F ] Off=[ 0x90, 0x5C, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5C, 0x00 ] Off=[ 0x90, 0x5C, 0x00 ] }
+}
 
-Widget ButtonB2
-	Press 90 58 7f 90 58 00
-	FB_TwoState 90 58 7f 90 58 00
-WidgetEnd
+Widget ButtonB5 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x56, 0x7F ] Off=[ 0x90, 0x56, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x56, 0x7F ] Off=[ 0x90, 0x56, 0x00 ] }
+}
 
-Widget ButtonB3 Alias=Rewind
-	Press 90 5b 7f 90 5b 00
-	FB_TwoState 90 5b 00 90 5b 00
-WidgetEnd
+Widget ButtonB6 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5D, 0x7F ] Off=[ 0x90, 0x5D, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5D, 0x7F ] Off=[ 0x90, 0x5D, 0x00 ] }
+}
 
-Widget ButtonB4 Alias=FastForward
-	Press 90 5c 7f 90 5c 00
-	FB_TwoState 90 5c 00 90 5c 00
-WidgetEnd
+Widget ButtonB7 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }
+}
 
-Widget ButtonB5 Alias=Loop
-	Press 90 56 7f 90 56 00
-	FB_TwoState 90 56 7f 90 56 00
-WidgetEnd
+Widget ButtonB8 {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5F, 0x7F ] Off=[ 0x90, 0x5F, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5F, 0x7F ] Off=[ 0x90, 0x5F, 0x00 ] }
+}
 
-Widget ButtonB6 Alias=Stop
-	Press 90 5d 7f 90 5d 00
-	FB_TwoState 90 5d 7f 90 5d 00
-WidgetEnd
+Widget LayerB {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x55, 0x7F ] Off=[ 0x90, 0x55, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x55, 0x7F ] Off=[ 0x90, 0x55, 0x00 ] }
+}
 
-Widget ButtonB7 Alias=Play
-	Press 90 5e 7f 90 5e 00
-	FB_TwoState 90 5e 7f 90 5e 00
-WidgetEnd
-
-Widget ButtonB8 Alias=Record
-	Press 90 5f 7f 90 5f 00
-	FB_TwoState 90 5f 7f 90 5f 00
-WidgetEnd
-
-
-Widget LayerB
-	Press 90 55 7f 90 55 00
-	FB_TwoState 90 55 7f 90 55 00
-WidgetEnd
-
-OSKLayout Version=1
-  Row
-    Widget Rotary1 Shape=Round Group=RotaryGroup1 PressTarget=RotaryPush1
-    Widget Rotary2 Shape=Round Group=RotaryGroup2 PressTarget=RotaryPush2
-    Widget Rotary3 Shape=Round Group=RotaryGroup3 PressTarget=RotaryPush3
-    Widget Rotary4 Shape=Round Group=RotaryGroup4 PressTarget=RotaryPush4
-    Widget Rotary5 Shape=Round Group=RotaryGroup5 PressTarget=RotaryPush5
-    Widget Rotary6 Shape=Round Group=RotaryGroup6 PressTarget=RotaryPush6
-    Widget Rotary7 Shape=Round Group=RotaryGroup7 PressTarget=RotaryPush7
-    Widget Rotary8 Shape=Round Group=RotaryGroup8 PressTarget=RotaryPush8
-    Widget Fader Shape=Fader Height=3
-  RowEnd
-  Row
+OSKLayout {
+  Row {
+    Widget Fader Shape=Fader Height=7 ValueTarget=Fader
+    Widget Rotary1 Shape=Round Group=RotaryGroup1 ScrollTarget=Rotary1
+    Widget Rotary2 Shape=Round Group=RotaryGroup2 ScrollTarget=Rotary2
+    Widget Rotary3 Shape=Round Group=RotaryGroup3 ScrollTarget=Rotary3
+    Widget Rotary4 Shape=Round Group=RotaryGroup4 ScrollTarget=Rotary4
+    Widget Rotary5 Shape=Round Group=RotaryGroup5 ScrollTarget=Rotary5
+    Widget Rotary6 Shape=Round Group=RotaryGroup6 ScrollTarget=Rotary6
+    Widget Rotary7 Shape=Round Group=RotaryGroup7 ScrollTarget=Rotary7
+    Widget Rotary8 Shape=Round Group=RotaryGroup8 ScrollTarget=Rotary8
+    Widget RotaryPush1 Group=RotaryGroup1
+    Widget RotaryPush2 Group=RotaryGroup2
+    Widget RotaryPush3 Group=RotaryGroup3
+    Widget RotaryPush4 Group=RotaryGroup4
+    Widget RotaryPush5 Group=RotaryGroup5
+    Widget RotaryPush6 Group=RotaryGroup6
+    Widget RotaryPush7 Group=RotaryGroup7
+    Widget RotaryPush8 Group=RotaryGroup8
+  }
+  Row {
     Widget ButtonA1
     Widget ButtonA2
     Widget ButtonA3
@@ -205,8 +195,8 @@ OSKLayout Version=1
     Widget ButtonA7
     Widget ButtonA8
     Widget LayerA
-  RowEnd
-  Row
+  }
+  Row {
     Widget ButtonB1
     Widget ButtonB2
     Widget ButtonB3
@@ -216,5 +206,5 @@ OSKLayout Version=1
     Widget ButtonB7
     Widget ButtonB8
     Widget LayerB
-  RowEnd
-OSKLayoutEnd
+  }
+}

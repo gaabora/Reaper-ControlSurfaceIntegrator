@@ -43,7 +43,7 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14) return true;
-    return primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb && FindProperty(primitive, "Enable");
+    return primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb;
 }
 
 Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePath, Midi_ControlSurface* surface) {
@@ -139,9 +139,21 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 widget->MarkOskValueFeedback();
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb) {
                 vector<int> enable;
-                if (!ReadBytes(FindProperty(primitive, "Enable"), enable)) continue;
-                tokens = MakeTokens("FB_FaderportRGB", enable);
+                vector<int> red;
+                vector<int> green;
+                vector<int> blue;
+                const Format2PropertySyntax* enableProperty = FindProperty(primitive, "Enable");
+                if (enableProperty) ReadBytes(enableProperty, enable);
+                if (!ReadBytes(FindProperty(primitive, "Red"), red) || red.size() != 2 || !ReadBytes(FindProperty(primitive, "Green"), green) || green.size() != 2 || !ReadBytes(FindProperty(primitive, "Blue"), blue) || blue.size() != 2) continue;
+                const Format2PropertySyntax* inactiveBrightness = FindProperty(primitive, "InactiveBrightness");
+                const Format2PropertySyntax* activeBrightness = FindProperty(primitive, "ActiveBrightness");
+                const bool hasStateBrightness = inactiveBrightness && activeBrightness;
+                const float inactiveBrightnessValue = hasStateBrightness ? (float) atof(inactiveBrightness->value.scalar.text.c_str()) : 1.0f;
+                const float activeBrightnessValue = hasStateBrightness ? (float) atof(activeBrightness->value.scalar.text.c_str()) : 1.0f;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiRgbFeedbackProcessor>(surface->csi_, surface, widget, std::array<int, 2>{ red[0], red[1] }, std::array<int, 2>{ green[0], green[1] }, std::array<int, 2>{ blue[0], blue[1] }, enable, hasStateBrightness, inactiveBrightnessValue, activeBrightnessValue));
                 widget->MarkOskColorFeedback();
+                if (hasStateBrightness) widget->MarkOskToggleFeedback();
+                continue;
             } else continue;
 
             MidiWidgetContext context;

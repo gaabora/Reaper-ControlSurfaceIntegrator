@@ -74,8 +74,8 @@ void MidiWidgetRegistry::EnsureRegistered() {
     });
 
     Register("Encoder", [](const MidiWidgetContext& ctx) {
-        if (ctx.widgetClass == "RotaryWidgetClass")
-            ctx.surface->AddMessageGenerator(ctx.twoByteKey, make_unique<AcceleratedPreconfiguredEncoder_Midi_MessageGenerator>(ctx.csi, ctx.widget));
+        if (!ctx.widgetClass.empty())
+            ctx.surface->AddMessageGenerator(ctx.twoByteKey, make_unique<AcceleratedPreconfiguredEncoder_Midi_MessageGenerator>(ctx.csi, ctx.widget, ctx.widgetClass));
         else if (ctx.size == 4) ctx.surface->AddMessageGenerator(ctx.twoByteKey, make_unique<Encoder_Midi_MessageGenerator>(ctx.csi, ctx.widget));
     });
 

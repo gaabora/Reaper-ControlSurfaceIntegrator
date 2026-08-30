@@ -5,6 +5,7 @@
 #include "../../shared/sysex_builder.h"
 #include "midi_generators.h"
 #include "fb_generic.h"
+#include "fb_format2.h"
 #include "fb_faderport.h"
 #include "fb_sce24.h"
 #include "fb_asparion.h"

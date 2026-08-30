@@ -18,6 +18,7 @@
 - Register new widget types through the existing factory/registration path.
 - Device-specific feedback belongs in the matching `fb_*.h` file; generic behavior belongs in shared MIDI widget/generator code.
 - `format2_midi_runtime.*` owns typed format 2 MIDI Surface validation and runtime Widget construction. Keep MIDI I/O lifecycle code in `midi_surface.*` and do not pass format 2 source through the legacy Surface text parser.
+- Format 2 `MIDIRGB` feedback must use its declared Enable, Red, Green, and Blue messages through the generic codec. EncoderProfile lookup must use the referenced profile ID and must not assume `RotaryWidgetClass`.
 
 ## Work Guidance
 

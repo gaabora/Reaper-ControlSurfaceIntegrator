@@ -113,13 +113,12 @@ private:
 
 public:
     virtual ~AcceleratedPreconfiguredEncoder_Midi_MessageGenerator() {}
-    AcceleratedPreconfiguredEncoder_Midi_MessageGenerator(CSurfIntegrator* const csi, Widget* widget)
+    AcceleratedPreconfiguredEncoder_Midi_MessageGenerator(CSurfIntegrator* const csi, Widget* widget, const string& profile)
         : Midi_MessageGenerator(csi, widget) {
-        const char* const widgetClass = "RotaryWidgetClass";
-        accelerationValuesForIncrement_ = widget->GetSurface()->GetAccelerationValuesForIncrement(widgetClass);
-        accelerationValuesForDecrement_ = widget->GetSurface()->GetAccelerationValuesForDecrement(widgetClass);
-        widget->SetStepSize(widget->GetSurface()->GetStepSize(widgetClass));
-        widget->SetAccelerationValues(widget->GetSurface()->GetAccelerationValues(widgetClass));
+        accelerationValuesForIncrement_ = widget->GetSurface()->GetAccelerationValuesForIncrement(profile.c_str());
+        accelerationValuesForDecrement_ = widget->GetSurface()->GetAccelerationValuesForDecrement(profile.c_str());
+        widget->SetStepSize(widget->GetSurface()->GetStepSize(profile.c_str()));
+        widget->SetAccelerationValues(widget->GetSurface()->GetAccelerationValues(profile.c_str()));
     }
 
     virtual void ProcessMidiMessage(const MIDI_event_ex_t* midiMessage) override {
