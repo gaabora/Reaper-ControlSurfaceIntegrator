@@ -2,12 +2,12 @@
 
 ## Purpose
 
-- Implement CSI's native REAPER configuration and learn dialogs.
+- Route REAPER's native configuration callback to the Lua Control Panel and implement the remaining native Learn dialog.
 
 ## Ownership
 
 - Integrator UI dispatch in `integrator_ui.cpp`.
-- Configuration dialog behavior in `config_dialog.cpp`.
+- Control Panel launcher behavior in `config_dialog.cpp`.
 - Learn dialog behavior in `learn_dialog.cpp`.
 - Stable Control Panel action registration and Lua lifecycle dispatch in `control_panel_action.*`.
 - Stable Notifications action registration and Lua start/stop lifecycle dispatch in `notifications_action.*`.
@@ -20,6 +20,7 @@
 - The `_REACTRLSURF_OPEN_CONTROL_PANEL` user action opens or closes the Lua window and reports On only while Lua publishes the Open lifecycle state. `ControlPanelAction::OpenOrFocus` remains non-toggle behavior for native and programmatic callers.
 - The `_REACTRLSURF_TOGGLE_NOTIFICATIONS` action starts or stops `Notifications.lua` and reports On only while its Lua lifecycle state is Open.
 - The native `Open Control Panel` button launches or focuses Lua, then posts `IDCANCEL` to the REAPER-owned parent configuration window so that parent does not remain modal and unfinished native edits are not applied.
+- REAPER's native configuration callback immediately launches or focuses the Control Panel and closes its own temporary dialog. It does not parse or write the product configuration.
 
 ## Work Guidance
 

@@ -21,7 +21,7 @@ Replace the legacy zone and surface syntax and name-based runtime behavior with 
 - Square brackets contain reset values, stepped values, ranges, acceleration data, and MIDI encoder direction ranges in different contexts without named fields.
 - Anonymous action color blocks such as `{ 20 20 0 255 255 0 }` do not identify their purpose or separate their colors clearly.
 - Custom blocks use `BlockName` and `BlockNameEnd` instead of normal matched braces.
-- The current product configuration file keeps the old CSI line-record grammar and obsolete `Version=7.0` marker under a new name and path, and the native configuration dialog parses the same file again after the shared parser.
+- The product configuration now uses the unversioned brace grammar. REAPER's native configuration callback opens the shared Control Panel and does not parse or write the file.
 - C++ preprocesses zone metadata, bindings, Learn FX templates, and OSK edits through separate line readers.
 
 ## Current source references
@@ -30,8 +30,8 @@ Replace the legacy zone and surface syntax and name-based runtime behavior with 
 - [zone_parser.cpp](../src/controls/zone_parser.cpp) parses bindings and structural sections while ignoring `Zone` and `ZoneEnd` tokens.
 - [learn_dialog.cpp](../src/ui/learn_dialog.cpp) reads Learn FX pseudo-zones and hash-prefixed directives separately.
 - [action_context.cpp](../src/actions/action_context.cpp) interprets anonymous square-bracket action values and passes `RingStyle` properties to widget feedback.
-- [integrator_config_parser.cpp](../src/controls/integrator_config_parser.cpp) requires the product version on physical line 1.
-- [config_dialog.cpp](../src/ui/config_dialog.cpp) reparses the product configuration file after the shared parser has already parsed it.
+- [format2_integrator_config_parser.cpp](../src/controls/format2_integrator_config_parser.cpp) parses the product configuration into the shared runtime model.
+- [config_dialog.cpp](../src/ui/config_dialog.cpp) opens the Control Panel without a second configuration parser or writer.
 - [osk.cpp](../src/controls/osk.cpp) locates and edits zone blocks through its own line scanning.
 - [zone.ts](../tools/config-editor/src/zone.ts) contains the current Bun format 1 parser.
 - [validation.ts](../tools/config-editor/src/validation.ts) validates active profile layers, duplicate IDs, references, and structural cycles.
@@ -409,7 +409,7 @@ Zone layers use `Role=Layer`, inherit the active parent's derived target, channe
 
 ### ✅ New product configuration format
 
-The current `ReaControlSurface.ini` grammar is a renamed continuation of `CSI.ini`. Format 2 replaces it instead of carrying its `Version=7.0`, order-dependent page records, and `Broadcaster` state into the new product.
+The former `ReaControlSurface.ini` grammar was a renamed continuation of `CSI.ini`. Format 2 replaces it instead of carrying its `Version=7.0`, order-dependent page records, and `Broadcaster` state into the new product.
 
 The canonical product identity changes `PRODUCT_CONFIG_FILENAME` to a `.conf` filename because the new document is not INI. The new file lives at the existing product configuration root. Old `CSI.ini` files remain read-only sources for the Bun importer.
 
@@ -1200,12 +1200,12 @@ The current layer model is inconsistent: [ProductPaths::FindMainZones()](../src/
 
 | Consumer | Current path | Format 2 ownership |
 |---|---|---|
-| Runtime initialization | `ParseIntegratorConfig()` produces `IntegratorConfig`; [config_parser.cpp](../src/controls/config_parser.cpp) applies it | One C++ parser and typed model |
-| Native Settings and Devices protocols | Read source, call `ParseIntegratorConfigSource()`, then use `WriteSettingsConfigAtomically()` | Edit and validate the same typed document model through one transaction writer |
-| Native configuration dialog | Calls `ParseIntegratorConfig()` again and writes directly with `fopenUTF8()` | Consume the existing model and use the same transaction writer; remove its duplicate semantic path |
+| Runtime initialization | `ParseFormat2IntegratorConfig()` produces `IntegratorConfig`; [config_parser.cpp](../src/controls/config_parser.cpp) applies it | One C++ parser and typed model |
+| Native Settings and Devices protocols | Read source, call `ParseFormat2IntegratorConfigSource()`, then use the canonical serializer and atomic writer | Edit and validate the same typed document model through one transaction writer |
+| Native configuration callback | Opens the shared Control Panel | No duplicate semantic path |
 | Bun editor | Uses `parseProductConfig()` and the editor store | Independent TypeScript implementation of the same normative grammar, diagnostics, and fixtures |
 
-The relevant implementations are [integrator_config_parser.cpp](../src/controls/integrator_config_parser.cpp), [settings_protocol.cpp](../src/controls/settings_protocol.cpp), [devices_protocol.cpp](../src/controls/devices_protocol.cpp), [config_dialog.cpp](../src/ui/config_dialog.cpp), and [product-config.ts](../tools/config-editor/src/product-config.ts).
+The relevant implementations are [format2_integrator_config_parser.cpp](../src/controls/format2_integrator_config_parser.cpp), [settings_protocol.cpp](../src/controls/settings_protocol.cpp), [devices_protocol.cpp](../src/controls/devices_protocol.cpp), [config_dialog.cpp](../src/ui/config_dialog.cpp), and [product-config.ts](../tools/config-editor/src/product-config.ts).
 
 ### Ring feedback and action meaning
 
@@ -1659,18 +1659,18 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 - ✅ Parse each zone, surface, Learn FX, and snippet source once through one typed-document entry point that preserves the shared syntax document, diagnostics, and source locations.
 - ✅ Compile each `#` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
 - ✅ Resolve Vendor and User Main/FX sources by case-insensitive zone ID into one deterministic per-zone active set before later role, reference, dependency, or runtime validation. A unique User source overrides only the matching Vendor source, an invalid User source blocks Vendor fallback, and same-layer duplicates leave that ID unavailable with source-linked diagnostics.
-- [ ] Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
+- ✅ Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
   - ✅ Define unquoted case-insensitive `Page`, `Device`, and Page-local `Surface` identifiers with source spelling preserved for display.
   - ✅ Add a brace-format C++ source parser that uses the shared lexer, syntax tree, and delimiter validator and returns the existing `IntegratorConfig` model.
   - ✅ Add one canonical C++ brace-format serializer for Product Settings, MIDI and OSC Devices, Device Settings, Page Surfaces, and Links.
   - ✅ Change the generated product filename to `.conf` and switch runtime, Settings protocol, Devices protocol, and the Lua Devices writer to the brace parser and serializer.
-  - [ ] Replace native-dialog parsing and writing, switch the Bun product-config consumer, and remove the legacy line parser.
-- [ ] Change generated setting scope metadata and effective-value resolution from `Surface` to `Device`. Reject settings inside Page Surface assignments.
+  - ✅ Replace native-dialog parsing and writing, switch the Bun product-config consumer, and remove the legacy line parser.
+- ✅ Change generated setting scope metadata and effective-value resolution from `Surface` to `Device`. Reject settings inside Page Surface assignments.
   - ✅ Change the canonical generated setting scopes to `Product,Device`, resolve each valid Device block as compiled defaults, Product, then Device, and let an invalid Device Settings block inherit Product values.
   - ✅ Reject nested Settings blocks in Page Surface assignments through the typed Page child schema.
   - ✅ Pass the referenced Device settings through the existing runtime Surface construction model and resolve Page Surface I/O through its explicit `Device` ID.
   - ✅ Switch the Settings protocol and Lua settings UI from Page Surface selection to Device selection.
-  - [ ] Switch the Bun product-config consumer from Surface settings to Device settings.
+  - ✅ Switch the Bun product-config consumer from Surface settings to Device settings.
 - [ ] Expose ring feedback capabilities and resolved action feedback shapes through runtime and generated editor metadata.
 - [ ] Replace the native Learn FX dialog with OSK FX edit mode, one in-memory live-preview draft, and atomic User FX-zone save through the shared validated model.
 - [ ] Validate the complete active profile before runtime objects are created.
@@ -1782,7 +1782,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert Learn FX pseudo-zones into `LearnFX.fxzon`, derive supported entry defaults, report ambiguous display/default targets, and do not convert `FXRowLayout`.
 - [ ] Convert brace-based `IncludedZones`, convert `SubZones` to the reusable `ZoneLayers` relation, and mark every referenced file with `Role=Layer`.
 - [ ] Convert `GoZone SelectedTrackFX`, `GoSubZone`, `LeaveSubZone`, and all lifecycle pseudo-widgets to their explicit format 2 actions or blocks.
-- [ ] Replace current development product INI parsing, serialization, diagnostics, fixtures, drafts, and editor support with the new unversioned `.conf` model and Product plus Device settings scopes.
+- ✅ Replace development product-config parsing, serialization, diagnostics, fixtures, drafts, and editor support with the new unversioned `.conf` model and Product plus Device settings scopes.
 - [ ] Convert old `CSI.ini` only through the Bun legacy importer and do not add runtime fallback.
 - [ ] Report ambiguous legacy content before import and keep the source unchanged.
 

@@ -64,7 +64,7 @@ Keys in `ReaCtrlSurf_OSK`:
 | --- | --- |
 | `Command` | `Close` requests script shutdown |
 | `Surfaces` | `surface|surface...` |
-| `Page` | Current Page name used to scope configured Surface settings |
+| `Page` | Current Page name used to locate the configured Surface assignment |
 | `Layout_<surface>` | Newline-separated rows containing pipe-separated cells |
 | `State_<surface>` | `widget=V:<value>,C:#RRGGBB,A:<0-or-1>,K:<kind>;...` |
 | `Labels_<surface>` | `widget=label;...` |
