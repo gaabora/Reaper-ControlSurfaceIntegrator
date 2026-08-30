@@ -50,6 +50,7 @@ function module.ParseResponse(source)
     if properties.Version ~= "1" then return nil, "Settings response Version must be 1" end
     if properties.Status ~= "OK" and properties.Status ~= "ERROR" then return nil, "Settings response Status must be OK or ERROR" end
     local response = {
+        configExists = properties.ConfigExists ~= "0",
         message = properties.Message or "",
         deviceId = properties.Device or "",
         deviceOptions = {},

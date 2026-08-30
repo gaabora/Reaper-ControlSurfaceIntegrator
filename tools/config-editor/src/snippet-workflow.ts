@@ -260,11 +260,11 @@ export async function snippetSurfaceContext(store: ConfigurationStore, knownActi
     const match = zonePath.match(/^Zones\/User\/([a-z0-9][a-z0-9_-]*)\/(Main|FX)\//);
     if (!match) throw new EditorOperationError("snippet.zone.target", "Choose an editable user zone before inserting a snippet");
     const profileId = match[1];
-    const profileProperty = match[2] === "FX" ? "FXZoneFolder" : "ZoneFolder";
+    const profileProperty = match[2] === "FX" ? "FXProfile" : "MainProfile";
     const productConfig = await store.openDocument(configFilename);
     const document = parseByPath(productConfig.source, configFilename, knownActions);
     const records = (document.semantic as ProductConfigSemantic).records.filter((record) => record.kind === "surface-assignment" && record.properties.get(profileProperty) === profileId);
-    const configuredIds = [...new Set(records.map((record) => record.properties.get("SurfaceFolder")).filter((surfaceId): surfaceId is string => Boolean(surfaceId)))];
+    const configuredIds = [...new Set(records.map((record) => record.properties.get("Template")).filter((surfaceId): surfaceId is string => Boolean(surfaceId)))];
     const configuredPaths = (await Promise.all(configuredIds.map((surfaceId) => existingSurfacePath(store, surfaceId)))).filter((surfacePath): surfacePath is string => Boolean(surfacePath));
     if (configuredPaths.length) return { automatic: configuredPaths.length === 1, surfaces: configuredPaths.map((surfacePath) => ({ path: surfacePath })) };
     const availablePaths = flattenSurfacePaths(await store.tree());

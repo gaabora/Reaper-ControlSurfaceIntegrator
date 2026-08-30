@@ -10,22 +10,41 @@
 - Only `//` starts a comment in current Surface and Zone files. A single leading `/` and a leading `#` are not comments. The exact Learn FX directives listed below are reserved metadata lines that start with `#`. The legacy importer converts old single-slash and other hash comment lines to `//` without changing OSC address tokens such as `X32Fader /ch/01/mix/fader`.
 - Syntax errors prevent later apply or save operations.
 
-## Product config 7.0
+## Product configuration
 
-The product config keeps the current runtime header and property-list syntax:
+The product `.conf` uses unversioned brace blocks:
 
 ```text
-Version=7.0
-SurfaceType=MIDI SurfaceName=fp2 SurfaceChannelCount=1 MidiInput=0 MidiOutput=0 MIDISurfaceRefreshRate=15 MaxMIDIMesssagesPerRun=200
-PageName=Home PageFollowsMCP=No SynchPages=No ScrollLink=No ScrollSynch=No
-  Surface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0
+Settings {
+  HoldDelayMs=1000
+}
+
+Device fp2 {
+  Type=MIDI
+  Channels=1
+  Input=0
+  Output=0
+}
+
+Page Home {
+  FollowMCP=false
+
+  Surface mixer {
+    Device=fp2
+    Template=faderportv2
+    MainProfile=faderportv2
+    FXProfile=faderportv2
+    StartChannel=0
+  }
+}
 ```
 
-- `Version=7.0` must be the first physical line because the current C++ runtime checks line zero.
-- After the version line, `#` starts a full-line comment in this INI file.
-- `SurfaceFolder`, non-empty `ZoneFolder`, and non-empty `FXZoneFolder` values are stable IDs, not paths.
-- `SurfaceFolder` is required for a surface assignment.
-- Unknown property-list records are preserved with a warning.
+- `Page`, `Device`, and Page-local `Surface` IDs are unquoted. They start with an ASCII letter and contain only ASCII letters, digits, or `_`.
+- Root `Settings` values apply to the product. A nested `Settings` block in a `Device` overrides the allowed values for that Device.
+- A Page `Surface` uses a separate local ID and references one `Device`. `Template`, `MainProfile`, and `FXProfile` are stable resource IDs.
+- `Link` blocks connect two Page-local Surface IDs and declare a non-empty `Share=[ ... ]` category list.
+- Only `//` starts a comment. `#` is invalid in the product configuration.
+- Unknown blocks and properties are errors.
 
 ## Surface 1
 

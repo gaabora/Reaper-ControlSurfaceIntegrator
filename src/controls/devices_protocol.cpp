@@ -201,16 +201,30 @@ static void PublishDevicesResponse(const string& requestId, bool success, const 
     ::SetExtState(ProductIdentity::ExtStateDevices, ("Response_" + requestId).c_str(), response.c_str(), false);
 }
 
-static string ReadDevicesConfigSource(const filesystem::path& configPath, string& errorMessage) {
+static bool ReadDevicesConfigSource(const filesystem::path& configPath, string& source, bool& exists, string& errorMessage) {
+    std::error_code existsError;
+    exists = filesystem::exists(configPath, existsError);
+    if (existsError) {
+        errorMessage = "Cannot check device configuration: " + existsError.message();
+        return false;
+    }
+    if (!exists) {
+        source.clear();
+        return true;
+    }
     ifstream inputFile(configPath, std::ios::binary);
     if (!inputFile.is_open()) {
         errorMessage = "Cannot open device configuration";
-        return "";
+        return false;
     }
-    ostringstream source;
-    source << inputFile.rdbuf();
-    if (!inputFile.good() && !inputFile.eof()) errorMessage = "Cannot read device configuration";
-    return source.str();
+    ostringstream buffer;
+    buffer << inputFile.rdbuf();
+    if (!inputFile.good() && !inputFile.eof()) {
+        errorMessage = "Cannot read device configuration";
+        return false;
+    }
+    source = buffer.str();
+    return true;
 }
 
 static string DevicesConfigRevision(const string& source) {
@@ -282,6 +296,14 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
         errorMessage = issue ? "Line " + to_string(issue->lineNumber) + ": " + issue->message : "The device configuration contains invalid entries";
         return false;
     }
+    if (config.midiIo.empty() && config.oscIo.empty()) {
+        errorMessage = "Add at least one I/O Device";
+        return false;
+    }
+    if (config.pages.empty()) {
+        errorMessage = "Add at least one Page";
+        return false;
+    }
     map<string, string> ioTypes;
     for (const MidiIoConfig& io : config.midiIo) {
         if (io.name.empty() || io.channelCount < 1 || io.inputPort < 0 || io.outputPort < 0 || io.refreshRate < 1 || io.maxMessagesPerRun < 0) {
@@ -312,6 +334,10 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
             return false;
         }
         pageNames[page.name] = true;
+        if (page.surfaces.empty()) {
+            errorMessage = "Assign at least one Surface to Page " + page.name;
+            return false;
+        }
         map<string, bool> surfaceNames;
         for (const SurfaceAssignmentConfig& surface : page.surfaces) {
             if (surface.surfaceName.empty() || surfaceNames.count(surface.surfaceName) > 0) {
@@ -386,10 +412,10 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         }
         return;
     }
-    string sourceError;
-    const string configSource = ReadDevicesConfigSource(productPaths.ConfigFile(), sourceError);
-    if (!sourceError.empty()) {
-        PublishDevicesResponse(request.requestId, false, sourceError);
+    string configSource;
+    bool configExists = false;
+    if (!ReadDevicesConfigSource(productPaths.ConfigFile(), configSource, configExists, errorMessage)) {
+        PublishDevicesResponse(request.requestId, false, errorMessage);
         return;
     }
     if (request.command == "Validate" || request.command == "Apply") {
@@ -420,9 +446,10 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         DAW::SendCommandMessage(REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES);
         return;
     }
-    const IntegratorConfig config = ParseFormat2IntegratorConfigSource(configSource, productPaths.ConfigFile().string());
+    const IntegratorConfig config = configExists ? ParseFormat2IntegratorConfigSource(configSource, productPaths.ConfigFile().string()) : IntegratorConfig();
     string body;
-    AppendDevicesProperty(body, "Revision", sourceError.empty() ? DevicesConfigRevision(configSource) : "");
+    AppendDevicesProperty(body, "ConfigExists", configExists ? 1 : 0);
+    AppendDevicesProperty(body, "Revision", DevicesConfigRevision(configSource));
     AppendDevicesProperty(body, "FatalError", config.fatalError);
     AppendSettingOverrides(body, "Product.", config.productSettingOverrides);
     const int currentPageIdx = this->currentPageIndex_.load();

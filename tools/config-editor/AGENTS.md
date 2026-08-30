@@ -21,7 +21,7 @@
 
 - Preserve original line text, line endings, comments, whitespace, unsupported properties, and unknown lines.
 - Unknown data produces a warning and remains serializable. Syntax or unsafe identifiers produce errors.
-- Product config version is the runtime `Version` value. Surface and zone version markers use `// @format <type> <version>` and remain safe for the current C++ parsers.
+- The product `.conf` uses unversioned brace blocks. Surface and zone version markers use `// @format <type> <version>` and remain safe for the current C++ parsers.
 - Treat only `//` as a comment in current Surface and Zone files. Report a leading single `/` or unsupported `#` line as an error with a quick fix. Keep the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn FX directives as metadata.
 - Functional snippets use semantic bindings and must not store fixed hardware widget names.
 - Functional snippet `Role`, `Input`, and `Feedback` requirements use the same capability rules as runtime OSK metadata. Formal layout metadata overrides inferred surface metadata when present.
@@ -43,8 +43,8 @@
 - Reject automatic recovery when the source hash changed after draft creation. Require an explicit Use draft or Discard draft choice.
 - Show field errors directly below their related path controls with semantic `danger` styling. Show other operation messages as dismissible notifications outside the workflow header. Route structured validation details into All found and keep notifications short instead of printing diagnostic JSON. Remove success notifications after five seconds, and keep info, warning, and danger notifications until the user closes them. Use `primary`, `secondary`, `success`, `warning`, `danger`, and `info` for visual state names, and keep operation reports inside their workflow instead of a global status footer.
 - Read action names from `src/shared/types.h` `ACTION_TYPE_LIST`. Do not add a manual action-name list.
-- Read setting metadata from `Scripts/settings_schema.conf`. Embed the parsed schema in standalone builds and do not add a separate TypeScript setting list. Read user-selected values from the product INI, not from the schema.
-- Parse Product values from `Settings` lines and configured Surface overrides from `Surface=` lines. Validate both scopes atomically with the shared schema and inherited cross-setting constraints.
+- Read setting metadata from `Scripts/settings_schema.conf`. Embed the parsed schema in standalone builds and do not add a separate TypeScript setting list. Read user-selected values from the product `.conf`, not from the schema.
+- Parse Product values from the root `Settings` block and Device values from nested `Device Settings` blocks. Validate both scopes atomically with the shared schema and inherited cross-setting constraints.
 - Keep parsers independent from the browser UI and file-writing service.
 - Bind the editor server only to `127.0.0.1` and require a random session token for every API request. Deliver the token in the generated initial HTML, not in the URL or persistent browser storage.
 - Let the user select only the REAPER `Data` directory. Derive the internal product configuration folder from product identity before file access.
@@ -55,7 +55,8 @@
 - Write only the product config and user-owned surface, zone, and snippet paths. Copy Vendor Main as one directory before editing it. Copy only the selected Vendor FX file to its matching User path. Check all must select User Main when present and validate Vendor and User FX zones as layers where an exact User `Zone` name overrides Vendor.
 - Keep a selected legacy CSI source separate from the writable product-root guard. Accept the legacy `CSI/` directory or its parent, follow source links, and never modify source files.
 - Keep a visible old CSI reload action on the import page. Re-read surface folders and source files while preserving the selected surface, selected zones, target choices, conflict choices, and in-memory import drafts. Keep the prior preview and drafts if a changed source cannot be refreshed safely.
-- Keep legacy source selection and mapping controls above a two-column import workspace. Put the import draft editor and its Problems panel in the left column. Put the target profile, preview status, target and conflict cards, Import action, and operation report in the independently scrolling right column. Stack the columns on narrow screens.
+- Keep the legacy import workspace in two columns. Put a folder tree with independent file-open buttons and import-selection checkboxes beside the import draft editor, with its Problems panel below. Put source selection and resolution in two compact accordion steps in the right column. Stack the columns on narrow screens.
+- Keep the legacy Import action in a permanently visible footer below the right-column steps. Show one exact blocking reason beside it: missing surface or file selection, unresolved widget mappings, validation errors, or unresolved target conflicts. Highlight every unresolved target conflict with danger styling, name the existing target path, show explicit Replace, Rename, and Skip actions, and make the footer reason navigate to the first conflict.
 - Validate selected legacy zone references against other selected zones and active zones already present in the target profile. When a matching legacy zone is not selected and no active target exists, name that state and link to the matching source file.
 - Keep one legacy FX-zone selection checkbox that selects or clears all `FXZones/` sources without changing the selection of ordinary zones.
 - Import legacy `Surface.txt` into `Surfaces/User`, `Zones/**/*.zon` into the matching `Zones/User/<profile>/Main` tree, and `FXZones/**/*.zon` into its `FX` tree. Let the user change the stable target profile ID and each zone path inside that user profile. Reject duplicate selected targets. Ignore backup names that do not end in `.zon`, add missing surface and zone format markers, and preserve zone subdirectories. Convert leading single-slash and unsupported hash comment lines to `//`, and preserve exact Learn FX directives with their `#` prefix.
@@ -65,6 +66,7 @@
 - Require explicit `Rename`, `Replace`, or `Skip` decisions for existing import targets. Recheck source and target hashes before one validated multi-file transaction.
 - Show the complete legacy import operation report with changed, created, failed, restored, and skipped paths.
 - Render actionable diagnostics as links. Open the related editor, move the cursor to the reported line, center it in the viewport, and focus the CodeMirror editor.
+- Render each legacy widget-mapping occurrence as a link that opens its source file and line in Import draft.
 - Show the selected file in the configuration tree with an accent background and accent edge.
 - Check the open-file SHA-256 before save. Stage and validate complete files before atomic rename.
 - Back up and roll back multi-file operations and keep their manifest below the product `Backups` directory.

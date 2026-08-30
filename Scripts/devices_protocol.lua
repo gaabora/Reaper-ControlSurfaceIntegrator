@@ -63,7 +63,7 @@ function module.ParseResponse(source)
     if properties.Version ~= "1" then return nil, "Devices response Version must be 1" end
     if properties.Status == "ERROR" then return nil, properties.Message or "Devices query failed" end
     if properties.Status ~= "OK" then return nil, "Devices response Status must be OK or ERROR" end
-    local response = { currentPage = properties.CurrentPage or "", editorAvailable = boolean(properties, "EditorAvailable"), fatalError = properties.FatalError or "", issues = {}, message = properties.Message or "", midi = {}, midiInputOptions = {}, midiOutputOptions = {}, osc = {}, pages = {}, productSettingOverrides = {}, profileOptions = {}, revision = properties.Revision or "", skippedSurfaceCount = number(properties, "SkippedSurfaceCount"), surfaceOptions = {} }
+    local response = { configExists = boolean(properties, "ConfigExists"), currentPage = properties.CurrentPage or "", editorAvailable = boolean(properties, "EditorAvailable"), fatalError = properties.FatalError or "", issues = {}, message = properties.Message or "", midi = {}, midiInputOptions = {}, midiOutputOptions = {}, osc = {}, pages = {}, productSettingOverrides = {}, profileOptions = {}, revision = properties.Revision or "", skippedSurfaceCount = number(properties, "SkippedSurfaceCount"), surfaceOptions = {} }
     for settingIdx = 1, number(properties, "Product.SettingCount") do response.productSettingOverrides[properties["Product.Setting." .. settingIdx .. ".Name"] or ""] = properties["Product.Setting." .. settingIdx .. ".Value"] or "" end
     for midiIdx = 1, number(properties, "MidiCount") do
         local prefix = "Midi." .. midiIdx .. "."

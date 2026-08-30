@@ -123,6 +123,7 @@ function module.Render(ctx, page, fonts)
     if page.id == "Devices" then
         devices.RenderPage(ctx, fonts)
     elseif page.id == "General" then
+        if devices.HasConfiguration() then general.RefreshIfMissing() end
         general.RenderPage(ctx, fonts)
     elseif page.id == "Appearance" then
         appearance.RenderPage(ctx, fonts)
@@ -130,6 +131,14 @@ function module.Render(ctx, page, fonts)
         logging.RenderPage(ctx)
     end
     devices.RenderModal(ctx)
+end
+
+function module.ConsumeRequestedPage()
+    return general.ConsumeRequestedPage()
+end
+
+function module.NeedsConfigurationCreation()
+    return devices.NeedsConfigurationCreation()
 end
 
 function module.IsDirty(page)
@@ -146,7 +155,7 @@ function module.HasAnyDirty()
 end
 
 function module.ValidateAll()
-    if devices.IsDirty() then
+    if devices.IsDirty() or devices.NeedsConfigurationCreation() then
         local devicesValid, devicesError = devices.Validate()
         if not devicesValid then return false, devicesError end
     end

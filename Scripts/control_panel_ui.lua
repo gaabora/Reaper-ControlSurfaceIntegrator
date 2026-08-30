@@ -106,6 +106,8 @@ local function renderPage(ctx, state, width, height)
             state.restoreScroll = false
         end
         pages.Render(ctx, page, state.fonts)
+        local requestedPage = pages.ConsumeRequestedPage()
+        if requestedPage ~= "" then selectTab(state, requestedPage) end
         if imgui.GetScrollY then state.scrollByPage[page.id] = imgui.GetScrollY(ctx) end
     end
     imgui.EndChild(ctx)
@@ -114,7 +116,7 @@ end
 local function renderFooter(ctx, state)
     local dirty = pages.HasAnyDirty()
     local busy = pages.IsBusy()
-    ui.DirtyActionButton(ctx, "Save changes", dirty and not busy, function()
+    ui.DirtyActionButton(ctx, pages.NeedsConfigurationCreation() and "Create configuration" or "Save changes", dirty and not busy, function()
         local accepted, saveError = pages.SaveAll()
         state.lastStatus = accepted and "Saving changes..." or tostring(saveError or "Cannot save changes")
     end)

@@ -8,44 +8,42 @@ const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const schema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
 
 function errorCodes(source: string): string[] {
-    return parseProductConfig(source, "ReaControlSurface.ini", schema).diagnostics.filter((diagnostic) => diagnostic.severity === "error").map((diagnostic) => diagnostic.code);
+    return parseProductConfig(source, "ReaControlSurface.conf", schema).diagnostics.filter((diagnostic) => diagnostic.severity === "error").map((diagnostic) => diagnostic.code);
+}
+
+function productConfig(productSettings = "", deviceSettings = ""): string {
+    const lines: string[] = [];
+    if (productSettings) lines.push("Settings {", productSettings, "}", "");
+    lines.push("Device fp2 {", "  Type=MIDI", "  Channels=1", "  Input=0", "  Output=0");
+    if (deviceSettings) lines.push("", "  Settings {", deviceSettings, "  }");
+    lines.push("}", "", "Page Home {", "  Surface fp2 {", "    Device=fp2", "    Template=faderportv2", "  }", "}", "");
+    return lines.join("\n");
 }
 
 describe("product settings", () => {
-    test("accepts Product settings and Surface overrides", () => {
-        const source = "Version=7.0\nSettings DefaultModifierMode=Latch HoldDelayMs=1000 LongHoldDelayMs=2000 SurfaceInDisplay=1\nPageName=Home PageFollowsMCP=No SynchPages=No ScrollLink=No ScrollSynch=No\nSurface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0 HoldDelayMs=750 LongHoldDelayMs=1500\n";
-        expect(errorCodes(source)).toEqual([]);
+    test("accepts Product settings and Device overrides", () => {
+        expect(errorCodes(productConfig("  DefaultModifierMode=Latch\n  HoldDelayMs=1000\n  LongHoldDelayMs=2000\n  SurfaceInDisplay=true", "    HoldDelayMs=750\n    LongHoldDelayMs=1500"))).toEqual([]);
     });
 
     test("rejects duplicate, invalid, and contradictory values", () => {
-        const duplicate = errorCodes("Version=7.0\nSettings HoldDelayMs=1000\nSettings HoldDelayMs=1200\n");
-        expect(duplicate).toContain("product.setting.duplicate");
-        const invalidEnum = errorCodes("Version=7.0\nSettings DefaultModifierMode=Sticky\n");
-        expect(invalidEnum).toContain("product.setting.enum");
-        const invalidRange = errorCodes("Version=7.0\nSettings HoldDelayMs=10\n");
-        expect(invalidRange).toContain("product.setting.range");
-        const invalidBoolean = errorCodes("Version=7.0\nSettings SurfaceInDisplay=Yes\n");
-        expect(invalidBoolean).toContain("product.setting.boolean");
-        const invalidRelationship = errorCodes("Version=7.0\nSettings HoldDelayMs=1000 LongHoldDelayMs=500\n");
-        expect(invalidRelationship).toContain("product.setting.relationship");
+        expect(errorCodes(productConfig("  HoldDelayMs=1000\n  HoldDelayMs=1200"))).toContain("product.property.duplicate");
+        expect(errorCodes(productConfig("  DefaultModifierMode=Sticky"))).toContain("product.setting.enum");
+        expect(errorCodes(productConfig("  HoldDelayMs=10"))).toContain("product.setting.range");
+        expect(errorCodes(productConfig("  SurfaceInDisplay=Yes"))).toContain("product.setting.boolean");
+        expect(errorCodes(productConfig("  HoldDelayMs=1000\n  LongHoldDelayMs=500"))).toContain("product.setting.relationship");
     });
 
-    test("validates a Surface relationship against inherited Product values", () => {
-        const source = "Version=7.0\nSettings HoldDelayMs=1500 LongHoldDelayMs=2500\nPageName=Home PageFollowsMCP=No SynchPages=No ScrollLink=No ScrollSynch=No\nSurface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0 LongHoldDelayMs=1200\n";
-        expect(errorCodes(source)).toContain("product.setting.relationship");
+    test("validates a Device relationship against inherited Product values", () => {
+        expect(errorCodes(productConfig("  HoldDelayMs=1500\n  LongHoldDelayMs=2500", "    LongHoldDelayMs=1200"))).toContain("product.setting.relationship");
     });
 
     test("uses compiled defaults after an invalid Product scope", () => {
-        const source = "Version=7.0\nSettings UnknownSetting=1 HoldDelayMs=1500 LongHoldDelayMs=2500\nPageName=Home PageFollowsMCP=No SynchPages=No ScrollLink=No ScrollSynch=No\nSurface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0 LongHoldDelayMs=1200\n";
-        const codes = errorCodes(source);
+        const codes = errorCodes(productConfig("  UnknownSetting=1\n  HoldDelayMs=1500\n  LongHoldDelayMs=2500", "    LongHoldDelayMs=1200"));
         expect(codes).toContain("product.setting.unknown");
         expect(codes).not.toContain("product.setting.relationship");
     });
 
-    test("reports an unknown Surface override as a setting error", () => {
-        const source = "Version=7.0\nPageName=Home PageFollowsMCP=No SynchPages=No ScrollLink=No ScrollSynch=No\nSurface=fp2 SurfaceFolder=faderportv2 ZoneFolder=faderportv2 FXZoneFolder=faderportv2 StartChannel=0 UnknownDelayMs=500\n";
-        const codes = errorCodes(source);
-        expect(codes).toContain("product.setting.unknown");
-        expect(codes).not.toContain("product.surface.properties");
+    test("reports an unknown Device override as a setting error", () => {
+        expect(errorCodes(productConfig("", "    UnknownDelayMs=500"))).toContain("product.setting.unknown");
     });
 });

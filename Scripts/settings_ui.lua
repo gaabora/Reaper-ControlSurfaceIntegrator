@@ -17,6 +17,7 @@ local state = {
     inheritedValues = {},
     initialized = false,
     loaded = false,
+    configurationMissing = false,
     message = "",
     originalExplicit = {},
     originalValues = {},
@@ -24,6 +25,7 @@ local state = {
     requestId = nil,
     requestStartedAt = 0,
     scope = "Product",
+    requestedPage = "",
 }
 
 local SCOPE_ITEMS = {
@@ -89,6 +91,17 @@ local function queryCurrentScope()
 end
 
 local function loadResponse(response)
+    state.configurationMissing = response.configExists == false
+    if state.configurationMissing then
+        state.draftExplicit = {}
+        state.draftValues = {}
+        state.inheritedValues = {}
+        state.loaded = false
+        state.originalExplicit = {}
+        state.originalValues = {}
+        state.deviceOptions = {}
+        return
+    end
     state.loaded = true
     state.deviceOptions = response.deviceOptions or {}
     if response.scope == "Device" then state.deviceId = response.deviceId end
@@ -257,7 +270,18 @@ function module.IsDirty()
 end
 
 function module.Validate()
+    if state.configurationMissing then return true end
     return validateDraft()
+end
+
+function module.RefreshIfMissing()
+    if state.configurationMissing and not state.requestId then queryCurrentScope() end
+end
+
+function module.ConsumeRequestedPage()
+    local requestedPage = state.requestedPage
+    state.requestedPage = ""
+    return requestedPage
 end
 
 function module.IsBusy()
@@ -371,6 +395,11 @@ end
 
 function module.RenderPage(ctx, fonts)
     module.Initialize()
+    if state.configurationMissing then
+        imgui.TextWrapped(ctx, "Create the product configuration on the Devices page before you edit General settings.")
+        if imgui.Button(ctx, "Open Devices") then state.requestedPage = "Devices" end
+        return
+    end
     if imgui.BeginTable(ctx, "##GeneralColumns", 2, 0, -1, 0) then
         imgui.TableSetupColumn(ctx, "Left", imgui.TableColumnFlags_WidthStretch)
         imgui.TableSetupColumn(ctx, "Right", imgui.TableColumnFlags_WidthStretch)

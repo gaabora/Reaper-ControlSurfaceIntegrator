@@ -46,17 +46,20 @@ const elements = {
     legacyDraftPanel: requiredElement("legacy-draft-panel"),
     legacyDraftPath: requiredElement("legacy-draft-path"),
     legacyImport: requiredElement("legacy-import"),
+    legacyImportReason: requiredElement("legacy-import-reason"),
     legacyIncludeSurface: requiredElement("legacy-include-surface"),
     legacyOperationReport: requiredElement("legacy-operation-report"),
     legacyPath: requiredElement("legacy-path"),
     legacyPathFeedback: requiredElement("legacy-path-feedback"),
     legacyPreview: requiredElement("legacy-preview"),
     legacyReload: requiredElement("legacy-reload"),
+    legacyResolveStep: requiredElement("legacy-resolve-step"),
     legacyRefresh: requiredElement("legacy-refresh"),
     legacySelectAll: requiredElement("legacy-select-all"),
     legacySelectFx: requiredElement("legacy-select-fx"),
     legacySelectNone: requiredElement("legacy-select-none"),
     legacyStatus: requiredElement("legacy-status"),
+    legacySourceStep: requiredElement("legacy-source-step"),
     legacySurface: requiredElement("legacy-surface"),
     legacyTargetFeedback: requiredElement("legacy-target-feedback"),
     legacyTargetProfile: requiredElement("legacy-target-profile"),
@@ -118,7 +121,10 @@ let draftWritePromise = Promise.resolve();
 const codeEditor = createConfigurationEditor(elements.rawEditor, handleEditorChange);
 const legacyDraftEditor = createConfigurationEditor(elements.legacyDraftEditor, (source) => {
     const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === state.legacy.activeDraftPath);
-    if (item) state.legacy.drafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source });
+    if (item) {
+        state.legacy.drafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source });
+        updateLegacyZoneTreeSelection();
+    }
 });
 legacyDraftEditor.setReadOnly(false);
 legacyDraftEditor.setVisible(false);
@@ -891,6 +897,7 @@ function closeLegacyDraft() {
     legacyDraftEditor.setVisible(false);
     elements.legacyDraftPanel.hidden = true;
     elements.legacyDraftEmpty.hidden = false;
+    updateLegacyZoneTreeSelection();
 }
 
 function openLegacyDraft(item, line) {
@@ -902,6 +909,7 @@ function openLegacyDraft(item, line) {
     elements.legacyDraftPath.textContent = item.sourcePath + " → " + item.targetPath;
     const draft = state.legacy.drafts.get(item.sourcePath);
     legacyDraftEditor.setValue(draft?.source ?? item.source, changedItem);
+    updateLegacyZoneTreeSelection();
     if (line) requestAnimationFrame(() => legacyDraftEditor.goToLine(line));
 }
 
@@ -921,57 +929,122 @@ function resolutionFor(item) {
 function updateLegacyImportButton() {
     const preview = state.legacy.preview;
     const selectedItems = selectedLegacyItems();
-    elements.legacyImport.disabled = !preview || !preview.valid || !selectedItems.length || selectedItems.some((item) => {
+    const unresolvedConflictCount = selectedItems.filter((item) => {
         const resolution = resolutionFor(item);
         if (!item.targetExists) return resolution.action !== "create";
         if (!["rename", "replace", "skip"].includes(resolution.action)) return true;
         return resolution.action === "rename" && !resolution.targetPath;
-    });
+    }).length;
+    const errorCount = preview?.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length || 0;
+    const mappingErrorCount = preview?.diagnostics.filter((diagnostic) => diagnostic.severity === "error" && diagnostic.code === "legacy.widget.mapping.required").length || 0;
+    let message = translate("legacy.import.selectSurface");
+    let ready = false;
+    if (preview && !selectedItems.length) message = translate("legacy.import.selectFiles");
+    else if (preview && mappingErrorCount) message = translate("legacy.import.resolveMappings", { count: mappingErrorCount });
+    else if (preview && errorCount) message = translate("legacy.import.fixErrors", { count: errorCount });
+    else if (preview && unresolvedConflictCount) message = translate("legacy.import.resolveConflicts", { count: unresolvedConflictCount });
+    else if (preview) {
+        message = translate("legacy.import.ready", { count: selectedItems.length });
+        ready = true;
+    }
+    elements.legacyImport.disabled = !ready;
+    elements.legacyImportReason.className = ready ? "success" : "danger";
+    elements.legacyImportReason.textContent = message;
+    if (preview && !mappingErrorCount && !errorCount && unresolvedConflictCount) elements.legacyImportReason.setAttribute("href", "#legacy-preview");
+    else elements.legacyImportReason.removeAttribute("href");
+}
+
+async function setLegacyZoneSelected(zone, selected) {
+    const preview = state.legacy.preview;
+    if (!preview) return;
+    if (selected) {
+        state.legacy.selectedZonePaths.add(zone.sourcePath);
+        const pendingPaths = [zone.sourcePath];
+        const visitedPaths = new Set();
+        while (pendingPaths.length) {
+            const sourcePath = pendingPaths.shift();
+            if (!sourcePath || visitedPaths.has(sourcePath)) continue;
+            visitedPaths.add(sourcePath);
+            for (const dependency of preview.dependencies.filter((candidate) => candidate.from === sourcePath && candidate.matches.length === 1)) {
+                const dependencyPath = dependency.matches[0];
+                if (!state.legacy.selectedZonePaths.has(dependencyPath)) {
+                    state.legacy.selectedZonePaths.add(dependencyPath);
+                    pendingPaths.push(dependencyPath);
+                }
+            }
+        }
+    } else state.legacy.selectedZonePaths.delete(zone.sourcePath);
+    await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+}
+
+function updateLegacyZoneTreeSelection() {
+    for (const button of elements.legacyZones.querySelectorAll("button[data-path]")) {
+        const dirty = state.legacy.drafts.has(button.dataset.path);
+        button.classList.toggle("selected", button.dataset.path === state.legacy.activeDraftPath);
+        button.classList.toggle("dirty", dirty);
+        button.textContent = button.dataset.label + (dirty ? " *" : "");
+    }
 }
 
 function renderLegacyZones() {
-    const preview = state.legacy.preview;
-    const zones = (preview?.items || []).filter((item) => item.kind === "zone");
+    const zones = (state.legacy.preview?.items || []).filter((item) => item.kind === "zone");
     elements.legacyZones.replaceChildren();
     if (!zones.length) {
-        elements.legacyZones.className = "legacy-list secondary";
+        elements.legacyZones.className = "legacy-zone-tree secondary";
         elements.legacyZones.textContent = translate("legacy.zones.empty");
         elements.legacySelectFx.disabled = true;
         elements.legacySelectFx.checked = false;
         elements.legacySelectFx.indeterminate = false;
         return;
     }
-    elements.legacyZones.className = "legacy-list";
+    elements.legacyZones.className = "legacy-zone-tree";
+    const root = { directories: new Map(), files: [] };
     for (const zone of zones) {
-        const label = document.createElement("label");
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = state.legacy.selectedZonePaths.has(zone.sourcePath);
-        checkbox.addEventListener("change", async () => {
-            try {
-                if (checkbox.checked) {
-                    state.legacy.selectedZonePaths.add(zone.sourcePath);
-                    const pendingPaths = [zone.sourcePath];
-                    const visitedPaths = new Set();
-                    while (pendingPaths.length) {
-                        const sourcePath = pendingPaths.shift();
-                        if (!sourcePath || visitedPaths.has(sourcePath)) continue;
-                        visitedPaths.add(sourcePath);
-                        for (const dependency of preview.dependencies.filter((candidate) => candidate.from === sourcePath && candidate.matches.length === 1)) {
-                            const dependencyPath = dependency.matches[0];
-                            if (!state.legacy.selectedZonePaths.has(dependencyPath)) {
-                                state.legacy.selectedZonePaths.add(dependencyPath);
-                                pendingPaths.push(dependencyPath);
-                            }
-                        }
-                    }
-                } else state.legacy.selectedZonePaths.delete(zone.sourcePath);
-                await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
-            } catch (error) { showError(error); }
-        });
-        label.append(checkbox, document.createTextNode(" " + zone.sourcePath + (zone.zoneName ? " [" + zone.zoneName + "]" : "")));
-        elements.legacyZones.append(label);
+        const pathParts = zone.sourcePath.split("/");
+        const fileName = pathParts.pop();
+        let directory = root;
+        for (const pathPart of pathParts) {
+            if (!directory.directories.has(pathPart)) directory.directories.set(pathPart, { directories: new Map(), files: [] });
+            directory = directory.directories.get(pathPart);
+        }
+        directory.files.push({ fileName, zone });
     }
+    const renderDirectory = (directory) => {
+        const list = document.createElement("ul");
+        for (const [directoryName, childDirectory] of [...directory.directories].sort(([leftName], [rightName]) => leftName.localeCompare(rightName))) {
+            const item = document.createElement("li");
+            const details = document.createElement("details");
+            details.open = true;
+            const summary = document.createElement("summary");
+            const icon = document.createElement("span");
+            icon.className = "folder-icon";
+            summary.append(icon, document.createTextNode(directoryName));
+            details.append(summary, renderDirectory(childDirectory));
+            item.append(details);
+            list.append(item);
+        }
+        for (const { fileName, zone } of directory.files.sort((left, right) => left.fileName.localeCompare(right.fileName))) {
+            const item = document.createElement("li");
+            const row = document.createElement("div");
+            row.className = "legacy-zone-row";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = state.legacy.selectedZonePaths.has(zone.sourcePath);
+            checkbox.title = zone.sourcePath;
+            checkbox.addEventListener("change", () => { void setLegacyZoneSelected(zone, checkbox.checked).catch(showError); });
+            const button = document.createElement("button");
+            button.dataset.path = zone.sourcePath;
+            button.dataset.label = fileName + (zone.zoneName ? " [" + zone.zoneName + "]" : "");
+            button.title = zone.sourcePath;
+            button.addEventListener("click", () => openLegacyDraft(zone));
+            row.append(checkbox, button);
+            item.append(row);
+            list.append(item);
+        }
+        return list;
+    };
+    elements.legacyZones.append(renderDirectory(root));
+    updateLegacyZoneTreeSelection();
     const fxZones = zones.filter((zone) => zone.sourcePath.startsWith("FXZones/"));
     const selectedFxCount = fxZones.filter((zone) => state.legacy.selectedZonePaths.has(zone.sourcePath)).length;
     elements.legacySelectFx.disabled = !fxZones.length;
@@ -1032,6 +1105,19 @@ function renderLegacyWidgetMappings() {
         const required = translate("legacy.widgetMappings.required", { capabilities: translatedCapabilities(issue.requiredCapabilities) });
         const occurrences = translate("legacy.widgetMappings.occurrences", { count: issue.occurrences.length });
         details.textContent = reason + " " + required + " " + occurrences;
+        const occurrenceLinks = document.createElement("div");
+        occurrenceLinks.className = "legacy-widget-occurrences";
+        for (const occurrence of issue.occurrences) {
+            const link = document.createElement("a");
+            link.href = editorRouteUrl({ view: "legacy" }).href;
+            link.textContent = translate("legacy.widgetMappings.openOccurrence", { line: occurrence.line, path: occurrence.path });
+            link.addEventListener("click", (event) => {
+                event.preventDefault();
+                const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === occurrence.path);
+                if (item) openLegacyDraft(item, occurrence.line);
+            });
+            occurrenceLinks.append(link);
+        }
         const input = document.createElement("input");
         const suggestions = document.createElement("datalist");
         suggestions.id = "legacy-widget-mapping-" + issueIdx;
@@ -1052,7 +1138,7 @@ function renderLegacyWidgetMappings() {
                 await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
             } catch (error) { showError(error); }
         });
-        row.append(source, input, suggestions, details);
+        row.append(source, input, suggestions, details, occurrenceLinks);
         elements.legacyWidgetMappings.append(row);
     }
 }
@@ -1085,6 +1171,9 @@ function renderLegacyPreview() {
     for (const item of selectedItems) {
         const container = document.createElement("div");
         container.className = "legacy-item";
+        const conflictMessage = document.createElement("p");
+        conflictMessage.className = "legacy-conflict-message";
+        conflictMessage.textContent = translate("legacy.conflict.unresolved", { target: item.targetPath });
         const header = document.createElement("div");
         header.className = "legacy-item-header";
         const sourcePath = document.createElement("button");
@@ -1102,6 +1191,11 @@ function renderLegacyPreview() {
             } catch (error) { showError(error); }
         });
         const resolution = resolutionFor(item);
+        const renderConflictState = () => {
+            const unresolved = item.targetExists && (!["rename", "replace", "skip"].includes(resolution.action) || (resolution.action === "rename" && !resolution.targetPath));
+            container.classList.toggle("unresolved-conflict", unresolved);
+            conflictMessage.hidden = !unresolved;
+        };
         let actionControl;
         let renameInput;
         if (item.targetExists) {
@@ -1116,20 +1210,24 @@ function renderLegacyPreview() {
             renameInput = document.createElement("input");
             renameInput.value = resolution.targetPath || renameSuggestion(item.targetPath);
             renameInput.hidden = resolution.action !== "rename";
-            renameInput.addEventListener("input", () => { resolution.targetPath = renameInput.value; updateLegacyImportButton(); });
+            renameInput.addEventListener("input", () => { resolution.targetPath = renameInput.value; renderConflictState(); updateLegacyImportButton(); });
             actionControl.addEventListener("change", async () => {
                 resolution.action = actionControl.value;
                 if (resolution.action === "rename" && !resolution.targetPath) resolution.targetPath = renameInput.value;
                 renameInput.hidden = resolution.action !== "rename";
                 if (item.kind === "surface") {
                     try { await refreshLegacyPreview([...state.legacy.selectedZonePaths], usesExistingLegacySurface()); } catch (error) { showError(error); }
-                } else updateLegacyImportButton();
+                } else {
+                    renderConflictState();
+                    updateLegacyImportButton();
+                }
             });
         } else {
             actionControl = document.createElement("span");
             actionControl.textContent = translate("legacy.conflict.create");
             renameInput = document.createElement("span");
         }
+        renderConflictState();
         header.append(sourcePath, targetPath, actionControl, renameInput);
         const details = document.createElement("details");
         const summary = document.createElement("summary");
@@ -1137,7 +1235,7 @@ function renderLegacyPreview() {
         const source = document.createElement("pre");
         source.textContent = item.source;
         details.append(summary, source);
-        container.append(header, details);
+        container.append(conflictMessage, header, details);
         elements.legacyPreview.append(container);
     }
     const activeItem = preview.items.find((item) => item.sourcePath === state.legacy.activeDraftPath);
@@ -1151,6 +1249,7 @@ function renderLegacyPreview() {
 
 async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = usesExistingLegacySurface()) {
     if (!elements.legacySurface.value) return;
+    const hadPreview = Boolean(state.legacy.preview);
     const body = { drafts: legacyDraftsForRequest(), includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value, targetPaths: legacyTargetPathsForRequest(), targetProfileId: state.legacy.targetProfileId || undefined, useExistingSurface, widgetMappings: widgetMappingsForRequest() };
     if (selectedZonePaths !== undefined) body.selectedZonePaths = selectedZonePaths;
     const result = await api("/api/legacy/preview", { method: "POST", body: JSON.stringify(body) });
@@ -1163,6 +1262,10 @@ async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = uses
     elements.legacySelectNone.disabled = false;
     elements.legacyRefresh.disabled = false;
     renderLegacyPreview();
+    if (!hadPreview) {
+        elements.legacySourceStep.open = false;
+        elements.legacyResolveStep.open = true;
+    }
 }
 
 function renderLegacySource(selection, selectedSurfaceName = "") {
@@ -1208,6 +1311,8 @@ function renderLegacySelection(selection) {
     elements.legacySelectFx.indeterminate = false;
     elements.legacySelectNone.disabled = true;
     elements.legacyRefresh.disabled = true;
+    elements.legacySourceStep.open = true;
+    elements.legacyResolveStep.open = false;
     renderLegacyPreview();
 }
 
@@ -1297,6 +1402,15 @@ elements.openLegacy.addEventListener("click", async () => {
         renderLegacySelection(result);
         setFeedback(elements.legacyPathFeedback, "");
     } catch (error) { showError(error, elements.legacyPathFeedback); }
+});
+
+elements.legacyImportReason.addEventListener("click", (event) => {
+    const firstConflict = elements.legacyPreview.querySelector(".legacy-item.unresolved-conflict");
+    if (!firstConflict) return;
+    event.preventDefault();
+    elements.legacyResolveStep.open = true;
+    firstConflict.scrollIntoView({ behavior: "smooth", block: "center" });
+    firstConflict.querySelector("select")?.focus({ preventScroll: true });
 });
 
 elements.legacyReload.addEventListener("click", async () => {

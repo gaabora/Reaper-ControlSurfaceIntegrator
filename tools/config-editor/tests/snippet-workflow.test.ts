@@ -8,7 +8,7 @@ import { previewSnippetApplication, type SnippetApplicationRequest } from "../sr
 import { ConfigurationStore } from "../src/store.ts";
 
 const identity: EditorProductIdentity = {
-    configFilename: "TestProduct.ini",
+    configFilename: "TestProduct.conf",
     displayName: "Test Product",
     packagePrefix: "TestProduct",
     productId: "test-product",
@@ -67,7 +67,7 @@ beforeEach(async () => {
     await mkdir(path.join(productRoot, "Snippets", "User"), { recursive: true });
     await mkdir(path.join(productRoot, "Surfaces", "Vendor"), { recursive: true });
     await mkdir(path.join(productRoot, "Zones", "User", "test-profile", "Main"), { recursive: true });
-    await writeFile(path.join(productRoot, identity.configFilename), "Version=7.0\n", "utf8");
+    await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Channels=1\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test-surface\n    MainProfile=test-profile\n    FXProfile=test-profile\n  }\n}\n", "utf8");
     await writeFile(path.join(productRoot, ...snippetPath.split("/")), snippetSource, "utf8");
     await writeFile(path.join(productRoot, ...surfacePath.split("/")), surfaceSource, "utf8");
     await writeFile(path.join(productRoot, ...targetZonePath.split("/")), zoneSource, "utf8");

@@ -60,6 +60,12 @@ bool EditSettingsConfigSource(const string& source, const SettingsConfigEditRequ
 }
 
 bool WriteSettingsConfigAtomically(const filesystem::path& configPath, const string& source, string& errorMessage) {
+    std::error_code directoryError;
+    filesystem::create_directories(configPath.parent_path(), directoryError);
+    if (directoryError) {
+        errorMessage = "Cannot create configuration directory: " + directoryError.message();
+        return false;
+    }
     const long long timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
     filesystem::path temporaryPath = configPath;
     temporaryPath += ".settings-" + std::to_string(timestamp) + ".tmp";

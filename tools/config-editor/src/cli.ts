@@ -48,7 +48,7 @@ async function validateCommand(args: string[]): Promise<number> {
     const knownActions = actionNameSet(catalog);
     const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
     const configPaths = [...new Set((await Promise.all(inputs.map((input) => collectConfigPaths(input)))).flat())].sort();
-    if (!configPaths.length) throw new Error("No supported .ini, .txt, .zon, or .snippet files were found");
+    if (!configPaths.length) throw new Error("No supported .conf, .txt, .zon, or .snippet files were found");
 
     const documents: AnyDocument[] = [];
     for (const configPath of configPaths) documents.push(parseByPath(await readFile(configPath, "utf8"), configPath, knownActions, settingsSchema));

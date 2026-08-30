@@ -8,7 +8,7 @@ import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { ConfigurationStore, EditorOperationError } from "../src/store.ts";
 
 const identity: EditorProductIdentity = {
-    configFilename: "TestProduct.ini",
+    configFilename: "TestProduct.conf",
     displayName: "Test Product",
     packagePrefix: "TestProduct",
     productId: "test-product",
@@ -45,7 +45,7 @@ beforeEach(async () => {
     productRoot = path.join(temporaryRoot, "Data", identity.resourceDirectory);
     await mkdir(path.join(productRoot, "Surfaces", "User"), { recursive: true });
     await mkdir(path.join(productRoot, "Zones", "User"), { recursive: true });
-    await writeFile(path.join(productRoot, identity.configFilename), "Version=7.0\n", "utf8");
+    await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Channels=1\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test\n  }\n}\n", "utf8");
 });
 
 afterEach(async () => {

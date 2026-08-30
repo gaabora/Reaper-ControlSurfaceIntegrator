@@ -565,8 +565,7 @@ end
 local function renderAssignmentsSection(ctx, data, fonts)
     state.pageIndex = clamp(state.pageIndex, #data.pages)
     local page = data.pages[state.pageIndex]
-    if not page then imgui.TextDisabled(ctx, "Add a Page first") return end
-    state.surfaceIndex = clamp(state.surfaceIndex, #page.surfaces)
+    if page then state.surfaceIndex = clamp(state.surfaceIndex, #page.surfaces) end
     if imgui.BeginTable(ctx, "##AssignmentMasterDetail", 3, 0, -1, 0) then
         imgui.TableSetupColumn(ctx, "Pages", imgui.TableColumnFlags_WidthFixed, PAGE_LIST_WIDTH)
         imgui.TableSetupColumn(ctx, "Assignments", imgui.TableColumnFlags_WidthFixed, ASSIGNMENT_LIST_WIDTH)
@@ -812,13 +811,23 @@ function module.GetStatus()
     return state.error ~= "" and state.error or state.status
 end
 
+function module.NeedsConfigurationCreation()
+    return state.data ~= nil and not state.data.configExists
+end
+
+function module.HasConfiguration()
+    return state.data ~= nil and state.data.configExists == true
+end
+
 function module.Validate()
     if not state.data then return false, "Device configuration is not loaded" end
     if state.data.fatalError ~= "" or #state.data.issues > 0 or state.data.skippedSurfaceCount > 0 then return false, "Fix the listed configuration issues in the standalone editor before saving Devices" end
+    if #state.data.midi == 0 and #state.data.osc == 0 then return false, "Add at least one I/O Device" end
     for midiIdx, device in ipairs(state.data.midi) do if device.inputPort < 0 or device.outputPort < 0 then return false, "Select input and output ports for MIDI I/O " .. device.name end end
     local source, serializationError = model.Serialize(state.data)
     if not source then return false, serializationError end
     if #state.data.pages == 0 then return false, "At least one Page is required" end
+    for pageIdx, page in ipairs(state.data.pages) do if #page.surfaces == 0 then return false, "Assign at least one Surface to Page " .. page.name end end
     return true
 end
 
@@ -849,6 +858,10 @@ function module.RenderPage(ctx, fonts)
     if state.error ~= "" then imgui.TextWrapped(ctx, "Error: " .. state.error) end
     if state.status ~= "" then imgui.TextWrapped(ctx, state.status) end
     if not state.data then return end
+    if not state.data.configExists then
+        imgui.Spacing(ctx)
+        imgui.TextWrapped(ctx, "No product configuration exists yet. Add an I/O Device, a Page, and a Surface assignment. Then use Create configuration below.")
+    end
     imgui.Spacing(ctx)
     if state.section == "IO" then renderIoSection(ctx, state.data, fonts)
     elseif state.section == "Assignments" then renderAssignmentsSection(ctx, state.data, fonts)
@@ -875,11 +888,12 @@ function module.RenderModal(ctx)
         end
         imgui.EndPopup(ctx)
     end
-    if state.confirmSource then imgui.OpenPopup(ctx, "Reconnect CSI##DevicesReconnect") end
-    local confirmVisible = imgui.BeginPopupModal(ctx, "Reconnect CSI##DevicesReconnect", nil, imgui.WindowFlags_AlwaysAutoResize)
+    if state.confirmSource then imgui.OpenPopup(ctx, "Save Devices##DevicesReconnect") end
+    local confirmVisible = imgui.BeginPopupModal(ctx, "Save Devices##DevicesReconnect", nil, imgui.WindowFlags_AlwaysAutoResize)
     if confirmVisible then
-        imgui.TextWrapped(ctx, "Saving Devices disconnects and reconnects active control surfaces. Continue?")
-        if imgui.Button(ctx, "Save and reconnect", 150, 0) then
+        local creating = state.data and not state.data.configExists
+        imgui.TextWrapped(ctx, creating and "Create the product configuration and connect the configured control surfaces?" or "Saving Devices disconnects and reconnects active control surfaces. Continue?")
+        if imgui.Button(ctx, creating and "Create and connect" or "Save and reconnect", 150, 0) then
             local source = state.confirmSource
             state.confirmSource = nil
             startRequest("Apply", nil, source)

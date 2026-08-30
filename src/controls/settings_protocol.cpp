@@ -140,16 +140,26 @@ static void PublishSettingsResponse(const string& requestId, bool success, const
     ::SetExtState(ProductIdentity::ExtStateSettings, responseKey.c_str(), response.c_str(), false);
 }
 
-static bool ReadSettingsConfigSource(const filesystem::path& configPath, string& source, string& errorMessage) {
+static bool ReadSettingsConfigSource(const filesystem::path& configPath, string& source, bool& exists, string& errorMessage) {
+    std::error_code existsError;
+    exists = filesystem::exists(configPath, existsError);
+    if (existsError) {
+        errorMessage = "Cannot check configuration file: " + existsError.message();
+        return false;
+    }
+    if (!exists) {
+        source.clear();
+        return true;
+    }
     ifstream configFile(configPath, std::ios::binary);
     if (!configFile.is_open()) {
-        errorMessage = "Cannot open settings configuration file: " + configPath.string();
+        errorMessage = "Cannot open configuration file: " + configPath.string();
         return false;
     }
     ostringstream buffer;
     buffer << configFile.rdbuf();
     if (!configFile.good() && !configFile.eof()) {
-        errorMessage = "Cannot read settings configuration file: " + configPath.string();
+        errorMessage = "Cannot read configuration file: " + configPath.string();
         return false;
     }
     source = buffer.str();
@@ -237,7 +247,7 @@ static string BuildSettingsQueryBody(const SettingsCommandRequest& request, cons
         errorMessage = "Cannot find Device=" + request.deviceId;
         return "";
     }
-    string body = "Scope=" + request.scope + "\n";
+    string body = "ConfigExists=1\nScope=" + request.scope + "\n";
     if (request.scope == "Device") body += "Device=" + request.deviceId + "\n";
     int deviceOptionIdx = 0;
     for (const MidiIoConfig& device : config.midiIo) body += "DeviceOption." + std::to_string(++deviceOptionIdx) + "=" + device.name + "\n";
@@ -268,8 +278,14 @@ void CSurfIntegrator::PollAndHandleSettingsCommands() {
 
     const filesystem::path configPath = ProductPaths::FromReaperResourcePath().ConfigFile();
     string source;
-    if (!ReadSettingsConfigSource(configPath, source, errorMessage)) {
+    bool configExists = false;
+    if (!ReadSettingsConfigSource(configPath, source, configExists, errorMessage)) {
         PublishSettingsResponse(request.requestId, false, errorMessage);
+        return;
+    }
+    if (!configExists) {
+        if (request.command == "Query") PublishSettingsResponse(request.requestId, true, "ConfigExists=0\nScope=" + request.scope + "\n");
+        else PublishSettingsResponse(request.requestId, false, "Create the product configuration on the Devices page first");
         return;
     }
 

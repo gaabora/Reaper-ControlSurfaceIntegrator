@@ -35,7 +35,7 @@ describe("configuration formats", () => {
         const expectedErrorCodes = new Map([
             ["home.zon", "zone.end.missing"],
             ["hash-comment.zon", "comment.hash.unsupported"],
-            ["product.ini", "product.version.unsupported"],
+            ["product.conf", "product.property.integer"],
             ["single-slash.zon", "comment.single-slash.unsupported"],
             ["surface.txt", "surface.format.version"],
             ["transport.snippet", "snippet.id"],
@@ -72,11 +72,10 @@ describe("configuration formats", () => {
         expect(document.diagnostics.some((diagnostic) => diagnostic.code === "comment.hash.unsupported" && diagnostic.line === 2 && diagnostic.severity === "error")).toBeTrue();
     });
 
-    test("keeps hash comments in the product INI format", () => {
-        const source = "Version=7.0\n# product config comment\n";
-        const document = parseByPath(source, "product.ini");
-        expect(document.lines[1].kind).toBe("comment");
-        expect(document.diagnostics.some((diagnostic) => diagnostic.code === "comment.hash.unsupported")).toBeFalse();
+    test("rejects hash comments in the product configuration", () => {
+        const source = "# product config comment\n";
+        const document = parseByPath(source, "product.conf");
+        expect(document.diagnostics.some((diagnostic) => diagnostic.code === "comment.hash.unsupported")).toBeTrue();
     });
 
     test("keeps exact Learn FX hash directives as zone metadata", () => {
