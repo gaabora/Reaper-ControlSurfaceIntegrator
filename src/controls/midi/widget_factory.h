@@ -22,6 +22,7 @@ struct MidiWidgetContext {
     string widgetClass; // from the "Widget <name> <class>" line
     vector<string> tokens; // full token line — tokens[0] == widgetType
     int size = 0; // (int)tokens.size()
+    bool suppressWhileTouched = false;
 
     // Pre-parsed three-byte MIDI messages (only valid when size >= 4 / >= 7).
     MIDI_event_ex_t message1 {};

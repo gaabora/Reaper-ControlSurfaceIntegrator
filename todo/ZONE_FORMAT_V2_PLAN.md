@@ -1638,6 +1638,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Parse `ValueProfile` and `ColorProfile` into typed models from catalog-owned profile and repeatable-line schemas. Validate point order, reversible value curves, palette uniqueness, complete hue coverage, reference kind, and input or feedback direction.
   - ✅ Parse `RingProfile`, `BarProfile`, `MeterProfile`, and `TextProfile` into typed models. Validate positional style arguments, unique style codes, mode-specific meter fields, text presentation codes, profile references, and MIDI-only byte or text restrictions.
   - ✅ Parse `ColorCalibration`, TrackColor `FeedbackGroup`, and `OSKLayout` into typed models from Surface-level schemas. Validate Widget and profile references, group channels and membership, derived TrackColor capability, calibration applicability, visible layout uniqueness, and OSK target capabilities.
+  - ✅ Add the first format 2 MIDI runtime bridge for the converted FaderPort set: `MIDIExact` Press, Touch, and State; `MIDI14` Value input and feedback; `MIDI7` Encoder; and `MIDIRGB` Color. Construct Widgets only after typed validation and report unsupported primitives instead of sending format 2 source to the legacy parser.
   - [ ] Add TypeScript and Lua readers for the same catalog when their format 2 consumers are implemented.
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
@@ -1646,6 +1647,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 - [ ] Verify that a new device which uses an existing protocol shape needs only a Surface file and no new C++ class.
 - [ ] Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them.
 - [ ] Parse and publish `OSKLayout` through common ControlSurface initialization so MIDI and OSC Surfaces use the same OSK path.
+  - ✅ Apply a typed format 2 MIDI OSK layout and ColorCalibration directly to `ControlSurface` without reparsing the Surface file. Keep the parent item open until OSC uses the same path.
 
 ### [ ] Shared parser and runtime model
 
@@ -1771,11 +1773,12 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert legacy `Widget|` channel placeholders to `Widget#` and include exact, missing-family, and rejected-wildcard golden fixtures.
 - [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
 - [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
+  - ✅ Route legacy Surface preview and import through a separate format 2 converter. Cover the FaderPortV2 processor set (`Press`, `Touch`, `Fader14Bit`, `FB_Fader14Bit`, `Encoder`, `FB_TwoState`, and `FB_FaderportRGB`), encoder profiles, color calibration, explicit legacy OSK rows, and generated fader-aware OSK layout. Keep the parent item open until every catalog processor and protocol conversion is implemented.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
 - [ ] Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
-- [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. Do not invent a layout when the source has none.
+- [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
 - [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.

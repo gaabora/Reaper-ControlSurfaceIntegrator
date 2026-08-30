@@ -1,201 +1,198 @@
-// @format surface 1
-// ===========================================
-// Surface file for the PreSonius FADERPORT V2 (2018) 
-// MUST be in Studio One mode (hold Next when power on, then press Solo)
-//
-// these buttons can be any color:
-//   Touch, Write, Read
-//   Link, Pan, Channel, Scroll
-// ===========================================
+@Meta { Version=2 Protocol=MIDI Name="FaderPortV2" }
 
-StepSize
-  RotaryWidgetClass 0.003
-StepSizeEnd
+EncoderProfile RotaryWidgetClass {
+  Delta=0.003
+  Increase=[ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 ]
+  Decrease=[ 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47 ]
+  AccelerationDeltas=[ 0.005, 0.01, 0.02, 0.04, 0.08, 0.16, 0.32 ]
+}
 
-AccelerationValues
-  RotaryWidgetClass Dec 41    42   43   44   45   46   47
-  RotaryWidgetClass Inc 01    02   03   04   05   06   07
-  RotaryWidgetClass Val 0.005 0.01 0.02 0.04 0.08 0.16 0.32
-AccelerationValuesEnd
+ColorCalibration {
+  OutputMax=127
+  NeutralTolerancePercent=5
+  NeutralRedScale=0.80
+  NeutralCurve=2.0
+}
 
-ColorCalibration
-  OutputMax 127
-  NeutralTolerancePercent 5
-  NeutralRedScale 0.80
-  NeutralCurve 2.0
-ColorCalibrationEnd
+Widget Fader {
+  Input Value { Encoding=MIDI14 Status=0xE0 }
+  Feedback Value { Encoding=MIDI14 Status=0xE0 SuppressWhileTouched=true }
+  Input Touch { Encoding=MIDIExact On=[ 0x90, 0x68, 0x7F ] Off=[ 0x90, 0x68, 0x00 ] }
+}
 
-// ===========================================
-// FADER
-// ===========================================
+Widget Solo {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x08, 0x7F ] Off=[ 0x90, 0x08, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x08, 0x7F ] Off=[ 0x90, 0x08, 0x00 ] }
+}
 
-Widget Fader # Shape=Fader Height=7.5
-  Fader14Bit      e0 7f 7f
-  FB_Fader14Bit   e0 7f 7f
-  Touch           90 68 7f 90 68 00
-WidgetEnd
+Widget Mute {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x10, 0x7F ] Off=[ 0x90, 0x10, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x10, 0x7F ] Off=[ 0x90, 0x10, 0x00 ] }
+}
 
-// ===========================================
-// BUTTONS ROW 1
-// ===========================================
+Widget Arm {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x00, 0x7F ] Off=[ 0x90, 0x00, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x00, 0x7F ] Off=[ 0x90, 0x00, 0x00 ] }
+}
 
-Widget Solo # Color=ff9900
-  Press           90 08 7f 90 08 00
-  FB_TwoState     90 08 7f 90 08 00
-WidgetEnd
+Widget Shift {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x46, 0x7F ] Off=[ 0x90, 0x46, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x46, 0x7F ] Off=[ 0x90, 0x46, 0x00 ] }
+}
 
-Widget Mute # Color=ff2222
-  Press           90 10 7f 90 10 00
-  FB_TwoState     90 10 7f 90 10 00
-WidgetEnd
+Widget Bypass {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x03, 0x7F ] Off=[ 0x90, 0x03, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x03, 0x7F ] Off=[ 0x90, 0x03, 0x00 ] }
+}
 
-Widget Arm # Color=ff2222
-  Press           90 00 7f 90 00 00
-  FB_TwoState     90 00 7f 90 00 00
-WidgetEnd
+Widget Touch {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x4D, 0x7F ] Off=[ 0x90, 0x4D, 0x00 ] }
+  Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x4D, 0x7F ] Red=[ 0x91, 0x4D ] Green=[ 0x92, 0x4D ] Blue=[ 0x93, 0x4D ] }
+}
 
-Widget Shift # Color=ff9900
-  Press           90 46 7f 90 46 00
-  FB_TwoState     90 46 7f 90 46 00
-WidgetEnd
+Widget Write {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x4B, 0x7F ] Off=[ 0x90, 0x4B, 0x00 ] }
+  Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x4B, 0x7F ] Red=[ 0x91, 0x4B ] Green=[ 0x92, 0x4B ] Blue=[ 0x93, 0x4B ] }
+}
 
-// ===========================================
-// BUTTONS ROW 2
-// ===========================================
+Widget Read {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x4A, 0x7F ] Off=[ 0x90, 0x4A, 0x00 ] }
+  Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x4A, 0x7F ] Red=[ 0x91, 0x4A ] Green=[ 0x92, 0x4A ] Blue=[ 0x93, 0x4A ] }
+}
 
-// OSKRow
-Widget Bypass # Color=55bbff
-  Press           90 03 7f 90 03 00
-  FB_TwoState     90 03 7f 90 03 00
-WidgetEnd
+Widget Prev {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x2E, 0x7F ] Off=[ 0x90, 0x2E, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x2E, 0x7F ] Off=[ 0x90, 0x2E, 0x00 ] }
+}
 
-Widget Touch
-  Press           90 4d 7f 90 4d 00
-  FB_FaderportRGB 90 4d 7f
-WidgetEnd
+Widget RotaryBig {
+  Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x10 ] Profile=RotaryWidgetClass }
+}
 
-Widget Write
-  Press           90 4b 7f 90 4b 00
-  FB_FaderportRGB 90 4b 7f
-WidgetEnd
+Widget RotaryBigPush {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x20, 0x7F ] Off=[ 0x90, 0x20, 0x00 ] }
+}
 
-Widget Read
-  Press           90 4a 7f 90 4a 00
-  FB_FaderportRGB 90 4a 7f
-WidgetEnd
+Widget Next {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x2F, 0x7F ] Off=[ 0x90, 0x2F, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x2F, 0x7F ] Off=[ 0x90, 0x2F, 0x00 ] }
+}
 
-// ===========================================
-// NAV + WHEEL
-// ===========================================
+Widget Link {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x05, 0x7F ] Off=[ 0x90, 0x05, 0x00 ] }
+  Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x05, 0x7F ] Red=[ 0x91, 0x05 ] Green=[ 0x92, 0x05 ] Blue=[ 0x93, 0x05 ] }
+}
 
-// OSKRow
-// OSKSpacer Width=0.25
-Widget Prev # Shape=LeftArrow Color=55bbff Top=0.25
-  Press           90 2e 7f 90 2e 00
-  FB_TwoState     90 2e 7f 90 2e 00
-WidgetEnd
+Widget Pan {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x2A, 0x7F ] Off=[ 0x90, 0x2A, 0x00 ] }
+  Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x2A, 0x7F ] Red=[ 0x91, 0x2A ] Green=[ 0x92, 0x2A ] Blue=[ 0x93, 0x2A ] }
+}
 
-Widget RotaryBig RotaryWidgetClass # Shape=Round Height=1.5 Width=1.5 Group=RotaryGroup Color=737983 
-  Encoder         b0 10 7f [ > 01-3f < 41-7f ]
-WidgetEnd
+Widget Channel {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x36, 0x7F ] Off=[ 0x90, 0x36, 0x00 ] }
+  Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x36, 0x7F ] Red=[ 0x91, 0x36 ] Green=[ 0x92, 0x36 ] Blue=[ 0x93, 0x36 ] }
+}
 
-Widget RotaryBigPush # Group=RotaryGroup OSKHidden
-  Press           90 20 7f 90 20 00
-WidgetEnd
+Widget Scroll {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x38, 0x7F ] Off=[ 0x90, 0x38, 0x00 ] }
+  Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x38, 0x7F ] Red=[ 0x91, 0x38 ] Green=[ 0x92, 0x38 ] Blue=[ 0x93, 0x38 ] }
+}
 
-Widget Next # Shape=RightArrow Color=55bbff Top=0.25
-  Press           90 2f 7f 90 2f 00
-  FB_TwoState     90 2f 7f 90 2f 00
-WidgetEnd
-// OSKSpacer Width=0.25
+Widget Master {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x3A, 0x7F ] Off=[ 0x90, 0x3A, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x3A, 0x7F ] Off=[ 0x90, 0x3A, 0x00 ] }
+}
 
-// ===========================================
-// BUTTONS ROW 3
-// ===========================================
+Widget Click {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x3B, 0x7F ] Off=[ 0x90, 0x3B, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x3B, 0x7F ] Off=[ 0x90, 0x3B, 0x00 ] }
+}
 
-// OSKRow
-Widget Link
-  Press           90 05 7f 90 05 00
-  FB_FaderportRGB 90 05 7f
-WidgetEnd
+Widget Section {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x3C, 0x7F ] Off=[ 0x90, 0x3C, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x3C, 0x7F ] Off=[ 0x90, 0x3C, 0x00 ] }
+}
 
-Widget Pan
-  Press           90 2a 7f 90 2a 00
-  FB_FaderportRGB 90 2a 7f
-WidgetEnd
+Widget Marker {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x3D, 0x7F ] Off=[ 0x90, 0x3D, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x3D, 0x7F ] Off=[ 0x90, 0x3D, 0x00 ] }
+}
 
-Widget Channel
-  Press           90 36 7f 90 36 00
-  FB_FaderportRGB 90 36 7f
-WidgetEnd
+Widget Loop {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x56, 0x7F ] Off=[ 0x90, 0x56, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x56, 0x7F ] Off=[ 0x90, 0x56, 0x00 ] }
+}
 
-Widget Scroll
-  Press           90 38 7f 90 38 00
-  FB_FaderportRGB 90 38 7f
-WidgetEnd
+Widget Rewind {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5B, 0x7F ] Off=[ 0x90, 0x5B, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5B, 0x7F ] Off=[ 0x90, 0x5B, 0x00 ] }
+}
 
-// ===========================================
-// BUTTONS ROW 4
-// ===========================================
+Widget FastForward {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5C, 0x7F ] Off=[ 0x90, 0x5C, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5C, 0x7F ] Off=[ 0x90, 0x5C, 0x00 ] }
+}
 
-// OSKRow
-Widget Master # Color=ff9900
-  Press           90 3a 7f 90 3a 00
-  FB_TwoState     90 3a 7f 90 3a 00
-WidgetEnd
+Widget Stop {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5D, 0x7F ] Off=[ 0x90, 0x5D, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5D, 0x7F ] Off=[ 0x90, 0x5D, 0x00 ] }
+}
 
-Widget Click # Color=55ff55
-  Press           90 3b 7f 90 3b 00
-  FB_TwoState     90 3b 7f 90 3b 00
-WidgetEnd
+Widget Play {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }
+}
 
-Widget Section # Color=55bbff
-  Press           90 3c 7f 90 3c 00
-  FB_TwoState     90 3c 7f 90 3c 00
-WidgetEnd
+Widget Record {
+  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5F, 0x7F ] Off=[ 0x90, 0x5F, 0x00 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x5F, 0x7F ] Off=[ 0x90, 0x5F, 0x00 ] }
+}
 
-Widget Marker # Color=55bbff
-  Press           90 3d 7f 90 3d 00
-  FB_TwoState     90 3d 7f 90 3d 00
-WidgetEnd
-
-// ===========================================
-// TRANSPORT
-// ===========================================
-
-// OSKRow
-// OSKSpacer Width=0.5
-Widget Loop # Shape=Round Color=55bbff
-  Press           90 56 7f 90 56 00
-  FB_TwoState     90 56 7f 90 56 00
-WidgetEnd
-
-Widget Rewind # Shape=Round Color=55ff55
-  Press           90 5b 7f 90 5b 00
-  FB_TwoState     90 5b 7f 90 5b 00
-WidgetEnd
-
-Widget FastForward # Shape=Round Color=55ff55
-  Press           90 5c 7f 90 5c 00
-  FB_TwoState     90 5c 7f 90 5c 00
-WidgetEnd
-// OSKSpacer Width=0.5
-
-// OSKRow
-Widget Stop # Shape=Round Color=ff9900
-  Press           90 5d 7f 90 5d 00
-  FB_TwoState     90 5d 7f 90 5d 00
-WidgetEnd
-
-// OSKSpacer Width=0.25
-Widget Play # Shape=Round  Height=1.5 Width=1.5 Color=55ff55 Top=0.25
-  Press           90 5e 7f 90 5e 00
-  FB_TwoState     90 5e 7f 90 5e 00
-WidgetEnd
-// OSKSpacer Width=0.25
-
-Widget Record # Shape=Round Color=ff2222
-  Press           90 5f 7f 90 5f 00
-  FB_TwoState     90 5f 7f 90 5f 00
-WidgetEnd
-
+OSKLayout {
+  Row {
+    Widget Fader Shape=Fader Height=7.5 TouchTarget=Fader ValueTarget=Fader
+    Widget Solo Color=#FF9900
+    Widget Mute Color=#FF2222
+    Widget Arm Color=#FF2222
+    Widget Shift Color=#FF9900
+  }
+  Row {
+    Widget Bypass Color=#55BBFF
+    Widget Touch
+    Widget Write
+    Widget Read
+  }
+  Row {
+    Spacer Width=0.25
+    Widget Prev Shape=LeftArrow Color=#55BBFF Top=0.25
+    Widget RotaryBig Shape=Round Height=1.5 Width=1.5 Group=RotaryGroup Color=#737983 ScrollTarget=RotaryBig PressTarget=RotaryBigPush
+    Widget Next Shape=RightArrow Color=#55BBFF Top=0.25
+    Spacer Width=0.25
+  }
+  Row {
+    Widget Link
+    Widget Pan
+    Widget Channel
+    Widget Scroll
+  }
+  Row {
+    Widget Master Color=#FF9900
+    Widget Click Color=#55FF55
+    Widget Section Color=#55BBFF
+    Widget Marker Color=#55BBFF
+  }
+  Row {
+    Spacer Width=0.5
+    Widget Loop Shape=Round Color=#55BBFF
+    Widget Rewind Shape=Round Color=#55FF55
+    Widget FastForward Shape=Round Color=#55FF55
+    Spacer Width=0.5
+  }
+  Row {
+    Widget Stop Shape=Round Color=#FF9900
+    Spacer Width=0.25
+    Widget Play Shape=Round Height=1.5 Width=1.5 Color=#55FF55 Top=0.25
+    Spacer Width=0.25
+    Widget Record Shape=Round Color=#FF2222
+  }
+}

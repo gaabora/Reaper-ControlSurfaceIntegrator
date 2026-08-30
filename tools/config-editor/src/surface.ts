@@ -40,10 +40,106 @@ const OSK_TARGET_CAPABILITIES = new Map([
 ]);
 
 function supportsOskTarget(widget: SurfaceWidget, supportedTypes: string[]): boolean {
-    return widget.body.some((line) => supportedTypes.includes((line.tokens[0] ?? "").toLowerCase()));
+    return widget.body.some((line) => {
+        const legacyType = (line.tokens[0] ?? "").toLowerCase();
+        if (supportedTypes.includes(legacyType)) return true;
+        if (legacyType !== "input") return false;
+        const primitive = (line.tokens[1] ?? "").toLowerCase();
+        if (supportedTypes.includes("press")) return primitive === "press";
+        if (supportedTypes.includes("touch")) return primitive === "touch";
+        if (supportedTypes.includes("encoder")) return primitive === "encoder";
+        if (supportedTypes.includes("fader14bit")) return primitive === "value";
+        return false;
+    });
+}
+
+function braceDelta(text: string): number {
+    let delta = 0;
+    let insideQuote = false;
+    for (let characterIdx = 0; characterIdx < text.length; characterIdx++) {
+        const character = text[characterIdx];
+        if (character === "\"") insideQuote = !insideQuote;
+        else if (!insideQuote && character === "{") delta++;
+        else if (!insideQuote && character === "}") delta--;
+    }
+    return delta;
+}
+
+function parseFormat2Surface(source: string, documentPath?: string): LosslessDocument<SurfaceSemantic> {
+    const lines = splitSourceLines(source);
+    const diagnostics: Diagnostic[] = [];
+    const widgets: SurfaceWidget[] = [];
+    let currentWidget: SurfaceWidget | undefined;
+    let widgetDepth = 0;
+    let layout: SurfaceSemantic["oskLayout"];
+    let inLayout = false;
+    let layoutDepth = 0;
+    let currentLayoutRow: OskLayoutRow | undefined;
+    let rowDepth = 0;
+    let metadataFound = false;
+    for (const line of lines) {
+        const text = initializeLine(line);
+        if (!text || line.kind === "comment") continue;
+        const delta = braceDelta(text);
+        if (!metadataFound && line.tokens[0] === "@Meta") {
+            metadataFound = true;
+            line.kind = "format";
+            if (!/\bVersion=2\b/.test(text)) addDiagnostic(diagnostics, "error", "surface.format.version", "Format 2 Surface requires Version=2", line.lineNumber, documentPath);
+            if (!/\bProtocol=(?:MIDI|OSC)\b/i.test(text)) addDiagnostic(diagnostics, "error", "surface.protocol.missing", "Format 2 Surface requires Protocol=MIDI or OSC", line.lineNumber, documentPath);
+            continue;
+        }
+        if (currentLayoutRow) {
+            if (line.tokens[0] === "Widget" || line.tokens[0] === "Spacer") {
+                const cellProperties = parseProperties(line.tokens.slice(line.tokens[0] === "Widget" ? 2 : 1));
+                currentLayoutRow.cells.push({ line: line.lineNumber, properties: cellProperties, type: line.tokens[0] === "Widget" ? "widget" : "spacer", widgetName: line.tokens[0] === "Widget" ? line.tokens[1] : undefined });
+                line.kind = "entry";
+            } else line.kind = "block-end";
+            rowDepth += delta;
+            layoutDepth += delta;
+            if (rowDepth <= 0) currentLayoutRow = undefined;
+            continue;
+        }
+        if (inLayout) {
+            if (line.tokens[0] === "Row" && delta > 0) {
+                currentLayoutRow = { cells: [], line: line.lineNumber };
+                layout!.rows.push(currentLayoutRow);
+                rowDepth = delta;
+                line.kind = "block-start";
+            } else line.kind = "block-end";
+            layoutDepth += delta;
+            if (layoutDepth <= 0) inLayout = false;
+            continue;
+        }
+        if (currentWidget) {
+            widgetDepth += delta;
+            if (widgetDepth <= 0) {
+                currentWidget = undefined;
+                line.kind = "block-end";
+            } else {
+                currentWidget.body.push(line);
+                line.kind = "entry";
+            }
+            continue;
+        }
+        if (line.tokens[0] === "Widget" && line.tokens[1] && delta > 0) {
+            currentWidget = { body: [], line: line.lineNumber, name: line.tokens[1], oskProperties: new Map() };
+            widgets.push(currentWidget);
+            widgetDepth = delta;
+            line.kind = "block-start";
+        } else if (line.tokens[0] === "OSKLayout" && delta > 0) {
+            layout = { line: line.lineNumber, rows: [], version: "2" };
+            inLayout = true;
+            layoutDepth = delta;
+            line.kind = "block-start";
+        } else line.kind = text === "}" ? "block-end" : "entry";
+    }
+    if (!metadataFound) addDiagnostic(diagnostics, "error", "surface.format.missing", "Format 2 Surface requires @Meta", undefined, documentPath);
+    if (currentWidget) addDiagnostic(diagnostics, "error", "surface.widget.unclosed", `Widget ${currentWidget.name} has no closing brace`, currentWidget.line, documentPath);
+    return { diagnostics, format: "surface", lines, path: documentPath, semantic: { oskLayout: layout, widgets }, source, version: "2" };
 }
 
 export function parseSurface(source: string, documentPath?: string): LosslessDocument<SurfaceSemantic> {
+    if (/^\s*(?:\uFEFF)?@Meta\b/.test(source)) return parseFormat2Surface(source, documentPath);
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
     const widgets: SurfaceWidget[] = [];

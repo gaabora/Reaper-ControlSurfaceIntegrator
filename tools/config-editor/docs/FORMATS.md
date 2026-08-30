@@ -46,7 +46,13 @@ Page Home {
 - Only `//` starts a comment. `#` is invalid in the product configuration.
 - Unknown blocks and properties are errors.
 
-## Surface 1
+## Surface 2
+
+Current Surface files use `@Meta { Version=2 Protocol=MIDI|OSC ... }`, brace blocks, and universal `Input` and `Feedback` primitives. The legacy importer converts supported processor lines to this format and reports an error for a processor that it cannot preserve.
+
+`OSKLayout { Row { ... } }` has no separate version. If a legacy Surface has no explicit layout, the importer creates an editable initial layout from usable Input widgets. A fader occupies seven rows while buttons and rotaries fill the remaining cells in source order.
+
+## Legacy Surface 1
 
 The surface document contains named hardware `Widget` blocks plus optional value blocks:
 

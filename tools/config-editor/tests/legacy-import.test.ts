@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { LegacyCsiSource, migrateLegacyCommentSyntax } from "../src/legacy-import.ts";
+import { convertLegacySurfaceToFormat2 } from "../src/legacy-surface-format2.ts";
 import { ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { ConfigurationStore, EditorOperationError } from "../src/store.ts";
@@ -53,6 +54,39 @@ afterEach(async () => {
 });
 
 describe("legacy CSI import", () => {
+    test("converts a legacy MIDI Surface and creates a fader-aware OSK layout", () => {
+        const legacySurface = `StepSize
+  RotaryWidgetClass 0.003
+StepSizeEnd
+AccelerationValues
+  RotaryWidgetClass Dec 41 42
+  RotaryWidgetClass Inc 01 02
+AccelerationValuesEnd
+Widget Fader # Shape=Fader Height=7
+  Fader14Bit e0 7f 7f
+  FB_Fader14Bit e0 7f 7f
+  Touch 90 68 7f 90 68 00
+WidgetEnd
+Widget Rotary RotaryWidgetClass # Group=RotaryGroup
+  Encoder b0 10 7f
+WidgetEnd
+Widget RotaryPush # Group=RotaryGroup OSKHidden
+  Press 90 20 7f 90 20 00
+WidgetEnd
+Widget Play
+  Press 90 5e 7f 90 5e 00
+  FB_TwoState 90 5e 7f 90 5e 00
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPortV2", "Surfaces/User/faderportv2.txt");
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toStartWith('@Meta { Version=2 Protocol=MIDI Name="FaderPortV2" }');
+        expect(conversion.source).toContain("Input Value { Encoding=MIDI14 Status=0xE0 }");
+        expect(conversion.source).toContain("Widget Fader Shape=Fader Height=7 TouchTarget=Fader ValueTarget=Fader");
+        expect(conversion.source).toContain("Widget Rotary Group=RotaryGroup ScrollTarget=Rotary PressTarget=RotaryPush");
+        expect(conversion.source.match(/  Row \{/g)).toHaveLength(7);
+    });
+
     test("converts legacy comments and Learn directives at the start of a physical line", () => {
         const source = "\uFEFF/ disabled surface line\r\n  /OnZoneActivation NoAction\r\n# disabled hash line\r\n#WidgetType Fader\r\n# OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n";
         expect(migrateLegacyCommentSyntax(source)).toBe("\uFEFF// disabled surface line\r\n  //OnZoneActivation NoAction\r\n// disabled hash line\r\n#WidgetType Fader\r\n// OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n");
@@ -93,7 +127,7 @@ describe("legacy CSI import", () => {
             "Zones/User/faderportv2/Main/HomeZones/Home.zon",
             "Zones/User/faderportv2/FX/ReaEQ.zon",
         ]);
-        expect(preview.items.every((item) => item.source.startsWith(`// @format ${item.kind} 1\n`))).toBeTrue();
+        expect(preview.items.every((item) => item.kind === "surface" ? item.source.startsWith("@Meta { Version=2 Protocol=MIDI") : item.source.startsWith("// @format zone 1\n"))).toBeTrue();
         expect(preview.items.some((item) => item.sourcePath.endsWith("GoZones.zon"))).toBeFalse();
         expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.source).toContain("Zone Transport NavType=TrackNavigator\n");
         expect(preview.dependencies).toContainEqual({ from: "Zones/HomeZones/Home.zon", matches: ["Zones/GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
@@ -127,7 +161,10 @@ describe("legacy CSI import", () => {
         const report = await source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
 
         expect(report.created).toHaveLength(4);
-        expect(await readFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "utf8")).toStartWith("// @format surface 1\n");
+        const importedSurface = await readFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "utf8");
+        expect(importedSurface).toStartWith("@Meta { Version=2 Protocol=MIDI");
+        expect(importedSurface).toContain("Widget Play {");
+        expect(importedSurface).toContain("OSKLayout {");
         expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8")).toStartWith("// @format zone 1\n");
         expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "ReaEQ.zon"), "utf8")).toStartWith("// @format zone 1\n");
         expect(await readFile(path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt"), "utf8")).toBe(surfaceSource);

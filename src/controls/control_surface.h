@@ -8,9 +8,14 @@
 #include "modifier_manager.h"
 #include "message_generator.h"
 
+struct Format2OskLayout;
+struct Format2ColorCalibration;
+class Format2MidiRuntimeLoader;
+
 class ControlSurface
 {
     friend class SurfaceTemplateParser; // surface_parser.h — parses surface template files
+    friend class Format2MidiRuntimeLoader;
 
 private:
     int* scrubModePtr_ = NULL;
@@ -475,6 +480,8 @@ public:
     void LoadOskEnabledSetting();
     void SetOskEnabled(bool value);
     void ParseOSKLayout(const string& surfaceFilePath);
+    void ApplyFormat2OSKLayout(const string& surfaceFilePath, const Format2OskLayout& layout);
+    void ApplyFormat2ColorCalibration(const Format2ColorCalibration& calibration);
     void PublishOSKLayout();
     void PublishOSKState();
     void PublishOSKLabels();

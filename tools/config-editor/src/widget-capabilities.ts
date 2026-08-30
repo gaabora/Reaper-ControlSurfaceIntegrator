@@ -41,7 +41,17 @@ export function widgetCapabilities(widget: SurfaceWidget, metadata: Map<string, 
     const capabilities = new Set<WidgetCapability>();
     for (const line of widget.body) {
         const widgetType = (line.tokens[0] ?? "").toLowerCase();
-        if (widgetType === "press" || widgetType === "anypress") capabilities.add("press-input");
+        const primitive = (line.tokens[1] ?? "").toLowerCase();
+        if (widgetType === "input" && primitive === "press") capabilities.add("press-input");
+        else if (widgetType === "input" && primitive === "touch") capabilities.add("touch-input");
+        else if (widgetType === "input" && primitive === "encoder") capabilities.add("relative-input");
+        else if (widgetType === "input" && primitive === "value") capabilities.add("absolute-input");
+        else if (widgetType === "feedback" && primitive === "state") capabilities.add("toggle-feedback");
+        else if (widgetType === "feedback" && primitive === "color") capabilities.add("color-feedback");
+        else if (widgetType === "feedback" && (primitive === "value" || primitive === "ring" || primitive === "bar")) capabilities.add("value-feedback");
+        else if (widgetType === "feedback" && primitive === "meter") { capabilities.add("meter-feedback"); capabilities.add("value-feedback"); }
+        else if (widgetType === "feedback" && primitive === "text") capabilities.add("text-feedback");
+        else if (widgetType === "press" || widgetType === "anypress") capabilities.add("press-input");
         else if (widgetType === "touch") capabilities.add("touch-input");
         else if (["encoder", "mftencoder", "encoderplain", "encoder7bit", "x32rotarytoencoder"].includes(widgetType)) {
             capabilities.add("relative-input");

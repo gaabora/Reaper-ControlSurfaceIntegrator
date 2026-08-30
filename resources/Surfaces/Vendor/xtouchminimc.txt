@@ -1,0 +1,220 @@
+// @format surface 1
+// ===========================================
+// Surface file for the Behringer X-TOUCH mini
+// MUST be in MC mode
+// ===========================================
+
+StepSize
+    RotaryWidgetClass 0.003
+StepSizeEnd
+
+AccelerationValues
+    RotaryWidgetClass Dec 41     42    43    44    45    46    47     48
+    RotaryWidgetClass Inc 01     02    03    04    05    06    07     08
+    RotaryWidgetClass Val 0.005  0.01  0.02  0.04  0.05  0.06  0.08   0.1
+AccelerationValuesEnd
+
+Widget Rotary1 RotaryWidgetClass
+	Encoder b0 10 7f
+	FB_Encoder b0 10 7f
+WidgetEnd
+
+Widget Rotary2 RotaryWidgetClass
+	Encoder b0 11 7f
+	FB_Encoder b0 11 7f
+WidgetEnd
+
+Widget Rotary3 RotaryWidgetClass
+	Encoder b0 12 7f
+	FB_Encoder b0 12 7f
+WidgetEnd
+
+Widget Rotary4 RotaryWidgetClass
+	Encoder b0 13 7f
+	FB_Encoder b0 13 7f
+WidgetEnd
+
+Widget Rotary5 RotaryWidgetClass
+	Encoder b0 14 7f
+	FB_Encoder b0 14 7f
+WidgetEnd
+
+Widget Rotary6 RotaryWidgetClass
+	Encoder b0 15 7f
+	FB_Encoder b0 15 7f
+WidgetEnd
+
+Widget Rotary7 RotaryWidgetClass
+	Encoder b0 16 7f
+	FB_Encoder b0 16 7f
+WidgetEnd
+
+Widget Rotary8 RotaryWidgetClass
+	Encoder b0 17 7f
+	FB_Encoder b0 17 7f
+WidgetEnd
+
+Widget RotaryPush1
+	Press 90 20 7f 90 20 00
+WidgetEnd
+
+Widget RotaryPush2
+	Press 90 21 7f 90 21 00
+WidgetEnd
+
+Widget RotaryPush3
+	Press 90 22 7f 90 22 00 
+WidgetEnd
+
+Widget RotaryPush4
+	Press 90 23 7f 90 23 00
+WidgetEnd
+
+Widget RotaryPush5
+	Press 90 24 7f 90 24 00
+WidgetEnd
+
+Widget RotaryPush6
+	Press 90 25 7f 90 25 00
+WidgetEnd
+
+Widget RotaryPush7
+	Press 90 26 7f 90 26 00
+WidgetEnd
+
+Widget RotaryPush8
+	Press 90 27 7f 90 27 00
+WidgetEnd
+
+
+Widget Fader
+	Fader14Bit e8 7f 7f
+WidgetEnd
+
+Widget ButtonA1
+	Press 90 59 7f 90 59 00
+	FB_TwoState 90 59 7f 90 59 00
+WidgetEnd
+
+Widget ButtonA2
+	Press 90 5a 7f 90 5a 00
+	FB_TwoState 90 5a 7f 90 5a 00
+WidgetEnd
+
+Widget ButtonA3
+	Press 90 28 7f 90 28 00
+	FB_TwoState 90 28 7f 90 28 00
+WidgetEnd
+
+Widget ButtonA4
+	Press 90 29 7f 90 29 00
+	FB_TwoState 90 29 7f 90 29 00
+WidgetEnd
+
+Widget ButtonA5
+	Press 90 2a 7f  90 2a 00
+	FB_TwoState 90 2a 7f 90 2a 00
+WidgetEnd
+
+Widget ButtonA6
+	Press 90 2b 7f 90 2b 00
+	FB_TwoState 90 2b 7f 90 2b 00
+WidgetEnd
+
+Widget ButtonA7
+	Press 90 2c 7f 90 2c 00
+	FB_TwoState 90 2c 7f 90 2c 00
+WidgetEnd
+
+Widget ButtonA8
+	Press 90 2d 7f 90 2d 00
+	FB_TwoState 90 2d 7f 90 2d 00
+WidgetEnd
+
+
+Widget LayerA
+	Press 90 54 7f 90 54 00
+	FB_TwoState 90 54 7f 90 54 00
+WidgetEnd
+
+Widget ButtonB1 Alias=MC
+	Press 90 57 7f 90 57 00
+	FB_TwoState 90 57 7f 90 57 00
+WidgetEnd
+
+Widget ButtonB2
+	Press 90 58 7f 90 58 00
+	FB_TwoState 90 58 7f 90 58 00
+WidgetEnd
+
+Widget ButtonB3 Alias=Rewind
+	Press 90 5b 7f 90 5b 00
+	FB_TwoState 90 5b 00 90 5b 00
+WidgetEnd
+
+Widget ButtonB4 Alias=FastForward
+	Press 90 5c 7f 90 5c 00
+	FB_TwoState 90 5c 00 90 5c 00
+WidgetEnd
+
+Widget ButtonB5 Alias=Loop
+	Press 90 56 7f 90 56 00
+	FB_TwoState 90 56 7f 90 56 00
+WidgetEnd
+
+Widget ButtonB6 Alias=Stop
+	Press 90 5d 7f 90 5d 00
+	FB_TwoState 90 5d 7f 90 5d 00
+WidgetEnd
+
+Widget ButtonB7 Alias=Play
+	Press 90 5e 7f 90 5e 00
+	FB_TwoState 90 5e 7f 90 5e 00
+WidgetEnd
+
+Widget ButtonB8 Alias=Record
+	Press 90 5f 7f 90 5f 00
+	FB_TwoState 90 5f 7f 90 5f 00
+WidgetEnd
+
+
+Widget LayerB
+	Press 90 55 7f 90 55 00
+	FB_TwoState 90 55 7f 90 55 00
+WidgetEnd
+
+OSKLayout Version=1
+  Row
+    Widget Rotary1 Shape=Round Group=RotaryGroup1 PressTarget=RotaryPush1
+    Widget Rotary2 Shape=Round Group=RotaryGroup2 PressTarget=RotaryPush2
+    Widget Rotary3 Shape=Round Group=RotaryGroup3 PressTarget=RotaryPush3
+    Widget Rotary4 Shape=Round Group=RotaryGroup4 PressTarget=RotaryPush4
+    Widget Rotary5 Shape=Round Group=RotaryGroup5 PressTarget=RotaryPush5
+    Widget Rotary6 Shape=Round Group=RotaryGroup6 PressTarget=RotaryPush6
+    Widget Rotary7 Shape=Round Group=RotaryGroup7 PressTarget=RotaryPush7
+    Widget Rotary8 Shape=Round Group=RotaryGroup8 PressTarget=RotaryPush8
+    Widget Fader Shape=Fader Height=3
+  RowEnd
+  Row
+    Widget ButtonA1
+    Widget ButtonA2
+    Widget ButtonA3
+    Widget ButtonA4
+    Widget ButtonA5
+    Widget ButtonA6
+    Widget ButtonA7
+    Widget ButtonA8
+    Widget LayerA
+  RowEnd
+  Row
+    Widget ButtonB1
+    Widget ButtonB2
+    Widget ButtonB3
+    Widget ButtonB4
+    Widget ButtonB5
+    Widget ButtonB6
+    Widget ButtonB7
+    Widget ButtonB8
+    Widget LayerB
+  RowEnd
+OSKLayoutEnd

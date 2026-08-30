@@ -31,11 +31,12 @@ class Fader14Bit_Midi_FeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:
     double lastValue_ = 0.0;
+    bool suppressWhileTouched_ = false;
 
 public:
     virtual ~Fader14Bit_Midi_FeedbackProcessor() {}
-    Fader14Bit_Midi_FeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, MIDI_event_ex_t feedback1)
-        : Midi_FeedbackProcessor(csi, surface, widget, feedback1) {}
+    Fader14Bit_Midi_FeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, MIDI_event_ex_t feedback1, bool suppressWhileTouched)
+        : Midi_FeedbackProcessor(csi, surface, widget, feedback1), suppressWhileTouched_(suppressWhileTouched) {}
 
     virtual const char* GetName() override { return "Fader14Bit_Midi_FeedbackProcessor"; }
 
@@ -45,6 +46,7 @@ public:
     }
 
     virtual void SetValue(const PropertyList& properties, double value) override {
+        if (this->suppressWhileTouched_ && this->surface_->GetIsChannelTouched(this->widget_->GetChannelNumber())) return;
         if (value == this->lastValue_) return;
         this->lastValue_ = value;
         this->lastDoubleValue_ = value;

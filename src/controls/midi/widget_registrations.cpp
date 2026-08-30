@@ -141,7 +141,7 @@ void MidiWidgetRegistry::EnsureRegistered() {
     });
 
     Register("FB_Fader14Bit", [](const MidiWidgetContext& ctx) {
-        if (ctx.size == 4) ctx.widget->GetFeedbackProcessors().push_back( make_unique<Fader14Bit_Midi_FeedbackProcessor>(ctx.csi, ctx.surface, ctx.widget, ctx.message1));
+        if (ctx.size == 4) ctx.widget->GetFeedbackProcessors().push_back( make_unique<Fader14Bit_Midi_FeedbackProcessor>(ctx.csi, ctx.surface, ctx.widget, ctx.message1, ctx.suppressWhileTouched));
     });
 
     Register("FB_FaderportClassicFader14Bit", [](const MidiWidgetContext& ctx) {

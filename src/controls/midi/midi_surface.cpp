@@ -2,6 +2,7 @@
 #include "../surface_parser.h"
 #include "midi_widgets.h"
 #include "widget_factory.h"
+#include "format2_midi_runtime.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi I/O Manager
@@ -143,11 +144,12 @@ void Midi_ControlSurface::ProcessMidiWidget(int& lineNumber, ifstream& surfaceTe
 Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, Midi_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides)
     : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset, settings, settingOverrides), surfaceIO_(surfaceIO) {
     MidiWidgetRegistry::EnsureRegistered();
-    ProcessMIDIWidgetFile(surfaceFile, this);
-    InitHardwiredWidgets(this);
-    InitializeMeters();
-    ParseOSKLayout(surfaceFile);
-    InitZoneManager(csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
+    const Format2MidiRuntimeLoadResult format2Result = Format2MidiRuntimeLoader::Load(surfaceFile, this);
+    if (format2Result == Format2MidiRuntimeLoadResult::NotFormat2) this->ProcessMIDIWidgetFile(surfaceFile, this);
+    this->InitHardwiredWidgets(this);
+    this->InitializeMeters();
+    if (format2Result == Format2MidiRuntimeLoadResult::NotFormat2) this->ParseOSKLayout(surfaceFile);
+    this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
 }
 
 void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t* evt) {

@@ -6,6 +6,7 @@ import { addDiagnostic, serializeDocument, type Diagnostic } from "./model.ts";
 import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
 import { EditorOperationError } from "./store.ts";
 import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
+import { convertLegacySurfaceToFormat2 } from "./legacy-surface-format2.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
@@ -407,8 +408,10 @@ export class LegacyCsiSource {
 
         const surfaceTargetPath = targetPathMap.get(files.surface.sourcePath) || `Surfaces/User/${targetProfileId}.txt`;
         this.validateTargetScope("surface", surfaceTargetPath, targetProfileId);
-        const migratedSurface = formatSource(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source, "surface", surfaceTargetPath, knownActions);
+        const surfaceConversion = convertLegacySurfaceToFormat2(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source, files.name, surfaceTargetPath);
+        const migratedSurface = surfaceConversion.source;
         const surfaceDocument = parseByPath(migratedSurface, surfaceTargetPath, knownActions);
+        surfaceDocument.diagnostics.push(...surfaceConversion.diagnostics);
         const zoneDocuments = new Map<string, AnyDocument>();
         const migratedZoneSources = new Map<string, string>();
         const zoneTargetPaths = new Map<string, string>();

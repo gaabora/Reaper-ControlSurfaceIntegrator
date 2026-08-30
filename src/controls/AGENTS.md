@@ -54,6 +54,7 @@
 - Keep a compiled format 2 action-context specification as an index into its immutable source binding vector. Expand only terminal `#` channel-placeholder specifications and do not clone the typed zone or channel-neutral bindings.
 - Resolve format 2 Main and FX Vendor/User sources per case-insensitive zone ID before profile validation. A User source blocks the matching Vendor source even when the User document is invalid, and same-layer duplicates must not select a source by directory order.
 - Read format 2 primitive names, capabilities, encoding compatibility, properties, value and relationship rules, nested transport blocks, reusable profiles, and Surface-level block schemas from the CMake-generated view of `Scripts/surface_io_schema.conf`. Do not add a second C++ catalog.
+- Load a format 2 MIDI Surface through `Format2SurfaceDocument` before runtime Widget construction. The initial runtime bridge supports the converted FaderPort primitive set and must report unsupported typed primitives instead of passing format 2 source through the legacy text parser. Apply typed OSK layout and color calibration data directly without reparsing the Surface file.
 
 ## Work Guidance
 

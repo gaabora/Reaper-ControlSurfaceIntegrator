@@ -1,6 +1,7 @@
 // osk.cpp — ControlSurface OSK (On-Screen Keyboard) member implementations.
 
 #include "integrator.h"
+#include "format2_surface_document.h"
 #include "zone_file_creator.h"
 
 static string BuildTimestampForBackup() {
@@ -769,6 +770,75 @@ void ControlSurface::ParseOSKLayout(const string& surfaceFilePath) {
     } catch (const std::exception& error) {
         LogToConsole("[ERROR] ParseOSKLayout failed for %s: %s\n", surfaceFilePath.c_str(), error.what());
     }
+}
+
+void ControlSurface::ApplyFormat2OSKLayout(const string& surfaceFilePath, const Format2OskLayout& layout) {
+    this->surfaceFilePath_ = surfaceFilePath;
+    this->oskLayout_.clear();
+    this->cachedOskLayoutString_.clear();
+    vector<OskWidgetInfo> hiddenWidgets;
+
+    for (const Format2OskRow& sourceRow : layout.rows) {
+        OskRow row;
+        for (const Format2OskCell& sourceCell : sourceRow.cells) {
+            OskCell cell;
+            if (sourceCell.kind == Format2OskCellKind::Spacer) {
+                cell.isSpacer = true;
+                cell.spacerWidth = (float) sourceCell.width;
+                row.cells.push_back(std::move(cell));
+                continue;
+            }
+
+            OskWidgetInfo info;
+            info.name = sourceCell.widget;
+            if (!this->GetWidgetByName(info.name)) {
+                LogToConsole("[ERROR] Format 2 OSK layout references unknown widget '%s' in %s, line %d\n", info.name.c_str(), surfaceFilePath.c_str(), sourceCell.location.line);
+                continue;
+            }
+            info.shape = sourceCell.shape;
+            info.width = (float) sourceCell.width;
+            info.height = (float) sourceCell.height;
+            info.top = (float) sourceCell.top;
+            info.group = sourceCell.group;
+            info.label = sourceCell.label;
+            if (sourceCell.color) {
+                char color[8];
+                snprintf(color, sizeof(color), "%06X", (unsigned int) (*sourceCell.color & 0xFFFFFF));
+                info.color = color;
+            }
+            info.role = sourceCell.role;
+            info.pressTarget = sourceCell.pressTarget;
+            info.scrollTarget = sourceCell.scrollTarget;
+            info.valueTarget = sourceCell.valueTarget;
+            info.touchTarget = sourceCell.touchTarget;
+            info.rotaryStyle = sourceCell.rotaryStyle;
+            this->ApplyOskWidgetMetadata(info);
+            if (info.hidden) hiddenWidgets.push_back(info);
+            else {
+                cell.widget = std::move(info);
+                row.cells.push_back(std::move(cell));
+            }
+        }
+        if (!row.cells.empty()) this->oskLayout_.push_back(std::move(row));
+    }
+
+    this->ApplyGroupedOskTargets(hiddenWidgets);
+    this->BuildCachedLayoutString();
+}
+
+void ControlSurface::ApplyFormat2ColorCalibration(const Format2ColorCalibration& calibration) {
+    this->colorCalibration_ = ColorCalibrationConfig{};
+    this->colorCalibration_.enabled = true;
+    this->colorCalibration_.inputMax = calibration.inputMax;
+    this->colorCalibration_.outputMax = calibration.outputMax.value_or(0);
+    this->colorCalibration_.neutralTolerancePercent = calibration.neutralTolerancePercent;
+    this->colorCalibration_.redScale = (float) calibration.redScale;
+    this->colorCalibration_.greenScale = (float) calibration.greenScale;
+    this->colorCalibration_.blueScale = (float) calibration.blueScale;
+    this->colorCalibration_.neutralRedScale = (float) calibration.neutralRedScale;
+    this->colorCalibration_.neutralGreenScale = (float) calibration.neutralGreenScale;
+    this->colorCalibration_.neutralBlueScale = (float) calibration.neutralBlueScale;
+    this->colorCalibration_.neutralCurve = (float) calibration.neutralCurve;
 }
 
 void ControlSurface::PublishOSKLayout() {
