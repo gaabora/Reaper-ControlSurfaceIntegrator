@@ -95,6 +95,27 @@ WidgetEnd
         expect(migrateLegacyCommentSyntax(source)).toBe("\uFEFF// disabled surface line\r\n  //OnZoneActivation NoAction\r\n// disabled hash line\r\n#WidgetType Fader\r\n// OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n");
     });
 
+    test("preserves prefix presses, press-only buttons, and seven-bit values", () => {
+        const legacySurface = `Widget Any
+  AnyPress b0 10 7f
+WidgetEnd
+Widget PressOnly
+  Press 90 20 7f
+WidgetEnd
+Widget Value
+  Fader7Bit b0 30 7f
+  FB_Fader7Bit b0 30 7f
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Generic MIDI", "Surfaces/User/generic-midi.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("Input Press { Encoding=MIDIPrefix Message=[ 0xB0, 0x10 ] }");
+        expect(conversion.source).toContain("Input Press { Encoding=MIDIExact On=[ 0x90, 0x20, 0x7F ] }");
+        expect(conversion.source).toContain("Input Value { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] }");
+        expect(conversion.source).toContain("Feedback Value { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] }");
+    });
+
     test("shows migrated comments in the import preview without changing the old file", async () => {
         const sourcePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
         const legacySource = "/ disabled binding\n" + homeSource;

@@ -12,6 +12,7 @@
     "compile:macos-x64": "bun run scripts/compile.ts bun-darwin-x64",
     "compile:windows-x64": "bun run scripts/compile.ts bun-windows-x64",
     "start": "bun run src/start.ts",
+    "surface-coverage": "bun run src/cli.ts surface-coverage",
     "test": "bun test",
     "validate": "bun run src/cli.ts validate"
   },

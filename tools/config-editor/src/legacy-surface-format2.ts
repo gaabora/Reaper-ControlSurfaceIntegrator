@@ -7,6 +7,38 @@ export interface LegacySurfaceConversion {
     source: string;
 }
 
+export interface LegacySurfaceProcessorTarget {
+    direction: "Feedback" | "Input";
+    encoding: string;
+    primitive: string;
+    protocol: "MIDI" | "OSC";
+}
+
+type LegacySurfaceProcessorConversionKind = "anyPress" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "press" | "ring" | "state" | "touch";
+
+interface LegacySurfaceProcessorConversionDefinition {
+    kind: LegacySurfaceProcessorConversionKind;
+    target: LegacySurfaceProcessorTarget;
+}
+
+const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProcessorConversionDefinition>([
+    ["anypress", { kind: "anyPress", target: { direction: "Input", encoding: "MIDIPrefix", primitive: "Press", protocol: "MIDI" } }],
+    ["encoder", { kind: "encoder", target: { direction: "Input", encoding: "MIDI7", primitive: "Encoder", protocol: "MIDI" } }],
+    ["fader7bit", { kind: "fader7", target: { direction: "Input", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" } }],
+    ["fader14bit", { kind: "fader14", target: { direction: "Input", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" } }],
+    ["fb_encoder", { kind: "ring", target: { direction: "Feedback", encoding: "MIDI7", primitive: "Ring", protocol: "MIDI" } }],
+    ["fb_fader7bit", { kind: "fader7Feedback", target: { direction: "Feedback", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" } }],
+    ["fb_fader14bit", { kind: "fader14Feedback", target: { direction: "Feedback", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" } }],
+    ["fb_faderportrgb", { kind: "faderportRgb", target: { direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" } }],
+    ["fb_twostate", { kind: "state", target: { direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" } }],
+    ["press", { kind: "press", target: { direction: "Input", encoding: "MIDIExact", primitive: "Press", protocol: "MIDI" } }],
+    ["touch", { kind: "touch", target: { direction: "Input", encoding: "MIDIExact", primitive: "Touch", protocol: "MIDI" } }],
+]);
+
+export function legacySurfaceProcessorTarget(processor: string): LegacySurfaceProcessorTarget | undefined {
+    return LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor.toLowerCase())?.target;
+}
+
 function midiByte(value: string): string {
     const normalized = value.replace(/^0x/i, "");
     return `0x${normalized.padStart(2, "0").toUpperCase()}`;
@@ -93,15 +125,26 @@ function ringProfiles(widgets: SurfaceWidget[]): string[] {
 
 function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: number, diagnostics: Diagnostic[], documentPath: string): string | undefined {
     const processor = (tokens[0] ?? "").toLowerCase();
-    if ((processor === "press" || processor === "anypress") && tokens.length >= 7) return `Input Press { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
-    if (processor === "touch" && tokens.length >= 7) return `Input Touch { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
-    if (processor === "fader14bit" && tokens[1]) return `Input Value { Encoding=MIDI14 Status=${midiByte(tokens[1])} }`;
-    if (processor === "fb_fader14bit" && tokens[1]) return `Feedback Value { Encoding=MIDI14 Status=${midiByte(tokens[1])} SuppressWhileTouched=true }`;
-    if (processor === "encoder" && tokens[1] && tokens[2]) {
+    const conversion = LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor);
+    if (!conversion) {
+        addDiagnostic(diagnostics, "error", "legacy.surface.processor.unsupported", `Legacy Surface processor is not converted yet: ${tokens[0]}`, lineNumber, documentPath);
+        return undefined;
+    }
+    if (conversion.kind === "anyPress" && tokens[1] && tokens[2]) return `Input Press { Encoding=MIDIPrefix Message=${midiList(tokens.slice(1, 3))} }`;
+    if (conversion.kind === "press" && tokens.length >= 4) {
+        const off = tokens.length >= 7 ? ` Off=${midiList(tokens.slice(4, 7))}` : "";
+        return `Input Press { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))}${off} }`;
+    }
+    if (conversion.kind === "touch" && tokens.length >= 7) return `Input Touch { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
+    if (conversion.kind === "fader7" && tokens[1] && tokens[2]) return `Input Value { Encoding=MIDI7 Message=${midiList(tokens.slice(1, 3))} }`;
+    if (conversion.kind === "fader7Feedback" && tokens[1] && tokens[2]) return `Feedback Value { Encoding=MIDI7 Message=${midiList(tokens.slice(1, 3))} }`;
+    if (conversion.kind === "fader14" && tokens[1]) return `Input Value { Encoding=MIDI14 Status=${midiByte(tokens[1])} }`;
+    if (conversion.kind === "fader14Feedback" && tokens[1]) return `Feedback Value { Encoding=MIDI14 Status=${midiByte(tokens[1])} SuppressWhileTouched=true }`;
+    if (conversion.kind === "encoder" && tokens[1] && tokens[2]) {
         const profile = widget.widgetClass ? ` Profile=${widget.widgetClass}` : " Mode=SignedBit";
         return `Input Encoder { Encoding=MIDI7 Message=${midiList(tokens.slice(1, 3))}${profile} }`;
     }
-    if (processor === "fb_encoder" && tokens[1] && tokens[2]) {
+    if (conversion.kind === "ring" && tokens[1] && tokens[2]) {
         const dataByte = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16) + 0x20;
         if (!Number.isInteger(dataByte) || dataByte > 0x7F) {
             addDiagnostic(diagnostics, "error", "legacy.surface.fb-encoder.message", `Legacy FB_Encoder data byte cannot be converted to its ring output address: ${tokens[2]}`, lineNumber, documentPath);
@@ -109,12 +152,12 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         }
         return `Feedback Ring { Encoding=MIDI7 Message=${midiList([tokens[1], dataByte.toString(16)])} RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }`;
     }
-    if (processor === "fb_twostate" && tokens.length >= 7) return `Feedback State { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
-    if (processor === "fb_faderportrgb" && tokens.length >= 4) {
+    if (conversion.kind === "state" && tokens.length >= 7) return `Feedback State { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
+    if (conversion.kind === "faderportRgb" && tokens.length >= 4) {
         const dataByte = midiByte(tokens[2]);
         return `Feedback Color { Encoding=MIDIRGB Enable=${midiList(tokens.slice(1, 4))} Red=${midiList(["91", dataByte])} Green=${midiList(["92", dataByte])} Blue=${midiList(["93", dataByte])} }`;
     }
-    addDiagnostic(diagnostics, "error", "legacy.surface.processor.unsupported", `Legacy Surface processor is not converted yet: ${tokens[0]}`, lineNumber, documentPath);
+    addDiagnostic(diagnostics, "error", "legacy.surface.processor.parameters", `Legacy Surface processor has missing or invalid parameters: ${tokens[0]}`, lineNumber, documentPath);
     return undefined;
 }
 

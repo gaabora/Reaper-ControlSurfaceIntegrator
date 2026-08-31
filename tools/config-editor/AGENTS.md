@@ -44,6 +44,7 @@
 - Show field errors directly below their related path controls with semantic `danger` styling. Show other operation messages as dismissible notifications outside the workflow header. Route structured validation details into All found and keep notifications short instead of printing diagnostic JSON. Remove success notifications after five seconds, and keep info, warning, and danger notifications until the user closes them. Use `primary`, `secondary`, `success`, `warning`, `danger`, and `info` for visual state names, and keep operation reports inside their workflow instead of a global status footer.
 - Read action names from `src/shared/types.h` `ACTION_TYPE_LIST`. Do not add a manual action-name list.
 - Read setting metadata from `Scripts/settings_schema.conf`. Embed the parsed schema in standalone builds and do not add a separate TypeScript setting list. Read user-selected values from the product `.conf`, not from the schema.
+- Read format 2 Surface primitive and representation metadata from `Scripts/surface_io_schema.conf`. Keep the public legacy Surface processor coverage report tied to explicit converter targets from that catalog. Count processors only inside valid legacy Widget blocks, report malformed block boundaries separately, show processors waiting for an approved runtime as planned, and treat every other unclassified processor as incomplete migration work.
 - Parse Product values from the root `Settings` block and Device values from nested `Device Settings` blocks. Validate both scopes atomically with the shared schema and inherited cross-setting constraints.
 - Require positive `Channels` in Surface `@Meta`, omit it from product Device blocks and I/O forms, and report when one Device is assigned to Surface templates with different channel counts.
 - Keep parsers independent from the browser UI and file-writing service.
@@ -92,6 +93,7 @@
 - Run `bun run actions` and compare the catalog count with `ACTION_TYPE_LIST`.
 - Run focused store tests for conflicts, rollback, cloning, symlink traversal, and directory link cycles.
 - Run focused legacy import tests for source discovery, `Zones` and `FXZones` mapping, backup-file filtering, dependency selection, semantic widget mapping, repeat conflicts, source immutability, and transactional writes.
+- Run `bun run surface-coverage` and review every unresolved public legacy Surface processor before declaring migration coverage complete.
 - Run focused snippet workflow tests for semantic widget filtering, surface resolution, explicit confirmation, mismatch override, cursor insertion, and repeat application conflicts.
 - Run focused temporary draft tests for path isolation, recovery, discard, source-hash conflicts, and save cleanup.
 - Run focused validation-set and quick-fix registry tests for draft overlays, cross-file diagnostics, writable ownership, stale diagnostics, and lossless source changes.

@@ -1641,7 +1641,10 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Replace the bridge's FaderPort-specific RGB dispatch with one `MIDIRGB` codec driven by declared Enable, Red, Green, Blue, state-brightness, and ColorCalibration metadata. Resolve accelerated encoder values through the referenced EncoderProfile ID instead of a fixed WidgetClass name.
   - ✅ Add universal `MIDI7` Value input and feedback for one- or two-byte prefixes, ValueBase/Combine output, echo and touch suppression, plus explicit `SignedBit`, `SignedBitFixed`, and `Relative7Bit` Encoder modes.
   - ✅ Add universal `MIDI7` Ring value and RingStyle feedback through `RingProfile`, ValueBase/Combine, StyleTarget, StyleShift, and StyleCombine. Keep nested Ring color Configure for its separate remaining runtime step.
+  - ✅ Add `MIDIPrefix` Press runtime behavior for legacy `AnyPress` conversion without a fabricated release message.
   - [ ] Add TypeScript and Lua readers for the same catalog when their format 2 consumers are implemented.
+    - ✅ Add the TypeScript schema reader and use its representation lookup to validate declared legacy conversion targets.
+    - [ ] Add the Lua reader when Lua begins consuming format 2 Surface primitives directly.
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - [ ] Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
@@ -1687,6 +1690,16 @@ Ready when runtime behavior consumes validated documents and no feature reparses
 ## [ ] Phase 4: Bun editor and migration
 
 Migration is a required part of every format 2 decision, not a later best-effort cleanup. A Phase 2 decision is ready for implementation only when this plan also states its legacy input, format 2 output, ambiguity behavior, and fixture requirement. Future syntax or action renames must add or update a row in the conversion matrix below.
+
+Public legacy Surface conversion has one completion gate:
+
+- [ ] Every processor used by `CSI/Surfaces/*/Surface.txt` is classified. Each supported processor must preserve every required address, byte, channel, profile, curve, display field, color, ring, meter, SysEx field, and meaningful option. Each unsupported or ambiguous processor must produce a blocking diagnostic at its source line. The importer must never silently omit a processor or one of its parameters.
+  - ✅ Add a TypeScript reader for the canonical `surface_io_schema.conf` primitive and representation catalog.
+  - ✅ Add `bun run surface-coverage` to inventory every processor occurrence inside legacy Widget blocks in the public Surface files, ignore OSK layout entries, report malformed Widget boundaries separately, and verify that each declared conversion target exists in the canonical catalog. Distinguish processors that wait for an approved runtime from unknown processor types.
+  - ✅ Classify generic legacy OSC `Control` and `FB_Processor` as planned until the format 2 OSC runtime and explicit value-type conversion are implemented; do not report them as supported before then.
+  - [ ] Classify every currently unresolved inventory entry as a universal conversion, intentionally unsupported legacy behavior, or an ambiguity that requires user input.
+  - [ ] Add parameter-complete golden fixtures for every supported processor family and malformed or ambiguous branch.
+  - [ ] Make zero unclassified processors and zero invalid conversion targets a required migration verification result.
 
 The initial conversion matrix is:
 
@@ -1777,6 +1790,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
 - [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
   - ✅ Route legacy Surface preview and import through a separate format 2 converter. Cover the FaderPortV2 processor set (`Press`, `Touch`, `Fader14Bit`, `FB_Fader14Bit`, `Encoder`, `FB_TwoState`, and `FB_FaderportRGB`), encoder profiles, color calibration, explicit legacy OSK rows, and generated fader-aware OSK layout. Keep the parent item open until every catalog processor and protocol conversion is implemented.
+  - ✅ Convert `AnyPress` to its real two-byte `MIDIPrefix` behavior, preserve an ordinary `Press` without an `Off` message, and convert `Fader7Bit` plus `FB_Fader7Bit` to universal MIDI7 Value primitives.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
 - [ ] Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.

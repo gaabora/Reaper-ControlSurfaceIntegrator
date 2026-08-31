@@ -5,8 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { actionNameSet, loadActionCatalog, writeActionCatalog } from "./action-catalog.ts";
 import { isSupportedConfigPath, parseByPath, type AnyDocument } from "./formats.ts";
+import { analyzeLegacySurfaceCoverage } from "./legacy-surface-coverage.ts";
 import type { Diagnostic } from "./model.ts";
 import { loadSettingsSchema } from "./settings-schema.ts";
+import { loadSurfaceIoSchema } from "./surface-io-schema.ts";
 import { validateDocumentSet } from "./validation.ts";
 
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -15,6 +17,7 @@ function printUsage(): void {
     console.log("Usage:");
     console.log("  bun run src/cli.ts validate [--json] <file-or-directory> [...]");
     console.log("  bun run src/cli.ts actions [--output <catalog.json>]");
+    console.log("  bun run src/cli.ts surface-coverage [legacy-surfaces-directory]");
 }
 
 async function collectConfigPaths(inputPath: string, ancestorDirectories: Set<string> = new Set()): Promise<string[]> {
@@ -77,11 +80,26 @@ async function actionsCommand(args: string[]): Promise<number> {
     return 0;
 }
 
+async function surfaceCoverageCommand(args: string[]): Promise<number> {
+    if (args.length > 1) throw new Error("surface-coverage accepts zero or one legacy Surfaces directory");
+    const legacySurfacesRoot = path.resolve(args[0] ?? path.join(repositoryRoot, "CSI", "Surfaces"));
+    const schema = await loadSurfaceIoSchema(path.join(repositoryRoot, "Scripts", "surface_io_schema.conf"));
+    const report = await analyzeLegacySurfaceCoverage(legacySurfacesRoot, schema);
+    for (const entry of report.processors) console.log(`${entry.status.padEnd(14)} ${String(entry.count).padStart(5)}  ${entry.processor}${entry.target ? ` -> ${entry.target}` : ""}${entry.note ? ` - ${entry.note}` : ""}`);
+    for (const diagnostic of report.diagnostics) printDiagnostic(diagnostic);
+    const supportedCount = report.processors.filter((entry) => entry.status === "supported").reduce((sum, entry) => sum + entry.count, 0);
+    const plannedCount = report.processors.filter((entry) => entry.status === "planned").reduce((sum, entry) => sum + entry.count, 0);
+    const unsupportedCount = report.processors.filter((entry) => entry.status === "unsupported" || entry.status === "invalid-target").reduce((sum, entry) => sum + entry.count, 0);
+    console.log(`Legacy Surface processors: ${supportedCount} supported occurrences, ${plannedCount} planned occurrences, ${unsupportedCount} unsupported occurrences, ${report.diagnostics.length} source errors`);
+    return plannedCount > 0 || unsupportedCount > 0 || report.diagnostics.length > 0 ? 1 : 0;
+}
+
 async function main(): Promise<number> {
     const command = process.argv[2];
     const args = process.argv.slice(3);
     if (command === "validate") return validateCommand(args);
     if (command === "actions") return actionsCommand(args);
+    if (command === "surface-coverage") return surfaceCoverageCommand(args);
     printUsage();
     return command ? 1 : 0;
 }

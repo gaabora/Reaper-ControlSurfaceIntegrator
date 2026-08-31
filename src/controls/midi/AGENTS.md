@@ -20,6 +20,7 @@
 - `format2_midi_runtime.*` owns typed format 2 MIDI Surface validation and runtime Widget construction. Keep MIDI I/O lifecycle code in `midi_surface.*` and do not pass format 2 source through the legacy Surface text parser.
 - Format 2 `MIDIRGB` feedback must use its declared Enable, Red, Green, and Blue messages through the generic codec. EncoderProfile lookup must use the referenced profile ID and must not assume `RotaryWidgetClass`.
 - Format 2 `MIDI7` Value, Encoder, and Ring runtime behavior belongs to `format2_midi_generators.h` and `fb_format2.h`. Keep `SignedBit`, `SignedBitFixed`, and `Relative7Bit` explicit. Resolve Ring value and style through its referenced `RingProfile`; apply ValueBase, Combine, StyleTarget, StyleShift, and StyleCombine only where the Surface schema permits them.
+- Format 2 `MIDIPrefix` Press matches its declared two-byte prefix and emits a press for every matching third byte without inventing release behavior.
 
 ## Work Guidance
 

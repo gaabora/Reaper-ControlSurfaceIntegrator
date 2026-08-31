@@ -38,6 +38,7 @@ vector<string> Format2MidiRuntimeLoader::MakeTokens(const string& type, const ve
 
 bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primitive) {
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiExact) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiPrefix) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Touch" && primitive.encoding == Format2Encoding::MidiExact) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile")) return true;
@@ -106,6 +107,13 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 ReadBytes(FindProperty(primitive, "Off"), off);
                 tokens = MakeTokens("Press", on, off);
                 widget->MarkOskPressInput();
+            } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiPrefix) {
+                vector<int> message;
+                if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.size() != 2) continue;
+                const string key = to_string(message[0] * 0x10000 + message[1] * 0x100);
+                surface->AddMessageGenerator(key, make_unique<AnyPress_Midi_MessageGenerator>(surface->csi_, widget));
+                widget->MarkOskPressInput();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Touch" && primitive.encoding == Format2Encoding::MidiExact) {
                 vector<int> on;
                 vector<int> off;
