@@ -23,6 +23,7 @@
 - Format 2 `MIDIPrefix` Press matches its declared two-byte prefix and emits a press for every matching third byte without inventing release behavior.
 - Send each validated format 2 `Initialize` MIDI message once after Surface loading and again after MIDI I/O reconnect. Keep complete channel and system messages plus complete SysEx framing in the Surface file.
 - Resolve format 2 `MIDI7` Meter values through the referenced MeterProfile. Keep scale thresholds, channel value prefixes, combination mode, and continuous refresh settings in Surface metadata instead of device-named feedback processors.
+- Resolve format 2 MIDISysEx Text Payload items from the closed canonical field set. Apply Surface defaults and binding overrides for margins, font, presentation, text color, background color, and state colors before sending one complete packet.
 
 ## Work Guidance
 

@@ -129,6 +129,7 @@ private:
     std::map<std::string, Format2SourceLocation> textProfileIds_;
     std::map<std::string, Format2TextEncoding> textProfileEncodings_;
     std::map<std::string, std::optional<int>> textProfileWidths_;
+    std::map<std::string, bool> textProfilePresentation_;
 
     void AddDiagnostic(const std::string& code, const std::string& message, const Format2SourceLocation& location) {
         this->result_.document.lexical.diagnostics.push_back({ code, message, location });
@@ -902,6 +903,7 @@ private:
         }
         this->textProfileEncodings_[profile.id] = profile.encoding;
         this->textProfileWidths_[profile.id] = profile.width;
+        this->textProfilePresentation_[profile.id] = !profile.alignments.empty() || profile.invertCode.has_value();
         this->result_.surface.textProfiles.push_back(std::move(profile));
     }
 
@@ -1187,8 +1189,36 @@ private:
                 if (meterProfile && !meterProfile->value.list && !meterProfile->value.scalar.quoted) this->ValidateMeterProfileReference(*meterProfile);
                 const Format2PropertySyntax* textProfile = FindFormat2PrimitiveProperty(primitive, "TextProfile");
                 if (textProfile && !textProfile->value.list && !textProfile->value.scalar.quoted) this->ValidateTextProfileReference(primitive, *textProfile);
+                if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiSysEx) this->ValidateTextPayloadDefaults(primitive);
             }
         }
+    }
+
+    void ValidateTextPayloadDefaults(const Format2SurfacePrimitive& primitive) {
+        const Format2PropertySyntax* payload = FindFormat2PrimitiveProperty(primitive, "Payload");
+        if (!payload || !payload->value.list) return;
+        bool requiresTopMargin = false;
+        bool requiresBottomMargin = false;
+        bool requiresFont = false;
+        bool requiresPresentation = false;
+        bool requiresBackgroundColor = false;
+        bool requiresTextColor = false;
+        for (const Format2ScalarSyntax& item : payload->value.items) {
+            requiresTopMargin = requiresTopMargin || item.text == "TopMargin7";
+            requiresBottomMargin = requiresBottomMargin || item.text == "BottomMargin7";
+            requiresFont = requiresFont || item.text == "Font7";
+            requiresPresentation = requiresPresentation || item.text == "TextPresentationCode";
+            requiresBackgroundColor = requiresBackgroundColor || item.text == "BackgroundRed7" || item.text == "BackgroundGreen7" || item.text == "BackgroundBlue7";
+            requiresTextColor = requiresTextColor || item.text == "TextRed7" || item.text == "TextGreen7" || item.text == "TextBlue7";
+        }
+        if (requiresTopMargin && !FindFormat2PrimitiveProperty(primitive, "TopMargin")) this->AddDiagnostic("format2.surface.text-payload.top-margin", "Text Payload with TopMargin7 requires a TopMargin default", payload->value.location);
+        if (requiresBottomMargin && !FindFormat2PrimitiveProperty(primitive, "BottomMargin")) this->AddDiagnostic("format2.surface.text-payload.bottom-margin", "Text Payload with BottomMargin7 requires a BottomMargin default", payload->value.location);
+        if (requiresFont && !FindFormat2PrimitiveProperty(primitive, "Font")) this->AddDiagnostic("format2.surface.text-payload.font", "Text Payload with Font7 requires a Font default", payload->value.location);
+        const Format2PropertySyntax* textProfile = FindFormat2PrimitiveProperty(primitive, "TextProfile");
+        const auto presentation = textProfile && !textProfile->value.list ? this->textProfilePresentation_.find(textProfile->value.scalar.text) : this->textProfilePresentation_.end();
+        if (requiresPresentation && (presentation == this->textProfilePresentation_.end() || !presentation->second)) this->AddDiagnostic("format2.surface.text-payload.presentation", "Text Payload with TextPresentationCode requires alignment or inversion codes in its TextProfile", payload->value.location);
+        if (requiresBackgroundColor && !FindFormat2PrimitiveProperty(primitive, "BackgroundColor")) this->AddDiagnostic("format2.surface.text-payload.background-color", "Text Payload with background RGB fields requires a BackgroundColor default", payload->value.location);
+        if (requiresTextColor && !FindFormat2PrimitiveProperty(primitive, "TextColor")) this->AddDiagnostic("format2.surface.text-payload.text-color", "Text Payload with text RGB fields requires a TextColor default", payload->value.location);
     }
 
     void ValidateValueProfileReference(const Format2SurfacePrimitive& primitive, const Format2PropertySyntax& property) {

@@ -3,6 +3,7 @@
 #include <charconv>
 #include <cmath>
 #include <cstdlib>
+#include <set>
 #include <system_error>
 
 static bool ParseFormat2IntegerText(const std::string& text, int& parsedValue) {
@@ -88,6 +89,18 @@ static bool ValidateFormat2MidiInitializationMessage(const Format2ValueSyntax& v
     return true;
 }
 
+static bool ValidateFormat2TextPayload(const Format2ValueSyntax& value) {
+    if (!value.list || value.items.empty() || value.items.back().quoted || value.items.back().text != "Text") return false;
+    const std::set<std::string> fields = { "TopMargin7", "BottomMargin7", "Font7", "TextPresentationCode", "BackgroundRed7", "BackgroundGreen7", "BackgroundBlue7", "TextRed7", "TextGreen7", "TextBlue7" };
+    for (std::size_t itemIdx = 0; itemIdx + 1 < value.items.size(); ++itemIdx) {
+        int byte = 0;
+        if (ParseFormat2IntegerScalar(value.items[itemIdx], byte)) {
+            if (byte < 0 || byte > 0x7F) return false;
+        } else if (value.items[itemIdx].quoted || fields.find(value.items[itemIdx].text) == fields.end()) return false;
+    }
+    return true;
+}
+
 static bool ValidateFormat2Enum(const Format2ValueSyntax& value, const std::string& values) {
     if (value.list || value.scalar.quoted) return false;
     std::size_t start = 0;
@@ -154,6 +167,7 @@ std::string ValidateFormat2ValueRule(const Format2PropertySyntax& property, cons
     if (rule == "MIDIMessage3") return ValidateFormat2MidiMessage(property.value, 3, 3) ? std::string{} : "a complete three-byte MIDI message";
     if (rule == "MIDIMessage1Or2") return ValidateFormat2MidiMessage(property.value, 1, 2) ? std::string{} : "a one- or two-byte MIDI message prefix";
     if (rule == "MIDIInitializationMessage") return ValidateFormat2MidiInitializationMessage(property.value) ? std::string{} : "one complete MIDI message";
+    if (rule == "TextPayload") return ValidateFormat2TextPayload(property.value) ? std::string{} : "MIDI data bytes and supported text fields followed by Text";
     if (rule == "OSCAddress") {
         if (!property.value.list && !property.value.scalar.text.empty() && property.value.scalar.text[0] == '/') return {};
         return "one OSC address that starts with /";

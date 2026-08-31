@@ -1,0 +1,9 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Missing text payload defaults" }
+
+TextProfile DynamicText {
+  Encoding=ASCII7
+}
+
+Widget Display {
+  Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText Payload=[0x00, TopMargin7, TextRed7, Text] }
+}

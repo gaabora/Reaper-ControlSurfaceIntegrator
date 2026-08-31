@@ -411,15 +411,60 @@ public:
 class Format2MidiSysExTextFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:
-    vector<int> payloadPrefix_;
+    vector<Format2MidiSysExTextPayloadItem> payload_;
     Format2TextProfile profile_;
+    int topMargin_ = 0;
+    int bottomMargin_ = 0;
+    int font_ = 0;
+    rgba_color backgroundColor_;
+    rgba_color textColor_;
+    vector<int> lastPayload_;
+
+    static rgba_color RgbColor(std::uint32_t value) {
+        rgba_color color;
+        color.r = (value >> 16) & 0xFF;
+        color.g = (value >> 8) & 0xFF;
+        color.b = value & 0xFF;
+        return color;
+    }
+
+    int ResolveInteger(const PropertyList& properties, PropertyType property, int defaultValue) const {
+        const char* value = properties.get_prop(property);
+        return value ? std::clamp(atoi(value), 0, 0x7F) : defaultValue;
+    }
+
+    rgba_color ResolveColor(const PropertyList& properties, const rgba_color& defaultColor, PropertyType generalProperty, PropertyType offProperty, PropertyType onProperty, int state) const {
+        rgba_color color = defaultColor;
+        const char* value = properties.get_prop(generalProperty);
+        if (value) GetColorValue(value, color);
+        if (state >= 0) {
+            value = properties.get_prop(state ? onProperty : offProperty);
+            if (value) GetColorValue(value, color);
+        }
+        return this->surface_->GetDeviceFeedbackColor(color, 127);
+    }
+
+    int ResolvePresentationCode(const PropertyList& properties) const {
+        Format2TextAlignment alignment = this->profile_.defaultAlignment.value_or(Format2TextAlignment::Left);
+        const char* alignmentValue = properties.get_prop(PropertyType_TextAlign);
+        if (alignmentValue && IsSameString(alignmentValue, "Center")) alignment = Format2TextAlignment::Center;
+        else if (alignmentValue && IsSameString(alignmentValue, "Right")) alignment = Format2TextAlignment::Right;
+        else if (alignmentValue && IsSameString(alignmentValue, "Left")) alignment = Format2TextAlignment::Left;
+        int code = 0;
+        for (const Format2TextAlignmentEntry& entry : this->profile_.alignments) if (entry.alignment == alignment) { code = entry.code; break; }
+        const char* invertValue = properties.get_prop(PropertyType_TextInvert);
+        const bool inverted = invertValue && (IsSameString(invertValue, "Yes") || IsSameString(invertValue, "true"));
+        const int invertCode = inverted ? this->profile_.invertCode.value_or(0) : 0;
+        return this->profile_.presentationCombine == Format2PresentationCombine::Add ? code + invertCode : code | invertCode;
+    }
 
     string EncodeText(const char* inputText) const {
         char restrictedText[MEDBUF];
         const char* source = this->surface_->GetRestrictedLengthText(inputText, restrictedText, sizeof(restrictedText));
         if (this->profile_.silenceAsEmpty && IsSameString(source, SILENCE_DB_STRING)) source = "";
         string result;
-        const size_t maximumPayloadText = this->payloadPrefix_.size() < 253 ? 253 - this->payloadPrefix_.size() : 0;
+        const size_t fixedFieldCount = this->payload_.empty() ? 0 : this->payload_.size() - 1;
+        const size_t maximumPayloadText = fixedFieldCount < 253 ? 253 - fixedFieldCount : 0;
         const size_t maximumLength = this->profile_.width ? (std::min)((size_t) *this->profile_.width, maximumPayloadText) : maximumPayloadText;
         for (const unsigned char character : string(source)) {
             if (result.size() >= maximumLength) break;
@@ -429,34 +474,77 @@ private:
         return result;
     }
 
-    void SendText(const char* inputText) {
+    vector<int> ResolvePayload(const PropertyList& properties, const char* inputText, int state) const {
         const string encoded = this->EncodeText(inputText);
+        const int topMargin = this->ResolveInteger(properties, PropertyType_TopMargin, this->topMargin_);
+        const int bottomMargin = this->ResolveInteger(properties, PropertyType_BottomMargin, this->bottomMargin_);
+        const int font = this->ResolveInteger(properties, PropertyType_Font, this->font_);
+        const rgba_color backgroundColor = this->ResolveColor(properties, this->backgroundColor_, PropertyType_BackgroundColor, PropertyType_BackgroundColorOff, PropertyType_BackgroundColorOn, state);
+        const rgba_color textColor = this->ResolveColor(properties, this->textColor_, PropertyType_TextColor, PropertyType_TextColorOff, PropertyType_TextColorOn, state);
+        const int presentationCode = this->ResolvePresentationCode(properties);
+        vector<int> result;
+        for (const Format2MidiSysExTextPayloadItem& item : this->payload_) {
+            if (item.field == Format2MidiSysExTextPayloadField::Byte) result.push_back(item.byte);
+            else if (item.field == Format2MidiSysExTextPayloadField::TopMargin) result.push_back(topMargin);
+            else if (item.field == Format2MidiSysExTextPayloadField::BottomMargin) result.push_back(bottomMargin);
+            else if (item.field == Format2MidiSysExTextPayloadField::Font) result.push_back(font);
+            else if (item.field == Format2MidiSysExTextPayloadField::TextPresentationCode) result.push_back(presentationCode);
+            else if (item.field == Format2MidiSysExTextPayloadField::BackgroundRed) result.push_back(backgroundColor.r);
+            else if (item.field == Format2MidiSysExTextPayloadField::BackgroundGreen) result.push_back(backgroundColor.g);
+            else if (item.field == Format2MidiSysExTextPayloadField::BackgroundBlue) result.push_back(backgroundColor.b);
+            else if (item.field == Format2MidiSysExTextPayloadField::TextRed) result.push_back(textColor.r);
+            else if (item.field == Format2MidiSysExTextPayloadField::TextGreen) result.push_back(textColor.g);
+            else if (item.field == Format2MidiSysExTextPayloadField::TextBlue) result.push_back(textColor.b);
+            else for (unsigned char character : encoded) result.push_back(character);
+        }
+        return result;
+    }
+
+    void SendPayload(const vector<int>& payload) {
         SysExBuilder builder;
         builder.begin();
-        for (int byte : this->payloadPrefix_) builder.add((unsigned char) byte);
-        builder.addText(encoded.c_str()).end();
+        for (int byte : payload) builder.add((unsigned char) byte);
+        builder.end();
         this->SendMidiSysExMessage(builder.message());
     }
 
+    void Update(const PropertyList& properties, const char* inputText, int state, bool force) {
+        const vector<int> payload = this->ResolvePayload(properties, inputText, state);
+        if (!force && payload == this->lastPayload_) return;
+        this->lastPayload_ = payload;
+        this->SendPayload(payload);
+    }
+
 public:
-    Format2MidiSysExTextFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& payloadPrefix, const Format2TextProfile& profile)
-        : Midi_FeedbackProcessor(csi, surface, widget), payloadPrefix_(payloadPrefix), profile_(profile) {}
+    Format2MidiSysExTextFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExTextPayloadItem>& payload, const Format2TextProfile& profile, int topMargin, int bottomMargin, int font, std::uint32_t backgroundColor, std::uint32_t textColor)
+        : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload), profile_(profile), topMargin_(topMargin), bottomMargin_(bottomMargin), font_(font), backgroundColor_(RgbColor(backgroundColor)), textColor_(RgbColor(textColor)) {}
     virtual ~Format2MidiSysExTextFeedbackProcessor() {}
     virtual const char* GetName() override { return "Format2MidiSysExTextFeedbackProcessor"; }
 
     virtual void ForceClear() override {
+        const PropertyList properties;
         this->lastStringValue_ = this->profile_.clearText;
-        this->SendText(this->profile_.clearText.c_str());
+        this->Update(properties, this->profile_.clearText.c_str(), -1, true);
     }
 
     virtual void SetValue(const PropertyList& properties, const char* const& inputText) override {
-        if (this->lastStringValue_ == inputText) return;
-        this->ForceValue(properties, inputText);
+        this->lastStringValue_ = inputText;
+        this->Update(properties, inputText, -1, false);
     }
 
     virtual void ForceValue(const PropertyList& properties, const char* const& inputText) override {
         this->lastStringValue_ = inputText;
-        this->SendText(inputText);
+        this->Update(properties, inputText, -1, true);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const char* displayText = properties.get_prop(PropertyType_DisplayText);
+        this->Update(properties, displayText ? displayText : "", value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE ? 0 : 1, false);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        const char* displayText = properties.get_prop(PropertyType_DisplayText);
+        this->Update(properties, displayText ? displayText : "", value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE ? 0 : 1, true);
     }
 };
 

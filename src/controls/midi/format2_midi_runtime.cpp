@@ -1,5 +1,6 @@
 #include "../integrator.h"
 #include "../format2_surface_document.h"
+#include "../format2_value_validation.h"
 #include "format2_midi_runtime.h"
 #include "midi_surface.h"
 #include "midi_widgets.h"
@@ -29,17 +30,26 @@ bool Format2MidiRuntimeLoader::ReadBytes(const Format2PropertySyntax* property, 
     return true;
 }
 
-bool Format2MidiRuntimeLoader::ReadTextPayload(const Format2PropertySyntax* property, vector<int>& prefix) {
+bool Format2MidiRuntimeLoader::ReadTextPayload(const Format2PropertySyntax* property, vector<Format2MidiSysExTextPayloadItem>& payload) {
     if (!property || !property->value.list || property->value.items.empty()) return false;
-    const Format2ScalarSyntax& textField = property->value.items.back();
-    if (textField.quoted || textField.text != "Text") return false;
-    prefix.clear();
-    for (size_t itemIdx = 0; itemIdx + 1 < property->value.items.size(); ++itemIdx) {
+    payload.clear();
+    for (const Format2ScalarSyntax& item : property->value.items) {
         int value = 0;
-        if (!ReadByte(property->value.items[itemIdx], value) || value > 0x7F) return false;
-        prefix.push_back(value);
+        if (ReadByte(item, value) && value <= 0x7F) payload.push_back({ Format2MidiSysExTextPayloadField::Byte, value });
+        else if (item.text == "TopMargin7") payload.push_back({ Format2MidiSysExTextPayloadField::TopMargin, 0 });
+        else if (item.text == "BottomMargin7") payload.push_back({ Format2MidiSysExTextPayloadField::BottomMargin, 0 });
+        else if (item.text == "Font7") payload.push_back({ Format2MidiSysExTextPayloadField::Font, 0 });
+        else if (item.text == "TextPresentationCode") payload.push_back({ Format2MidiSysExTextPayloadField::TextPresentationCode, 0 });
+        else if (item.text == "BackgroundRed7") payload.push_back({ Format2MidiSysExTextPayloadField::BackgroundRed, 0 });
+        else if (item.text == "BackgroundGreen7") payload.push_back({ Format2MidiSysExTextPayloadField::BackgroundGreen, 0 });
+        else if (item.text == "BackgroundBlue7") payload.push_back({ Format2MidiSysExTextPayloadField::BackgroundBlue, 0 });
+        else if (item.text == "TextRed7") payload.push_back({ Format2MidiSysExTextPayloadField::TextRed, 0 });
+        else if (item.text == "TextGreen7") payload.push_back({ Format2MidiSysExTextPayloadField::TextGreen, 0 });
+        else if (item.text == "TextBlue7") payload.push_back({ Format2MidiSysExTextPayloadField::TextBlue, 0 });
+        else if (item.text == "Text") payload.push_back({ Format2MidiSysExTextPayloadField::Text, 0 });
+        else return false;
     }
-    return true;
+    return !payload.empty() && payload.back().field == Format2MidiSysExTextPayloadField::Text;
 }
 
 vector<string> Format2MidiRuntimeLoader::MakeTokens(const string& type, const vector<int>& firstMessage, const vector<int>& secondMessage) {
@@ -64,8 +74,8 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiPalette) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiSysEx) {
-        vector<int> prefix;
-        return ReadTextPayload(FindProperty(primitive, "Payload"), prefix);
+        vector<Format2MidiSysExTextPayloadItem> payload;
+        return ReadTextPayload(FindProperty(primitive, "Payload"), payload);
     }
     return primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb;
 }
@@ -287,15 +297,31 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 widget->MarkOskValueFeedback();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiSysEx) {
-                vector<int> payloadPrefix;
-                if (!ReadTextPayload(FindProperty(primitive, "Payload"), payloadPrefix)) continue;
+                vector<Format2MidiSysExTextPayloadItem> payload;
+                if (!ReadTextPayload(FindProperty(primitive, "Payload"), payload)) continue;
                 const Format2PropertySyntax* profileProperty = FindProperty(primitive, "TextProfile");
                 if (!profileProperty || profileProperty->value.list) continue;
                 const Format2TextProfile* profile = nullptr;
                 for (const Format2TextProfile& candidate : parsed.surface.textProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
                 if (!profile) continue;
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExTextFeedbackProcessor>(surface->csi_, surface, widget, payloadPrefix, *profile));
+                int topMargin = 0;
+                int bottomMargin = 0;
+                int font = 0;
+                std::uint32_t backgroundColor = 0;
+                std::uint32_t textColor = 0;
+                const Format2PropertySyntax* topMarginProperty = FindProperty(primitive, "TopMargin");
+                const Format2PropertySyntax* bottomMarginProperty = FindProperty(primitive, "BottomMargin");
+                const Format2PropertySyntax* fontProperty = FindProperty(primitive, "Font");
+                const Format2PropertySyntax* backgroundColorProperty = FindProperty(primitive, "BackgroundColor");
+                const Format2PropertySyntax* textColorProperty = FindProperty(primitive, "TextColor");
+                if (topMarginProperty) ReadByte(topMarginProperty->value.scalar, topMargin);
+                if (bottomMarginProperty) ReadByte(bottomMarginProperty->value.scalar, bottomMargin);
+                if (fontProperty) ReadByte(fontProperty->value.scalar, font);
+                if (backgroundColorProperty) ParseFormat2ColorScalar(backgroundColorProperty->value.scalar, backgroundColor);
+                if (textColorProperty) ParseFormat2ColorScalar(textColorProperty->value.scalar, textColor);
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExTextFeedbackProcessor>(surface->csi_, surface, widget, payload, *profile, topMargin, bottomMargin, font, backgroundColor, textColor));
                 widget->MarkOskTextFeedback();
+                if (std::find(primitive.capabilities.begin(), primitive.capabilities.end(), Format2Capability::Color) != primitive.capabilities.end()) widget->MarkOskColorFeedback();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && primitive.encoding == Format2Encoding::Midi7) {
                 vector<int> message;

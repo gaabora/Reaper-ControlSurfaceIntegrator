@@ -226,6 +226,26 @@ struct Format2TextProfile {
     Format2PresentationCombine presentationCombine = Format2PresentationCombine::BitOr;
 };
 
+enum class Format2MidiSysExTextPayloadField {
+    Byte,
+    TopMargin,
+    BottomMargin,
+    Font,
+    TextPresentationCode,
+    BackgroundRed,
+    BackgroundGreen,
+    BackgroundBlue,
+    TextRed,
+    TextGreen,
+    TextBlue,
+    Text,
+};
+
+struct Format2MidiSysExTextPayloadItem {
+    Format2MidiSysExTextPayloadField field = Format2MidiSysExTextPayloadField::Byte;
+    int byte = 0;
+};
+
 enum class Format2TrackColorCondition {
     Always,
     SourceTextPresent,

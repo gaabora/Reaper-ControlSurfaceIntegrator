@@ -128,6 +128,10 @@ Widget StyledText {
   Feedback Text { Encoding=MIDISysEx TextProfile=StyledDisplay Payload=[0x00, 0x01, 0x06, 0x16, 0x12, 0x00, 0x00, TextPresentationCode, Text] }
 }
 
+Widget DynamicText {
+  Feedback Text { Encoding=MIDISysEx TextProfile=SevenCharacters TopMargin=0 BottomMargin=63 Font=2 BackgroundColor=#000000 TextColor=#FFFFFF Payload=[0x00, 0x02, 0x38, 0x01, 0x20, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text] }
+}
+
 FeedbackGroup TrackColors {
   Capability=TrackColor
   Encoding=MIDISysEx

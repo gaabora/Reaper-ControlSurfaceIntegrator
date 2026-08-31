@@ -165,6 +165,22 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x17, 0x30, 0x38, Text ] TextProfile=Display7 }");
     });
 
+    test("converts legacy dynamic text and OLED button displays to universal SysEx fields", () => {
+        const legacySurface = `Widget Display1
+  FB_SCE24EncoderText 90 20 7f 0 15 2
+WidgetEnd
+Widget ButtonDisplay1
+  FB_SCE24OLEDButton 90 0d 7f 1 63 6
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Dynamic displays", "Surfaces/User/dynamic-displays.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.match(/TextProfile DynamicText \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=0 BottomMargin=15 Font=2 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x20, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }");
+        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=1 BottomMargin=63 Font=6 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x6D, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }");
+    });
+
     test("converts legacy MCU meters to a universal meter profile and Surface initialization", () => {
         const legacySurface = `Widget Meter1
   FB_MCUVUMeter 0
