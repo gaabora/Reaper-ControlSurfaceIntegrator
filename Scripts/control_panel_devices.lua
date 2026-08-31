@@ -7,7 +7,7 @@ local theme = require("theme_settings")
 local ui = require("ui_components")
 
 local module = {}
-local state = { afterQueryKind = "", confirmSource = nil, data = nil, deleteIo = nil, editIo = nil, editPage = nil, editSurface = nil, error = "", initialized = false, listenerIndex = 1, pageIndex = 1, pendingDraft = nil, pendingKind = "", requestId = nil, requestStarted = 0, savedData = nil, savedSignature = "", status = "", surfaceIndex = 1 }
+local state = { afterQueryKind = "", data = nil, deleteIo = nil, editIo = nil, editPage = nil, editSurface = nil, error = "", initialized = false, listenerIndex = 1, pageIndex = 1, pendingDraft = nil, pendingKind = "", requestId = nil, requestStarted = 0, savedData = nil, savedSignature = "", status = "", surfaceIndex = 1 }
 
 local function sectionHeader(ctx, label, fonts)
     if fonts and fonts.section then imgui.PushFont(ctx, fonts.section) end
@@ -16,19 +16,20 @@ local function sectionHeader(ctx, label, fonts)
 end
 
 local function startRequest(kind, source)
-    if state.requestId then return end
+    if state.requestId then return false, "Wait for the current Devices operation" end
     local requestId, queryError
     if kind == "OpenEditor" then requestId, queryError = protocol.OpenEditor()
     elseif kind == "Apply" then requestId, queryError = protocol.Apply(state.data.revision, source)
     else requestId, queryError = protocol.Query() end
     if not requestId then
         state.error = tostring(queryError or "Cannot query Devices")
-        return
+        return false, state.error
     end
     state.requestId = requestId
     state.pendingKind = kind
     state.requestStarted = reaper.time_precise()
     state.error = ""
+    return true
 end
 
 
@@ -865,7 +866,7 @@ function module.IsDirty()
 end
 
 function module.IsBusy()
-    return state.requestId ~= nil or state.confirmSource ~= nil
+    return state.requestId ~= nil
 end
 
 function module.HasError()
@@ -905,8 +906,7 @@ function module.Save()
     if not valid then return false, validationError end
     local source, serializationError = model.Serialize(state.data)
     if not source then return false, serializationError end
-    state.confirmSource = source
-    return true
+    return startRequest("Apply", source)
 end
 
 function module.Revert()
@@ -1057,31 +1057,11 @@ function module.RenderModal(ctx, fonts)
         end
         imgui.EndPopup(ctx)
     end
-    if state.confirmSource then imgui.OpenPopup(ctx, "Save Devices##DevicesReconnect") end
-    local confirmVisible = imgui.BeginPopupModal(ctx, "Save Devices##DevicesReconnect", nil, imgui.WindowFlags_AlwaysAutoResize)
-    if confirmVisible then
-        local creating = state.data and not state.data.configExists
-        imgui.TextWrapped(ctx, creating and "Create the product configuration and connect the configured control surfaces?" or "Saving Devices disconnects and reconnects active control surfaces. Continue?")
-        if imgui.Button(ctx, creating and "Create and connect" or "Save and reconnect", 150, 0) then
-            local source = state.confirmSource
-            state.confirmSource = nil
-            startRequest("Apply", source)
-            imgui.CloseCurrentPopup(ctx)
-        end
-        imgui.SameLine(ctx)
-        if imgui.Button(ctx, "Cancel", 100, 0) then
-            state.confirmSource = nil
-            state.error = "Devices Save was cancelled"
-            imgui.CloseCurrentPopup(ctx)
-        end
-        imgui.EndPopup(ctx)
-    end
 end
 
 function module.Shutdown()
     if state.requestId then protocol.Cancel(state.requestId) end
     state.requestId = nil
-    state.confirmSource = nil
     state.deleteIo = nil
     state.editIo = nil
     state.editPage = nil

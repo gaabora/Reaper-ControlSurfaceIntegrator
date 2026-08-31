@@ -36,8 +36,8 @@ The Control Panel must make common settings easy to find without duplicating C++
 - Keep the native C++ dialog until the Lua Devices page has feature parity and has passed manual runtime checks.
 - Do not add surface, zone, snippet, legacy import, or batch text editing to this Control Panel. Provide a command that opens the standalone editor for these tasks.
 - Keep one Appearance page, but do not create one flat settings table. Use separate `OSK`, `OSD`, and `Notifications` setting groups.
-- Treat runtime logs as disposable diagnostics. Store each REAPER process in its own bounded log session under the operating system user temporary directory.
-- Use session log ID, segment ID, and record start byte offset as the internal record identity shared by the viewer and Notifications. Keep this identity hidden from the user.
+- Treat runtime logs as disposable diagnostics. Store them in bounded daily files under the operating system user temporary directory.
+- Use daily log ID, segment ID, and record start byte offset as the internal record identity shared by the viewer and Notifications. Keep this identity hidden from the user.
 - Register stable REAPER actions in C++. Do not use generated `_RS...` ReaScript IDs as the public action contract.
 
 ## Terminology
@@ -199,7 +199,7 @@ The Appearance tab is one place to discover and edit visual settings. The code a
 - ✅ Use one shared square close-button size and the centered `×` symbol.
 - ✅ Make the notification body clickable. A click opens or focuses the Control Panel on Logging, selects the source record, and scrolls it into view.
 - ✅ Keep the close button separate from body navigation. Clicking close dismisses the notification and must not open the Control Panel.
-- ✅ Identify a source record in the current unsegmented implementation by session log ID and record start byte offset. The byte offset permits direct file access and supports records that use more than one text line. If the record is unavailable, open Logging and show that result.
+- ✅ Identify a source record in the current unsegmented implementation by daily log ID and record start byte offset. The byte offset permits direct file access and supports records that use more than one text line. If the record is unavailable, open Logging and show that result.
 - [ ] Add segment ID to the record identity when segmented rotation is implemented.
 - ✅ Keep the Notifications script running when one notification is closed. Its close control must dismiss only that visible record so later messages can appear.
 - ✅ Stop the Notifications script and set its REAPER toggle state to Off only when the user invokes its registered action to stop it.
@@ -226,19 +226,19 @@ FXParamsWrite=0
 - ✅ Define Surface input, Surface output, and raw Surface input values as booleans with clear user labels.
 - ✅ Document the exposed flags: raw input writes three-byte MIDI input, Surface input writes processed MIDI widget and OSC values, and Surface output writes MIDI and OSC output.
 - ✅ Remove direct native ownership of `DebugLevel`, Surface input, Surface output, and raw Surface input after connecting schema load, Apply, Reload, and runtime updates.
-- [ ] Decide how Logging should display a temporary `SetDebugLevel` or `CycleDebugLevel` action override. These actions still change only the current runtime global; the canonical Product value is restored by Apply, Reload, or REAPER restart.
+- ✅ `SetDebugLevel` and `CycleDebugLevel` persist and immediately apply the canonical Product `DebugLevel`; Logging no longer needs to display a temporary runtime override.
 - [ ] Decide whether `FXParamsWrite` should later become a canonical Boolean setting. Until then it remains only in the native window.
-- ✅ Keep all normal C++ and Lua logging in the product log file. Do not open the REAPER console for automatic messages.
+- ✅ Route all normal C++ and Lua logging through the shared product logger. Keep daily-file output enabled by default and provide a separate optional REAPER-console output setting.
 - ✅ Prefix each log record with local time as `[HH:MM:SS]` without a calendar date.
 - ✅ Keep popup notifications limited to NOTICE, WARNING, and ERROR records.
 
 ### Log viewer
 
-- ✅ Store disposable runtime logs under the operating system user temporary directory in a stable product subdirectory, with one session directory for each REAPER process: `<temp>/<stable-product-id>/logs/<session-id>`.
+- ✅ Store disposable runtime logs under the operating system user temporary directory, with one shared file per local day inside a monthly directory: `<temp>/<stable-product-id>/logs/<extstate-prefix>_logs_YYYY-MM/<extstate-prefix>_YYYY-MM-DD.log`.
 - ✅ Resolve the log directory in C++ and give Lua the resolved path. C++ and Lua do not build the platform path independently.
 - ✅ Document that the operating system can remove temporary logs at any time. Logs do not contain required product configuration or user data.
-- ✅ Give each REAPER process a unique log session so simultaneous REAPER instances never share one writable log file.
-- [ ] Start a new numbered segment when one session log reaches a documented size. Apply a documented total size or retained-session limit across the product log directory so a long-running process and repeated launches cannot use unlimited temporary storage.
+- ✅ Let simultaneous REAPER processes append to the same daily file and publish the active daily ID, resolved path, and initial reader offset to Lua.
+- [ ] Start a new numbered segment when one daily log reaches a documented size. Apply a documented total size or retained-day limit across the product log directory so repeated launches cannot use unlimited temporary storage.
 - ✅ Tail the current product log without blocking the REAPER UI thread.
 - [ ] Show timestamp, severity, source, and message columns when the record format contains these fields.
 - [ ] Add severity filters, text search, Pause, Resume, and Auto-scroll.
@@ -251,12 +251,12 @@ FXParamsWrite=0
 - [ ] Add `Insert separator`. It writes a timestamped structured marker with an optional short label. Notifications must ignore this marker.
 - [ ] Add `Delete all logs...`. Show the resolved directory, file count, and total size, require confirmation, close active readers and writers, remove the active and rotated log files, then create a new empty active log.
 - [ ] Detect when the active segment becomes smaller, is replaced, or a new numbered segment becomes active. Open the correct segment, reset its byte offset when required, and continue reading without duplicate records or a permanent stopped state.
-- ✅ Give each loaded record a session log ID and record start byte offset in the current unsegmented implementation.
+- ✅ Give each loaded record a daily log ID and record start byte offset in the current unsegmented implementation.
 - [ ] Add segment ID when rotation is implemented.
 - ✅ Accept a session-only navigation request from Notifications, open the Logging tab, select the matching record, and scroll it into view.
 - [ ] Limit the in-memory view and load older records only on request.
 - [ ] Make `Clear view` clear only the current GUI buffer.
-- ✅ Show a useful empty state when the log file does not exist or has no NOTICE, WARNING, or ERROR records.
+- ✅ Show a useful empty state when file logging is disabled, the active file is unavailable, or it has no supported records.
 
 ## Stable REAPER Actions
 
@@ -363,12 +363,12 @@ Ready when all existing input and visual settings are available from the Control
 
 - ✅ Add canonical Product settings for `DebugLevel`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay`, then apply them to runtime after load, Apply, and Reload.
 - ✅ Keep `FXParamsWrite` native until its future ownership is decided.
-- ✅ Move the product log to one resolved temporary session directory per REAPER process.
+- ✅ Move the product log to one resolved temporary daily file in a monthly directory.
 - [ ] Add bounded segment rotation and retained-session cleanup later.
 - ✅ Add a simple current-session NOTICE, WARNING, and ERROR text view with native file and folder opening.
 - ✅ Make the reduced text view read-only but selectable, with normal text copy and source-record selection after notification navigation.
 - [ ] Add the full bounded non-blocking viewer, filters, search, Pause, Resume, Auto-scroll, explicit `Ctrl+C`, and older-record loading later.
-- ✅ Add notification-to-record navigation for the current unsegmented session log.
+- ✅ Add notification-to-record navigation for the current unsegmented daily log.
 - [ ] Add separator insertion and confirmed deletion of active and rotated logs later.
 - ✅ Register the Notifications action and synchronize its toggle state with the Lua lifecycle.
 - [ ] Manually verify that normal logging never opens the REAPER console.

@@ -4,7 +4,6 @@ export const productIdentity = Object.freeze({
     resourceDirectory: "@PRODUCT_RESOURCE_DIRECTORY@",
     resourceInstallDirectory: "@PRODUCT_RESOURCE_INSTALL_DIRECTORY@",
     configFilename: "@PRODUCT_CONFIG_FILENAME@",
-    logFilename: "@PRODUCT_LOG_FILENAME@",
     controlPanelScriptFilename: "@PRODUCT_CONTROL_PANEL_SCRIPT_FILENAME@",
     controlPanelActionId: "@PRODUCT_CONTROL_PANEL_ACTION_ID@",
     notificationsActionId: "@PRODUCT_NOTIFICATIONS_ACTION_ID@",

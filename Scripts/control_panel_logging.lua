@@ -5,7 +5,7 @@ local settings = require("logging_settings_ui")
 local ui = require("ui_components")
 
 local module = {}
-local importantSeverities = { ERROR = true, WARNING = true, NOTICE = true }
+local knownSeverities = { ERROR = true, WARNING = true, NOTICE = true, INFO = true, DEBUG = true }
 local state = {
     activeRecord = nil,
     filePath = "",
@@ -44,7 +44,7 @@ local function appendLine(line, byteOffset)
     local severity = line:match("^%[%d%d:%d%d:%d%d%]%s+%[(%u+)%]")
     if severity then
         state.activeRecord = nil
-        if importantSeverities[severity] then
+        if knownSeverities[severity] then
             local record = { byteOffset = byteOffset, severity = severity, text = line }
             state.records[#state.records + 1] = record
             state.activeRecord = record
@@ -142,13 +142,13 @@ local function renderLogRecords(ctx)
             imgui.Function_SetValue(state.selectionCallback, "selectionRequested", 1)
             imgui.SetKeyboardFocusHere(ctx)
         else
-            state.status = "The notification source record is not available in the current log session."
+            state.status = "The notification source record is not available in the active daily log."
         end
         state.navigationOffset = nil
     end
     local flags = imgui.InputTextFlags_ReadOnly | imgui.InputTextFlags_CallbackAlways
     local displayedText = state.logText
-    if displayedText == "" then displayedText = state.filePath == "" and "The active log file is not available." or "No NOTICE, WARNING, or ERROR records in this session." end
+    if displayedText == "" then displayedText = state.filePath == "" and "File logging is disabled or the active log file is not available." or "No log records in the active daily file." end
     imgui.InputTextMultiline(ctx, "##LoggingRecords", displayedText, availableWidth, math.max(120, availableHeight), flags, state.selectionCallback)
 end
 
@@ -179,7 +179,7 @@ end
 function module.Navigate(sessionId, byteOffset)
     module.Initialize()
     if sessionId == "" or sessionId ~= state.sessionId then
-        state.status = "The notification source record is not available in the current log session."
+        state.status = "The notification source record is not available in the active daily log."
         return false
     end
     state.status = ""

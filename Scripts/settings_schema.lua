@@ -156,6 +156,8 @@ function module.RunSelfChecks()
     assert(schema.settingsByName.LongHoldDelayMs.greaterThan == "HoldDelayMs", "long hold constraint")
     assert(schema.settingsByName.HoldRepeatIntervalMs.defaultValue == 100, "hold repeat interval")
     assert(schema.settingsByName.SurfaceInDisplay.type == "boolean", "logging boolean type")
+    assert(schema.settingsByName.WriteLogFile.defaultValue == "1", "file logging default")
+    assert(schema.settingsByName.ShowLogInReaperConsole.defaultValue == "0", "console logging default")
     assert(schema.settingsByName.DebugLevel.defaultValue == "Error", "logging level default")
 end
 

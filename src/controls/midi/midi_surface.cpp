@@ -153,7 +153,7 @@ Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContex
 }
 
 void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t* evt) {
-    if (g_surfaceRawInDisplay) LogToConsole("IN <- %s %02x %02x %02x \n", name_.c_str(), evt->midi_message[0], evt->midi_message[1], evt->midi_message[2]);
+    if (g_surfaceRawInDisplay) LogToConsole("[DEBUG] IN <- %s %02x %02x %02x \n", name_.c_str(), evt->midi_message[0], evt->midi_message[1], evt->midi_message[2]);
 
     string threeByteKey = to_string(evt->midi_message[0] * 0x10000 + evt->midi_message[1] * 0x100 + evt->midi_message[2]);
     string twoByteKey = to_string(evt->midi_message[0] * 0x10000 + evt->midi_message[1] * 0x100);
@@ -178,14 +178,14 @@ void Midi_ControlSurface::SendMidiSysExMessage(MIDI_event_ex_t* midiMessage) {
             snprintf(buf, sizeof(buf), "%02x ", midiMessage->midi_message[i]);
             output += buf;
         }
-        output += " # Midi_ControlSurface::SendMidiSysExMessage\n";
+        output = "[DEBUG] " + output + " # Midi_ControlSurface::SendMidiSysExMessage\n";
         LogToConsole(output.c_str());
     }
 }
 
 void Midi_ControlSurface::SendMidiMessage(int first, int second, int third) {
     surfaceIO_->SendMidiMessage(first, second, third);
-    if (g_surfaceOutDisplay) LogToConsole("%s %02x %02x %02x # Midi_ControlSurface::SendMidiMessage\n", ("OUT->" + name_).c_str(), first, second, third);
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] %s %02x %02x %02x # Midi_ControlSurface::SendMidiMessage\n", ("OUT->" + name_).c_str(), first, second, third);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -1640,6 +1640,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Add the first format 2 MIDI runtime bridge for the converted FaderPort set: `MIDIExact` Press, Touch, and State; `MIDI14` Value input and feedback; `MIDI7` Encoder; and `MIDIRGB` Color. Construct Widgets only after typed validation and report unsupported primitives instead of sending format 2 source to the legacy parser.
   - ✅ Replace the bridge's FaderPort-specific RGB dispatch with one `MIDIRGB` codec driven by declared Enable, Red, Green, Blue, state-brightness, and ColorCalibration metadata. Resolve accelerated encoder values through the referenced EncoderProfile ID instead of a fixed WidgetClass name.
   - ✅ Add universal `MIDI7` Value input and feedback for one- or two-byte prefixes, ValueBase/Combine output, echo and touch suppression, plus explicit `SignedBit`, `SignedBitFixed`, and `Relative7Bit` Encoder modes.
+  - ✅ Add universal `MIDI7` Ring value and RingStyle feedback through `RingProfile`, ValueBase/Combine, StyleTarget, StyleShift, and StyleCombine. Keep nested Ring color Configure for its separate remaining runtime step.
   - [ ] Add TypeScript and Lua readers for the same catalog when their format 2 consumers are implemented.
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
@@ -1771,6 +1772,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Add safe User-zone rename with complete-profile reference updates, case-only filesystem handling, hash checks, and focused User overrides for Vendor referrers.
 - [ ] Replace whole-profile Main cloning with `Create User override` for one zone. Show a clear override confirmation when import or copy selects an existing Vendor ID.
 - [ ] Convert old `Zone ... ZoneEnd`, `BlockName ... BlockNameEnd`, and surface blocks during legacy import.
+- ✅ Convert legacy `FB_Encoder` output to one reusable `RotaryRing` profile and explicit `Feedback Ring`, including the historical output-address offset and style bits.
 - [ ] Convert legacy `Widget|` channel placeholders to `Widget#` and include exact, missing-family, and rejected-wildcard golden fixtures.
 - [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
 - [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.

@@ -185,6 +185,7 @@ void CSurfIntegrator::ApplyProductRuntimeSettings() {
     else if (debugLevel == "Notice") g_debugLevel = DEBUG_LEVEL_NOTICE;
     else if (debugLevel == "Warning") g_debugLevel = DEBUG_LEVEL_WARNING;
     else g_debugLevel = DEBUG_LEVEL_ERROR;
+    ProductLog::SetOutputs(this->productSettings_.GetBoolean("WriteLogFile"), this->productSettings_.GetBoolean("ShowLogInReaperConsole"));
     g_surfaceRawInDisplay = this->productSettings_.GetBoolean("SurfaceRawInDisplay");
     g_surfaceInDisplay = this->productSettings_.GetBoolean("SurfaceInDisplay");
     g_surfaceOutDisplay = this->productSettings_.GetBoolean("SurfaceOutDisplay");

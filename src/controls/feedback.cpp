@@ -29,7 +29,7 @@ void Midi_FeedbackProcessor::ForceMidiMessage(int first, int second, int third) 
 }
 
 void Midi_FeedbackProcessor::LogMessage(char* value) {
-    if (g_surfaceOutDisplay) LogToConsole("@S:'%s' [W:'%s'] MIDI: %s\n", surface_->GetName(), widget_->GetName(), value);
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] @S:'%s' [W:'%s'] MIDI: %s\n", surface_->GetName(), widget_->GetName(), value);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC_FeedbackProcessor

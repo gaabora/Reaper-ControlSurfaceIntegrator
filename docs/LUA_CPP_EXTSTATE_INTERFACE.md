@@ -24,7 +24,7 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 | `ReaCtrlSurf_NOTIFICATIONS_SETTINGS` | Lua persistent | Notifications appearance |
 | `ReaCtrlSurf_APPEARANCE_SETTINGS` | Lua session-only | Appearance revision and live-preview state |
 | `ReaCtrlSurf_CONTROL_PANEL` | C++ and Lua | Control Panel lifecycle requests, window state, and Lua-persistent shell state |
-| `ReaCtrlSurf_LOG` | C++ to Lua | Current temporary log session ID, directory, and active file |
+| `ReaCtrlSurf_LOG` | C++ to Lua | Current temporary daily log ID, directory, file, initial reader offset, and enabled outputs |
 | `ReaCtrlSurf_LOG_CMD` | Lua to C++ | Native open-file and open-folder requests |
 | `ReaCtrlSurf_SETTINGS_CMD` | Lua to C++ | Product and Device setting Query, Apply, and Reload requests |
 | `ReaCtrlSurf_SETTINGS` | C++ to Lua | Correlated setting responses and effective values |
@@ -45,7 +45,7 @@ LogSessionId=session-1724250000000000-0
 LogOffset=1842
 ```
 
-`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Close` performs the normal close flow and shows the Save, Don't Save, and Cancel prompt when the draft is dirty. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Device` is optional navigation context for General. It identifies which configured Device scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current session record that Logging selects and scrolls into view. This lifecycle section does not carry configuration values.
+`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Close` performs the normal close flow and shows the Save, Don't Save, and Cancel prompt when the draft is dirty. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Device` is optional navigation context for General. It identifies which configured Device scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current daily-file record that Logging selects and scrolls into view. The `LogSessionId` key name remains unchanged inside this protocol. This lifecycle section does not carry configuration values.
 
 Lua writes the session-only `State` key as `Open` after startup and `Closed` during shutdown. The stable `_REACTRLSURF_OPEN_CONTROL_PANEL` action uses this lifecycle state for its toggle value. The user action opens a closed panel and sends `Close` to an open panel. Programmatic calls from the native dialog, OSK, and Notifications still open, focus, or select a tab without toggling the panel closed.
 
@@ -200,29 +200,32 @@ The standalone OSD calculates percentage width from the ReaImGui monitor work ar
 
 ## Notifications
 
-`ReaCtrlSurf_NOTIFICATIONS` contains `StartOffset`, the byte offset in the current temporary session log from which a newly started `Notifications.lua` instance begins reading. C++ sets the value immediately before it starts the script. `State` is `Open`, `Stopping`, or `Closed`; the stable `_REACTRLSURF_TOGGLE_NOTIFICATIONS` action uses it for its toggle state. `Enabled=0` prevents later CSI initialization in the same REAPER session from restarting a deliberately stopped Notifications script. The stable action writes `Command=Stop`, and Lua consumes it before shutdown. The Control Panel writes session-only `AppearancePreview` to request one temporary preview record. Notifications consumes and deletes this key. The preview does not come from the log and does not navigate to Logging.
+`ReaCtrlSurf_NOTIFICATIONS` contains `StartOffset`, the byte offset in the current temporary daily log from which a newly started `Notifications.lua` instance begins reading. C++ sets the value immediately before it starts the script. `State` is `Open`, `Stopping`, or `Closed`; the stable `_REACTRLSURF_TOGGLE_NOTIFICATIONS` action uses it for its toggle state. `Enabled=0` prevents later CSI initialization in the same REAPER session from restarting a deliberately stopped Notifications script. The stable action writes `Command=Stop`, and Lua consumes it before shutdown. The Control Panel writes session-only `AppearancePreview` to request one temporary preview record. Notifications consumes and deletes this key. The preview does not come from the log and does not navigate to Logging.
 
-The plugin and normal Lua runtime write logs to the current temporary session log without calling `ShowConsoleMsg`. `Notifications.lua` tails new log entries and shows NOTICE, WARNING, and ERROR entries. INFO and DEBUG remain file-only. Explicit diagnostic tools such as `OSK state debug.lua` and parser self-check output may use the REAPER console when the user starts them manually.
+The Product `WriteLogFile` and `ShowLogInReaperConsole` settings independently enable the daily file and REAPER-console outputs. `WriteLogFile` defaults to enabled, and console output defaults to disabled. The plugin and normal Lua runtime use the same output states. `Notifications.lua` tails new file entries and shows NOTICE, WARNING, and ERROR entries. INFO and DEBUG do not create popup notifications. Explicit diagnostic tools such as `OSK state debug.lua` and parser self-check output may still use the REAPER console directly when the user starts them manually.
 
-Notifications uses persistent `opacity` from `ReaCtrlSurf_NOTIFICATIONS_SETTINGS`. Its compiled Lua default is `0.8`. Each visible record has its own square `×` dismiss control with a shared theme size. Dismiss removes only that popup record from memory, does not remove its log data, and does not stop the Notifications script. Each popup keeps its source session ID and record start byte offset. Clicking its body opens Logging and scrolls to that record.
+Notifications uses persistent `opacity` from `ReaCtrlSurf_NOTIFICATIONS_SETTINGS`. Its compiled Lua default is `0.8`. Each visible record has its own square `×` dismiss control with a shared theme size. Dismiss removes only that popup record from memory, does not remove its log data, and does not stop the Notifications script. Each popup keeps its source daily log ID and record start byte offset. Clicking its body opens Logging and scrolls to that record.
 
-## Temporary Log Session
+## Temporary Daily Log
 
-C++ creates one unique directory for the current REAPER process below `<operating-system-temp>/reacontrolsurface/logs/<session-id>`. The active file is `ReaControlSurface.log`. The operating system can remove this disposable diagnostic data at any time. It must not contain required configuration or user data.
+C++ resolves one monthly directory and one shared daily file below `<operating-system-temp>/reacontrolsurface/logs/ReaCtrlSurf_logs_YYYY-MM/ReaCtrlSurf_YYYY-MM-DD.log`. The visible directory and filename prefix comes from the product ExtState prefix. All active REAPER processes append to the same file for that local calendar day. C++ switches the active file after the local date changes. The operating system can remove this disposable diagnostic data at any time. It must not contain required configuration or user data.
 
-Each C++ or Lua record starts with local time and severity as `[HH:MM:SS] [LEVEL]`. The record does not contain a calendar date because its session directory already identifies one REAPER process launch.
+Each C++ or Lua record starts with local time and severity as `[HH:MM:SS] [LEVEL]`. The record does not contain a calendar date because the filename identifies the local date.
 
 `ReaCtrlSurf_LOG` contains:
 
 | Key | Payload |
 | --- | --- |
-| `SessionId` | Unique current-process session ID |
-| `Directory` | Resolved current session directory |
+| `SessionId` | Current daily log ID in `YYYY-MM-DD` form; the existing key name remains part of the navigation protocol |
+| `Directory` | Resolved current monthly directory |
 | `File` | Resolved active log file |
+| `StartOffset` | File size when this daily file became active; Notifications starts here after an output or date change |
+| `WriteFile` | `1` when daily-file output is enabled, otherwise `0` |
+| `ShowConsole` | `1` when optional REAPER-console output is enabled, otherwise `0` |
 
-Lua reads these values and does not construct a platform temporary path. The current reduced Logging page reads NOTICE, WARNING, and ERROR records from this file. It presents them in a read-only multiline field, so the user can select and copy text. It keeps the loaded text only while the Control Panel runs. Rotation, retention, bounded in-memory loading, and advanced viewer controls are not implemented yet.
+Lua reads these values and does not construct a platform temporary path. The current reduced Logging page reads ERROR, WARNING, NOTICE, INFO, and DEBUG records from this file. It presents them in a read-only multiline field, so the user can select and copy text. It keeps the loaded text only while the Control Panel runs. Retention, bounded in-memory loading, and advanced viewer controls are not implemented yet.
 
-Lua writes `OpenFile` or `OpenFolder` to the session-only `Request` key in `ReaCtrlSurf_LOG_CMD`. C++ consumes the request and uses the native platform shell with the operating system default association to open the active file or its session directory.
+Lua writes `OpenFile` or `OpenFolder` to the session-only `Request` key in `ReaCtrlSurf_LOG_CMD`. C++ consumes the request and uses the native platform shell with the operating system default association to open the active file or its monthly directory.
 
 ## Devices Protocol
 

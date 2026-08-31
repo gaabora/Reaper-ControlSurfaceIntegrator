@@ -1,13 +1,13 @@
 // @format zone 1
 Zone Home
-    OnInitialization     ToggleEnableFocusedFXMapping
-    OnInitialization          SetBlinkTime 300
+    //OnInitialization     ToggleEnableFocusedFXMapping
+    //OnInitialization          SetBlinkTime 300
 
-    OnInitialization          EnableOSD
+    // OnInitialization          EnableOSD
     // OnInitialization SetOSDTime 3000         // set global OSD timeout.           (3000) miliseconds by default
     // OnInitialization SetLatchTime 100        // set global latch modifier timeout (100)  miliseconds by default
     // OnInitialization SetHoldTime 1000        // set global Hold timeout           (1000) miliseconds by default
-    OnInitialization SetDoublePressTime 400  // set global DoublePress timeout    (400)  miliseconds by default
+    // OnInitialization SetDoublePressTime 400  // set global DoublePress timeout    (400)  miliseconds by default
 
     // OnInitialization          ToggleEnableFocusedFXMapping
     // OnInitialization          DisableFocusedFXMapping

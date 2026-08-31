@@ -36,7 +36,6 @@ return {
     resourceDirectory = resourceDirectory,
     resourceInstallDirectory = "Data/" .. resourceDirectory,
     configFilename = RequireValue("PRODUCT_CONFIG_FILENAME"),
-    logFilename = RequireValue("PRODUCT_LOG_FILENAME"),
     controlPanelScriptFilename = RequireValue("PRODUCT_CONTROL_PANEL_SCRIPT_FILENAME"),
     controlPanelActionId = RequireValue("PRODUCT_CONTROL_PANEL_ACTION_ID"),
     osdScriptFilename = RequireValue("PRODUCT_OSD_SCRIPT_FILENAME"),

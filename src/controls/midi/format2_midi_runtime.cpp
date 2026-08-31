@@ -45,6 +45,7 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7 && primitive.nestedBlocks.empty()) return true;
     return primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb;
 }
 
@@ -172,6 +173,33 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 const int echoGuardMs = echoGuard ? atoi(echoGuard->value.scalar.text.c_str()) : 0;
                 const bool suppress = suppressWhileTouched && suppressWhileTouched->value.scalar.text == "true";
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7ValueFeedbackProcessor>(surface->csi_, surface, widget, message, valueBaseByte, combineMode, echoGuardMs, suppress));
+                widget->MarkOskValueFeedback();
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7) {
+                vector<int> message;
+                if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.empty() || message.size() > 2) continue;
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "RingProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2RingProfile* profile = nullptr;
+                for (const Format2RingProfile& candidate : parsed.surface.ringProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                int valueBase = 0;
+                const Format2PropertySyntax* valueBaseProperty = FindProperty(primitive, "ValueBase");
+                if (valueBaseProperty) ReadByte(valueBaseProperty->value.scalar, valueBase);
+                Format2MidiValueCombine valueCombine = Format2MidiValueCombine::Replace;
+                const Format2PropertySyntax* combineProperty = FindProperty(primitive, "Combine");
+                if (combineProperty && combineProperty->value.scalar.text == "Add") valueCombine = Format2MidiValueCombine::Add;
+                else if (combineProperty && combineProperty->value.scalar.text == "BitOr") valueCombine = Format2MidiValueCombine::BitOr;
+                Format2MidiRingStyleTarget styleTarget = Format2MidiRingStyleTarget::Value;
+                const Format2PropertySyntax* styleTargetProperty = FindProperty(primitive, "StyleTarget");
+                if (styleTargetProperty && styleTargetProperty->value.scalar.text == "Status") styleTarget = Format2MidiRingStyleTarget::Status;
+                else if (styleTargetProperty && styleTargetProperty->value.scalar.text == "Data1") styleTarget = Format2MidiRingStyleTarget::Data1;
+                const Format2PropertySyntax* styleShiftProperty = FindProperty(primitive, "StyleShift");
+                const int styleShift = styleShiftProperty ? atoi(styleShiftProperty->value.scalar.text.c_str()) : 0;
+                Format2MidiRingStyleCombine styleCombine = Format2MidiRingStyleCombine::BitOr;
+                const Format2PropertySyntax* styleCombineProperty = FindProperty(primitive, "StyleCombine");
+                if (styleCombineProperty && styleCombineProperty->value.scalar.text == "Add") styleCombine = Format2MidiRingStyleCombine::Add;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7RingFeedbackProcessor>(surface->csi_, surface, widget, message, *profile, valueBase, valueCombine, styleTarget, styleShift, styleCombine));
                 widget->MarkOskValueFeedback();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb) {

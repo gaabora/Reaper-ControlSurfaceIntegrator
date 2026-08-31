@@ -69,6 +69,7 @@ Widget Fader # Shape=Fader Height=7
 WidgetEnd
 Widget Rotary RotaryWidgetClass # Group=RotaryGroup
   Encoder b0 10 7f
+  FB_Encoder b0 10 7f
 WidgetEnd
 Widget RotaryPush # Group=RotaryGroup OSKHidden
   Press 90 20 7f 90 20 00
@@ -82,6 +83,8 @@ WidgetEnd
         expect(conversion.diagnostics).toEqual([]);
         expect(conversion.source).toStartWith('@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPortV2" }');
         expect(conversion.source).toContain("Input Value { Encoding=MIDI14 Status=0xE0 }");
+        expect(conversion.source).toContain("RingProfile RotaryRing {");
+        expect(conversion.source).toContain("Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }");
         expect(conversion.source).toContain("Widget Fader Shape=Fader Height=7 TouchTarget=Fader ValueTarget=Fader");
         expect(conversion.source).toContain("Widget Rotary Group=RotaryGroup ScrollTarget=Rotary PressTarget=RotaryPush");
         expect(conversion.source.match(/  Row \{/g)).toHaveLength(7);

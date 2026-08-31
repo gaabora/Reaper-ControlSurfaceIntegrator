@@ -99,7 +99,7 @@ inline void LogStackTraceToConsole() {
 #ifdef _DEBUG
   #if defined(__cpp_lib_stacktrace)
     auto trace = stacktrace::current();
-    LogToConsole("===== Stack Trace Start =====\n");
+    LogToConsole("[DEBUG] ===== Stack Trace Start =====\n");
     for (const auto& frame : trace) {
         stringstream ss;
         ss << frame;
@@ -115,12 +115,12 @@ inline void LogStackTraceToConsole() {
             if (pos != string::npos)
                 line = line.substr(0, pos);
 
-            LogToConsole("%s\n", line.c_str());
+            LogToConsole("[DEBUG] %s\n", line.c_str());
         }
     }
-    LogToConsole("===== Stack Trace End =====\n");
+    LogToConsole("[DEBUG] ===== Stack Trace End =====\n");
   #else
-    LogToConsole("LogStackTraceToConsole not supported on this compiler.\n");
+    LogToConsole("[DEBUG] LogStackTraceToConsole not supported on this compiler.\n");
   #endif
 #endif
 }

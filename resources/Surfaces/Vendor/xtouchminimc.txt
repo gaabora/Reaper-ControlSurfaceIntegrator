@@ -7,36 +7,54 @@ EncoderProfile RotaryWidgetClass {
   AccelerationDeltas=[ 0.005, 0.01, 0.02, 0.04, 0.05, 0.06, 0.08, 0.1 ]
 }
 
+RingProfile RotaryRing {
+  Segments=11
+  Quantize=Floor
+  ValueOffset=1
+  Style Dot Code=0 Steps=11
+  Style BoostCut Code=1 Steps=11
+  Style Fill Code=2 Steps=11
+  Style Spread Code=3 Steps=6
+}
+
 Widget Rotary1 {
   Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x10 ] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
 }
 
 Widget Rotary2 {
   Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x11 ] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x31 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
 }
 
 Widget Rotary3 {
   Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x12 ] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x32 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
 }
 
 Widget Rotary4 {
   Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x13 ] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x33 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
 }
 
 Widget Rotary5 {
   Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x14 ] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x34 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
 }
 
 Widget Rotary6 {
   Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x15 ] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x35 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
 }
 
 Widget Rotary7 {
   Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x16 ] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x36 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
 }
 
 Widget Rotary8 {
   Input Encoder { Encoding=MIDI7 Message=[ 0xB0, 0x17 ] Profile=RotaryWidgetClass }
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x37 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }
 }
 
 Widget RotaryPush1 {

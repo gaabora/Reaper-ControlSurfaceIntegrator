@@ -266,9 +266,9 @@ NavType=FolderNavigator             ; Folder tracks
 
 ## Essential Commands (Debug)
 
-Open Control Panel > Logging. Enable Product overrides for `Log level`, `Surface input`, `Surface output`, or `Raw MIDI input`, then use `Save changes`. Enable the input and output records only while troubleshooting because they can create a large log quickly.
+Open Control Panel > Logging. Select the `Log level`, choose `Write to file` and optional `Show in REAPER console`, then enable `Surface input`, `Surface output`, or `Raw MIDI input` as needed. Use `Save changes`. Enable the input and output records only while troubleshooting because they can create a large log quickly.
 
-NOTICE, WARNING, and ERROR messages appear through the ReaControlSurface Notifications script and on the Control Panel Logging page. Use `Open log file` or `Open log folder` there to access the current temporary REAPER-session log.
+The Logging page shows ERROR, WARNING, NOTICE, INFO, and DEBUG records that were written at the selected level. NOTICE, WARNING, and ERROR messages also appear through the ReaControlSurface Notifications script. Use `Open log file` or `Open log folder` to access the current temporary daily log.
 
 ## Zone File Comment Syntax
 
@@ -296,5 +296,4 @@ NOTICE, WARNING, and ERROR messages appear through the ReaControlSurface Notific
 ---
 
 **Last Updated**: March 2026 | CSI v7.0
-
 

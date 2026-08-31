@@ -87,7 +87,7 @@ private:
             }
         } catch (const std::exception& e) {
             LogToConsole("[ERROR] FAILED to LoadZoneMetadata in %s, around line %d\n", filePath, lineNumber);
-            LogToConsole("Exception: %s\n", e.what());
+            LogToConsole("[ERROR] Exception: %s\n", e.what());
         }
     }
 

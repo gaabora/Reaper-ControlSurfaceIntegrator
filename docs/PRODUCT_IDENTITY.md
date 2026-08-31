@@ -72,7 +72,7 @@ Vendor zones are read-only at runtime. The runtime creates `Zones/User/<profile-
 
 The runtime does not read the old `CSI/` root. Legacy names and layouts belong only in the future import workflow.
 
-Disposable diagnostics do not live below the resource tree. Each REAPER process creates one unique log session at `<operating-system-temp>/reacontrolsurface/logs/<session-id>/ReaControlSurface.log`. C++ publishes the resolved paths to Lua through ExtState. The operating system can remove these logs at any time.
+Disposable diagnostics do not live below the resource tree. All REAPER processes append to one daily file at `<operating-system-temp>/reacontrolsurface/logs/ReaCtrlSurf_logs_YYYY-MM/ReaCtrlSurf_YYYY-MM-DD.log`. C++ derives the visible folder and filename prefix from the product ExtState prefix and publishes the resolved paths to Lua through ExtState. The operating system can remove these logs at any time.
 
 `ProductPaths::ConfigurationEditorExecutable()` resolves the optional standalone editor below `Tools`. Its filename is derived from the stable Product ID. The separate platform-specific ReaPack Configuration Editor package owns this executable.
 

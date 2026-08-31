@@ -121,6 +121,7 @@ public:
     }
 
     void Init();
+    bool SetProductDebugLevel(int value);
 
     double GetFaderMaxDB() { return GetPrivateProfileDouble("slidermaxv"); }
     double GetFaderMinDB() { return GetPrivateProfileDouble("sliderminv"); }

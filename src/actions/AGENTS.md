@@ -18,6 +18,7 @@
 - Stateless `Reaper` actions with explicit action-line colors must still provide inactive color feedback unless the mapping explicitly uses `Feedback=No` or `NoFeedback`.
 - Action feedback must use the owning `ActionContext` and widget contracts rather than bypassing them.
 - An explicit action-line `OSD` value is authoritative event text. Queue it after the action runs and mark it as explicit instead of replacing it with automatic action-specific text. Lua owns template variable expansion.
+- `SetDebugLevel` and `CycleDebugLevel` must persist the canonical Product `DebugLevel` setting before changing the active runtime level. They must not create a session-only logging override.
 
 ## Work Guidance
 

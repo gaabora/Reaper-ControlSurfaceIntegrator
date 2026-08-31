@@ -199,7 +199,7 @@ OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext*
 void OSC_ControlSurface::ProcessOSCMessage(const char* message, double value) {
     if (MessageGeneratorsByMessage_.find(message) != MessageGeneratorsByMessage_.end())
         MessageGeneratorsByMessage_[message]->ProcessMessage(value);
-    if (g_surfaceInDisplay) LogToConsole("IN <- %s %s %f\n", name_.c_str(), message, value);
+    if (g_surfaceInDisplay) LogToConsole("[DEBUG] IN <- %s %s %f\n", name_.c_str(), message, value);
 }
 
 void OSC_ControlSurface::SendOSCMessage(const char* zoneName) {
@@ -208,35 +208,35 @@ void OSC_ControlSurface::SendOSCMessage(const char* zoneName) {
     oscAddress = "/" + oscAddress;
 
     surfaceIO_->SendOSCMessage(oscAddress.c_str());
-    if (g_surfaceOutDisplay) LogToConsole("->LoadingZone---->%s\n", name_.c_str());
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] ->LoadingZone---->%s\n", name_.c_str());
 }
 
 void OSC_ControlSurface::SendOSCMessage(const char* oscAddress, int value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %d # Surface::SendOSCMessage 1\n", name_.c_str(), oscAddress, value);
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %d # Surface::SendOSCMessage 1\n", name_.c_str(), oscAddress, value);
 }
 
 void OSC_ControlSurface::SendOSCMessage(const char* oscAddress, double value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %f # Surface::SendOSCMessage 2\n", name_.c_str(), oscAddress, value);
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %f # Surface::SendOSCMessage 2\n", name_.c_str(), oscAddress, value);
 }
 
 void OSC_ControlSurface::SendOSCMessage(const char* oscAddress, const char* value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %s # Surface::SendOSCMessage 3\n", name_.c_str(), oscAddress, value);
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %s # Surface::SendOSCMessage 3\n", name_.c_str(), oscAddress, value);
 }
 
 void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, double value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %f # Surface::SendOSCMessage 4\n", feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %f # Surface::SendOSCMessage 4\n", feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
 }
 
 void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, int value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %s %d # Surface::SendOSCMessage 5\n", name_.c_str(), feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %s %d # Surface::SendOSCMessage 5\n", name_.c_str(), feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
 }
 
 void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, const char* value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("OUT->%s %s %s %s # Surface::SendOSCMessage 6\n", name_.c_str(), feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
+    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %s %s # Surface::SendOSCMessage 6\n", name_.c_str(), feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
 }

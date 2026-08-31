@@ -9,12 +9,16 @@ local schema = schemaLoader.Load()
 local definitions = {}
 local labels = {
     DebugLevel = "Log level",
+    WriteLogFile = "Write to file",
+    ShowLogInReaperConsole = "Show in REAPER console",
     SurfaceRawInDisplay = "Raw MIDI input",
     SurfaceInDisplay = "Surface input",
     SurfaceOutDisplay = "Surface output",
 }
 local descriptions = {
-    DebugLevel = "Write this severity and all more important severities.",
+    DebugLevel = "Write this severity and all more important runtime messages. Info and Debug include executed actions. The input and output options are independent.",
+    WriteLogFile = "Write logs to one daily file in the system temporary directory.",
+    ShowLogInReaperConsole = "Also write the same logs to the REAPER console.",
     SurfaceRawInDisplay = "Write each raw three-byte MIDI input message.",
     SurfaceInDisplay = "Write processed MIDI widget and OSC input values.",
     SurfaceOutDisplay = "Write MIDI and OSC output messages.",

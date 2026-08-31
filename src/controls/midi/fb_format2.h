@@ -1,10 +1,24 @@
 #pragma once
 
+#include "../format2_surface_document.h"
+
 #include <algorithm>
 #include <array>
+#include <cmath>
 
 enum class Format2MidiValueCombine {
     Replace,
+    Add,
+    BitOr,
+};
+
+enum class Format2MidiRingStyleTarget {
+    Status,
+    Data1,
+    Value,
+};
+
+enum class Format2MidiRingStyleCombine {
     Add,
     BitOr,
 };
@@ -48,6 +62,89 @@ public:
         const int encoded = this->Encode(value);
         if (this->message_.size() == 1) this->SendMidiMessage(this->message_[0], encoded, 0);
         else this->SendMidiMessage(this->message_[0], this->message_[1], encoded);
+    }
+};
+
+class Format2Midi7RingFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<int> message_;
+    Format2RingProfile profile_;
+    int valueBase_ = 0;
+    Format2MidiValueCombine valueCombine_ = Format2MidiValueCombine::Replace;
+    Format2MidiRingStyleTarget styleTarget_ = Format2MidiRingStyleTarget::Value;
+    int styleShift_ = 0;
+    Format2MidiRingStyleCombine styleCombine_ = Format2MidiRingStyleCombine::BitOr;
+    std::array<int, 3> lastMessage_{};
+    bool hasLastMessage_ = false;
+
+    static Format2RingStyle ResolveStyle(const PropertyList& properties) {
+        const char* value = properties.get_prop(PropertyType_RingStyle);
+        if (value && IsSameString(value, "Fill")) return Format2RingStyle::Fill;
+        if (value && IsSameString(value, "BoostCut")) return Format2RingStyle::BoostCut;
+        if (value && IsSameString(value, "Spread")) return Format2RingStyle::Spread;
+        return Format2RingStyle::Dot;
+    }
+
+    const Format2RingStyleEntry& ResolveStyleEntry(const PropertyList& properties) const {
+        const Format2RingStyle style = ResolveStyle(properties);
+        for (const Format2RingStyleEntry& entry : this->profile_.styles) if (entry.style == style) return entry;
+        for (const Format2RingStyleEntry& entry : this->profile_.styles) if (entry.style == Format2RingStyle::Dot) return entry;
+        return this->profile_.styles.front();
+    }
+
+    int CombineValue(int ringValue) const {
+        if (this->valueCombine_ == Format2MidiValueCombine::Add) return this->valueBase_ + ringValue;
+        if (this->valueCombine_ == Format2MidiValueCombine::BitOr) return this->valueBase_ | ringValue;
+        return ringValue;
+    }
+
+    int CombineStyle(int targetValue, int styleValue) const {
+        if (this->styleCombine_ == Format2MidiRingStyleCombine::Add) return targetValue + styleValue;
+        return targetValue | styleValue;
+    }
+
+    std::array<int, 3> Encode(const PropertyList& properties, double value) const {
+        const Format2RingStyleEntry& entry = this->ResolveStyleEntry(properties);
+        const double scaled = std::clamp(value, 0.0, 1.0) * (entry.steps - 1);
+        const int position = this->profile_.quantize == Format2Quantize::Round ? (int) std::round(scaled) : (int) std::floor(scaled);
+        const int ringValue = this->CombineValue(this->profile_.valueOffset + position);
+        const int styleValue = entry.code << this->styleShift_;
+        std::array<int, 3> result = { this->message_[0], this->message_.size() == 2 ? this->message_[1] : ringValue, this->message_.size() == 2 ? ringValue : 0 };
+        if (this->styleTarget_ == Format2MidiRingStyleTarget::Status) result[0] = this->CombineStyle(result[0], styleValue);
+        else if (this->styleTarget_ == Format2MidiRingStyleTarget::Data1) result[1] = this->CombineStyle(result[1], styleValue);
+        else if (this->message_.size() == 2) result[2] = this->CombineStyle(result[2], styleValue);
+        else result[1] = this->CombineStyle(result[1], styleValue);
+        return result;
+    }
+
+    void Send(const std::array<int, 3>& message) { this->SendMidiMessage(message[0], message[1], message[2]); }
+
+public:
+    Format2Midi7RingFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& message, const Format2RingProfile& profile, int valueBase, Format2MidiValueCombine valueCombine, Format2MidiRingStyleTarget styleTarget, int styleShift, Format2MidiRingStyleCombine styleCombine)
+        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), profile_(profile), valueBase_(valueBase), valueCombine_(valueCombine), styleTarget_(styleTarget), styleShift_(styleShift), styleCombine_(styleCombine) {}
+    virtual ~Format2Midi7RingFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2Midi7RingFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        const PropertyList properties;
+        this->ForceValue(properties, 0.0);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const std::array<int, 3> message = this->Encode(properties, value);
+        if (this->hasLastMessage_ && message == this->lastMessage_) return;
+        this->lastDoubleValue_ = value;
+        this->lastMessage_ = message;
+        this->hasLastMessage_ = true;
+        this->Send(message);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastMessage_ = this->Encode(properties, value);
+        this->hasLastMessage_ = true;
+        this->Send(this->lastMessage_);
     }
 };
 

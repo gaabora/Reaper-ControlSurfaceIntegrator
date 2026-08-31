@@ -22,7 +22,8 @@
 - Treat the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives as metadata, not as comments.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
 - Parse Product overrides from the root `Settings` block and Device overrides from its nested `Settings` block. Resolve compiled defaults, Product, and Device in that order. Reject one invalid scope as a unit instead of partially applying it.
-- Apply canonical Product `DebugLevel`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay` values to the legacy runtime globals after initial configuration load, Apply, and Reload.
+- Apply canonical Product `DebugLevel`, `WriteLogFile`, `ShowLogInReaperConsole`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay` values to the runtime logger and legacy diagnostic globals after initial configuration load, Apply, and Reload.
+- Route runtime debug-level actions through the canonical Product `DebugLevel` writer so the Control Panel, configuration file, and active logger stay synchronized.
 - Keep `ReaCtrlSurf_SETTINGS_CMD` requests correlated with `ReaCtrlSurf_SETTINGS` responses. Apply must validate before atomic file replacement. Reload must keep current runtime values when validation or runtime matching fails.
 - A missing product configuration is an initial-setup state for the Settings and Devices bridges, not a read failure. Devices Query must return an empty editable model plus discovery options and an empty-source revision so Apply can create the parent directory and first valid file. Settings Query must identify the missing configuration and direct Lua to Devices. Existing unreadable files remain errors.
 - Include every configured Device ID in each successful settings Query response so Lua can select a valid Device scope without reading the product configuration.

@@ -69,10 +69,10 @@
 - Keep OSK widget config window geometry persistent, keep its font independent from OSK button font settings, and keep embedded OSD bar position scoped per surface.
 - Keep standalone OSD settings reachable by right-clicking a visible OSD overlay; do not add an idle launcher window.
 - Size standalone OSD percentages against the ReaImGui monitor work area. Use the REAPER client rectangle and `my_getViewport` only as fallbacks.
-- Route normal Lua runtime logs through `log_writer.lua`. Do not open the REAPER console for automatic logging. The manually launched `OSK state debug.lua` and parser self-check output may still use the console for explicit diagnostics.
-- Read the current C++-resolved temporary session log path from the session-only Log ExtState section. Lua must not construct an operating system temporary path.
+- Route normal Lua runtime logs through `log_writer.lua`. Respect the C++-published daily-file and optional REAPER-console output states. The manually launched `OSK state debug.lua` and parser self-check output may still use the console for explicit diagnostics.
+- Read the current C++-resolved temporary daily log path from the session-only Log ExtState section. Lua must not construct an operating system temporary path.
 - Keep `Notifications.lua` running as the dedicated NOTICE, WARNING, and ERROR display. It tails new entries from the product log and must not show INFO or DEBUG entries as popups.
-- Keep notification record identity as the current session ID and record start byte offset until segmented logs are implemented. Clicking a notification body opens Logging and scrolls to that record.
+- Keep notification record identity as the current daily log ID and record start byte offset until segmented logs are implemented. Clicking a notification body opens Logging and scrolls to that record.
 - Keep Control Panel Appearance in two columns with OSK on the left and Notifications and OSD on the right. Put the feature Open or Show preview action at the right edge of its large group heading and use the real visual script for previews.
 - Keep common Control Panel item spacing, rounding, and disabled opacity fixed at `8`, `4`, and `0.6`. Do not expose Common Interface or Error color settings.
 - Write product log timestamps as local `[HH:MM:SS]` values without dates. Keep reduced-view records on consecutive lines without added blank rows.
@@ -92,7 +92,7 @@
 - Keep reusable ReaImGui widget helpers in `ui_components.lua` so entry scripts and feature modules do not re-implement the same UI patterns.
 - Keep shared script startup, context creation, toolbar state, and shutdown boilerplate in `script_host.lua` so the entry scripts stay thin orchestration layers.
 - Keep Control Panel page registration and coordinated draft operations in `control_panel_pages.lua`, lifecycle parsing in `control_panel_protocol.lua`, Appearance draft behavior in `control_panel_appearance.lua`, and shell rendering in `control_panel_ui.lua`.
-- Keep current-session log tailing and rendering in `control_panel_logging.lua`, and keep its canonical Product setting editor in `logging_settings_ui.lua`.
+- Keep active-daily-file tailing and rendering in `control_panel_logging.lua`, and keep its canonical Product setting editor in `logging_settings_ui.lua`.
 - Keep serialized action-line, layout, and label-replacement contracts in `action_line.lua`, `layout_parser.lua`, and `label_replacements.lua` so UI modules do not own those formats.
 - Keep pure Lua parser checks registered through `self_checks.lua` when adding or changing parser module self-checks.
 - Keep OSD color, alpha, contrast, and centered text drawing in `osd_ui.lua` so standalone OSD and the embedded OSK bar share one renderer.

@@ -124,7 +124,7 @@ void SurfaceTemplateParser::ParseMidiTemplate(const string& filePath,
         }
     } catch (const std::exception& e) {
         LogToConsole("[ERROR] FAILED to ParseMidiTemplate in %s, around line %d\n", filePath.c_str(), lineNumber);
-        LogToConsole("Exception: %s\n", e.what());
+        LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 }
 
@@ -225,7 +225,7 @@ void SurfaceTemplateParser::ParseOSCTemplate(const string& filePath,
         }
     } catch (const std::exception& e) {
         LogToConsole("[ERROR] FAILED to ParseOSCTemplate in %s, around line %d\n", filePath.c_str(), lineNumber);
-        LogToConsole("Exception: %s\n", e.what());
+        LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 }
 

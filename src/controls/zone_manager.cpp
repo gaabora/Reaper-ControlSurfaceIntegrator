@@ -210,7 +210,7 @@ void ZoneManager::PreProcessZoneFile(const string& filePath, bool isFxZone, bool
         }
     } catch (const std::exception& e) {
         LogToConsole("[ERROR] FAILED to PreProcessZoneFile in %s\n", filePath.c_str());
-        LogToConsole("Exception: %s\n", e.what());
+        LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 }
 
@@ -311,7 +311,7 @@ void ZoneManager::LoadZones(vector<unique_ptr<Zone>>& zones, vector<string>& zon
     }
 
     if (!missingZoneNames.empty())
-        LogToConsole("No .zon files found for zones: %s\n", missingZoneNames.c_str());
+        LogToConsole("[WARNING] No .zon files found for zones: %s\n", missingZoneNames.c_str());
 }
 
 void ZoneManager::LoadZoneFile(Zone* zone, const char* widgetSuffix) {

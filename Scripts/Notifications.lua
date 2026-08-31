@@ -78,7 +78,7 @@ local function refreshLogIdentity()
     logFile = nil
     logPath = currentPath
     logSessionId = currentSessionId
-    startOffset = 0
+    startOffset = tonumber(reaperApi.GetExtState(identity.extState.log, "StartOffset")) or 0
     activeNotification = nil
 end
 

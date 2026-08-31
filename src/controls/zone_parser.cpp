@@ -158,6 +158,6 @@ void ZoneFileParser::ParseFile(ZoneManager* zm, Zone* zone, const char* filePath
             zm->zoneInfo_[zone->GetName()].isLoaded = true;
     } catch (const std::exception& e) {
         LogToConsole("[ERROR] FAILED to LoadZoneFile in %s, around line %d\n", zone->GetSourceFilePath(), lineNumber);
-        LogToConsole("Exception: %s\n", e.what());
+        LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 }

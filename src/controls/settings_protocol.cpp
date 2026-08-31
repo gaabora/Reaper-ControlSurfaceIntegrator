@@ -264,6 +264,46 @@ static string BuildSettingsQueryBody(const SettingsCommandRequest& request, cons
     return body;
 }
 
+bool CSurfIntegrator::SetProductDebugLevel(int value) {
+    static const char* levelNames[] = { "Error", "Warning", "Notice", "Info", "Debug" };
+    if (value < DEBUG_LEVEL_ERROR || value > DEBUG_LEVEL_DEBUG) {
+        LogToConsole("[ERROR] Cannot set DebugLevel: value %d is outside the supported range\n", value);
+        return false;
+    }
+
+    const filesystem::path configPath = ProductPaths::FromReaperResourcePath().ConfigFile();
+    string source;
+    bool configExists = false;
+    string errorMessage;
+    if (!ReadSettingsConfigSource(configPath, source, configExists, errorMessage) || !configExists) {
+        if (errorMessage.empty()) errorMessage = "Create the product configuration on the Devices page first";
+        LogToConsole("[ERROR] Cannot set DebugLevel: %s\n", errorMessage.c_str());
+        return false;
+    }
+
+    SettingsConfigEditRequest editRequest;
+    editRequest.scope = "Product";
+    editRequest.changes["DebugLevel"] = levelNames[value];
+    string editedSource;
+    if (!EditSettingsConfigSource(source, editRequest, editedSource, errorMessage)) {
+        LogToConsole("[ERROR] Cannot set DebugLevel: %s\n", errorMessage.c_str());
+        return false;
+    }
+
+    IntegratorConfig candidate = ParseFormat2IntegratorConfigSource(editedSource, configPath.string());
+    if (!candidate.fatalError.empty()) errorMessage = candidate.fatalError;
+    else if (!candidate.settingsValid) errorMessage = FormatSettingsConfigIssues(candidate);
+    if (!errorMessage.empty() || !WriteSettingsConfigAtomically(configPath, editedSource, errorMessage)) {
+        LogToConsole("[ERROR] Cannot set DebugLevel: %s\n", errorMessage.c_str());
+        return false;
+    }
+
+    this->productSettings_ = candidate.productSettings;
+    this->productSettingOverrides_ = candidate.productSettingOverrides;
+    this->ApplyProductRuntimeSettings();
+    return true;
+}
+
 void CSurfIntegrator::PollAndHandleSettingsCommands() {
     if (!::HasExtState(ProductIdentity::ExtStateSettingsCommand, "Request")) return;
     const string payload = ::GetExtState(ProductIdentity::ExtStateSettingsCommand, "Request");

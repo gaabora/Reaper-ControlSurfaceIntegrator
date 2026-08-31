@@ -6,7 +6,6 @@ inline constexpr const char* ProductId = "@PRODUCT_ID@";
 inline constexpr const char* ResourceDirectory = "@PRODUCT_RESOURCE_DIRECTORY@";
 inline constexpr const char* ResourceInstallDirectory = "@PRODUCT_RESOURCE_INSTALL_DIRECTORY@";
 inline constexpr const char* ConfigFilename = "@PRODUCT_CONFIG_FILENAME@";
-inline constexpr const char* LogFilename = "@PRODUCT_LOG_FILENAME@";
 inline constexpr const char* ExtStatePrefix = "@PRODUCT_EXTSTATE_PREFIX@";
 inline constexpr const char* ExtStateOsk = "@PRODUCT_EXTSTATE_OSK@";
 inline constexpr const char* ExtStateOskCommand = "@PRODUCT_EXTSTATE_OSK_COMMAND@";

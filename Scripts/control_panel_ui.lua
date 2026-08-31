@@ -76,7 +76,7 @@ local function pollLifecycleRequests(state)
             end
             if request.tab == "Logging" and request.logSessionId ~= "" and request.logOffset ~= "" then
                 local navigated = pages.NavigateLogging(request.logSessionId, request.logOffset)
-                if not navigated then state.lastStatus = "The notification source record is not available in the current log session." end
+                if not navigated then state.lastStatus = "The notification source record is not available in the active daily log." end
             end
             selectTab(state, request.tab)
             state.focusRequested = true

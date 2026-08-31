@@ -744,7 +744,7 @@ class SetDebugLevel : public RangeValidatedSettingsAction
 public:
     ActionType GetType() const override { return ActionType::SetDebugLevel; }
     SetDebugLevel() { min_ = 0; max_ = 4; }
-    void ApplyValue(ActionContext* context, int value) override { g_debugLevel = value; }
+    void ApplyValue(ActionContext* context, int value) override { context->GetCSI()->SetProductDebugLevel(value); }
 };
 
 //! @action CycleDebugLevel
@@ -761,7 +761,7 @@ public:
 
     void Do(ActionContext* context, double value) override {
         constexpr int maxLevel = DEBUG_LEVEL_DEBUG;
-        g_debugLevel = (g_debugLevel + 1) % (maxLevel + 1);
+        context->GetCSI()->SetProductDebugLevel((g_debugLevel + 1) % (maxLevel + 1));
     }
 };
 

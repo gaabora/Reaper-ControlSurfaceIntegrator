@@ -75,6 +75,22 @@ function colorCalibration(blocks: Map<string, string[][]>): string[] {
     return ["ColorCalibration {", ...entries.map((tokens) => `  ${tokens[0]}=${tokens[1]}`), "}", ""];
 }
 
+function ringProfiles(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_encoder"))) return [];
+    return [
+        "RingProfile RotaryRing {",
+        "  Segments=11",
+        "  Quantize=Floor",
+        "  ValueOffset=1",
+        "  Style Dot Code=0 Steps=11",
+        "  Style BoostCut Code=1 Steps=11",
+        "  Style Fill Code=2 Steps=11",
+        "  Style Spread Code=3 Steps=6",
+        "}",
+        "",
+    ];
+}
+
 function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: number, diagnostics: Diagnostic[], documentPath: string): string | undefined {
     const processor = (tokens[0] ?? "").toLowerCase();
     if ((processor === "press" || processor === "anypress") && tokens.length >= 7) return `Input Press { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
@@ -84,6 +100,14 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
     if (processor === "encoder" && tokens[1] && tokens[2]) {
         const profile = widget.widgetClass ? ` Profile=${widget.widgetClass}` : " Mode=SignedBit";
         return `Input Encoder { Encoding=MIDI7 Message=${midiList(tokens.slice(1, 3))}${profile} }`;
+    }
+    if (processor === "fb_encoder" && tokens[1] && tokens[2]) {
+        const dataByte = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16) + 0x20;
+        if (!Number.isInteger(dataByte) || dataByte > 0x7F) {
+            addDiagnostic(diagnostics, "error", "legacy.surface.fb-encoder.message", `Legacy FB_Encoder data byte cannot be converted to its ring output address: ${tokens[2]}`, lineNumber, documentPath);
+            return undefined;
+        }
+        return `Feedback Ring { Encoding=MIDI7 Message=${midiList([tokens[1], dataByte.toString(16)])} RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }`;
     }
     if (processor === "fb_twostate" && tokens.length >= 7) return `Feedback State { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
     if (processor === "fb_faderportrgb" && tokens.length >= 4) {
@@ -238,7 +262,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         for (const line of widget.body) {
