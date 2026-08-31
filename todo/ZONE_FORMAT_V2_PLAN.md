@@ -1642,6 +1642,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Add universal `MIDI7` Value input and feedback for one- or two-byte prefixes, ValueBase/Combine output, echo and touch suppression, plus explicit `SignedBit`, `SignedBitFixed`, and `Relative7Bit` Encoder modes.
   - ✅ Add universal `MIDI7` Ring value and RingStyle feedback through `RingProfile`, ValueBase/Combine, StyleTarget, StyleShift, and StyleCombine. Keep nested Ring color Configure for its separate remaining runtime step.
   - ✅ Add `MIDIPrefix` Press runtime behavior for legacy `AnyPress` conversion without a fabricated release message.
+  - ✅ Add universal constant-prefix `MIDISysEx` Text feedback with a terminal Text field and TextProfile encoding, width, padding, clear text, silence handling, and global label restriction.
   - [ ] Add TypeScript and Lua readers for the same catalog when their format 2 consumers are implemented.
     - ✅ Add the TypeScript schema reader and use its representation lookup to validate declared legacy conversion targets.
     - [ ] Add the Lua reader when Lua begins consuming format 2 Surface primitives directly.
@@ -1793,6 +1794,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Route legacy Surface preview and import through a separate format 2 converter. Cover the FaderPortV2 processor set (`Press`, `Touch`, `Fader14Bit`, `FB_Fader14Bit`, `Encoder`, `FB_TwoState`, and `FB_FaderportRGB`), encoder profiles, color calibration, explicit legacy OSK rows, and generated fader-aware OSK layout. Keep the parent item open until every catalog processor and protocol conversion is implemented.
   - ✅ Convert `AnyPress` to its real two-byte `MIDIPrefix` behavior, preserve an ordinary `Press` without an `Off` message, and convert `Fader7Bit` plus `FB_Fader7Bit` to universal MIDI7 Value primitives.
   - ✅ Convert generic OSC `Control` and `FB_Processor` without guessing from Widget names or zones. Preserve their number, text, and legacy HexRGBA color transports as separate typed primitives.
+  - ✅ Convert MCU, MCUXT, and C4 upper and lower seven-character displays to one shared TextProfile and explicit MIDISysEx payloads without retaining device-specific runtime processor names.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
 - ✅ Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.

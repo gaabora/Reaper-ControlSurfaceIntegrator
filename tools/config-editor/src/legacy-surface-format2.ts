@@ -14,7 +14,7 @@ export interface LegacySurfaceProcessorTarget {
     protocol: "MIDI" | "OSC";
 }
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportTwoStateRgb" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportTwoStateRgb" | "mcuDisplay" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -34,6 +34,12 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_faderporttwostatergb", { kind: "faderportTwoStateRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_faderportvaluebar", { kind: "bar", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Bar", protocol: "MIDI" }] }],
     ["fb_mft_rgb", { kind: "midiPalette", targets: [{ direction: "Feedback", encoding: "MIDIPalette", primitive: "Color", protocol: "MIDI" }] }],
+    ["fb_c4displaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_c4displayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_mcudisplaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_mcudisplayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_mcuxtdisplaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_mcuxtdisplayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_processor", {
         kind: "oscFeedback",
         targets: [
@@ -172,6 +178,16 @@ function paletteProfiles(widgets: SurfaceWidget[]): string[] {
     return ["ColorProfile Palette128 {", "  Match=Nearest", "  Default=0", ...entries.map((color, value) => `  Entry Color=${rgbHex(color.red, color.green, color.blue)} Value=${value}`), "}", ""];
 }
 
+function textProfiles(widgets: SurfaceWidget[]): string[] {
+    const displayProcessors = new Set(["fb_c4displaylower", "fb_c4displayupper", "fb_mcudisplaylower", "fb_mcudisplayupper", "fb_mcuxtdisplaylower", "fb_mcuxtdisplayupper"]);
+    if (!widgets.some((widget) => widget.body.some((line) => displayProcessors.has((line.tokens[0] ?? "").toLowerCase())))) return [];
+    return ["TextProfile Display7 {", "  Encoding=ASCII7", "  Width=7", "  Padding=Space", '  ClearText=""', "  SilenceAsEmpty=true", "}", ""];
+}
+
+function sysExTextPayload(values: string[]): string {
+    return `[ ${values.map(midiByte).join(", ")}, Text ]`;
+}
+
 function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: number, diagnostics: Diagnostic[], documentPath: string): string | undefined {
     const processor = (tokens[0] ?? "").toLowerCase();
     const conversion = LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor);
@@ -227,6 +243,22 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
     if (conversion.kind === "midiPalette" && tokens.length >= 4) {
         const status = Number.parseInt(tokens[1].replace(/^0x/i, ""), 16);
         if (Number.isInteger(status) && status >= 0x80 && status < 0xEF) return `Feedback Color { Encoding=MIDIPalette Message=${midiList(tokens.slice(1, 3))} ColorProfile=Palette128 Companion=${midiList([(status + 1).toString(16), tokens[2], "2f"])} CompanionOrder=After }`;
+    }
+    if (conversion.kind === "mcuDisplay") {
+        const lower = processor.includes("lower");
+        const c4 = processor.startsWith("fb_c4");
+        const channelToken = c4 ? tokens[2] : tokens[1];
+        const rowToken = c4 ? tokens[1] : undefined;
+        if (channelToken && /^\d+$/.test(channelToken) && (!c4 || (rowToken && /^\d+$/.test(rowToken)))) {
+            const channel = Number(channelToken);
+            const row = rowToken ? Number(rowToken) : 0;
+            if (channel >= 0 && channel <= 7 && (!c4 || (row >= 0 && row <= 3))) {
+                const displayType = c4 ? 0x17 : processor.startsWith("fb_mcuxt") ? 0x15 : 0x14;
+                const displayRow = c4 ? 0x30 + row : 0x12;
+                const offset = channel * 7 + (lower ? 56 : 0);
+                return `Feedback Text { Encoding=MIDISysEx Payload=${sysExTextPayload(["00", "00", "66", displayType.toString(16), displayRow.toString(16), offset.toString(16)])} TextProfile=Display7 }`;
+            }
+        }
     }
     addDiagnostic(diagnostics, "error", "legacy.surface.processor.parameters", `Legacy Surface processor has missing or invalid parameters: ${tokens[0]}`, lineNumber, documentPath);
     return undefined;
@@ -376,7 +408,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         for (const line of widget.body) {

@@ -137,6 +137,34 @@ WidgetEnd
         expect(conversion.source.match(/  Entry Color=#[0-9A-F]{6} Value=\d+/g)).toHaveLength(128);
     });
 
+    test("converts MCU-family display rows to universal SysEx text feedback", () => {
+        const legacySurface = `Widget McuUpper
+  FB_MCUDisplayUpper 2
+WidgetEnd
+Widget McuLower
+  FB_MCUDisplayLower 2
+WidgetEnd
+Widget ExtenderUpper
+  FB_MCUXTDisplayUpper 1
+WidgetEnd
+Widget C4Upper
+  FB_C4DisplayUpper 3 7
+WidgetEnd
+Widget C4Lower
+  FB_C4DisplayLower 0 0
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Text displays", "Surfaces/User/text-displays.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.match(/TextProfile Display7 \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x0E, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x46, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x15, 0x12, 0x07, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x17, 0x33, 0x31, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x17, 0x30, 0x38, Text ] TextProfile=Display7 }");
+    });
+
     test("normalizes the legacy value-bar style spelling", () => {
         expect(migrateLegacyZoneSyntax("Zone Track\n  ValueBar| TrackPan BarStyle=BiPolar\nZoneEnd\n")).toContain("BarStyle=Bipolar");
     });

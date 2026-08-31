@@ -407,3 +407,55 @@ public:
         this->SendStyle(this->lastStyle_);
     }
 };
+
+class Format2MidiSysExTextFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<int> payloadPrefix_;
+    Format2TextProfile profile_;
+
+    string EncodeText(const char* inputText) const {
+        char restrictedText[MEDBUF];
+        const char* source = this->surface_->GetRestrictedLengthText(inputText, restrictedText, sizeof(restrictedText));
+        if (this->profile_.silenceAsEmpty && IsSameString(source, SILENCE_DB_STRING)) source = "";
+        string result;
+        const size_t maximumPayloadText = this->payloadPrefix_.size() < 253 ? 253 - this->payloadPrefix_.size() : 0;
+        const size_t maximumLength = this->profile_.width ? (std::min)((size_t) *this->profile_.width, maximumPayloadText) : maximumPayloadText;
+        for (const unsigned char character : string(source)) {
+            if (result.size() >= maximumLength) break;
+            result.push_back(character <= 0x7F ? (char) character : '?');
+        }
+        if (this->profile_.padding == Format2TextPadding::Space) result.append(maximumLength - result.size(), ' ');
+        return result;
+    }
+
+    void SendText(const char* inputText) {
+        const string encoded = this->EncodeText(inputText);
+        SysExBuilder builder;
+        builder.begin();
+        for (int byte : this->payloadPrefix_) builder.add((unsigned char) byte);
+        builder.addText(encoded.c_str()).end();
+        this->SendMidiSysExMessage(builder.message());
+    }
+
+public:
+    Format2MidiSysExTextFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& payloadPrefix, const Format2TextProfile& profile)
+        : Midi_FeedbackProcessor(csi, surface, widget), payloadPrefix_(payloadPrefix), profile_(profile) {}
+    virtual ~Format2MidiSysExTextFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiSysExTextFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->lastStringValue_ = this->profile_.clearText;
+        this->SendText(this->profile_.clearText.c_str());
+    }
+
+    virtual void SetValue(const PropertyList& properties, const char* const& inputText) override {
+        if (this->lastStringValue_ == inputText) return;
+        this->ForceValue(properties, inputText);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, const char* const& inputText) override {
+        this->lastStringValue_ = inputText;
+        this->SendText(inputText);
+    }
+};

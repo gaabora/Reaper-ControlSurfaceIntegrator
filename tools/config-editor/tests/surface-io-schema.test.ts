@@ -33,6 +33,12 @@ describe("Surface I/O schema", () => {
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_faderporttwostatergb")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_faderportvaluebar")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mft_rgb")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcudisplayupper")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcudisplaylower")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcuxtdisplayupper")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcuxtdisplaylower")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_c4displayupper")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_c4displaylower")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcudisplayupper")?.status).toBe("unsupported");
         expect(report.processors.some((entry) => entry.processor.toLowerCase() === "widget")).toBeFalse();
         expect(report.processors.some((entry) => entry.status === "invalid-target")).toBeFalse();

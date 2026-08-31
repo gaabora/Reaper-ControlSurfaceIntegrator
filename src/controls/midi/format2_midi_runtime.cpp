@@ -29,6 +29,19 @@ bool Format2MidiRuntimeLoader::ReadBytes(const Format2PropertySyntax* property, 
     return true;
 }
 
+bool Format2MidiRuntimeLoader::ReadTextPayload(const Format2PropertySyntax* property, vector<int>& prefix) {
+    if (!property || !property->value.list || property->value.items.empty()) return false;
+    const Format2ScalarSyntax& textField = property->value.items.back();
+    if (textField.quoted || textField.text != "Text") return false;
+    prefix.clear();
+    for (size_t itemIdx = 0; itemIdx + 1 < property->value.items.size(); ++itemIdx) {
+        int value = 0;
+        if (!ReadByte(property->value.items[itemIdx], value) || value > 0x7F) return false;
+        prefix.push_back(value);
+    }
+    return true;
+}
+
 vector<string> Format2MidiRuntimeLoader::MakeTokens(const string& type, const vector<int>& firstMessage, const vector<int>& secondMessage) {
     vector<string> tokens = { type };
     for (int value : firstMessage) tokens.push_back(to_string(value));
@@ -49,6 +62,10 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7 && primitive.nestedBlocks.empty()) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Bar" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiPalette) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiSysEx) {
+        vector<int> prefix;
+        return ReadTextPayload(FindProperty(primitive, "Payload"), prefix);
+    }
     return primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb;
 }
 
@@ -267,6 +284,17 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 else if (combineProperty && combineProperty->value.scalar.text == "BitOr") combine = Format2MidiValueCombine::BitOr;
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7BarFeedbackProcessor>(surface->csi_, surface, widget, message, std::array<int, 2>{ styleMessage[0], styleMessage[1] }, *profile, valueBase, combine));
                 widget->MarkOskValueFeedback();
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiSysEx) {
+                vector<int> payloadPrefix;
+                if (!ReadTextPayload(FindProperty(primitive, "Payload"), payloadPrefix)) continue;
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "TextProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2TextProfile* profile = nullptr;
+                for (const Format2TextProfile& candidate : parsed.surface.textProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExTextFeedbackProcessor>(surface->csi_, surface, widget, payloadPrefix, *profile));
+                widget->MarkOskTextFeedback();
                 continue;
             } else continue;
 
