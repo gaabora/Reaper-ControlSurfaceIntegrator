@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 
 enum class Format2MidiValueCombine {
     Replace,
@@ -164,7 +165,7 @@ private:
 
     void SendResolvedColor() {
         const float brightness = this->hasStateBrightness_ ? (this->active_ ? this->activeBrightness_ : this->inactiveBrightness_) : 1.0f;
-        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(this->sourceColor_, 255, brightness);
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(this->sourceColor_, 127, brightness);
         if (this->hasEnable_) this->SendMidiMessage(this->enable_[0], this->enable_[1], this->enable_[2]);
         this->SendMidiMessage(this->red_[0], this->red_[1], deviceColor.r);
         this->SendMidiMessage(this->green_[0], this->green_[1], deviceColor.g);
@@ -184,6 +185,7 @@ public:
     virtual const char* GetName() override { return "Format2MidiRgbFeedbackProcessor"; }
 
     virtual void ForceClear() override {
+        this->active_ = false;
         this->sourceColor_ = rgba_color();
         this->lastColor_ = this->sourceColor_;
         this->SendResolvedColor();
@@ -209,5 +211,199 @@ public:
         this->sourceColor_ = color;
         this->lastColor_ = color;
         this->SendResolvedColor();
+    }
+};
+
+class Format2MidiPaletteFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    std::array<int, 2> message_{};
+    Format2ColorProfile profile_;
+    bool hasCompanion_ = false;
+    std::array<int, 3> companion_{};
+    bool companionBefore_ = false;
+
+    static rgba_color UnpackColor(std::uint32_t color) {
+        rgba_color result;
+        result.r = (color >> 16) & 0xFF;
+        result.g = (color >> 8) & 0xFF;
+        result.b = color & 0xFF;
+        return result;
+    }
+
+    static double Hue(const rgba_color& color) {
+        const double red = color.r / 255.0;
+        const double green = color.g / 255.0;
+        const double blue = color.b / 255.0;
+        const double maximum = (std::max)(red, (std::max)(green, blue));
+        const double minimum = (std::min)(red, (std::min)(green, blue));
+        const double difference = maximum - minimum;
+        if (difference == 0.0) return 0.0;
+        double hue = maximum == red ? 60.0 * std::fmod((green - blue) / difference, 6.0) : maximum == green ? 60.0 * ((blue - red) / difference + 2.0) : 60.0 * ((red - green) / difference + 4.0);
+        if (hue < 0.0) hue += 360.0;
+        return hue;
+    }
+
+    static bool ContainsHue(const Format2HueRange& range, double hue) {
+        if (range.minimum < range.maximum) return hue >= range.minimum && hue < range.maximum;
+        return hue >= range.minimum || hue < range.maximum;
+    }
+
+    int ResolveValue(const rgba_color& sourceColor) const {
+        const rgba_color color = this->surface_->GetDeviceFeedbackColor(sourceColor, 255);
+        if (this->profile_.match == Format2ColorMatch::HueRanges) {
+            const double maximum = (std::max)(color.r, (std::max)(color.g, color.b)) / 255.0;
+            const double minimum = (std::min)(color.r, (std::min)(color.g, color.b)) / 255.0;
+            const double saturation = maximum == 0.0 ? 0.0 : (maximum - minimum) / maximum;
+            if (maximum <= this->profile_.minimumBrightness.value_or(0.0) || saturation <= this->profile_.maximumNeutralSaturation.value_or(0.0)) return this->profile_.defaultValue;
+            const double hue = Hue(color);
+            for (const Format2HueRange& range : this->profile_.hueRanges) if (ContainsHue(range, hue)) return range.value;
+            return this->profile_.defaultValue;
+        }
+
+        const std::uint32_t packed = ((std::uint32_t) color.r << 16) | ((std::uint32_t) color.g << 8) | (std::uint32_t) color.b;
+        if (this->profile_.match == Format2ColorMatch::Exact) {
+            for (const Format2ColorProfileEntry& entry : this->profile_.entries) if (entry.color == packed) return entry.value;
+            return this->profile_.defaultValue;
+        }
+
+        int selectedValue = this->profile_.defaultValue;
+        long long selectedDistance = (std::numeric_limits<long long>::max)();
+        for (const Format2ColorProfileEntry& entry : this->profile_.entries) {
+            const rgba_color entryColor = UnpackColor(entry.color);
+            const long long redDifference = color.r - entryColor.r;
+            const long long greenDifference = color.g - entryColor.g;
+            const long long blueDifference = color.b - entryColor.b;
+            const long long distance = redDifference * redDifference + greenDifference * greenDifference + blueDifference * blueDifference;
+            if (distance < selectedDistance) {
+                selectedDistance = distance;
+                selectedValue = entry.value;
+            }
+        }
+        return selectedValue;
+    }
+
+    void Send(int value) {
+        if (this->hasCompanion_ && this->companionBefore_) this->SendMidiMessage(this->companion_[0], this->companion_[1], this->companion_[2]);
+        this->SendMidiMessage(this->message_[0], this->message_[1], value);
+        if (this->hasCompanion_ && !this->companionBefore_) this->SendMidiMessage(this->companion_[0], this->companion_[1], this->companion_[2]);
+    }
+
+public:
+    Format2MidiPaletteFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const std::array<int, 2>& message, const Format2ColorProfile& profile, const vector<int>& companion, bool companionBefore)
+        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), profile_(profile), companionBefore_(companionBefore) {
+        if (companion.size() == 3) {
+            this->hasCompanion_ = true;
+            this->companion_ = { companion[0], companion[1], companion[2] };
+        }
+    }
+
+    virtual ~Format2MidiPaletteFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiPaletteFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->lastColor_ = rgba_color();
+        this->Send(this->ResolveValue(this->lastColor_));
+    }
+
+    virtual void SetColorValue(const rgba_color& color) override {
+        if (color == this->lastColor_) return;
+        this->ForceColorValue(color);
+    }
+
+    virtual void ForceColorValue(const rgba_color& color) override {
+        this->lastColor_ = color;
+        this->Send(this->ResolveValue(color));
+    }
+};
+
+class Format2Midi7BarFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<int> message_;
+    std::array<int, 2> styleMessage_{};
+    Format2BarProfile profile_;
+    int valueBase_ = 0;
+    Format2MidiValueCombine combine_ = Format2MidiValueCombine::Replace;
+    int lastValue_ = 0;
+    int lastStyle_ = 0;
+    bool hasLastValue_ = false;
+    bool hasLastStyle_ = false;
+
+    int EncodeValue(double value) const {
+        const int normalized = (int) (std::clamp(value, 0.0, 1.0) * 127.0);
+        if (this->combine_ == Format2MidiValueCombine::Add) return std::clamp(this->valueBase_ + normalized, 0, 127);
+        if (this->combine_ == Format2MidiValueCombine::BitOr) return this->valueBase_ | normalized;
+        return normalized;
+    }
+
+    Format2BarStyle ResolveStyle(const PropertyList& properties) const {
+        const char* value = properties.get_prop(PropertyType_BarStyle);
+        if (value && IsSameString(value, "Normal")) return Format2BarStyle::Normal;
+        if (value && IsSameString(value, "Bipolar")) return Format2BarStyle::Bipolar;
+        if (value && IsSameString(value, "Fill")) return Format2BarStyle::Fill;
+        if (value && IsSameString(value, "Spread")) return Format2BarStyle::Spread;
+        if (value && IsSameString(value, "Off")) return Format2BarStyle::Off;
+        return this->profile_.defaultStyle;
+    }
+
+    int ResolveStyleCode(const PropertyList& properties) const {
+        const Format2BarStyle style = this->ResolveStyle(properties);
+        return this->StyleCode(style);
+    }
+
+    int StyleCode(Format2BarStyle style) const {
+        for (const Format2BarStyleEntry& entry : this->profile_.styles) if (entry.style == style) return entry.code;
+        for (const Format2BarStyleEntry& entry : this->profile_.styles) if (entry.style == this->profile_.defaultStyle) return entry.code;
+        return 0;
+    }
+
+    void SendValue(int value) {
+        if (this->message_.size() == 1) this->SendMidiMessage(this->message_[0], value, 0);
+        else this->SendMidiMessage(this->message_[0], this->message_[1], value);
+    }
+
+    void SendStyle(int style) { this->SendMidiMessage(this->styleMessage_[0], this->styleMessage_[1], style); }
+
+public:
+    Format2Midi7BarFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& message, const std::array<int, 2>& styleMessage, const Format2BarProfile& profile, int valueBase, Format2MidiValueCombine combine)
+        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), styleMessage_(styleMessage), profile_(profile), valueBase_(valueBase), combine_(combine) {}
+    virtual ~Format2Midi7BarFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2Midi7BarFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->lastDoubleValue_ = 0.0;
+        this->lastValue_ = this->EncodeValue(0.0);
+        this->lastStyle_ = this->StyleCode(Format2BarStyle::Off);
+        this->hasLastValue_ = true;
+        this->hasLastStyle_ = true;
+        this->SendValue(this->lastValue_);
+        this->SendStyle(this->lastStyle_);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        const int encodedValue = this->EncodeValue(value);
+        const int encodedStyle = this->ResolveStyleCode(properties);
+        if (!this->hasLastValue_ || encodedValue != this->lastValue_) {
+            this->lastValue_ = encodedValue;
+            this->hasLastValue_ = true;
+            this->SendValue(encodedValue);
+        }
+        if (!this->hasLastStyle_ || encodedStyle != this->lastStyle_) {
+            this->lastStyle_ = encodedStyle;
+            this->hasLastStyle_ = true;
+            this->SendStyle(encodedStyle);
+        }
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastValue_ = this->EncodeValue(value);
+        this->lastStyle_ = this->ResolveStyleCode(properties);
+        this->hasLastValue_ = true;
+        this->hasLastStyle_ = true;
+        this->SendValue(this->lastValue_);
+        this->SendStyle(this->lastStyle_);
     }
 };

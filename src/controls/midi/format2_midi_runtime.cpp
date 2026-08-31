@@ -47,6 +47,8 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7 && primitive.nestedBlocks.empty()) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Bar" && primitive.encoding == Format2Encoding::Midi7) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiPalette) return true;
     return primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb;
 }
 
@@ -228,6 +230,43 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 if (hasStateBrightness) widget->MarkOskToggleFeedback();
                 const Format2PropertySyntax* trackColor = FindProperty(primitive, "TrackColor");
                 if (trackColor && trackColor->value.scalar.text == "true") surface->AddTrackColorFeedbackProcessor(widget->GetFeedbackProcessors().back().get());
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiPalette) {
+                vector<int> message;
+                vector<int> companion;
+                if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.size() != 2) continue;
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "ColorProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2ColorProfile* profile = nullptr;
+                for (const Format2ColorProfile& candidate : parsed.surface.colorProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                const Format2PropertySyntax* companionProperty = FindProperty(primitive, "Companion");
+                if (companionProperty) ReadBytes(companionProperty, companion);
+                const Format2PropertySyntax* companionOrder = FindProperty(primitive, "CompanionOrder");
+                const bool companionBefore = companionOrder && companionOrder->value.scalar.text == "Before";
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiPaletteFeedbackProcessor>(surface->csi_, surface, widget, std::array<int, 2>{ message[0], message[1] }, *profile, companion, companionBefore));
+                widget->MarkOskColorFeedback();
+                const Format2PropertySyntax* trackColor = FindProperty(primitive, "TrackColor");
+                if (trackColor && trackColor->value.scalar.text == "true") surface->AddTrackColorFeedbackProcessor(widget->GetFeedbackProcessors().back().get());
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Bar" && primitive.encoding == Format2Encoding::Midi7) {
+                vector<int> message;
+                vector<int> styleMessage;
+                if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.empty() || message.size() > 2 || !ReadBytes(FindProperty(primitive, "StyleMessage"), styleMessage) || styleMessage.size() != 2) continue;
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "BarProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2BarProfile* profile = nullptr;
+                for (const Format2BarProfile& candidate : parsed.surface.barProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                int valueBase = 0;
+                const Format2PropertySyntax* valueBaseProperty = FindProperty(primitive, "ValueBase");
+                if (valueBaseProperty) ReadByte(valueBaseProperty->value.scalar, valueBase);
+                Format2MidiValueCombine combine = Format2MidiValueCombine::Replace;
+                const Format2PropertySyntax* combineProperty = FindProperty(primitive, "Combine");
+                if (combineProperty && combineProperty->value.scalar.text == "Add") combine = Format2MidiValueCombine::Add;
+                else if (combineProperty && combineProperty->value.scalar.text == "BitOr") combine = Format2MidiValueCombine::BitOr;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7BarFeedbackProcessor>(surface->csi_, surface, widget, message, std::array<int, 2>{ styleMessage[0], styleMessage[1] }, *profile, valueBase, combine));
+                widget->MarkOskValueFeedback();
                 continue;
             } else continue;
 

@@ -30,6 +30,9 @@ describe("Surface I/O schema", () => {
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_encoder")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_processor")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "control")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_faderporttwostatergb")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_faderportvaluebar")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mft_rgb")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcudisplayupper")?.status).toBe("unsupported");
         expect(report.processors.some((entry) => entry.processor.toLowerCase() === "widget")).toBeFalse();
         expect(report.processors.some((entry) => entry.status === "invalid-target")).toBeFalse();

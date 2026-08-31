@@ -1648,7 +1648,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - [ ] Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
-- [ ] Implement Bar feedback with separate value and style outputs, plus the bounded MIDIPalette Companion message.
+- ✅ Implement Bar feedback with separate value and style outputs, plus the bounded MIDIPalette Companion message.
 - [ ] Verify that a new device which uses an existing protocol shape needs only a Surface file and no new C++ class.
 - [ ] Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them.
 - [ ] Parse and publish `OSKLayout` through common ControlSurface initialization so MIDI and OSC Surfaces use the same OSK path.
@@ -1794,7 +1794,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Convert `AnyPress` to its real two-byte `MIDIPrefix` behavior, preserve an ordinary `Press` without an `Off` message, and convert `Fader7Bit` plus `FB_Fader7Bit` to universal MIDI7 Value primitives.
   - ✅ Convert generic OSC `Control` and `FB_Processor` without guessing from Widget names or zones. Preserve their number, text, and legacy HexRGBA color transports as separate typed primitives.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
-- [ ] Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
+- ✅ Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
 - [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.

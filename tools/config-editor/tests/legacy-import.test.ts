@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { LegacyCsiSource, migrateLegacyCommentSyntax } from "../src/legacy-import.ts";
+import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
 import { convertLegacySurfaceToFormat2 } from "../src/legacy-surface-format2.ts";
 import { ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
@@ -116,6 +116,31 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Value { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] }");
     });
 
+    test("converts palette color, state-scaled RGB, and value bars to universal feedback", () => {
+        const legacySurface = `Widget ColoredButton
+  FB_FaderportTwoStateRGB 90 18 7f
+WidgetEnd
+Widget ValueBar
+  FB_FaderportValueBar 9
+WidgetEnd
+Widget PaletteButton
+  FB_MFT_RGB b1 20 7f
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Feedback surface", "Surfaces/User/feedback.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("BarProfile StandardBar {");
+        expect(conversion.source).toContain("Feedback Bar { Encoding=MIDI7 Message=[ 0xB0, 0x41 ] StyleMessage=[ 0xB0, 0x49 ] BarProfile=StandardBar }");
+        expect(conversion.source).toContain("Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x18, 0x7F ] Red=[ 0x91, 0x18 ] Green=[ 0x92, 0x18 ] Blue=[ 0x93, 0x18 ] InactiveBrightness=0.1111111111111111 ActiveBrightness=1 }");
+        expect(conversion.source).toContain("Feedback Color { Encoding=MIDIPalette Message=[ 0xB1, 0x20 ] ColorProfile=Palette128 Companion=[ 0xB2, 0x20, 0x2F ] CompanionOrder=After }");
+        expect(conversion.source.match(/  Entry Color=#[0-9A-F]{6} Value=\d+/g)).toHaveLength(128);
+    });
+
+    test("normalizes the legacy value-bar style spelling", () => {
+        expect(migrateLegacyZoneSyntax("Zone Track\n  ValueBar| TrackPan BarStyle=BiPolar\nZoneEnd\n")).toContain("BarStyle=Bipolar");
+    });
+
     test("splits generic legacy OSC input and feedback into typed primitives", () => {
         const legacySurface = `Widget ControlA
   Control /ControlA
@@ -130,6 +155,28 @@ WidgetEnd
         expect(conversion.source).toContain('Feedback Value { Encoding=OSCFloat Address="/ControlA" }');
         expect(conversion.source).toContain('Feedback Text { Encoding=OSCString Address="/ControlA" }');
         expect(conversion.source).toContain('Feedback Color { Encoding=OSCString Address="/ControlA/Color" Format=HexRGBA }');
+    });
+
+    test("reports raw MIDI commands only when an RGB value targets palette feedback", async () => {
+        const surfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
+        const zonePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        await writeFile(surfacePath, `Widget PaletteButton
+  Press b1 20 7f b1 20 00
+  FB_MFT_RGB b1 20 7f
+WidgetEnd
+Widget DirectButton
+  Press 90 18 7f 90 18 00
+  FB_FaderportRGB 90 18 7f
+WidgetEnd
+`, "utf8");
+        await writeFile(zonePath, "Zone Home\n  PaletteButton Play { 177 31 47 }\n  DirectButton Play { 177 31 47 }\nZoneEnd\n", "utf8");
+
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const diagnostics = preview.diagnostics.filter((diagnostic) => diagnostic.code === "legacy.zone.mft-color-command");
+
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0]).toEqual(expect.objectContaining({ line: 3, message: expect.stringContaining("0xB1 0x1F 0x2F") }));
     });
 
     test("shows migrated comments in the import preview without changing the old file", async () => {

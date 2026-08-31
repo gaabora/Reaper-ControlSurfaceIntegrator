@@ -10,6 +10,7 @@ import { convertLegacySurfaceToFormat2 } from "./legacy-surface-format2.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
+import type { SurfaceSemantic, SurfaceWidget } from "./surface.ts";
 import type { ZoneBinding, ZoneSemantic } from "./zone.ts";
 import type { ProductTreeEntry } from "./paths.ts";
 
@@ -148,6 +149,15 @@ export function migrateLegacyCommentSyntax(source: string): string {
         line.text = convertSingleSlashCommentLine(line.text);
         const text = analysisText(line);
         if (!LEGACY_LEARN_DIRECTIVE.test(text)) line.text = convertHashCommentLine(line.text);
+    }
+    return lines.map((line) => line.text + line.ending).join("");
+}
+
+export function migrateLegacyZoneSyntax(source: string): string {
+    const lines = splitSourceLines(source);
+    for (const line of lines) {
+        initializeLine(line);
+        if (line.tokens.some((token) => /^BarStyle=BiPolar$/i.test(token))) line.text = line.text.replace(/\bBarStyle=BiPolar\b/i, "BarStyle=Bipolar");
     }
     return lines.map((line) => line.text + line.ending).join("");
 }
@@ -309,6 +319,43 @@ function collectWidgetMappings(zoneDocuments: Map<string, AnyDocument>, selected
     return { diagnostics, issues: issues.sort((left, right) => left.sourceWidget.localeCompare(right.sourceWidget)), validMappings };
 }
 
+function widgetUsesMidiPalette(widget: SurfaceWidget): boolean {
+    return widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_mft_rgb" || ((line.tokens[0] ?? "").toLowerCase() === "feedback" && (line.tokens[1] ?? "").toLowerCase() === "color" && /\bEncoding=MIDIPalette\b/i.test(line.text)));
+}
+
+function targetUsesMidiPalette(surface: AnyDocument, widgetExpression: string): boolean {
+    const widgets = (surface.semantic as SurfaceSemantic).widgets;
+    const normalized = normalizedWidgetName(widgetExpression);
+    if (!normalized.endsWith("|")) return widgets.some((widget) => normalizedWidgetName(widget.name) === normalized && widgetUsesMidiPalette(widget));
+    const prefix = normalized.slice(0, -1);
+    return widgets.some((widget) => normalizedWidgetName(widget.name).startsWith(prefix) && /^\d+$/.test(widget.name.slice(prefix.length)) && widgetUsesMidiPalette(widget));
+}
+
+function mftCommandValues(binding: ZoneBinding): number[][] {
+    const start = binding.params.indexOf("{");
+    const end = binding.params.indexOf("}", start + 1);
+    if (start < 0 || end < 0) return [];
+    const values = binding.params.slice(start + 1, end).map((value) => Number(value));
+    if (!values.length || values.some((value) => !Number.isInteger(value))) return [];
+    const commands: number[][] = [];
+    for (let valueIdx = 0; valueIdx + 2 < values.length; valueIdx += 3) if ((values[valueIdx] === 177 || values[valueIdx] === 181) && values[valueIdx + 1] === 31) commands.push(values.slice(valueIdx, valueIdx + 3));
+    return commands;
+}
+
+function addMftCommandDiagnostics(zoneDocuments: Map<string, AnyDocument>, selectedPaths: Set<string>, targetSurface: AnyDocument, validMappings: Map<string, string>): void {
+    for (const [sourcePath, document] of zoneDocuments) {
+        if (!selectedPaths.has(sourcePath)) continue;
+        for (const binding of (document.semantic as ZoneSemantic).bindings) {
+            const targetWidget = validMappings.get(normalizedWidgetName(binding.widget)) ?? binding.widget;
+            if (!targetUsesMidiPalette(targetSurface, targetWidget)) continue;
+            for (const command of mftCommandValues(binding)) {
+                const bytes = command.map((value) => `0x${value.toString(16).padStart(2, "0").toUpperCase()}`).join(" ");
+                addDiagnostic(document.diagnostics, "error", "legacy.zone.mft-color-command", `This RGB value is a raw MIDI command on the target palette widget: ${bytes}. Replace it with a normal color before import.`, binding.line, document.path);
+            }
+        }
+    }
+}
+
 async function isDirectory(directoryPath: string): Promise<boolean> {
     try {
         return (await stat(directoryPath)).isDirectory();
@@ -433,6 +480,7 @@ export class LegacyCsiSource {
             migratedZoneSources.set(sourcePath, source);
             zoneDocuments.set(sourcePath, parseByPath(source, document.path!, knownActions));
         }
+        if (targetSurface) addMftCommandDiagnostics(zoneDocuments, selectedPaths, targetSurface, widgetMappingResult.validMappings);
 
         const matchesByName = new Map<string, string[]>();
         for (const [sourcePath, document] of zoneDocuments) {
@@ -607,7 +655,7 @@ export class LegacyCsiSource {
         const zones: LegacyZoneSourceFile[] = [];
         await this.visitZoneFiles(zonesRoot, async (filePath, relativePath) => {
             const originalSource = await readFile(filePath, "utf8");
-            zones.push({ originalSourceHash: sha256(originalSource), profile, relativePath, source: migrateLegacyCommentSyntax(originalSource), sourcePath: `${sourceDirectory}/${relativePath}` });
+            zones.push({ originalSourceHash: sha256(originalSource), profile, relativePath, source: migrateLegacyZoneSyntax(migrateLegacyCommentSyntax(originalSource)), sourcePath: `${sourceDirectory}/${relativePath}` });
         });
         return zones;
     }

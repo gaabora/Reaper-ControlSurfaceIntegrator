@@ -14,7 +14,7 @@ export interface LegacySurfaceProcessorTarget {
     protocol: "MIDI" | "OSC";
 }
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "oscControl" | "oscFeedback" | "press" | "ring" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportTwoStateRgb" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -31,6 +31,9 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_fader7bit", { kind: "fader7Feedback", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_fader14bit", { kind: "fader14Feedback", targets: [{ direction: "Feedback", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_faderportrgb", { kind: "faderportRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
+    ["fb_faderporttwostatergb", { kind: "faderportTwoStateRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
+    ["fb_faderportvaluebar", { kind: "bar", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Bar", protocol: "MIDI" }] }],
+    ["fb_mft_rgb", { kind: "midiPalette", targets: [{ direction: "Feedback", encoding: "MIDIPalette", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_processor", {
         kind: "oscFeedback",
         targets: [
@@ -132,6 +135,43 @@ function ringProfiles(widgets: SurfaceWidget[]): string[] {
     ];
 }
 
+function barProfiles(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_faderportvaluebar"))) return [];
+    return [
+        "BarProfile StandardBar {",
+        "  Default=Off",
+        "  Style Normal Code=0",
+        "  Style Bipolar Code=1",
+        "  Style Fill Code=2",
+        "  Style Spread Code=3",
+        "  Style Off Code=4",
+        "}",
+        "",
+    ];
+}
+
+function rgbHex(red: number, green: number, blue: number): string {
+    return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, "0").toUpperCase()).join("")}`;
+}
+
+function mftPaletteEntries(): Array<{ blue: number; green: number; red: number }> {
+    const entries: Array<{ blue: number; green: number; red: number }> = [{ blue: 0, green: 0, red: 0 }];
+    for (const green of [0, 21, 34, 46, 59, 68, 80, 93, 106, 119, 127, 140, 153, 165, 178, 191, 199, 212, 225, 238, 250]) entries.push({ blue: 255, green, red: 0 });
+    for (const blue of [250, 237, 225, 212, 199, 191, 178, 165, 153, 140, 127, 119, 106, 93, 80, 67, 59, 46, 33, 21, 8, 0]) entries.push({ blue, green: 255, red: 0 });
+    for (const red of [12, 25, 38, 51, 63, 72, 84, 97, 110, 123, 131, 144, 157, 170, 182, 191, 203, 216, 229, 242, 255]) entries.push({ blue: 0, green: 255, red });
+    for (const green of [246, 233, 220, 208, 195, 187, 174, 161, 148, 135, 127, 114, 102, 89, 76, 63, 55, 42, 29, 16, 4]) entries.push({ blue: 0, green, red: 255 });
+    for (const blue of [4, 16, 29, 42, 55, 63, 76, 89, 102, 114, 127, 135, 148, 161, 174, 186, 195, 208, 221, 233, 246, 255]) entries.push({ blue, green: 0, red: 255 });
+    for (const red of [242, 229, 216, 204, 191, 182, 169, 157, 144, 131, 123, 110, 97, 85, 72, 63, 50, 38, 25]) entries.push({ blue: 255, green: 0, red });
+    entries.push({ blue: 225, green: 240, red: 240 });
+    return entries;
+}
+
+function paletteProfiles(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_mft_rgb"))) return [];
+    const entries = mftPaletteEntries();
+    return ["ColorProfile Palette128 {", "  Match=Nearest", "  Default=0", ...entries.map((color, value) => `  Entry Color=${rgbHex(color.red, color.green, color.blue)} Value=${value}`), "}", ""];
+}
+
 function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: number, diagnostics: Diagnostic[], documentPath: string): string | undefined {
     const processor = (tokens[0] ?? "").toLowerCase();
     const conversion = LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor);
@@ -171,6 +211,22 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
     if (conversion.kind === "faderportRgb" && tokens.length >= 4) {
         const dataByte = midiByte(tokens[2]);
         return `Feedback Color { Encoding=MIDIRGB Enable=${midiList(tokens.slice(1, 4))} Red=${midiList(["91", dataByte])} Green=${midiList(["92", dataByte])} Blue=${midiList(["93", dataByte])} }`;
+    }
+    if (conversion.kind === "faderportTwoStateRgb" && tokens.length >= 4) {
+        const dataByte = midiByte(tokens[2]);
+        return `Feedback Color { Encoding=MIDIRGB Enable=${midiList(["90", dataByte, "7f"])} Red=${midiList(["91", dataByte])} Green=${midiList(["92", dataByte])} Blue=${midiList(["93", dataByte])} InactiveBrightness=0.1111111111111111 ActiveBrightness=1 }`;
+    }
+    if (conversion.kind === "bar" && tokens[1] && /^\d+$/.test(tokens[1])) {
+        const channel = Number(tokens[1]);
+        if (channel >= 0 && channel <= 15) {
+            const valueData = channel < 8 ? 0x30 + channel : 0x40 + channel - 8;
+            const styleData = channel < 8 ? 0x38 + channel : 0x48 + channel - 8;
+            return `Feedback Bar { Encoding=MIDI7 Message=${midiList(["b0", valueData.toString(16)])} StyleMessage=${midiList(["b0", styleData.toString(16)])} BarProfile=StandardBar }`;
+        }
+    }
+    if (conversion.kind === "midiPalette" && tokens.length >= 4) {
+        const status = Number.parseInt(tokens[1].replace(/^0x/i, ""), 16);
+        if (Number.isInteger(status) && status >= 0x80 && status < 0xEF) return `Feedback Color { Encoding=MIDIPalette Message=${midiList(tokens.slice(1, 3))} ColorProfile=Palette128 Companion=${midiList([(status + 1).toString(16), tokens[2], "2f"])} CompanionOrder=After }`;
     }
     addDiagnostic(diagnostics, "error", "legacy.surface.processor.parameters", `Legacy Surface processor has missing or invalid parameters: ${tokens[0]}`, lineNumber, documentPath);
     return undefined;
@@ -320,7 +376,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         for (const line of widget.body) {
