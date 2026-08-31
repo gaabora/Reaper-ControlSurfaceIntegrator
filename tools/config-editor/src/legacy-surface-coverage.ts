@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { legacySurfaceProcessorTarget } from "./legacy-surface-format2.ts";
+import { legacySurfaceProcessorTargets } from "./legacy-surface-format2.ts";
 import type { Diagnostic } from "./model.ts";
 import { findSurfaceIoRepresentation, type SurfaceIoSchema } from "./surface-io-schema.ts";
 import { analysisText, splitSourceLines, tokenizeLine } from "./text.ts";
@@ -18,10 +18,7 @@ export interface LegacySurfaceCoverageReport {
     processors: LegacySurfaceProcessorCoverage[];
 }
 
-const PLANNED_PROCESSORS = new Map<string, string>([
-    ["control", "Requires the format 2 OSC input runtime and explicit value-type classification."],
-    ["fb_processor", "Requires the format 2 OSC feedback runtime and explicit value-type classification."],
-]);
+const PLANNED_PROCESSORS = new Map<string, string>();
 
 async function collectLegacySurfacePaths(root: string): Promise<string[]> {
     const result: string[] = [];
@@ -91,15 +88,15 @@ export async function analyzeLegacySurfaceCoverage(root: string, schema: Surface
 
     const coverage: LegacySurfaceProcessorCoverage[] = [];
     for (const [key, value] of counts) {
-        const target = legacySurfaceProcessorTarget(key);
-        if (!target) {
+        const targets = legacySurfaceProcessorTargets(key);
+        if (!targets) {
             const note = PLANNED_PROCESSORS.get(key);
             coverage.push({ count: value.count, note, processor: value.spelling, status: note ? "planned" : "unsupported" });
             continue;
         }
-        const targetText = targetLabel(target.direction, target.primitive, target.protocol, target.encoding);
-        const representation = findSurfaceIoRepresentation(schema, target.direction, target.primitive, target.protocol, target.encoding);
-        coverage.push({ count: value.count, processor: value.spelling, status: representation ? "supported" : "invalid-target", target: targetText });
+        const targetText = targets.map((target) => targetLabel(target.direction, target.primitive, target.protocol, target.encoding)).join(", ");
+        const representations = targets.map((target) => findSurfaceIoRepresentation(schema, target.direction, target.primitive, target.protocol, target.encoding));
+        coverage.push({ count: value.count, processor: value.spelling, status: representations.every(Boolean) ? "supported" : "invalid-target", target: targetText });
     }
     const statusOrder = new Map<LegacySurfaceProcessorCoverage["status"], number>([["supported", 0], ["planned", 1], ["unsupported", 2], ["invalid-target", 3]]);
     coverage.sort((left, right) => statusOrder.get(left.status)! - statusOrder.get(right.status)! || right.count - left.count || left.processor.localeCompare(right.processor));

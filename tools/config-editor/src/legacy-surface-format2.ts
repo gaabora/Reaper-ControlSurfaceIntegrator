@@ -14,29 +14,38 @@ export interface LegacySurfaceProcessorTarget {
     protocol: "MIDI" | "OSC";
 }
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "press" | "ring" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "oscControl" | "oscFeedback" | "press" | "ring" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
-    target: LegacySurfaceProcessorTarget;
+    targets: LegacySurfaceProcessorTarget[];
 }
 
 const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProcessorConversionDefinition>([
-    ["anypress", { kind: "anyPress", target: { direction: "Input", encoding: "MIDIPrefix", primitive: "Press", protocol: "MIDI" } }],
-    ["encoder", { kind: "encoder", target: { direction: "Input", encoding: "MIDI7", primitive: "Encoder", protocol: "MIDI" } }],
-    ["fader7bit", { kind: "fader7", target: { direction: "Input", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" } }],
-    ["fader14bit", { kind: "fader14", target: { direction: "Input", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" } }],
-    ["fb_encoder", { kind: "ring", target: { direction: "Feedback", encoding: "MIDI7", primitive: "Ring", protocol: "MIDI" } }],
-    ["fb_fader7bit", { kind: "fader7Feedback", target: { direction: "Feedback", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" } }],
-    ["fb_fader14bit", { kind: "fader14Feedback", target: { direction: "Feedback", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" } }],
-    ["fb_faderportrgb", { kind: "faderportRgb", target: { direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" } }],
-    ["fb_twostate", { kind: "state", target: { direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" } }],
-    ["press", { kind: "press", target: { direction: "Input", encoding: "MIDIExact", primitive: "Press", protocol: "MIDI" } }],
-    ["touch", { kind: "touch", target: { direction: "Input", encoding: "MIDIExact", primitive: "Touch", protocol: "MIDI" } }],
+    ["anypress", { kind: "anyPress", targets: [{ direction: "Input", encoding: "MIDIPrefix", primitive: "Press", protocol: "MIDI" }] }],
+    ["control", { kind: "oscControl", targets: [{ direction: "Input", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
+    ["encoder", { kind: "encoder", targets: [{ direction: "Input", encoding: "MIDI7", primitive: "Encoder", protocol: "MIDI" }] }],
+    ["fader7bit", { kind: "fader7", targets: [{ direction: "Input", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
+    ["fader14bit", { kind: "fader14", targets: [{ direction: "Input", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
+    ["fb_encoder", { kind: "ring", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Ring", protocol: "MIDI" }] }],
+    ["fb_fader7bit", { kind: "fader7Feedback", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
+    ["fb_fader14bit", { kind: "fader14Feedback", targets: [{ direction: "Feedback", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
+    ["fb_faderportrgb", { kind: "faderportRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
+    ["fb_processor", {
+        kind: "oscFeedback",
+        targets: [
+            { direction: "Feedback", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" },
+            { direction: "Feedback", encoding: "OSCString", primitive: "Text", protocol: "OSC" },
+            { direction: "Feedback", encoding: "OSCString", primitive: "Color", protocol: "OSC" },
+        ],
+    }],
+    ["fb_twostate", { kind: "state", targets: [{ direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" }] }],
+    ["press", { kind: "press", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Press", protocol: "MIDI" }] }],
+    ["touch", { kind: "touch", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Touch", protocol: "MIDI" }] }],
 ]);
 
-export function legacySurfaceProcessorTarget(processor: string): LegacySurfaceProcessorTarget | undefined {
-    return LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor.toLowerCase())?.target;
+export function legacySurfaceProcessorTargets(processor: string): LegacySurfaceProcessorTarget[] | undefined {
+    return LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor.toLowerCase())?.targets;
 }
 
 function midiByte(value: string): string {
@@ -131,6 +140,12 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         return undefined;
     }
     if (conversion.kind === "anyPress" && tokens[1] && tokens[2]) return `Input Press { Encoding=MIDIPrefix Message=${midiList(tokens.slice(1, 3))} }`;
+    if (conversion.kind === "oscControl" && tokens[1]) return `Input Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} }`;
+    if (conversion.kind === "oscFeedback" && tokens[1]) {
+        const address = JSON.stringify(tokens[1]);
+        const colorAddress = JSON.stringify(`${tokens[1]}/Color`);
+        return `Feedback Value { Encoding=OSCFloat Address=${address} }\n  Feedback Text { Encoding=OSCString Address=${address} }\n  Feedback Color { Encoding=OSCString Address=${colorAddress} Format=HexRGBA }`;
+    }
     if (conversion.kind === "press" && tokens.length >= 4) {
         const off = tokens.length >= 7 ? ` Off=${midiList(tokens.slice(4, 7))}` : "";
         return `Input Press { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))}${off} }`;

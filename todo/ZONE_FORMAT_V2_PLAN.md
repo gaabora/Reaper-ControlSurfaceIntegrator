@@ -888,7 +888,7 @@ Alignment names use `Left`, `Center`, and `Right`. When Alignment entries exist,
 | `MIDICharacters` | MIDI | Feedback `Text` | `Status`, `StartData`, `Direction`, and `TextProfile` |
 | `OSCFloat` | OSC | Input `Press`, `Touch`, `Value`, or `Encoder`; Feedback `State`, `Value`, `Ring`, or `Meter` | `Address` |
 | `OSCInt` | OSC | Input `Press`, `Touch`, `Value`, or `Encoder`; Feedback `State`, `Value`, `Color`, `Ring`, or `Meter` | `Address` |
-| `OSCString` | OSC | Feedback `Text` | `Address` |
+| `OSCString` | OSC | Feedback `Text` or `Color` | `Address`; Color also requires `Format=HexRGBA` |
 
 Numeric primitives are `Value`, `Encoder`, `State`, `Ring`, `Bar`, and `Meter` where that direction exists. `Press` and `Touch` can also use OSCFloat or OSCInt. `Match=Any` emits Press for every message and is invalid for Touch. `Match=NonZero` treats non-zero as On and zero as Off. `Match=Exact` requires OnValue; OffValue is optional for Press and required for Touch. State feedback defaults to OffValue zero and OnValue one. Value and Encoder default to no ValueProfile. Color with OSCInt requires ColorProfile.
 
@@ -937,7 +937,7 @@ Each field requires the matching primitive input or profile. Text requires TextP
 
 MIDICharacters sends one three-byte message per encoded character. Status is a MIDI status byte, StartData is a data byte, Direction is `Ascending` or `Descending`, and TextProfile supplies Width and encoded text. The second byte starts at StartData and changes by one per character; the third byte is the character. TextProfile Width is required. This supports character-addressed time or assignment displays after a normal Action supplies their text.
 
-OSCFloat sends or accepts one 32-bit float argument, OSCInt one 32-bit integer argument, and OSCString one string argument. Address is explicit and starts with `/`; no encoding adds `/Color` or rewrites an address. ValueProfile, ColorProfile, RingProfile, MeterProfile, and TextProfile run before output or after input as applicable.
+OSCFloat sends or accepts one 32-bit float argument, OSCInt one 32-bit integer argument, and OSCString one string argument. Address is explicit and starts with `/`; no encoding adds `/Color` or rewrites an address. ValueProfile, ColorProfile, RingProfile, MeterProfile, and TextProfile run before output or after input as applicable. OSCString Feedback Color requires `Format=HexRGBA` and sends lower-case `#RRGGBBAA`; this is a transport representation for compatible OSC clients, not configurable hardware transparency.
 
 Input Encoder with OSCFloat or OSCInt requires either ValueProfile or `Scale`, where Scale is a non-zero finite multiplier applied to the signed received value. It can contain:
 
@@ -1697,6 +1697,7 @@ Public legacy Surface conversion has one completion gate:
   - ✅ Add a TypeScript reader for the canonical `surface_io_schema.conf` primitive and representation catalog.
   - ✅ Add `bun run surface-coverage` to inventory every processor occurrence inside legacy Widget blocks in the public Surface files, ignore OSK layout entries, report malformed Widget boundaries separately, and verify that each declared conversion target exists in the canonical catalog. Distinguish processors that wait for an approved runtime from unknown processor types.
   - ✅ Classify generic legacy OSC `Control` and `FB_Processor` as planned until the format 2 OSC runtime and explicit value-type conversion are implemented; do not report them as supported before then.
+  - ✅ Convert legacy OSC `Control` to OSCFloat Input Value. Split one generic `FB_Processor` into typed OSCFloat Value, OSCString Text, and OSCString HexRGBA Color feedback, with the legacy `/Color` suffix written explicitly into the converted Color Address. Load these primitives through the format 2 OSC runtime without passing the document through the legacy parser.
   - [ ] Classify every currently unresolved inventory entry as a universal conversion, intentionally unsupported legacy behavior, or an ambiguity that requires user input.
   - [ ] Add parameter-complete golden fixtures for every supported processor family and malformed or ambiguous branch.
   - [ ] Make zero unclassified processors and zero invalid conversion targets a required migration verification result.
@@ -1791,6 +1792,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
   - ✅ Route legacy Surface preview and import through a separate format 2 converter. Cover the FaderPortV2 processor set (`Press`, `Touch`, `Fader14Bit`, `FB_Fader14Bit`, `Encoder`, `FB_TwoState`, and `FB_FaderportRGB`), encoder profiles, color calibration, explicit legacy OSK rows, and generated fader-aware OSK layout. Keep the parent item open until every catalog processor and protocol conversion is implemented.
   - ✅ Convert `AnyPress` to its real two-byte `MIDIPrefix` behavior, preserve an ordinary `Press` without an `Off` message, and convert `Fader7Bit` plus `FB_Fader7Bit` to universal MIDI7 Value primitives.
+  - ✅ Convert generic OSC `Control` and `FB_Processor` without guessing from Widget names or zones. Preserve their number, text, and legacy HexRGBA color transports as separate typed primitives.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
 - [ ] Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.

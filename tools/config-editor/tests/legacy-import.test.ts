@@ -116,6 +116,22 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Value { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] }");
     });
 
+    test("splits generic legacy OSC input and feedback into typed primitives", () => {
+        const legacySurface = `Widget ControlA
+  Control /ControlA
+  FB_Processor /ControlA
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Generic OSC", "Surfaces/User/generic-osc.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toStartWith('@Meta { Version=2 Protocol=OSC Channels=1 Name="Generic OSC" }');
+        expect(conversion.source).toContain('Input Value { Encoding=OSCFloat Address="/ControlA" }');
+        expect(conversion.source).toContain('Feedback Value { Encoding=OSCFloat Address="/ControlA" }');
+        expect(conversion.source).toContain('Feedback Text { Encoding=OSCString Address="/ControlA" }');
+        expect(conversion.source).toContain('Feedback Color { Encoding=OSCString Address="/ControlA/Color" Format=HexRGBA }');
+    });
+
     test("shows migrated comments in the import preview without changing the old file", async () => {
         const sourcePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
         const legacySource = "/ disabled binding\n" + homeSource;

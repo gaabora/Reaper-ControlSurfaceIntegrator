@@ -1,4 +1,5 @@
 #include "../integrator.h"
+#include "format2_osc_runtime.h"
 #include "../surface_parser.h"
 #include "osc_widgets.h"
 
@@ -191,9 +192,10 @@ void OSC_ControlSurface::ProcessOSCWidget(int& lineNumber, ifstream& surfaceTemp
 OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, OSC_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides)
     : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset, settings, settingOverrides), surfaceIO_(surfaceIO)
 {
-    ProcessOSCWidgetFile(templateFilename);
-    InitHardwiredWidgets(this);
-    InitZoneManager(csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
+    const Format2OscRuntimeLoadResult format2Result = Format2OscRuntimeLoader::Load(templateFilename, this);
+    if (format2Result == Format2OscRuntimeLoadResult::NotFormat2) this->ProcessOSCWidgetFile(templateFilename);
+    this->InitHardwiredWidgets(this);
+    this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
 }
 
 void OSC_ControlSurface::ProcessOSCMessage(const char* message, double value) {
