@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Imported XTouch Surface" }
+@Meta { Version=2 Protocol=MIDI Channels=2 Name="Imported XTouch Surface" }
 
 TextProfile SevenCharacters {
   Encoding=ASCII7

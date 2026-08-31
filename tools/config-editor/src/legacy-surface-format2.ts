@@ -212,6 +212,24 @@ function legacyProtocol(document: ReturnType<typeof parseSurface>): "MIDI" | "OS
     return "MIDI";
 }
 
+function inferredChannelCount(document: ReturnType<typeof parseSurface>): number {
+    const suffixesByFamily = new Map<string, Set<number>>();
+    for (const widget of document.semantic.widgets) {
+        const match = widget.name.match(/^(.*?)(\d+)$/);
+        if (!match) continue;
+        const suffixes = suffixesByFamily.get(match[1]) ?? new Set<number>();
+        suffixes.add(Number(match[2]));
+        suffixesByFamily.set(match[1], suffixes);
+    }
+    let channels = 1;
+    for (const suffixes of suffixesByFamily.values()) {
+        let contiguousCount = 0;
+        while (suffixes.has(contiguousCount + 1)) contiguousCount++;
+        channels = Math.max(channels, contiguousCount);
+    }
+    return channels;
+}
+
 export function convertLegacySurfaceToFormat2(source: string, surfaceName: string, documentPath: string): LegacySurfaceConversion {
     if (/^\s*(?:\uFEFF)?@Meta\s*\{[^}]*\bVersion=2\b/i.test(source)) {
         const currentDocument = parseSurface(source, documentPath);
@@ -220,7 +238,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         for (const line of widget.body) {

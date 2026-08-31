@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Imported MIDI Fighter Twister Surface" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Imported MIDI Fighter Twister Surface" }
 
 ColorProfile MFTPalette {
   Match=Nearest

@@ -46,6 +46,7 @@ local function GetWindowFlags()
     if not theme.osk.titlebar_enabled then
         flags = flags | imgui.WindowFlags_NoTitleBar
     end
+    if not theme.osk.allow_docking and imgui.WindowFlags_NoDocking then flags = flags | imgui.WindowFlags_NoDocking end
     return flags
 end
 
@@ -63,6 +64,7 @@ local function ReloadAppearanceIfNeeded()
     local changeToken = theme.GetAppearanceChangeToken()
     if changeToken == lastAppearanceChangeToken then return end
     theme.LoadCurrentAppearance()
+    data.RefreshAppearance()
     theme.ClearInactiveLedBoostCache()
     data.processedLabelCache = {}
     RebuildFonts()
@@ -103,12 +105,10 @@ local function RenderContextMenu(activeCtx, popupId, surfName)
     osk_settings_ui.RenderContextMenu(activeCtx, popupId, surfName, {
         data = data,
         osd_ui = osd_ui,
-        onCreateZone = osk_zone_create.Open,
-        onOpenInputSettings = function(surfaceName)
-            local opened, openError = control_panel_protocol.Open("General", { surface = surfaceName, page = data.pageName })
+        onOpenSettings = function()
+            local opened, openError = control_panel_protocol.Open("Appearance")
             if not opened then log_writer.Write("ERROR", "[" .. identity.displayName .. " OSK] " .. tostring(openError)) end
         end,
-        onFontsChanged = RebuildFonts,
     })
 end
 
@@ -176,15 +176,16 @@ local function main()
     end
 
     data.FlushSurfacePositions(true)
-    data.SaveSettings()
     host.SetToolbarState(-1)
 end
 
 local function Init()
     host.SetToolbarState(1)
+    r.SetExtState(data.EXT_SECTION, "State", "Open", false)
     data.LoadSettings()
     osd_ui.LoadSettings()
     theme.LoadCurrentAppearance()
+    data.RefreshAppearance()
     osd_ui.RefreshAppearance()
     lastAppearanceChangeToken = theme.GetAppearanceChangeToken()
 
@@ -201,7 +202,7 @@ local function Init()
     host.OnExit(function()
         if config.HandleShutdown then config.HandleShutdown() end
         data.FlushSurfacePositions(true)
-        data.SaveSettings()
+        r.SetExtState(data.EXT_SECTION, "State", "Closed", false)
         host.SetToolbarState(-1)
     end)
 

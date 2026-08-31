@@ -38,6 +38,7 @@
 - The product `.conf` brace parser returns the shared `IntegratorConfig` model and reuses the common lexer, syntax tree, and delimiter validation. Do not add a second line parser or legacy runtime fallback.
 - Serialize the format 2 product configuration through `SerializeFormat2IntegratorConfig`; do not add a second canonical C++ writer for individual consumers.
 - In the format 2 product configuration, resolve settings as compiled defaults, Product, then Device. A Page Surface assignment cannot contain settings.
+- Read the positive channel count from Surface `@Meta Channels`, not from Device. Resolve assigned Device channel counts before runtime I/O construction and reject one Device assigned to Surface templates with different counts.
 - OSK configuration batches must be validated before replacing active contexts; file saves use a completed temporary file, timestamped backup, and recovery on replacement failure.
 - Vendor zones are read-only. Use User Main when its directory exists, otherwise use Vendor Main. Load Vendor and User FX zones together, with an exact User `Zone` name overriding Vendor. Create the User FX directory during initialization. A Vendor Main edit requires confirmation and an atomic Main-only copy. A Vendor FX edit copies only that file to the matching User FX path. Reload zones after activating either User copy.
 - Keep OSK zone creation in `zone_file_creator.*`. Accept only the supported fixed scaffold destinations, create one complete temporary file before rename, reject case-insensitive file or zone-name duplicates, and never edit a parent zone as part of creation.
@@ -47,6 +48,7 @@
 - Publish OSK layout semantic metadata from parsed widget capabilities, including role, input, feedback, widget class, and press/scroll/value/touch targets; visual shape must not be required for fader or rotary behavior.
 - Publish OSK continuous-widget state with value availability and volume/pan kind, and prefer current action track colors for meaningful fader/rotary feedback colors.
 - Persist OSK enabled state per surface and restore/open enabled OSK surfaces after CSI startup initialization.
+- Publish OSK lifecycle state, terminate the script when the final enabled Surface closes, and support explicit per-Surface plus all-Surface toggles so a failed instance can be restarted.
 - The pre-release Lua bridge uses only documented `ReaCtrlSurf_*` sections and scoped configuration statuses; do not add legacy aliases without a publication requirement.
 - Surface-independent behavior belongs here; protocol-specific behavior belongs in `midi/` or `osc/`.
 - Keep the format 2 lexer independent from legacy `GetTokens()` and preserve source offsets plus one-based line and column locations for every token and diagnostic.

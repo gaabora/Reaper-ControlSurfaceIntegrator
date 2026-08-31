@@ -21,7 +21,7 @@
 
 - Preserve original line text, line endings, comments, whitespace, unsupported properties, and unknown lines.
 - Unknown data produces a warning and remains serializable. Syntax or unsafe identifiers produce errors.
-- The product `.conf` uses unversioned brace blocks. Surface and zone version markers use `// @format <type> <version>` and remain safe for the current C++ parsers.
+- The product `.conf` uses unversioned brace blocks. Format 2 Surface files use `@Meta { Version=2 ... }`; current Zone files still use `// @format zone 1` until their format 2 migration is implemented.
 - Treat only `//` as a comment in current Surface and Zone files. Report a leading single `/` or unsupported `#` line as an error with a quick fix. Keep the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn FX directives as metadata.
 - Functional snippets use semantic bindings and must not store fixed hardware widget names.
 - Functional snippet `Role`, `Input`, and `Feedback` requirements use the same capability rules as runtime OSK metadata. Formal layout metadata overrides inferred surface metadata when present.
@@ -45,6 +45,7 @@
 - Read action names from `src/shared/types.h` `ACTION_TYPE_LIST`. Do not add a manual action-name list.
 - Read setting metadata from `Scripts/settings_schema.conf`. Embed the parsed schema in standalone builds and do not add a separate TypeScript setting list. Read user-selected values from the product `.conf`, not from the schema.
 - Parse Product values from the root `Settings` block and Device values from nested `Device Settings` blocks. Validate both scopes atomically with the shared schema and inherited cross-setting constraints.
+- Require positive `Channels` in Surface `@Meta`, omit it from product Device blocks and I/O forms, and report when one Device is assigned to Surface templates with different channel counts.
 - Keep parsers independent from the browser UI and file-writing service.
 - Bind the editor server only to `127.0.0.1` and require a random session token for every API request. Deliver the token in the generated initial HTML, not in the URL or persistent browser storage.
 - Let the user select only the REAPER `Data` directory. Derive the internal product configuration folder from product identity before file access.

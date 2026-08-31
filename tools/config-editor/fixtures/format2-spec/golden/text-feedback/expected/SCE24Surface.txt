@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Imported SCE24 Surface" }
+@Meta { Version=2 Protocol=MIDI Channels=2 Name="Imported SCE24 Surface" }
 
 TextProfile SCE24Text {
   Encoding=ASCII7

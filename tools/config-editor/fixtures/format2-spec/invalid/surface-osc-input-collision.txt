@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=OSC Name="Input collision" }
+@Meta { Version=2 Protocol=OSC Channels=1 Name="Input collision" }
 
 Widget Fader {
   Input Value { Encoding=OSCFloat Address="/control/value" }

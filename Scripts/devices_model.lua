@@ -64,7 +64,6 @@ function module.Serialize(data)
         if not validId(device.name) then return nil, "MIDI Device ID must use letters, digits, and _ and start with a letter" end
         lines[#lines + 1] = "Device " .. device.name .. " {"
         lines[#lines + 1] = "  Type=MIDI"
-        lines[#lines + 1] = "  Channels=" .. tostring(device.channels)
         lines[#lines + 1] = "  Input=" .. tostring(device.inputPort)
         lines[#lines + 1] = "  Output=" .. tostring(device.outputPort)
         lines[#lines + 1] = "  RefreshRate=" .. tostring(device.refreshRate)
@@ -81,7 +80,6 @@ function module.Serialize(data)
         lines[#lines + 1] = "Device " .. device.name .. " {"
         lines[#lines + 1] = "  Type=OSC"
         lines[#lines + 1] = "  Protocol=" .. (device.type == "OSCX32" and "X32" or "Generic")
-        lines[#lines + 1] = "  Channels=" .. tostring(device.channels)
         lines[#lines + 1] = "  ReceivePort=" .. tostring(device.receivePort)
         lines[#lines + 1] = "  TransmitPort=" .. tostring(device.transmitPort)
         lines[#lines + 1] = "  Address=" .. address

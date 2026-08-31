@@ -14,7 +14,7 @@ function errorCodes(source: string): string[] {
 function productConfig(productSettings = "", deviceSettings = ""): string {
     const lines: string[] = [];
     if (productSettings) lines.push("Settings {", productSettings, "}", "");
-    lines.push("Device fp2 {", "  Type=MIDI", "  Channels=1", "  Input=0", "  Output=0");
+    lines.push("Device fp2 {", "  Type=MIDI", "  Input=0", "  Output=0");
     if (deviceSettings) lines.push("", "  Settings {", deviceSettings, "  }");
     lines.push("}", "", "Page Home {", "  Surface fp2 {", "    Device=fp2", "    Template=faderportv2", "  }", "}", "");
     return lines.join("\n");

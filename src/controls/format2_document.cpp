@@ -1,6 +1,8 @@
 #include "format2_document.h"
 
+#include <charconv>
 #include <map>
+#include <system_error>
 #include <utility>
 
 static std::string Format2AsciiLower(const std::string& value) {
@@ -54,7 +56,7 @@ static bool IsFormat2MetadataKeyAllowed(Format2DocumentKind kind, const std::str
     if (key == "Version") return true;
     if (kind == Format2DocumentKind::MainZone) return key == "Role" || key == "Target" || key == "BankTarget" || key == "Alias";
     if (kind == Format2DocumentKind::FxZone) return key == "MatchFX" || key == "Alias";
-    if (kind == Format2DocumentKind::Surface) return key == "Protocol" || key == "Name" || key == "Description";
+    if (kind == Format2DocumentKind::Surface) return key == "Protocol" || key == "Channels" || key == "Name" || key == "Description";
     if (kind == Format2DocumentKind::Snippet) return key == "Name" || key == "Description";
     return false;
 }
@@ -195,6 +197,7 @@ private:
         this->ParseTarget();
         this->ParseBankTarget();
         this->ParseProtocol();
+        this->ParseChannels();
         this->ParseStringMetadata("Name", this->result_.metadata.name);
         this->ParseStringMetadata("Description", this->result_.metadata.description);
         this->ParseStringMetadata("MatchFX", this->result_.metadata.matchFx);
@@ -239,6 +242,26 @@ private:
         if (entry->value == "MIDI") this->result_.metadata.protocol = Format2SurfaceProtocol::Midi;
         else if (entry->value == "OSC") this->result_.metadata.protocol = Format2SurfaceProtocol::Osc;
         else this->AddDiagnostic("format2.metadata.protocol.value", "Unknown Protocol value: " + entry->value, entry->valueLocation);
+    }
+
+    void ParseChannels() {
+        if (this->result_.kind != Format2DocumentKind::Surface) return;
+        const Format2MetadataEntry* entry = this->FindMetadataEntry("Channels");
+        if (!entry) {
+            const Format2SourceLocation location = this->result_.metadata.entries.empty() ? this->CurrentToken().location : this->result_.metadata.entries.front().nameLocation;
+            this->AddDiagnostic("format2.metadata.channels.required", "Surface metadata requires Channels", location);
+            return;
+        }
+        if (entry->quoted) return;
+        int channels = 0;
+        const char* begin = entry->value.data();
+        const char* end = begin + entry->value.size();
+        const std::from_chars_result parsed = std::from_chars(begin, end, channels);
+        if (parsed.ec != std::errc() || parsed.ptr != end || channels < 1 || channels > 65535) {
+            this->AddDiagnostic("format2.metadata.channels.value", "Channels must be an integer from 1 through 65535", entry->valueLocation);
+            return;
+        }
+        this->result_.metadata.channels = channels;
     }
 
     void ParseStringMetadata(const std::string& name, std::optional<std::string>& destination) {

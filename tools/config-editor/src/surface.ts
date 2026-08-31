@@ -22,6 +22,7 @@ export interface OskLayoutRow {
 }
 
 export interface SurfaceSemantic {
+    channels?: number;
     oskLayout?: { line: number; rows: OskLayoutRow[]; version: string };
     widgets: SurfaceWidget[];
 }
@@ -77,6 +78,7 @@ function parseFormat2Surface(source: string, documentPath?: string): LosslessDoc
     let currentLayoutRow: OskLayoutRow | undefined;
     let rowDepth = 0;
     let metadataFound = false;
+    let channelCount: number | undefined;
     for (const line of lines) {
         const text = initializeLine(line);
         if (!text || line.kind === "comment") continue;
@@ -84,8 +86,12 @@ function parseFormat2Surface(source: string, documentPath?: string): LosslessDoc
         if (!metadataFound && line.tokens[0] === "@Meta") {
             metadataFound = true;
             line.kind = "format";
-            if (!/\bVersion=2\b/.test(text)) addDiagnostic(diagnostics, "error", "surface.format.version", "Format 2 Surface requires Version=2", line.lineNumber, documentPath);
-            if (!/\bProtocol=(?:MIDI|OSC)\b/i.test(text)) addDiagnostic(diagnostics, "error", "surface.protocol.missing", "Format 2 Surface requires Protocol=MIDI or OSC", line.lineNumber, documentPath);
+            if (!/(?:^|\s)Version=2(?=\s|})/.test(text)) addDiagnostic(diagnostics, "error", "surface.format.version", "Format 2 Surface requires Version=2", line.lineNumber, documentPath);
+            if (!/(?:^|\s)Protocol=(?:MIDI|OSC)(?=\s|})/i.test(text)) addDiagnostic(diagnostics, "error", "surface.protocol.missing", "Format 2 Surface requires Protocol=MIDI or OSC", line.lineNumber, documentPath);
+            const channels = text.match(/(?:^|\s)Channels=([^\s}]+)/)?.[1];
+            if (!channels) addDiagnostic(diagnostics, "error", "surface.channels.missing", "Format 2 Surface requires Channels", line.lineNumber, documentPath);
+            else if (!/^\d+$/.test(channels) || Number(channels) < 1 || Number(channels) > 65535) addDiagnostic(diagnostics, "error", "surface.channels.value", "Channels must be an integer from 1 through 65535", line.lineNumber, documentPath);
+            else channelCount = Number(channels);
             continue;
         }
         if (currentLayoutRow) {
@@ -135,7 +141,7 @@ function parseFormat2Surface(source: string, documentPath?: string): LosslessDoc
     }
     if (!metadataFound) addDiagnostic(diagnostics, "error", "surface.format.missing", "Format 2 Surface requires @Meta", undefined, documentPath);
     if (currentWidget) addDiagnostic(diagnostics, "error", "surface.widget.unclosed", `Widget ${currentWidget.name} has no closing brace`, currentWidget.line, documentPath);
-    return { diagnostics, format: "surface", lines, path: documentPath, semantic: { oskLayout: layout, widgets }, source, version: "2" };
+    return { diagnostics, format: "surface", lines, path: documentPath, semantic: { channels: channelCount, oskLayout: layout, widgets }, source, version: "2" };
 }
 
 export function parseSurface(source: string, documentPath?: string): LosslessDocument<SurfaceSemantic> {

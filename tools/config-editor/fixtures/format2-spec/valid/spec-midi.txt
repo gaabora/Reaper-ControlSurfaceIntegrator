@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Format 2 MIDI fixture" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Format 2 MIDI fixture" }
 
 EncoderProfile RelativeEncoder {
   Delta=0.003

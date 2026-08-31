@@ -57,7 +57,7 @@ local function SendFaderValue(surfaceName, widgetName, value, commandValueMapper
 end
 
 function M.HandlePressDown(surfaceName, cell)
-    if not data.vars.interactive or not cell or not cell.name then return end
+    if not data.vars.interactive_controls or not cell or not cell.name then return end
     local targetName = data.GetPressTarget(surfaceName, cell)
     if not targetName or targetName == "" then return end
 
@@ -82,7 +82,7 @@ function M.HandleWheel(ctx, surfaceName, cell)
     local targetName = data.GetScrollTarget(surfaceName, cell)
     if not targetName or targetName == "" then return end
     if not imgui.IsItemHovered(ctx) then return end
-    if not data.vars.interactive then return end
+    if not data.vars.interactive_controls then return end
 
     local stateKey = math_utils.GetInteractionStateKey(surfaceName, targetName)
     if not stateKey then return end
@@ -126,7 +126,7 @@ end
 
 function M.HandleFader(ctx, surfaceName, cell, trackTop, trackBottom, currentValue, commandValueMapper, valueHitHovered)
     if not cell or not cell.name then return end
-    if not data.vars.interactive then return end
+    if not data.vars.interactive_controls then return end
     if not trackTop or not trackBottom or trackBottom <= trackTop then return end
     local valueTarget = data.GetValueTarget(surfaceName, cell) or cell.name
     local touchTarget = data.GetTouchTarget(surfaceName, cell) or valueTarget

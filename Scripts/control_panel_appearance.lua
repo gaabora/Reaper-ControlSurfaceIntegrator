@@ -1,6 +1,7 @@
 local imgui = require "imgui" "0.9.3"
 
 local identity = require("product_identity")
+local labelReplacements = require("label_replacements")
 local oskColorPicker = require("osk_color_picker")
 local settingsStore = require("settings_store")
 local theme = require("theme_settings")
@@ -110,8 +111,12 @@ local function startScript(scriptFilename)
 end
 
 local function showOsk()
-    reaper.SetExtState(identity.extState.oskCommand, "Open", "1", false)
+    reaper.SetExtState(identity.extState.oskCommand, "ToggleAll", "1", false)
     return true
+end
+
+local function oskActionLabel()
+    return reaper.GetExtState(identity.extState.osk, "Surfaces") ~= "" and "Close all" or "Open all"
 end
 
 local function showOsdPreview()
@@ -194,6 +199,9 @@ local function renderSetting(ctx, group, settingName)
         end
     elseif rule.type == "color" then
         changed, value = oskColorPicker.RenderHexColorPicker(ctx, group.id .. "_" .. settingName, rule.label, value, rule.default)
+    elseif rule.type == "string" and rule.multiline then
+        changed, value = imgui.InputText(ctx, controlId, value or "")
+        ui.ItemTooltip(ctx, labelReplacements.GetHelpText())
     end
 
     if changed then
@@ -213,7 +221,8 @@ local function renderGroupHeader(ctx, group, fonts)
         local buttonWidth = 110
         local remainingWidth = imgui.GetContentRegionAvail(ctx)
         imgui.SetCursorPosX(ctx, imgui.GetCursorPosX(ctx) + math.max(0, remainingWidth - buttonWidth))
-        if imgui.Button(ctx, group.actionLabel .. "##AppearanceAction_" .. group.id, buttonWidth, 0) then runGroupAction(group) end
+        local actionLabel = group.action == "OSK" and oskActionLabel() or group.actionLabel
+        if imgui.Button(ctx, actionLabel .. "##AppearanceAction_" .. group.id, buttonWidth, 0) then runGroupAction(group) end
     end
 end
 

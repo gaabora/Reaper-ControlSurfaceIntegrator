@@ -23,7 +23,7 @@ beforeEach(async () => {
     reaperDataPath = path.join(temporaryRoot, "Data");
     const configurationPath = path.join(reaperDataPath, identity.resourceDirectory);
     await mkdir(configurationPath, { recursive: true });
-    await writeFile(path.join(configurationPath, identity.configFilename), "Device test {\n  Type=MIDI\n  Channels=1\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test\n  }\n}\n", "utf8");
+    await writeFile(path.join(configurationPath, identity.configFilename), "Device test {\n  Type=MIDI\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test\n  }\n}\n", "utf8");
 });
 
 afterEach(async () => {

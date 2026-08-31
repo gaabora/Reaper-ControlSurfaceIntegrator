@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Imported Asparion Surface" }
+@Meta { Version=2 Protocol=MIDI Channels=10 Name="Imported Asparion Surface" }
 
 Widget TrackColor1 {
   Channel=1

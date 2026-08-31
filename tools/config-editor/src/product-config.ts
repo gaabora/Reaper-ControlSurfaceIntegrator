@@ -297,14 +297,13 @@ export function parseProductConfig(source: string, documentPath?: string, settin
                 if (devices.has(canonicalId)) addDiagnostic(diagnostics, "error", "product.device.duplicate", `Device ID is duplicated case-insensitively: ${block.id}`, block.line, documentPath);
                 else devices.set(canonicalId, block);
             }
-            requireProperties(block, ["Type", "Channels"], diagnostics, documentPath);
+            requireProperties(block, ["Type"], diagnostics, documentPath);
             const type = block.properties.get("Type")?.value;
-            const allowed = new Set(type === "MIDI" ? ["Type", "Channels", "Input", "Output", "RefreshRate", "MaxMessagesPerRun"] : ["Type", "Protocol", "Channels", "ReceivePort", "TransmitPort", "Address", "MaxPacketsPerRun"]);
+            const allowed = new Set(type === "MIDI" ? ["Type", "Input", "Output", "RefreshRate", "MaxMessagesPerRun"] : ["Type", "Protocol", "ReceivePort", "TransmitPort", "Address", "MaxPacketsPerRun"]);
             rejectUnknownProperties(block, allowed, diagnostics, documentPath);
             if (type === "MIDI") requireProperties(block, ["Input", "Output"], diagnostics, documentPath);
             else if (type === "OSC") requireProperties(block, ["ReceivePort", "TransmitPort", "Address"], diagnostics, documentPath);
             else addDiagnostic(diagnostics, "error", "product.device.type", "Device Type must be MIDI or OSC", block.line, documentPath);
-            validateIntegerProperty(block, "Channels", 1, 65535, diagnostics, documentPath);
             if (type === "MIDI") {
                 validateIntegerProperty(block, "Input", 0, 65535, diagnostics, documentPath);
                 validateIntegerProperty(block, "Output", 0, 65535, diagnostics, documentPath);

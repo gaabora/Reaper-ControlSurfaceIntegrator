@@ -13,6 +13,7 @@
 ## Local Contracts
 
 - Surface files use `Surfaces/Vendor/<surface-id>.txt` or `Surfaces/User/<surface-id>.txt`.
+- Format 2 Surface metadata declares the positive hardware channel count as `Channels=N`; product I/O definitions do not duplicate it.
 - A user surface with the same stable ID overrides its vendor file.
 - Zone profiles use `Zones/Vendor/<profile-id>/Main`, `Zones/Vendor/<profile-id>/FX`, and matching paths under `Zones/User`.
 - Use `User/<profile-id>/Main` when that directory exists. Otherwise use `Vendor/<profile-id>/Main`.

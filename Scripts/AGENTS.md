@@ -82,10 +82,9 @@
 - Keep a square per-record notification dismiss control with the shared theme size and `×` label separate from script shutdown. Dismissing one visible record must leave Notifications active so later messages can appear.
 - Publish the session-only Appearance `Revision` after a Lua appearance schema is saved. Publish the session-only `PreviewRevision` and complete draft overlay after every Control Panel Appearance change. Running OSK, OSD, and Notifications contexts must reload persisted values and then apply the active preview overlay when either revision changes.
 - Clear the Appearance preview overlay on Save, Revert, Don't Save, and Control Panel shutdown. Preview values must never become persistent before Save.
-- Keep OSK font size, font family, wrapped-label line-height, and label-case controls in the OSK context menu near zoom.
-- Keep OSK wheel inversion in the context menu with interactive-control settings; ReaImGui exposes wheel delta but not reliable mouse-wheel versus trackpad source.
+- Keep OSK visual, docking, interaction, wheel inversion, tooltip delay, and label-replacement settings on the Control Panel Appearance page. Apply label replacements to OSK and OSD text. Keep only Appearance navigation, Reset devices, Reset MIDI, and the per-surface OSD-bar position in the OSK context menu.
 - Show OSK hover tooltips with the default binding first and `+ `-prefixed alternate bindings for modifiers, Hold, DoublePress, and combined pseudo-modifier entries.
-- Keep full surface, zone, snippet, import, export, and dependency editing out of OSK. Zone creation may create one validated empty scaffold but must not edit a parent zone.
+- Keep full surface, zone, snippet, import, export, and dependency editing out of OSK. The widget editor may open zone creation for one validated empty scaffold but must not edit a parent zone.
 
 ## Work Guidance
 
@@ -109,7 +108,7 @@
 - Build the plugin with `cmake --build build --config Debug` before runtime verification.
 - Run parser self-checks with `dofile("Scripts/self_checks.lua").RunAndReport()` from REAPER, or equivalent Lua with `Scripts/` on `package.path`.
 - In REAPER with ReaImGui installed, launch both `OSK on-screen keyboard.lua` and `OSD on-screen display.lua`.
-- Open the OSK context menu and change settings, including the embedded OSD bar position.
+- Open Appearance and change the shared OSK settings. Confirm that the OSK context menu opens Appearance and still changes the embedded OSD bar position.
 - Verify label replacements with empty user input, a user override, and a longer phrase override.
 - Open widget config, edit an action, search actions, apply live, save, and revert.
 - Test two surfaces with the same widget names to confirm surface-scoped OSK state.

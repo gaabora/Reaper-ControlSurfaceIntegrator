@@ -55,7 +55,7 @@ describe("local editor server", () => {
         await mkdir(path.dirname(surfacePath), { recursive: true });
         await mkdir(path.dirname(zonePath), { recursive: true });
         await mkdir(path.dirname(legacySurfacePath), { recursive: true });
-        await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Channels=1\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test-surface\n    MainProfile=test-profile\n    FXProfile=test-profile\n  }\n}\n", "utf8");
+        await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test-surface\n    MainProfile=test-profile\n    FXProfile=test-profile\n  }\n}\n", "utf8");
         await writeFile(snippetPath, "Snippet Version=1 Id=transport Name=Transport\n  Binding Id=play Role=Button Input=Press Feedback=Toggle Required=Yes\n    Action NoMod Play\n  BindingEnd\nSnippetEnd\n", "utf8");
         await writeFile(surfacePath, "// @format surface 1\nWidget Play\n  Press 90 5e 7f 90 5e 00\n  FB_TwoState 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
         await writeFile(zonePath, "// @format zone 1\nZone Home\n  Play Play\nZoneEnd\n", "utf8");

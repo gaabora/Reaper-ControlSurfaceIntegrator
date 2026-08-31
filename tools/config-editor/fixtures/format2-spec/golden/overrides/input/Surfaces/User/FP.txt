@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="User FP" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="User FP" }
 
 Widget UserOnly {
   Input Press { Encoding=MIDIExact On=[ 0x90, 0x02, 0x7F ] Off=[ 0x90, 0x02, 0x00 ] }

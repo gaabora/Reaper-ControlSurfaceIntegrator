@@ -188,10 +188,9 @@ private:
             return;
         }
         this->deviceLines_[canonicalId] = block.location.line;
-        const PropertyMap properties = this->CollectProperties(block, {"Type", "Channels", "Input", "Output", "RefreshRate", "MaxMessagesPerRun", "Protocol", "ReceivePort", "TransmitPort", "Address", "MaxPacketsPerRun"});
+        const PropertyMap properties = this->CollectProperties(block, {"Type", "Input", "Output", "RefreshRate", "MaxMessagesPerRun", "Protocol", "ReceivePort", "TransmitPort", "Address", "MaxPacketsPerRun"});
         std::string type;
-        int channels = 0;
-        const bool commonValid = this->ReadScalar(this->RequireProperty(properties, "Type", block.location.line), type) && this->ReadInteger(this->RequireProperty(properties, "Channels", block.location.line), channels, 1, 65535);
+        const bool commonValid = this->ReadScalar(this->RequireProperty(properties, "Type", block.location.line), type);
         SettingOverrides settings;
         int settingsCount = 0;
         for (const Format2SyntaxNode& child : block.children) if (child.kind == Format2SyntaxNodeKind::Block && !child.positionalTokens.empty() && child.positionalTokens[0].text == "Settings") {
@@ -204,7 +203,6 @@ private:
             MidiIoConfig device;
             device.lineNumber = block.location.line;
             device.name = id;
-            device.channelCount = channels;
             device.refreshRate = 15;
             device.maxMessagesPerRun = 200;
             const bool valid = this->ReadInteger(this->RequireProperty(properties, "Input", block.location.line), device.inputPort, 0, 65535) && this->ReadInteger(this->RequireProperty(properties, "Output", block.location.line), device.outputPort, 0, 65535) && (!properties.count("RefreshRate") || this->ReadInteger(properties.at("RefreshRate"), device.refreshRate, 1, 65535)) && (!properties.count("MaxMessagesPerRun") || this->ReadInteger(properties.at("MaxMessagesPerRun"), device.maxMessagesPerRun, 1, 1000000));
@@ -215,7 +213,6 @@ private:
             OscIoConfig device;
             device.lineNumber = block.location.line;
             device.name = id;
-            device.channelCount = channels;
             device.type = "OSC";
             device.maxPacketsPerRun = 200;
             std::string protocol = "Generic";

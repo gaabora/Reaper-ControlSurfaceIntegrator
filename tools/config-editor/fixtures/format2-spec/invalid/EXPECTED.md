@@ -4,6 +4,7 @@
 - `surface-midi-output-collision.txt`: link both Feedback Value blocks that own MIDI output key `[0xB0, 0x20]`.
 - `surface-osc-input-collision.txt`: link both Input blocks that consume `/control/value`.
 - `surface-osk-alpha.txt`: reject an eight-digit OSK layout color because OSK colors are opaque RGB values.
+- `surface-channels.txt`: reject a non-positive Surface channel count.
 - `main-zone-body.zon`: reject `IncludedZones` on a zone layer, multiple button events on one binding, and the removed free Widget wildcard syntax.
 - `main-layer-target.zon`: interpret as a Main zone and reject Target on `Role=Layer`.
 - `fx-main-metadata.zon`: interpret as an FX zone and reject Main Role metadata.

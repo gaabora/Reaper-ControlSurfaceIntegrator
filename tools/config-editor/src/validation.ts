@@ -1,6 +1,8 @@
 import path from "node:path";
 import { addDiagnostic, type Diagnostic } from "./model.ts";
 import type { AnyDocument } from "./formats.ts";
+import type { ProductConfigRecord, ProductConfigSemantic } from "./product-config.ts";
+import type { SurfaceSemantic } from "./surface.ts";
 import type { ZoneDependencyReference, ZoneSemantic } from "./zone.ts";
 
 interface ZoneLayerLocation {
@@ -56,6 +58,32 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
     for (const document of documents) {
         const location = zoneLayerLocation(document.path);
         if (location?.collection === "Main" && location.source === "User") userMainProfiles.add(location.profileId.toLowerCase());
+    }
+    const activeSurfaces = new Map<string, { document: AnyDocument; user: boolean }>();
+    for (const document of documents) {
+        if (document.format !== "surface" || !document.path) continue;
+        const match = document.path.replaceAll("\\", "/").match(/(?:^|\/)Surfaces\/(Vendor|User)\/([^/]+)\.txt$/i);
+        if (!match) continue;
+        const surfaceId = match[2].toLowerCase();
+        const user = match[1].toLowerCase() === "user";
+        const existing = activeSurfaces.get(surfaceId);
+        if (!existing || user || !existing.user) activeSurfaces.set(surfaceId, { document, user });
+    }
+    for (const document of documents) {
+        if (document.format !== "product-config") continue;
+        const assignments = (document.semantic as ProductConfigSemantic).records.filter((record): record is ProductConfigRecord => record.kind === "surface-assignment");
+        const channelsByDevice = new Map<string, { channels: number; record: ProductConfigRecord }>();
+        for (const assignment of assignments) {
+            const deviceId = assignment.properties.get("Device")?.toLowerCase();
+            const templateId = assignment.properties.get("Template")?.toLowerCase();
+            const surfaceDocument = templateId ? activeSurfaces.get(templateId)?.document : undefined;
+            const channels = surfaceDocument ? (surfaceDocument.semantic as SurfaceSemantic).channels : undefined;
+            if (!deviceId || !channels) continue;
+            const existing = channelsByDevice.get(deviceId);
+            if (existing && existing.channels !== channels) {
+                addDiagnostic(diagnostics, "error", "product.device.channels.conflict", `Device ${assignment.properties.get("Device")} is assigned to Surface templates with different Channels values: ${existing.channels} and ${channels}.`, assignment.line, document.path, [{ line: existing.record.line, path: document.path ?? "" }]);
+            } else if (!existing) channelsByDevice.set(deviceId, { channels, record: assignment });
+        }
     }
     const documentsByPath = new Map<string, AnyDocument>();
     for (const document of documents) {

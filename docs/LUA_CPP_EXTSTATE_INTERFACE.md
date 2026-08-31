@@ -15,7 +15,7 @@ Lua-to-C++ commands are consumed once and deleted by C++.
 
 | Section | Direction | Purpose |
 | --- | --- | --- |
-| `ReaCtrlSurf_OSK` | C++ to Lua | OSK discovery, display data, configuration responses |
+| `ReaCtrlSurf_OSK` | C++ and Lua | OSK discovery, display data, configuration responses, and lifecycle state |
 | `ReaCtrlSurf_OSK_CMD` | Lua to C++ | Semantic widget and configuration commands |
 | `ReaCtrlSurf_OSK_SETTINGS` | Lua persistent | OSK appearance, interaction, surface positions |
 | `ReaCtrlSurf_OSD` | C++ to Lua | Shared OSD message bus |
@@ -63,6 +63,7 @@ Keys in `ReaCtrlSurf_OSK`:
 | Key | Payload |
 | --- | --- |
 | `Command` | `Close` requests script shutdown |
+| `State` | `Open` or `Closed` OSK lifecycle state |
 | `Surfaces` | `surface|surface...` |
 | `Page` | Current Page name used to locate the configured Surface assignment |
 | `Layout_<surface>` | Newline-separated rows containing pipe-separated cells |
@@ -129,9 +130,12 @@ Keys in `ReaCtrlSurf_OSK_CMD`:
 | `ActionListQuery` | Empty payload |
 | `SurfaceEnabled` | `surface|0-or-1` |
 | `Open` | Any payload |
+| `ToggleAll` | Any payload |
 | `ZoneCreate` | `surface|scaffoldType|zoneName|alias|navigator` |
 
 `Open` opens the OSK ReaScript without changing enabled surfaces when at least one current-Page surface is already enabled. When none is enabled, it enables every surface on the current Page, republishes their layout and state, and opens the script.
+
+`ToggleAll` disables and closes all current-Page OSK windows when at least one Surface is enabled. Otherwise it enables every current-Page Surface, republishes its data, and opens the OSK script. Closing the final Surface explicitly terminates the running ReaScript so a later request can recover from a failed instance.
 
 `ZoneCreate` supports `main`, `home`, `go`, `subzone`, `included`, `learn`, and `fx` scaffold types. C++ resolves the active surface profile and writes only below its user profile. Creating a Main zone from Vendor Main requires confirmation and a Main-only User copy first. Creating an FX zone writes directly to the configured User FX directory. The command creates one file and does not add it to a parent zone. `zoneName` is also the file stem and uses ASCII letters, digits, `_`, and `-`. The optional alias must not contain `|`, quotes, or line breaks. The optional navigator is empty or one of the navigator names offered by the OSK dialog.
 
@@ -316,7 +320,7 @@ Running OSK, OSD, and Notifications contexts compare both revisions. After eithe
 Persistent keys in `ReaCtrlSurf_OSK_SETTINGS`:
 
 - `zoom`
-- `interactive`
+- `interactive_controls`
 - `invert_scroll`
 - `aspect`
 - `font_size`
@@ -331,6 +335,7 @@ Persistent keys in `ReaCtrlSurf_OSK_SETTINGS`:
 - `tooltip_delay`
 - `arrow_angle`
 - `titlebar_enabled`
+- `allow_docking`
 - `label_replacements`
 - `SurfacePosition_<surface>` with payload `x,y`
 - `SurfaceEnabled_<surface>` with value `true` or `false`
@@ -341,6 +346,8 @@ Persistent keys in `ReaCtrlSurf_OSK_SETTINGS`:
 OSK uses one independent window per surface. Position writes are delayed while a
 window is moving and flushed on shutdown. The latest enabled/hidden state is
 persisted per surface and restored by the C++ bridge on product startup.
+
+OSK is not dockable by default. `allow_docking=true` permits docking. Built-in and user `label_replacements` apply to OSK labels and standalone or embedded OSD text.
 
 Persistent keys in `ReaCtrlSurf_OSD_SETTINGS`:
 

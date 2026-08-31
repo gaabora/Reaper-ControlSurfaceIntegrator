@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=OSC Name="Format 2 OSC fixture" }
+@Meta { Version=2 Protocol=OSC Channels=32 Name="Format 2 OSC fixture" }
 
 ValueProfile FaderCurve {
   InputUnit=Normalized

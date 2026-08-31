@@ -6,6 +6,7 @@ local data = require("osk_data")
 local osk_config_model = require("osk_config_model")
 local osk_config_protocol = require("osk_config_protocol")
 local osk_config_view = require("osk_config_view")
+local osk_zone_create = require("osk_zone_create")
 local settings_store = require("settings_store")
 local theme = require("theme_settings")
 
@@ -188,14 +189,15 @@ function M.RenderConfigEditor(ctx, font)
             reaper = r,
             modifierFlags = MODIFIER_FLAGS,
             tableFlags = TABLE_FLAGS,
+            onCreateZone = function() osk_zone_create.Open(state.surfaceName) end,
         }
         osk_config_view.RenderToolbar(ctx, state, deps)
         imgui.Spacing(ctx)
         local bodyVisible = imgui.BeginChild(ctx, "##config_body", -1, -1, 0, 0)
         if bodyVisible then
             osk_config_view.RenderBody(ctx, state, deps)
-            imgui.EndChild(ctx)
         end
+        imgui.EndChild(ctx)
     end
 
     imgui.End(ctx)

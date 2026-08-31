@@ -13,13 +13,13 @@ Zone Metronome
   RotaryBigPush             Reaper 40363 // Options: Show metronome/pre-roll settings
 
   Link                      Reaper 40364 {  0 10  0   0 200   0 } // Toggle metronome
-  Pan  Reaper 42456 { 10 10 10 200 200 200 } // Options: Set metronome speed to 1x
+  Pan  Reaper 42456 { 14 20 20 200 200 200 } // Options: Set metronome speed to 1x
   Shift+Pan  NoAction { 0 0 0 0 0 0 }
-  Channel                   Reaper 42457 { 14 20 20 100 100 100 } // Options: Set metronome speed to 2x
+  Channel  Reaper 42457 { 14 20 20 200 200 200 } // Options: Set metronome speed to 2x
+  Shift+Channel  NoAction { 0 0 0 0 0 0 }
   Scroll                    Reaper 42458 { 21 30 30 200 200 200 } // Options: Set metronome speed to 4x
 
   Shift+Link                NoAction     {  0  0  0   0   0   0 }
-  Shift+Channel             NoAction     {  0  0  0   0   0   0 }
   Shift+Scroll              NoAction     {  0  0  0   0   0   0 }
 
   Decrease+RotaryBig        Reaper "_S&M_METRO_VOL_DOWN" RunCount=20 // SWS/S&M: Decrease metronome volume x20

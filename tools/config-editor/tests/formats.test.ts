@@ -72,6 +72,11 @@ describe("configuration formats", () => {
         expect(document.diagnostics.some((diagnostic) => diagnostic.code === "comment.hash.unsupported" && diagnostic.line === 2 && diagnostic.severity === "error")).toBeTrue();
     });
 
+    test("requires a positive channel count in format 2 Surface metadata", () => {
+        const document = parseByPath('@Meta { Version=2 Protocol=MIDI Channels=0 Name="Invalid channels" }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }\n}\n', "surface.txt");
+        expect(document.diagnostics.some((diagnostic) => diagnostic.code === "surface.channels.value" && diagnostic.severity === "error")).toBeTrue();
+    });
+
     test("rejects hash comments in the product configuration", () => {
         const source = "# product config comment\n";
         const document = parseByPath(source, "product.conf");

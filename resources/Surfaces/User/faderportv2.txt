@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="FaderPortV2" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPortV2" }
 
 EncoderProfile RotaryWidgetClass {
   Delta=0.003

@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Imported FaderPort 16 Surface" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Imported FaderPort 16 Surface" }
 
 TextProfile FaderPortScribble {
   Encoding=ASCII7

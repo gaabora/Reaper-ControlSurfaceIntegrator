@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Imported Surface" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Imported Surface" }
 
 EncoderProfile RotaryWidgetClass {
   Delta=0.003

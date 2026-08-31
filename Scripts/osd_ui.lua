@@ -7,6 +7,7 @@ local r = reaper
 
 local font_cache = require("font_cache")
 local identity = require("product_identity")
+local label_replacements = require("label_replacements")
 local log_writer = require("log_writer")
 local osd_templates = require("osd_templates")
 local theme = require("theme_settings")
@@ -37,6 +38,21 @@ local sizedFontCache = nil
 local DEBUG_OSD = false
 local oskBarPositions = {}
 local lastSeenOSDEventId = nil
+local labelReplacementSource = nil
+local labelReplacementRules = {}
+
+local function applyLabelReplacements(text)
+    local source = tostring(theme.osk.label_replacements or "")
+    if source ~= labelReplacementSource then
+        labelReplacementSource = source
+        local userReplacements = label_replacements.ParseReplacementText(source)
+        local _, rules = label_replacements.BuildRuleSet(label_replacements.BUILTIN_REPLACEMENTS, userReplacements)
+        labelReplacementRules = rules
+    end
+    local lines = {}
+    for line in (tostring(text or "") .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = label_replacements.ProcessLabel(line, labelReplacementRules) end
+    return table.concat(lines, "\n")
+end
 
 local function resetHiddenState()
     M.state.background = "0"
@@ -166,7 +182,7 @@ function M.PollOSD()
                 M.state.bgColor = theme.HexToImCol(M.vars.osd_bg_off, theme.OSK_COLORS.button_off)
             end
 
-            M.state.text = text
+            M.state.text = applyLabelReplacements(text)
             local now = r.time_precise()
             M.state.showUntil = now + (timeout / 1000)
             debugLog("eventId=", eventId, "msg=", msg, "timeoutMs=", timeout, "showUntil=", string.format("%.3f", M.state.showUntil))

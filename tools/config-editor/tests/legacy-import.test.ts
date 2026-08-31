@@ -46,7 +46,7 @@ beforeEach(async () => {
     productRoot = path.join(temporaryRoot, "Data", identity.resourceDirectory);
     await mkdir(path.join(productRoot, "Surfaces", "User"), { recursive: true });
     await mkdir(path.join(productRoot, "Zones", "User"), { recursive: true });
-    await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Channels=1\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test\n  }\n}\n", "utf8");
+    await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test\n  }\n}\n", "utf8");
 });
 
 afterEach(async () => {
@@ -80,7 +80,7 @@ WidgetEnd
 `;
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPortV2", "Surfaces/User/faderportv2.txt");
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toStartWith('@Meta { Version=2 Protocol=MIDI Name="FaderPortV2" }');
+        expect(conversion.source).toStartWith('@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPortV2" }');
         expect(conversion.source).toContain("Input Value { Encoding=MIDI14 Status=0xE0 }");
         expect(conversion.source).toContain("Widget Fader Shape=Fader Height=7 TouchTarget=Fader ValueTarget=Fader");
         expect(conversion.source).toContain("Widget Rotary Group=RotaryGroup ScrollTarget=Rotary PressTarget=RotaryPush");

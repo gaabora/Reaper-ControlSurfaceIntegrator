@@ -186,7 +186,7 @@ The Appearance tab is one place to discover and edit visual settings. The code a
 - ✅ Render all appearance groups in the Control Panel from their schemas.
 - ✅ Render Appearance in two columns: OSK on the left, Notifications and OSD on the right.
 - ✅ Use fixed shared form-control widths, compact drag controls for numbers, and the shared widget-configuration color picker and swatches.
-- ✅ Keep the existing OSK context menu and OSD right-click settings as quick access views of the same schemas.
+- ✅ Keep OSK appearance and behavior settings on the Appearance page. Keep only Appearance navigation, device resets, MIDI reset, and OSD-bar position in the OSK context menu.
 - ✅ Ensure every Control Panel draft change appears immediately in running OSK, OSD, and Notifications through a session-only preview overlay and revision.
 - ✅ Put an Open or Show preview action beside each large OSK, Notifications, and OSD group heading. Start the visual script only when it is not already active, then show a real OSD or Notifications preview record.
 - ✅ Apply previews to the draft only. Clear the preview overlay and restore the saved appearance after Revert, `Don't Save`, or Control Panel shutdown.

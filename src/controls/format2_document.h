@@ -52,6 +52,7 @@ struct Format2MetadataEntry {
 
 struct Format2DocumentMetadata {
     int version = 0;
+    std::optional<int> channels;
     std::optional<Format2ZoneRole> role;
     std::optional<Format2ZoneTarget> target;
     std::optional<Format2BankTarget> bankTarget;

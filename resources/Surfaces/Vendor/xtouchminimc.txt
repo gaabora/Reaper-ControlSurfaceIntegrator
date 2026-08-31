@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="XTouchMiniMC" }
+@Meta { Version=2 Protocol=MIDI Channels=8 Name="XTouchMiniMC" }
 
 EncoderProfile RotaryWidgetClass {
   Delta=0.003
@@ -167,7 +167,6 @@ Widget LayerB {
 
 OSKLayout {
   Row {
-    Widget Fader Shape=Fader Height=7 ValueTarget=Fader
     Widget Rotary1 Shape=Round Group=RotaryGroup1 ScrollTarget=Rotary1
     Widget Rotary2 Shape=Round Group=RotaryGroup2 ScrollTarget=Rotary2
     Widget Rotary3 Shape=Round Group=RotaryGroup3 ScrollTarget=Rotary3
@@ -184,6 +183,7 @@ OSKLayout {
     Widget RotaryPush6 Group=RotaryGroup6
     Widget RotaryPush7 Group=RotaryGroup7
     Widget RotaryPush8 Group=RotaryGroup8
+    Widget Fader Shape=Fader Height=3 ValueTarget=Fader
   }
   Row {
     Widget ButtonA1

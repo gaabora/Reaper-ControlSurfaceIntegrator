@@ -312,6 +312,23 @@ public:
         this->OpenOSKPanel();
     }
 
+    void DispatchOSKToggleAll() {
+        if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return;
+        const bool enable = !this->HasAnyOSKEnabled();
+        for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) surface->SetOskEnabled(enable);
+        this->PublishOSKSurfacesList();
+        if (!enable) {
+            this->CloseOSKPanel();
+            return;
+        }
+        for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) {
+            surface->PublishOSKLayout();
+            surface->PublishOSKLabels();
+            surface->PublishOSKState();
+        }
+        this->OpenOSKPanel();
+    }
+
     void DispatchOSKConfigQuery(const string& surfName, const string& widgetName) {
         if (!(pages_.size() > currentPageIndex_ && pages_[currentPageIndex_])) return;
         for (auto& surface : pages_[currentPageIndex_]->GetSurfaces()) {
@@ -469,6 +486,10 @@ public:
             ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "Open", false);
             this->DispatchOSKOpen();
         }
+        if (::HasExtState(ProductIdentity::ExtStateOskCommand, "ToggleAll")) {
+            ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "ToggleAll", false);
+            this->DispatchOSKToggleAll();
+        }
         if (::HasExtState(ProductIdentity::ExtStateOskCommand, "ConfigQuery")) {
             string payload = ::GetExtState(ProductIdentity::ExtStateOskCommand, "ConfigQuery");
             ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "ConfigQuery", false);
@@ -533,12 +554,22 @@ public:
             if (this->oskCommandId_ == 0) return;
         }
         int runningState = GetToggleCommandState(this->oskCommandId_);
-        if (runningState == 1) return;
+        const string lifecycleState = ::GetExtState(ProductIdentity::ExtStateOsk, "State");
+        if (runningState == 1 && lifecycleState == "Open") return;
+        if (runningState == 1) {
+            DAW::SendCommandMessage(this->oskCommandId_);
+            runningState = GetToggleCommandState(this->oskCommandId_);
+            if (runningState == 1) return;
+        }
+        ::DeleteExtState(ProductIdentity::ExtStateOsk, "Command", false);
         DAW::SendCommandMessage(this->oskCommandId_);
     }
 
     void CloseOSKPanel() {
         ::SetExtState(ProductIdentity::ExtStateOsk, "Command", "Close", false);
+        ::SetExtState(ProductIdentity::ExtStateOsk, "State", "Closed", false);
+        if (this->oskCommandId_ == 0) this->oskCommandId_ = ReaScriptAction::ResolveCommandId(REASCRIPT_PATH__CSI_OSK, "CloseOSKPanel");
+        if (this->oskCommandId_ != 0 && GetToggleCommandState(this->oskCommandId_) == 1) DAW::SendCommandMessage(this->oskCommandId_);
     }
 
     void PublishOSKSurfacesList() {

@@ -12,5 +12,5 @@ Zone SelectedTrackSend
   Prev                 Bank SelectedTrackSend -1
   Next                 Bank SelectedTrackSend 1
 
-  Channel            GoHome
+  Channel  GoHome { 58 58 58 253 185 69 }
 ZoneEnd

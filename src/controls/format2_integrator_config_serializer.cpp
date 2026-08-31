@@ -57,7 +57,6 @@ static bool AppendSerializedBlockId(std::ostringstream& stream, const std::strin
 static bool AppendSerializedMidiDevice(std::ostringstream& stream, const MidiIoConfig& device, std::string& errorMessage) {
     if (!AppendSerializedBlockId(stream, "Device", device.name, errorMessage)) return false;
     stream << "  Type=MIDI\n";
-    stream << "  Channels=" << device.channelCount << '\n';
     stream << "  Input=" << device.inputPort << '\n';
     stream << "  Output=" << device.outputPort << '\n';
     stream << "  RefreshRate=" << device.refreshRate << '\n';
@@ -76,7 +75,6 @@ static bool AppendSerializedOscDevice(std::ostringstream& stream, const OscIoCon
     }
     stream << "  Type=OSC\n";
     stream << "  Protocol=" << (device.type == "OSCX32" ? "X32" : "Generic") << '\n';
-    stream << "  Channels=" << device.channelCount << '\n';
     if (!AppendSerializedProperty(stream, "  ", "ReceivePort", device.receiveOnPort, errorMessage)) return false;
     if (!AppendSerializedProperty(stream, "  ", "TransmitPort", device.transmitToPort, errorMessage)) return false;
     if (!AppendSerializedProperty(stream, "  ", "Address", device.transmitToIpAddress, errorMessage)) return false;

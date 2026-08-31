@@ -1,5 +1,6 @@
 #include "integrator.h"
 
+#include "configured_device_channels.h"
 #include "integrator_config_parser.h"
 #include "settings_config_editor.h"
 #include "../shared/product_paths.h"
@@ -92,10 +93,14 @@ static Page* FindRuntimePage(const vector<unique_ptr<Page>>& pages, const string
     return nullptr;
 }
 
+static ControlSurface* FindRuntimeSurface(Page* page, const string& name) {
+    if (!page) return nullptr;
+    for (const auto& surface : page->GetSurfaces()) if (surface->GetName() == name) return surface.get();
+    return nullptr;
+}
+
 static bool HasRuntimeSurface(Page* page, const string& name) {
-    if (!page) return false;
-    for (const auto& surface : page->GetSurfaces()) if (surface->GetName() == name) return true;
-    return false;
+    return FindRuntimeSurface(page, name) != nullptr;
 }
 
 static string ConfiguredIoType(const IntegratorConfig& config, const string& name) {
@@ -306,7 +311,7 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
     }
     map<string, string> ioTypes;
     for (const MidiIoConfig& io : config.midiIo) {
-        if (io.name.empty() || io.channelCount < 1 || io.inputPort < 0 || io.outputPort < 0 || io.refreshRate < 1 || io.maxMessagesPerRun < 0) {
+        if (io.name.empty() || io.inputPort < 0 || io.outputPort < 0 || io.refreshRate < 1 || io.maxMessagesPerRun < 1) {
             errorMessage = "Invalid MIDI definition: " + io.name;
             return false;
         }
@@ -317,7 +322,7 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
         ioTypes[io.name] = "MIDI";
     }
     for (const OscIoConfig& io : config.oscIo) {
-        if (io.name.empty() || io.channelCount < 1 || io.receiveOnPort.empty() || io.transmitToPort.empty() || io.transmitToIpAddress.empty() || io.maxPacketsPerRun < 0) {
+        if (io.name.empty() || io.receiveOnPort.empty() || io.transmitToPort.empty() || io.transmitToIpAddress.empty() || io.maxPacketsPerRun < 1) {
             errorMessage = "Invalid OSC definition: " + io.name;
             return false;
         }
@@ -423,7 +428,8 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
             PublishDevicesResponse(request.requestId, false, "The device configuration changed outside this Control Panel. Revert to reload it before saving.");
             return;
         }
-        const IntegratorConfig candidate = ParseFormat2IntegratorConfigSource(request.source, productPaths.ConfigFile().string());
+        IntegratorConfig candidate = ParseFormat2IntegratorConfigSource(request.source, productPaths.ConfigFile().string());
+        ResolveConfiguredDeviceChannels(candidate, productPaths);
         if (!ValidateDevicesConfig(candidate, productPaths, errorMessage)) {
             PublishDevicesResponse(request.requestId, false, errorMessage);
             return;
@@ -446,7 +452,8 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         DAW::SendCommandMessage(REAPER__CONTROL_SURFACE_REFRESH_ALL_SURFACES);
         return;
     }
-    const IntegratorConfig config = configExists ? ParseFormat2IntegratorConfigSource(configSource, productPaths.ConfigFile().string()) : IntegratorConfig();
+    IntegratorConfig config = configExists ? ParseFormat2IntegratorConfigSource(configSource, productPaths.ConfigFile().string()) : IntegratorConfig();
+    if (configExists) ResolveConfiguredDeviceChannels(config, productPaths);
     string body;
     AppendDevicesProperty(body, "ConfigExists", configExists ? 1 : 0);
     AppendDevicesProperty(body, "Revision", DevicesConfigRevision(configSource));
@@ -463,7 +470,6 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         char deviceName[512] = {};
         AppendDevicesProperty(body, prefix + "Line", io.lineNumber);
         AppendDevicesProperty(body, prefix + "Name", io.name);
-        AppendDevicesProperty(body, prefix + "Channels", io.channelCount);
         AppendDevicesProperty(body, prefix + "InputPort", io.inputPort);
         AppendDevicesProperty(body, prefix + "InputName", io.inputPort >= 0 && GetMIDIInputName(io.inputPort, deviceName, sizeof(deviceName)) ? deviceName : "");
         deviceName[0] = '\0';
@@ -486,7 +492,6 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         AppendDevicesProperty(body, prefix + "Line", io.lineNumber);
         AppendDevicesProperty(body, prefix + "Type", io.type);
         AppendDevicesProperty(body, prefix + "Name", io.name);
-        AppendDevicesProperty(body, prefix + "Channels", io.channelCount);
         AppendDevicesProperty(body, prefix + "ReceivePort", io.receiveOnPort);
         AppendDevicesProperty(body, prefix + "TransmitPort", io.transmitToPort);
         AppendDevicesProperty(body, prefix + "Address", io.transmitToIpAddress);

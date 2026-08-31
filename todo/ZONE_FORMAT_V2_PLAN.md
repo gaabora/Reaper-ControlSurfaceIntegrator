@@ -425,7 +425,6 @@ Settings {
 
 Device fp2 {
   Type=MIDI
-  Channels=1
   Input=0
   Output=0
   RefreshRate=15
@@ -480,7 +479,6 @@ compiled default < root Settings < Device.Settings
 | Property | Required | Value and default |
 |---|---|---|
 | `Type` | Yes | `MIDI` or `OSC` |
-| `Channels` | Yes | Positive integer surface-channel count |
 
 A MIDI device accepts:
 
@@ -497,7 +495,6 @@ An OSC device accepts:
 Device x32 {
   Type=OSC
   Protocol=X32
-  Channels=32
   ReceivePort=8000
   TransmitPort=9000
   Address=192.168.1.20
@@ -544,7 +541,9 @@ All C++ consumers use one parsed `IntegratorConfig` model. The native configurat
 
 ### ✅ Surface structure and encoder input
 
-A Surface template describes hardware or an OSC endpoint layout. It does not select REAPER ports, set a surface-channel count, or contain user behavior settings. Those values belong to the product `Device` and Page `Surface` assignment.
+A Surface template describes hardware or an OSC endpoint layout. It owns its positive `Channels` count and does not select REAPER ports or contain user behavior settings. Port selection belongs to the product `Device`; Page placement belongs to the Page `Surface` assignment.
+
+One Device can be reused on several Pages only when every assigned Surface template declares the same `Channels` value. An unassigned Device needs no channel count because no runtime I/O object is created for it.
 
 The selected Device `Type` must equal the Surface metadata `Protocol`. A mismatch skips that Page Surface assignment and links both declarations in the diagnostic.
 
@@ -562,7 +561,7 @@ Block IDs and references are case-sensitive. Duplicate Widget IDs, FeedbackGroup
 The normal MIDI form is:
 
 ```text
-@Meta { Version=2 Protocol=MIDI Name="FaderPort V2" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPort V2" }
 
 EncoderProfile Rotary {
   Delta=0.003
@@ -1067,7 +1066,7 @@ Legacy inline encoder text such as `[ > 01-3f < 41-7f ]` is not copied. With a l
 OSC uses the same Widget, Input, and Feedback structure with OSC-specific universal catalog types and a named `Address` property:
 
 ```text
-@Meta { Version=2 Protocol=OSC Name="OSC Hardware Surface" }
+@Meta { Version=2 Protocol=OSC Channels=32 Name="OSC Hardware Surface" }
 
 Widget ChannelFader1 {
   Input Value { Encoding=OSCFloat Address="/control/1" }
@@ -1781,6 +1780,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
 - [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.
+- ✅ Move the surface-channel count from product Device blocks to required Surface `@Meta Channels=N`. Derive legacy imports from the numbered widget families with a fallback of one, remove the field from I/O forms, and reject reuse of one Device with conflicting Surface channel counts.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
 - [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.

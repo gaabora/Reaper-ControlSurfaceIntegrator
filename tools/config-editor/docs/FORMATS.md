@@ -21,7 +21,6 @@ Settings {
 
 Device fp2 {
   Type=MIDI
-  Channels=1
   Input=0
   Output=0
 }
@@ -42,13 +41,14 @@ Page Home {
 - `Page`, `Device`, and Page-local `Surface` IDs are unquoted. They start with an ASCII letter and contain only ASCII letters, digits, or `_`.
 - Root `Settings` values apply to the product. A nested `Settings` block in a `Device` overrides the allowed values for that Device.
 - A Page `Surface` uses a separate local ID and references one `Device`. `Template`, `MainProfile`, and `FXProfile` are stable resource IDs.
+- `Channels` belongs to the referenced Surface `@Meta`, not to the I/O Device. Assigning one Device to Surface templates with different channel counts is an error.
 - `Link` blocks connect two Page-local Surface IDs and declare a non-empty `Share=[ ... ]` category list.
 - Only `//` starts a comment. `#` is invalid in the product configuration.
 - Unknown blocks and properties are errors.
 
 ## Surface 2
 
-Current Surface files use `@Meta { Version=2 Protocol=MIDI|OSC ... }`, brace blocks, and universal `Input` and `Feedback` primitives. The legacy importer converts supported processor lines to this format and reports an error for a processor that it cannot preserve.
+Current Surface files use `@Meta { Version=2 Protocol=MIDI|OSC Channels=<positive integer> ... }`, brace blocks, and universal `Input` and `Feedback` primitives. The legacy importer converts supported processor lines to this format and reports an error for a processor that it cannot preserve.
 
 `OSKLayout { Row { ... } }` has no separate version. If a legacy Surface has no explicit layout, the importer creates an editable initial layout from usable Input widgets. A fader occupies seven rows while buttons and rotaries fill the remaining cells in source order.
 

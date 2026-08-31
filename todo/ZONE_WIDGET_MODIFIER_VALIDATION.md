@@ -243,7 +243,6 @@ A Device can override settings for every Page Surface assignment that uses that 
 ```text
 Device fp2 {
   Type=MIDI
-  Channels=1
   Input=0
   Output=0
 

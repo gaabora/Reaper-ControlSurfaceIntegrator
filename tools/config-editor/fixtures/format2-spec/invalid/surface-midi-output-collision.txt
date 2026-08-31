@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Output collision" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Output collision" }
 
 Widget First {
   Feedback Value { Encoding=MIDI7 Message=[0xB0, 0x20] }

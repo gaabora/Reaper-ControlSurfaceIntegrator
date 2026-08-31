@@ -1,6 +1,7 @@
 // config_parser.cpp - CSurfIntegrator configuration application
 
 #include "integrator.h"
+#include "configured_device_channels.h"
 #include "integrator_config_parser.h"
 
 static void LogConfigIssue(const string& configPath, const IntegratorConfigIssue& issue) {
@@ -98,6 +99,7 @@ struct ConfigLoadSummary {
 
 static void CreateConfiguredIo(CSurfIntegrator* integrator, const IntegratorConfig& config, vector<unique_ptr<Midi_ControlSurfaceIO>>& midiIo, vector<unique_ptr<OSC_ControlSurfaceIO>>& oscIo, const string& configPath, ConfigLoadSummary& summary) {
     for (const MidiIoConfig& io : config.midiIo) {
+        if (io.channelCount < 1) continue;
         try {
             midiIo.push_back(make_unique<Midi_ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.inputPort, io.outputPort, io.refreshRate, io.maxMessagesPerRun));
         } catch (const std::exception& error) {
@@ -106,6 +108,7 @@ static void CreateConfiguredIo(CSurfIntegrator* integrator, const IntegratorConf
         }
     }
     for (const OscIoConfig& io : config.oscIo) {
+        if (io.channelCount < 1) continue;
         try {
             if (IsSameString(io.type, s_OSCSurfaceToken)) oscIo.push_back(make_unique<OSC_ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.receiveOnPort.c_str(), io.transmitToPort.c_str(), io.transmitToIpAddress.c_str(), io.maxPacketsPerRun));
             else oscIo.push_back(make_unique<OSC_X32ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.receiveOnPort.c_str(), io.transmitToPort.c_str(), io.transmitToIpAddress.c_str(), io.maxPacketsPerRun));
@@ -209,6 +212,7 @@ void CSurfIntegrator::Init() {
     IntegratorConfig config;
     try {
         config = ParseFormat2IntegratorConfig(configPath);
+        ResolveConfiguredDeviceChannels(config, productPaths);
     } catch (const std::exception& error) {
         LogToConsole("[ERROR] FAILED to parse %s: %s\n", configPath.c_str(), error.what());
         return;

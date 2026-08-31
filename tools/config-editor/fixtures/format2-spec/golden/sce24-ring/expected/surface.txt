@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Name="Imported SCE24 Surface" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Imported SCE24 Surface" }
 
 RingProfile SCE24Ring {
   Segments=18

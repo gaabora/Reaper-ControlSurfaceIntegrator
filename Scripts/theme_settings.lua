@@ -184,6 +184,11 @@ M.OSK_SCHEMA = {
     inactive_led_boost = { type = "number", default = 50, min = 0, max = 100, integer = true, label = "Inactive OSK button brightness boost" }, -- Adds brightness to inactive buttons on OSK and config table swatches so color looks closer to real LED. Does not change saved colors or device feedback.
     arrow_angle = { type = "number", default = 120, min = 60, max = 150, integer = true, label = "Arrow angle" },
     titlebar_enabled = { type = "boolean", default = true, label = "Show title bar" },
+    allow_docking = { type = "boolean", default = false, label = "Allow docking" },
+    interactive_controls = { type = "boolean", default = true, label = "Interactive controls" },
+    invert_scroll = { type = "boolean", default = false, label = "Invert scroll" },
+    tooltip_delay = { type = "number", default = 1.0, min = 0.0, max = 5.0, label = "Tooltip delay", format = "%.1f s" },
+    label_replacements = { type = "string", default = "", label = "Label replacements", multiline = true },
 }
 
 M.OSD_SCHEMA = {
@@ -204,7 +209,7 @@ M.NOTIFICATIONS_SCHEMA = {
     opacity = { type = "number", default = 0.8, min = 0.2, max = 1.0, label = "Notification opacity", format = "%.2f" },
 }
 
-M.OSK_ORDER = { "zoom", "font_size", "font_family", "line_height", "label_case", "aspect", "pad_h", "pad_v", "transparency", "btn_transparency", "inactive_led_boost", "arrow_angle", "titlebar_enabled" }
+M.OSK_ORDER = { "zoom", "font_size", "font_family", "line_height", "label_case", "aspect", "pad_h", "pad_v", "transparency", "btn_transparency", "inactive_led_boost", "arrow_angle", "titlebar_enabled", "allow_docking", "interactive_controls", "invert_scroll", "tooltip_delay", "label_replacements" }
 M.OSD_ORDER = { "osd_position", "osd_alignment", "osk_bar_position", "osd_width_percent", "osd_height_px", "osd_transparency", "osd_h_margin_px", "osd_v_margin_px", "osd_font_px", "osd_bg_on", "osd_bg_off" }
 M.NOTIFICATIONS_ORDER = { "opacity" }
 

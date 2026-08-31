@@ -191,6 +191,18 @@ local function endRoundedList(ctx)
     imgui.PopStyleVar(ctx)
 end
 
+local function renderListHeader(ctx, label, addId, addTooltip, onAdd)
+    imgui.AlignTextToFramePadding(ctx)
+    imgui.Text(ctx, label)
+    imgui.SameLine(ctx)
+    local actionSize = theme.NOTIFICATIONS.close_button_size
+    local availableWidth = imgui.GetContentRegionAvail(ctx)
+    imgui.SetCursorPosX(ctx, imgui.GetCursorPosX(ctx) + math.max(0, availableWidth - actionSize))
+    if imgui.Button(ctx, "+##" .. addId, actionSize, actionSize) then onAdd() end
+    ui.ItemTooltip(ctx, addTooltip)
+    imgui.Spacing(ctx)
+end
+
 local function removeIoAndReferences(data, kind, deviceIdx)
     local devices = kind == "MIDI" and data.midi or data.osc
     local device = devices[deviceIdx]
@@ -227,10 +239,10 @@ end
 
 local function addIoDefinition(data, kind)
     if kind == "MIDI" then
-        data.midi[#data.midi + 1] = { active = false, channels = 8, inputName = "", inputPort = -1, maxMessages = 200, name = uniqueIoName(data, "MIDI"), outputName = "", outputPort = -1, refreshRate = 15, runtimeIssue = "", settingOverrides = {} }
+        data.midi[#data.midi + 1] = { active = false, inputName = "", inputPort = -1, maxMessages = 200, name = uniqueIoName(data, "MIDI"), outputName = "", outputPort = -1, refreshRate = 15, runtimeIssue = "", settingOverrides = {} }
         state.editIo = { creating = true, index = #data.midi, kind = "MIDI" }
     else
-        data.osc[#data.osc + 1] = { active = false, address = "127.0.0.1", channels = 8, maxPackets = 0, name = uniqueIoName(data, "OSC"), receivePort = "8000", runtimeIssue = "", settingOverrides = {}, transmitPort = "9000", type = "OSC" }
+        data.osc[#data.osc + 1] = { active = false, address = "127.0.0.1", maxPackets = 200, name = uniqueIoName(data, "OSC"), receivePort = "8000", runtimeIssue = "", settingOverrides = {}, transmitPort = "9000", type = "OSC" }
         state.editIo = { creating = true, index = #data.osc, kind = "OSC" }
     end
 end
@@ -244,7 +256,6 @@ local function renderMidiEditor(ctx, data, device, deviceIdx, fonts)
     sectionHeader(ctx, "MIDI device", fonts)
     if beginForm(ctx, "##MidiMasterForm") then
         fieldRow(ctx, "Name", function() local changed, value = textField(ctx, "MidiName", device.name) if changed then renameIo(data, device.name, value) device.name = value end end)
-        fieldRow(ctx, "Channels", function() local changed; changed, device.channels = integerField(ctx, "MidiChannels", device.channels, 1, 1024) end)
         fieldRow(ctx, "Input port", function()
             local changed
             changed, device.inputPort = ui.ComboEnum(ctx, "##MidiInput", device.inputPort, midiPortItems(data.midiInputOptions, device.inputPort))
@@ -256,7 +267,7 @@ local function renderMidiEditor(ctx, data, device, deviceIdx, fonts)
             if changed then device.outputName = midiPortName(data.midiOutputOptions, device.outputPort) end
         end)
         fieldRow(ctx, "Refresh rate", function() local changed; changed, device.refreshRate = integerField(ctx, "MidiRefresh", device.refreshRate, 1, 60000) end)
-        fieldRow(ctx, "Maximum messages", function() local changed; changed, device.maxMessages = integerField(ctx, "MidiMessages", device.maxMessages, 0, 1000000) end)
+        fieldRow(ctx, "Maximum messages", function() local changed; changed, device.maxMessages = integerField(ctx, "MidiMessages", device.maxMessages, 1, 1000000) end)
         imgui.EndTable(ctx)
     end
     localError(ctx, ioDefinitionError(data, "MIDI", deviceIdx, device))
@@ -269,11 +280,10 @@ local function renderOscEditor(ctx, data, device, deviceIdx, fonts)
     if beginForm(ctx, "##OscMasterForm") then
         fieldRow(ctx, "Name", function() local changed, value = textField(ctx, "OscName", device.name) if changed then renameIo(data, device.name, value) device.name = value end end)
         fieldRow(ctx, "Type", function() local changed; changed, device.type = ui.ComboEnum(ctx, "##OscType", device.type, typeItems) end)
-        fieldRow(ctx, "Channels", function() local changed; changed, device.channels = integerField(ctx, "OscChannels", device.channels, 1, 1024) end)
         fieldRow(ctx, "Receive port", function() local changed; changed, device.receivePort = textField(ctx, "OscReceive", device.receivePort) end)
         fieldRow(ctx, "Transmit address", function() local changed; changed, device.address = textField(ctx, "OscAddress", device.address) end)
         fieldRow(ctx, "Transmit port", function() local changed; changed, device.transmitPort = textField(ctx, "OscTransmit", device.transmitPort) end)
-        fieldRow(ctx, "Maximum packets", function() local changed; changed, device.maxPackets = integerField(ctx, "OscPackets", device.maxPackets, 0, 1000000) end)
+        fieldRow(ctx, "Maximum packets", function() local changed; changed, device.maxPackets = integerField(ctx, "OscPackets", device.maxPackets, 1, 1000000) end)
         imgui.EndTable(ctx)
     end
     localError(ctx, ioDefinitionError(data, "OSC", deviceIdx, device))
@@ -365,11 +375,14 @@ local function removePage(data, pageIdx)
 end
 
 local function renderPageList(ctx, data, fonts)
-    sectionHeader(ctx, "Pages", fonts)
     local visible = beginRoundedList(ctx, "##PagesList", LIST_CHILD_HEIGHT)
     if visible then
-        if imgui.Button(ctx, "Add Page", 100, 0) then data.pages[#data.pages + 1] = newPage(uniquePageName(data, "Page")) state.pageIndex = #data.pages state.surfaceIndex = 1 state.editPage = state.pageIndex end
-        imgui.Spacing(ctx)
+        renderListHeader(ctx, "Pages", "AddPage", "Add Page", function()
+            data.pages[#data.pages + 1] = newPage(uniquePageName(data, "Page"))
+            state.pageIndex = #data.pages
+            state.surfaceIndex = 1
+            state.editPage = state.pageIndex
+        end)
         if imgui.BeginTable(ctx, "##PageRows", 4, 0, -1, 0) then
             local actionSize = theme.NOTIFICATIONS.close_button_size
             imgui.TableSetupColumn(ctx, "Status", imgui.TableColumnFlags_WidthFixed, actionSize)
@@ -423,22 +436,28 @@ local function removeSurface(page, surfaceIdx)
     state.listenerIndex = clamp(state.listenerIndex, #page.listeners)
 end
 
-local function openSurfaceOsk(page, surface)
+local function isSurfaceOskEnabled(surfaceName)
+    if not reaper then return false end
+    local enabledSurfaces = reaper.GetExtState(identity.extState.osk, "Surfaces") or ""
+    for enabledSurface in enabledSurfaces:gmatch("[^|]+") do if enabledSurface == surfaceName then return true end end
+    return false
+end
+
+local function toggleSurfaceOsk(page, surface)
     if not reaper or not page or not page.current or not surface or not surface.active then return end
-    reaper.SetExtState(identity.extState.oskCommand, "SurfaceEnabled", surface.name .. "|1", false)
-    state.status = "Opening OSK for " .. surface.name
+    local enable = not isSurfaceOskEnabled(surface.name)
+    reaper.SetExtState(identity.extState.oskCommand, "SurfaceEnabled", surface.name .. "|" .. (enable and "1" or "0"), false)
+    state.status = (enable and "Opening OSK for " or "Closing OSK for ") .. surface.name
 end
 
 local function renderAssignmentList(ctx, data, page, pageIdx, fonts)
-    sectionHeader(ctx, "Surface assignments", fonts)
     local visible = beginRoundedList(ctx, "##SurfaceAssignmentsList", LIST_CHILD_HEIGHT)
     if visible then
-        if imgui.Button(ctx, "Add Surface", 110, 0) then
+        renderListHeader(ctx, "Surface assignments", "AddSurface", "Add Surface assignment", function()
             page.surfaces[#page.surfaces + 1] = newSurface(data, page)
             state.surfaceIndex = #page.surfaces
             state.editSurface = { creating = true, page = pageIdx, surface = state.surfaceIndex }
-        end
-        imgui.Spacing(ctx)
+        end)
         if imgui.BeginTable(ctx, "##SurfaceAssignmentRows", 5, 0, -1, 0) then
             local actionSize = theme.NOTIFICATIONS.close_button_size
             imgui.TableSetupColumn(ctx, "Status", imgui.TableColumnFlags_WidthFixed, actionSize)
@@ -453,8 +472,9 @@ local function renderAssignmentList(ctx, data, page, pageIdx, fonts)
                 if imgui.Selectable(ctx, surface.name .. "##AssignmentList" .. surfaceIdx, state.surfaceIndex == surfaceIdx) then state.surfaceIndex = surfaceIdx end
                 imgui.TableSetColumnIndex(ctx, 2)
                 local canOpenOsk = page.current and surface.active
-                ui.Disabled(ctx, not canOpenOsk, function() if imgui.Button(ctx, "OSK##OpenSurfaceOsk" .. surfaceIdx, 40, actionSize) then openSurfaceOsk(page, surface) end end)
-                ui.ItemTooltip(ctx, canOpenOsk and ("Open OSK for " .. surface.name) or (page.current and "The Surface must be connected before OSK can open" or "Switch REAPER to this Page before opening its OSK"))
+                local oskEnabled = canOpenOsk and isSurfaceOskEnabled(surface.name)
+                ui.Disabled(ctx, not canOpenOsk, function() if imgui.Button(ctx, "OSK##OpenSurfaceOsk" .. surfaceIdx, 40, actionSize) then toggleSurfaceOsk(page, surface) end end)
+                ui.ItemTooltip(ctx, canOpenOsk and ((oskEnabled and "Close OSK for " or "Open OSK for ") .. surface.name) or (page.current and "The Surface must be connected before OSK can open" or "Switch REAPER to this Page before opening its OSK"))
                 imgui.TableSetColumnIndex(ctx, 3)
                 if imgui.Button(ctx, "✎##EditSurface" .. surfaceIdx, actionSize, actionSize) then state.editSurface = { page = pageIdx, surface = surfaceIdx } end
                 ui.ItemTooltip(ctx, "Edit " .. surface.name)

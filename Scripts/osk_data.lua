@@ -41,19 +41,7 @@ M.USER_LABEL_REPLACEMENTS = {}
 M.LABEL_REPLACEMENTS = {}
 M.labelReplacementRules = {}
 
-M.vars = {
-    interactive = true,
-    invert_scroll = false,
-    tooltip_delay = 1.0,
-    label_replacements = "",
-}
-
-local SETTINGS_SCHEMA = {
-    interactive = { type = "boolean", default = true },
-    invert_scroll = { type = "boolean", default = false },
-    tooltip_delay = { type = "number", default = 1.0, min = 0.0, max = 5.0 },
-    label_replacements = { type = "string", default = "" },
-}
+M.vars = theme.osk
 
 local function clearTable(tbl)
     for key in pairs(tbl) do
@@ -395,12 +383,12 @@ function M.ParseLabelMap(str)
 end
 
 function M.LoadSettings()
-    settings_store.Load(M.EXT_SETTINGS, SETTINGS_SCHEMA, M.vars)
-    M.parseLabelReplacements(M.vars.label_replacements)
+    theme.LoadOskSettings()
+    M.RefreshAppearance()
 end
 
-function M.SaveSettings()
-    settings_store.Save(M.EXT_SETTINGS, SETTINGS_SCHEMA, M.vars)
+function M.RefreshAppearance()
+    M.parseLabelReplacements(M.vars.label_replacements)
 end
 
 function M.LoadSurfacePosition(surfName)

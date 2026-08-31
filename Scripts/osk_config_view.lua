@@ -146,6 +146,8 @@ function M.RenderToolbar(ctx, state, deps)
     ui.DirtyActionButton(ctx, "Revert", operationReady and state.isDirty, function()
         deps.protocol.RequestRevert(state, deps.data)
     end)
+    imgui.SameLine(ctx)
+    if imgui.Button(ctx, "Create zone file...") and deps.onCreateZone then deps.onCreateZone() end
 
     if state.pendingOperation then
         imgui.SameLine(ctx)

@@ -1,3 +1,4 @@
+// @format zone 1
 Zone Home
     OnInitialization     ToggleEnableFocusedFXMapping
     OnInitialization          SetBlinkTime 300
@@ -46,15 +47,15 @@ Zone Home
   Flip+Shift+Fader  TrackVolume
   Flip+Fader        TrackPan
 
-  Solo              TrackSolo
+  Solo  TrackSolo
+  Hold+Solo  Reaper 40745 Feedback=No HoldDelay=400
+  Shift+Solo  Reaper _SWS_SOLOTOGGLE // Options: Solo in front
   Mute              TrackMute
   Arm  TrackRecordArm
   Hold+Arm  Reaper 40736 Feedback=No HoldDelay=400
   Shift+Arm  Reaper _SWS_ARMTOGGLE // Track: Toggle automatic record-arm when track selected
   Shift+Mute        Reaper _SWS_MUTETOGGLE
-  Shift+Solo        Reaper _SWS_SOLOTOGGLE
   Hold+Mute         NoAction      Feedback=No HoldDelay=400 
-  Hold+Solo         Reaper 40745  Feedback=No HoldDelay=400 // Options: Solo in front
 
 // ===========================================
 // WHEEL + NAV
@@ -63,13 +64,17 @@ Zone Home
   Shift             Shift Blink
   DoublePress+Shift         ToggleOSK
 
-  Prev                      Reaper 40286 // Track: Go to previous track
-  Next                      Reaper 40285 // Track: Go to next track
-  Prev                      Reaper 40286 HoldDelay=500 HoldRepeatInterval=100 // Track: Go to previous track
-  Next                      Reaper 40285 HoldDelay=500 HoldRepeatInterval=100 // Track: Go to next track
+  Prev  Reaper 40286 OSD={prevTrackName}\\n<{currTrackName}\\n{nextTrackName} KeyLabel=prev // Track: Go to previous track
+  Hold+Prev  Reaper 40286 HoldDelay=500 HoldRepeatInterval=100 // Track: Go to previous track
+  Shift+Prev  Reaper 40029 // Edit: Undo
+  Marker+Prev  Reaper _SWS_SELPREVMORR // Time selection: Set start point
+  Shift+Marker+Prev  Reaper 40625 // SWS: Go to/time-select previous marker/region
+  Next  Reaper 40285 OSD={prevTrackName}\\n>{currTrackName}\\n{nextTrackName} KeyLabel=next // Track: Go to next track
+  Hold+Next  Reaper 40285 HoldDelay=500 HoldRepeatInterval=100 // Track: Go to next track
+  Shift+Next  Reaper 40030 // Edit: Redo
+  Marker+Next  Reaper _SWS_SELNEXTMORR // Time selection: Set end point
+  Shift+Marker+Next  Reaper 40626 // SWS: Go to/time-select next marker/region
 
-  Shift+Prev                Reaper 40029 // Edit: Undo
-  Shift+Next                Reaper 40030 // Edit: Redo
 
   RotaryBigPush             Reaper 40434 // View: Move edit cursor to play cursor
   Shift+RotaryBigPush       NoAction
@@ -160,7 +165,7 @@ Zone Home
       //Pan                        GoSubZone Paning   HoldDelay=1000 Feedback=Yes {  0 120 0  0 120 0 }
       //Shift+Pan                  GoSubZone Paning  { 0 0 20   0 0 120 }
 
-       Channel                   GoZone SelectedTrackSend      {  7 10 10   0 240 120 }
+  Channel  GoZone SelectedTrackSend { 7 10 10 0 240 120 }
       // Channel                   GoZone SelectedTrackSend      {  7 10 10 }
       // Shift+Channel             GoZone SelectedTrackFXMenu    {  7 10 20 }
       // Channel // Button1 _S&M_FXBYPLAST     // Bypasses last touched FX on the selected track
@@ -223,11 +228,7 @@ Zone Home
   Marker+Shift+Write         Reaper 40615 { 80  0  0  255   0   0 } // Markers: Delete region near cursor
   Marker+Shift+Read          Reaper 40635 {  7 10 20  120 120 240 } // Time selection: Remove (unselect) time selection
 
-  Marker+Shift+Prev          Reaper 40625 // Time selection: Set start point
-  Marker+Shift+Next          Reaper 40626 // Time selection: Set end point
 
-  Marker+Prev                Reaper _SWS_SELPREVMORR  // SWS: Go to/time-select previous marker/region
-  Marker+Next                Reaper _SWS_SELNEXTMORR  // SWS: Go to/time-select next marker/region
   // Marker+Prev                Reaper 40172  // Markers: Go to previous marker/project start
   // Marker+Next                Reaper 40173  // Markers: Go to next marker/project end
 
@@ -245,23 +246,22 @@ Zone Home
   Shift+Hold+Loop           Reaper 42348 // Reset all MIDI control surface devices
   Shift+Hold+Loop           Reaper 41743 // Control surface: Refresh all surfaces
 
-  Rewind                    Reaper 41041  // Move edit cursor to start of current measure
-  Shift+Rewind              Reaper 41045  // Move edit cursor back one beat
-  Hold+Rewind               Reaper 40042  Feedback=No HoldDelay=1000 // Go to the project start
-  Shift+Hold+Rewind         Reaper 40042  Feedback=No HoldDelay=1000 // Go to the project start
+  Rewind  Reaper 41041 OSD="◀◀ {currMinSec} [{currBarBeat}] " KeyLabel=◀◀ // Move edit cursor to start of current measure
+  Hold+Rewind  Reaper 40042 Feedback=No HoldDelay=1000 OSD="◀◀ {currMinSec} [{currBarBeat}] " KeyLabel=◀◀ // Move edit cursor back one beat
+  Shift+Rewind  Reaper 41045 // Go to the project start
+  Hold+Shift+Rewind  Reaper 40042 Feedback=No HoldDelay=1000 // Go to the project start
 
-  FastForward               Reaper 41040  // Move edit cursor to start of next measure
-  Shift+FastForward         Reaper 41044  // Move edit cursor forward one beat
-  Hold+FastForward          Reaper 40043  Feedback=No HoldDelay=1000 // Go to the project end
-  Shift+Hold+FastForward    Reaper 40043  Feedback=No HoldDelay=1000 // Go to the project end
+  FastForward  Reaper 41040 OSD="▶▶ {currMinSec} [{currBarBeat}]" KeyLabel=▶▶ // Move edit cursor to start of next measure
+  Hold+FastForward  Reaper 40043 Feedback=No HoldDelay=1000 OSD="▶▶ {currMinSec} [{currBarBeat}]" KeyLabel=▶▶ // Move edit cursor forward one beat
+  Shift+FastForward  Reaper 41044 // Go to the project end
+  Hold+Shift+FastForward  Reaper 40043 Feedback=No HoldDelay=1000 // Go to the project end
 
-  Stop                      Stop
-  DoublePress+Stop          Reaper 40042  Feedback=No // Go to the project start
-  Hold+Stop                 Reaper 40042  Feedback=No HoldDelay=1000 // Go to the project start
-  Play  Play
-  Record  Record Blink
+  Stop  Stop OSD="■ {currMinSec} [{currBarBeat}] " KeyLabel=■
+  DoublePress+Stop  Reaper 40042 Feedback=No // Go to the project start
+  Hold+Stop  Reaper 40042 Feedback=No HoldDelay=1000 // Go to the project start
+  Play  Play OSD="▶ {currMinSec} [{currBarBeat}]" KeyLabel=▶
+  Record  Record Blink OSD="REC ● {currMinSec} [{currBarBeat}]" KeyLabel="REC ●"
   Shift+Record  CycleDebugLevel
 
-ZoneEndo the project start
 
 ZoneEnd
