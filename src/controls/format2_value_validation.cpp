@@ -63,6 +63,31 @@ static bool ValidateFormat2MidiMessage(const Format2ValueSyntax& value, std::siz
     return true;
 }
 
+static bool ValidateFormat2MidiInitializationMessage(const Format2ValueSyntax& value) {
+    if (!value.list || value.items.empty()) return false;
+    std::vector<int> bytes;
+    for (const Format2ScalarSyntax& item : value.items) {
+        int byte = 0;
+        if (!ParseFormat2IntegerScalar(item, byte) || byte < 0 || byte > 0xFF) return false;
+        bytes.push_back(byte);
+    }
+    if (bytes[0] == 0xF0) {
+        if (bytes.size() < 2 || bytes.back() != 0xF7) return false;
+        for (std::size_t byteIdx = 1; byteIdx + 1 < bytes.size(); ++byteIdx) if (bytes[byteIdx] > 0x7F) return false;
+        return true;
+    }
+    if (bytes[0] < 0x80) return false;
+    std::size_t expectedSize = 0;
+    if (bytes[0] <= 0xEF) expectedSize = (bytes[0] & 0xF0) == 0xC0 || (bytes[0] & 0xF0) == 0xD0 ? 2 : 3;
+    else if (bytes[0] == 0xF1 || bytes[0] == 0xF3) expectedSize = 2;
+    else if (bytes[0] == 0xF2) expectedSize = 3;
+    else if (bytes[0] == 0xF6 || bytes[0] == 0xF8 || bytes[0] == 0xFA || bytes[0] == 0xFB || bytes[0] == 0xFC || bytes[0] == 0xFE || bytes[0] == 0xFF) expectedSize = 1;
+    else return false;
+    if (bytes.size() != expectedSize) return false;
+    for (std::size_t byteIdx = 1; byteIdx < bytes.size(); ++byteIdx) if (bytes[byteIdx] > 0x7F) return false;
+    return true;
+}
+
 static bool ValidateFormat2Enum(const Format2ValueSyntax& value, const std::string& values) {
     if (value.list || value.scalar.quoted) return false;
     std::size_t start = 0;
@@ -128,6 +153,7 @@ std::string ValidateFormat2ValueRule(const Format2PropertySyntax& property, cons
     if (rule == "MIDIMessage2") return ValidateFormat2MidiMessage(property.value, 2, 2) ? std::string{} : "a two-byte MIDI message prefix";
     if (rule == "MIDIMessage3") return ValidateFormat2MidiMessage(property.value, 3, 3) ? std::string{} : "a complete three-byte MIDI message";
     if (rule == "MIDIMessage1Or2") return ValidateFormat2MidiMessage(property.value, 1, 2) ? std::string{} : "a one- or two-byte MIDI message prefix";
+    if (rule == "MIDIInitializationMessage") return ValidateFormat2MidiInitializationMessage(property.value) ? std::string{} : "one complete MIDI message";
     if (rule == "OSCAddress") {
         if (!property.value.list && !property.value.scalar.text.empty() && property.value.scalar.text[0] == '/') return {};
         return "one OSC address that starts with /";

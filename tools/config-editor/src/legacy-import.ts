@@ -6,7 +6,7 @@ import { addDiagnostic, serializeDocument, type Diagnostic } from "./model.ts";
 import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
 import { EditorOperationError } from "./store.ts";
 import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
-import { convertLegacySurfaceToFormat2 } from "./legacy-surface-format2.ts";
+import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy-surface-format2.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
@@ -160,6 +160,30 @@ export function migrateLegacyZoneSyntax(source: string): string {
         if (line.tokens.some((token) => /^BarStyle=BiPolar$/i.test(token))) line.text = line.text.replace(/\bBarStyle=BiPolar\b/i, "BarStyle=Bipolar");
     }
     return lines.map((line) => line.text + line.ending).join("");
+}
+
+function resolveLegacyMcuMeterMode(zones: Array<{ source: string; sourcePath: string }>, draftMap: Map<string, LegacyImportDraft>): { diagnostics: Diagnostic[]; mode: LegacyMcuMeterMode } {
+    const canonicalModes = new Map<string, LegacyMcuMeterMode>([["iconv1m", "IconV1M"], ["mcu", "MCU"], ["sslnucleus2", "SSLNucleus2"], ["xtouch", "XTouch"]]);
+    const diagnostics: Diagnostic[] = [];
+    const occurrences: Array<{ line: number; mode: LegacyMcuMeterMode; path: string }> = [];
+    for (const zone of zones) {
+        const source = draftMap.get(zone.sourcePath)?.source ?? zone.source;
+        for (const line of splitSourceLines(source)) {
+            initializeLine(line);
+            const property = line.tokens.find((token) => /^MeterMode=/i.test(token));
+            if (!property) continue;
+            const rawMode = property.slice(property.indexOf("=") + 1);
+            const mode = canonicalModes.get(rawMode.toLowerCase());
+            if (!mode) addDiagnostic(diagnostics, "error", "legacy.surface.meter-mode.unknown", `Unknown legacy MeterMode: ${rawMode}. Use XTouch, MCU, SSLNucleus2, or IconV1M.`, line.lineNumber, zone.sourcePath);
+            else occurrences.push({ line: line.lineNumber, mode, path: zone.sourcePath });
+        }
+    }
+    const modes = [...new Set(occurrences.map((occurrence) => occurrence.mode))];
+    if (modes.length > 1) {
+        const first = occurrences[0];
+        addDiagnostic(diagnostics, "error", "legacy.surface.meter-mode.conflict", `The legacy zones use several meter scales (${modes.join(", ")}), but each converted meter output references one fixed profile. Keep one MeterMode before import.`, first.line, first.path, occurrences.slice(1).map((occurrence) => ({ line: occurrence.line, path: occurrence.path })));
+    }
+    return { diagnostics, mode: modes[0] ?? "XTouch" };
 }
 
 function formatSource(source: string, kind: LegacyImportKind, targetPath: string, knownActions: Set<string>): string {
@@ -453,12 +477,14 @@ export class LegacyCsiSource {
             targetPathMap.set(target.sourcePath, target.targetPath);
         }
 
+        const meterMode = resolveLegacyMcuMeterMode(files.zones, draftMap);
         const surfaceTargetPath = targetPathMap.get(files.surface.sourcePath) || `Surfaces/User/${targetProfileId}.txt`;
         this.validateTargetScope("surface", surfaceTargetPath, targetProfileId);
-        const surfaceConversion = convertLegacySurfaceToFormat2(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source, files.name, surfaceTargetPath);
+        const surfaceConversion = convertLegacySurfaceToFormat2(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source, files.name, surfaceTargetPath, meterMode.mode);
         const migratedSurface = surfaceConversion.source;
         const surfaceDocument = parseByPath(migratedSurface, surfaceTargetPath, knownActions);
         surfaceDocument.diagnostics.push(...surfaceConversion.diagnostics);
+        if (includeSurface && !useExistingSurface) surfaceDocument.diagnostics.push(...meterMode.diagnostics);
         const zoneDocuments = new Map<string, AnyDocument>();
         const migratedZoneSources = new Map<string, string>();
         const zoneTargetPaths = new Map<string, string>();

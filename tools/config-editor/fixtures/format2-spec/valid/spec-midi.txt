@@ -36,6 +36,15 @@ BarProfile StandardBar {
   Style Off Code=4
 }
 
+MeterProfile MeterSteps {
+  Mode=Steps
+  InputUnit=Decibels
+  Default=0
+  Step Minimum=-60.3 Output=1
+  Step Minimum=-3.1 Output=13
+  Step Minimum=0.1 Output=14
+}
+
 TextProfile SevenCharacters {
   Encoding=ASCII7
   Width=7
@@ -54,6 +63,11 @@ TextProfile StyledDisplay {
   Alignment Right Code=2
   InvertCode=4
   PresentationCombine=BitOr
+}
+
+Initialize {
+  MIDI Bytes=[0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7]
+  MIDI Bytes=[0xD0, 0x00]
 }
 
 Widget Play {
@@ -88,6 +102,11 @@ Widget Rotary1 {
 Widget ValueBar1 {
   Channel=1
   Feedback Bar { Encoding=MIDI7 Message=[0xB0, 0x31] StyleMessage=[0xB0, 0x39] BarProfile=StandardBar }
+}
+
+Widget Meter1 {
+  Channel=1
+  Feedback Meter { Encoding=MIDI7 Message=[0xD0] MeterProfile=MeterSteps ValueBase=0x00 Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }
 }
 
 Widget PaletteButton1 {

@@ -1643,6 +1643,8 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Add universal `MIDI7` Ring value and RingStyle feedback through `RingProfile`, ValueBase/Combine, StyleTarget, StyleShift, and StyleCombine. Keep nested Ring color Configure for its separate remaining runtime step.
   - ✅ Add `MIDIPrefix` Press runtime behavior for legacy `AnyPress` conversion without a fabricated release message.
   - ✅ Add universal constant-prefix `MIDISysEx` Text feedback with a terminal Text field and TextProfile encoding, width, padding, clear text, silence handling, and global label restriction.
+  - ✅ Add a universal Surface-level `Initialize` block whose MIDI lines contain complete validated channel, system, or SysEx messages. Send them after Surface loading and again after MIDI I/O reconnect.
+  - ✅ Add universal `MIDI7` Meter feedback through MeterProfile, ValueBase/Combine, and explicit refresh metadata. Keep meter scales and output addressing out of device-named runtime classes.
   - [ ] Add TypeScript and Lua readers for the same catalog when their format 2 consumers are implemented.
     - ✅ Add the TypeScript schema reader and use its representation lookup to validate declared legacy conversion targets.
     - [ ] Add the Lua reader when Lua begins consuming format 2 Surface primitives directly.
@@ -1699,6 +1701,7 @@ Public legacy Surface conversion has one completion gate:
   - ✅ Add `bun run surface-coverage` to inventory every processor occurrence inside legacy Widget blocks in the public Surface files, ignore OSK layout entries, report malformed Widget boundaries separately, and verify that each declared conversion target exists in the canonical catalog. Distinguish processors that wait for an approved runtime from unknown processor types.
   - ✅ Classify generic legacy OSC `Control` and `FB_Processor` as planned until the format 2 OSC runtime and explicit value-type conversion are implemented; do not report them as supported before then.
   - ✅ Convert legacy OSC `Control` to OSCFloat Input Value. Split one generic `FB_Processor` into typed OSCFloat Value, OSCString Text, and OSCString HexRGBA Color feedback, with the legacy `/Color` suffix written explicitly into the converted Color Address. Load these primitives through the format 2 OSC runtime without passing the document through the legacy parser.
+  - ✅ Convert legacy `FB_MCUVUMeter` and `FB_MCUXTVUMeter` to generic MIDI7 Meter feedback. Move MCU/MCUXT setup packets into `Initialize`, infer the shared scale from legacy zone `MeterMode`, preserve XTouch, MCU, SSLNucleus2, and IconV1M thresholds, and block unknown or conflicting scales.
   - [ ] Classify every currently unresolved inventory entry as a universal conversion, intentionally unsupported legacy behavior, or an ambiguity that requires user input.
   - [ ] Add parameter-complete golden fixtures for every supported processor family and malformed or ambiguous branch.
   - [ ] Make zero unclassified processors and zero invalid conversion targets a required migration verification result.

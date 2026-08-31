@@ -117,9 +117,11 @@ private:
     // special processing for MCU meters
     bool hasMCUMeters_ = false;
     int displayType_ = 0x14;
+    vector<vector<int>> format2InitializationMessages_;
 
     void InitializeMCU();
     void InitializeMCUXT();
+    void InitializeFormat2Messages();
 
     virtual void InitializeMeters() {
         if (hasMCUMeters_) {
@@ -146,6 +148,8 @@ public:
 
     bool GetHasMCUMeters(void) { return hasMCUMeters_; }
 
+    void SetFormat2InitializationMessages(const vector<vector<int>>& messages) { this->format2InitializationMessages_ = messages; }
+
     virtual void HandleExternalInput() override { surfaceIO_->HandleExternalInput(this); }
 
     virtual void FlushIO() override { surfaceIO_->Flush(); }
@@ -153,9 +157,10 @@ public:
     bool UsesIO(const Midi_ControlSurfaceIO* surfaceIO) const { return surfaceIO_ == surfaceIO; }
 
     void OnMidiIOReconnected() {
-        InitializeMeters();
-        ForceClear();
-        OnInitialization();
+        this->InitializeFormat2Messages();
+        this->InitializeMeters();
+        this->ForceClear();
+        this->OnInitialization();
     }
 
     virtual void RequestUpdate() override {

@@ -295,6 +295,16 @@ struct Format2OskLayout {
     std::vector<Format2OskRow> rows;
 };
 
+struct Format2MidiInitializationMessage {
+    Format2SourceLocation location;
+    std::vector<int> bytes;
+};
+
+struct Format2SurfaceInitialization {
+    Format2SourceLocation location;
+    std::vector<Format2MidiInitializationMessage> midiMessages;
+};
+
 struct Format2SurfaceDocument {
     std::vector<Format2SurfaceNamedBlock> profiles;
     std::vector<Format2EncoderProfile> encoderProfiles;
@@ -307,6 +317,7 @@ struct Format2SurfaceDocument {
     std::vector<Format2FeedbackGroup> feedbackGroups;
     std::vector<Format2SurfaceWidget> widgets;
     std::optional<Format2ColorCalibration> colorCalibration;
+    std::optional<Format2SurfaceInitialization> initialization;
     std::optional<Format2OskLayout> oskLayout;
 };
 

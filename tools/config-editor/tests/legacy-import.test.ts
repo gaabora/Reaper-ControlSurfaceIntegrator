@@ -165,6 +165,26 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x17, 0x30, 0x38, Text ] TextProfile=Display7 }");
     });
 
+    test("converts legacy MCU meters to a universal meter profile and Surface initialization", () => {
+        const legacySurface = `Widget Meter1
+  FB_MCUVUMeter 0
+WidgetEnd
+Widget Meter8
+  FB_MCUXTVUMeter 7
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "MCU meters", "Surfaces/User/mcu-meters.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("MeterProfile SurfaceMeter {");
+        expect(conversion.source).toContain("Step Minimum=-60.3 Output=1");
+        expect(conversion.source).toContain("Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=SurfaceMeter ValueBase=0x00 Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }");
+        expect(conversion.source).toContain("Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=SurfaceMeter ValueBase=0x70 Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }");
+        expect(conversion.source.match(/  MIDI Bytes=/g)).toHaveLength(21);
+        expect(conversion.source).toContain("MIDI Bytes=[ 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x00, 0x01, 0xF7 ]");
+        expect(conversion.source).toContain("MIDI Bytes=[ 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x07, 0x01, 0xF7 ]");
+    });
+
     test("normalizes the legacy value-bar style spelling", () => {
         expect(migrateLegacyZoneSyntax("Zone Track\n  ValueBar| TrackPan BarStyle=BiPolar\nZoneEnd\n")).toContain("BarStyle=Bipolar");
     });
@@ -216,6 +236,38 @@ WidgetEnd
         expect(preview.valid).toBeTrue();
         expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source).toStartWith("// @format zone 1\n// disabled binding\n");
         expect(await readFile(sourcePath, "utf8")).toBe(legacySource);
+    });
+
+    test("moves the legacy zone MeterMode into the converted Surface meter profile", async () => {
+        const surfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
+        const zonePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        await writeFile(surfacePath, "Widget Meter\n  FB_MCUVUMeter 0\nWidgetEnd\n", "utf8");
+        await writeFile(zonePath, "Zone Home\n  Meter Play MeterMode=IconV1M\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const convertedSurface = preview.items.find((item) => item.kind === "surface")?.source;
+
+        expect(convertedSurface).toContain("InputUnit=Decibels");
+        expect(convertedSurface).toContain("Step Minimum=-60.1 Output=1");
+        expect(convertedSurface).not.toContain("Step Minimum=-60.3 Output=1");
+    });
+
+    test("reports conflicting legacy meter scales before import", async () => {
+        const surfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
+        const homePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        const transportPath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "GoZones", "Transport.zon");
+        await writeFile(surfacePath, "Widget Meter\n  FB_MCUVUMeter 0\nWidgetEnd\n", "utf8");
+        await writeFile(homePath, "Zone Home\n  Meter Play MeterMode=IconV1M\nZoneEnd\n", "utf8");
+        await writeFile(transportPath, "Zone Transport\n  Meter Play MeterMode=XTouch\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const diagnostic = preview.diagnostics.find((candidate) => candidate.code === "legacy.surface.meter-mode.conflict");
+        const locations = [{ line: diagnostic?.line, path: diagnostic?.path }, ...(diagnostic?.related ?? [])];
+
+        expect(diagnostic?.message).toContain("XTouch");
+        expect(diagnostic?.message).toContain("IconV1M");
+        expect(locations).toContainEqual({ line: 2, path: "Zones/HomeZones/Home.zon" });
+        expect(locations).toContainEqual({ line: 2, path: "Zones/GoZones/Transport.zon" });
     });
 
     test("offers similar action fixes in an import draft", async () => {

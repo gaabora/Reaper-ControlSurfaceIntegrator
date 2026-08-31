@@ -157,6 +157,7 @@ private:
             else if (IsFormat2ProfileBlock(blockType)) this->ParseNamedBlock(node, this->result_.surface.profiles);
             else if (blockType == "FeedbackGroup") this->ParseFeedbackGroup(node);
             else if (blockType == "ColorCalibration") this->ParseColorCalibration(node);
+            else if (blockType == "Initialize") this->ParseInitialization(node);
             else if (blockType == "OSKLayout") this->ParseOskLayout(node);
             else this->AddDiagnostic("format2.surface.block.unknown", "Unknown Surface block: " + blockType, node.location);
         }
@@ -1010,6 +1011,40 @@ private:
     void ParseCalibrationFinite(const Format2ParsedProfileBody& body, const std::string& name, double& destination) const {
         const auto property = body.properties.find(name);
         if (property != body.properties.end()) ParseFormat2FiniteScalar(property->second->value.scalar, destination);
+    }
+
+    void ParseInitialization(const Format2SyntaxNode& node) {
+        if (node.positionalTokens.size() != 1 || !node.properties.empty()) {
+            this->AddDiagnostic("format2.surface.initialize.header", "Initialize does not accept an ID or header properties", node.location);
+            return;
+        }
+        if (this->result_.surface.initialization) {
+            this->AddDiagnostic("format2.surface.initialize.duplicate", "Initialize can occur only once", node.location);
+            return;
+        }
+        if (this->result_.document.metadata.protocol != Format2SurfaceProtocol::Midi) {
+            this->AddDiagnostic("format2.surface.initialize.protocol", "Initialize with MIDI messages requires Protocol=MIDI", node.location);
+            return;
+        }
+        Format2ParsedProfileBody body;
+        if (!this->ParseSurfaceBlockBody(node, "Initialize", body)) return;
+        Format2SurfaceInitialization initialization;
+        initialization.location = node.location;
+        const auto messages = body.lines.find("MIDI");
+        if (messages != body.lines.end()) {
+            for (const Format2SyntaxNode* messageNode : messages->second) {
+                const Format2PropertySyntax* bytesProperty = FindFormat2NodeProperty(*messageNode, "Bytes");
+                if (!bytesProperty || !bytesProperty->value.list) continue;
+                Format2MidiInitializationMessage message;
+                message.location = messageNode->location;
+                for (const Format2ScalarSyntax& item : bytesProperty->value.items) {
+                    int byte = 0;
+                    if (ParseFormat2IntegerScalar(item, byte)) message.bytes.push_back(byte);
+                }
+                if (!message.bytes.empty()) initialization.midiMessages.push_back(std::move(message));
+            }
+        }
+        this->result_.surface.initialization = std::move(initialization);
     }
 
     void ParseFeedbackGroup(const Format2SyntaxNode& node) {

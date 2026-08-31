@@ -147,9 +147,25 @@ Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContex
     const Format2MidiRuntimeLoadResult format2Result = Format2MidiRuntimeLoader::Load(surfaceFile, this);
     if (format2Result == Format2MidiRuntimeLoadResult::NotFormat2) this->ProcessMIDIWidgetFile(surfaceFile, this);
     this->InitHardwiredWidgets(this);
+    this->InitializeFormat2Messages();
     this->InitializeMeters();
     if (format2Result == Format2MidiRuntimeLoadResult::NotFormat2) this->ParseOSKLayout(surfaceFile);
     this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
+}
+
+void Midi_ControlSurface::InitializeFormat2Messages() {
+    for (const vector<int>& bytes : this->format2InitializationMessages_) {
+        if (bytes.empty()) continue;
+        if (bytes[0] == 0xF0) {
+            SysExBuilder builder;
+            builder.begin();
+            for (size_t byteIdx = 1; byteIdx + 1 < bytes.size(); ++byteIdx) builder.add((unsigned char) bytes[byteIdx]);
+            builder.end();
+            this->SendMidiSysExMessage(builder.message());
+        } else if (bytes.size() == 1) this->SendMidiMessage(bytes[0], 0, 0);
+        else if (bytes.size() == 2) this->SendMidiMessage(bytes[0], bytes[1], 0);
+        else if (bytes.size() == 3) this->SendMidiMessage(bytes[0], bytes[1], bytes[2]);
+    }
 }
 
 void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t* evt) {

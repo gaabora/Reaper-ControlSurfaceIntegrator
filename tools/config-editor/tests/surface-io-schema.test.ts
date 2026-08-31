@@ -39,6 +39,8 @@ describe("Surface I/O schema", () => {
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcuxtdisplaylower")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_c4displayupper")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_c4displaylower")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcuvumeter")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcuxtvumeter")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_mcudisplayupper")?.status).toBe("unsupported");
         expect(report.processors.some((entry) => entry.processor.toLowerCase() === "widget")).toBeFalse();
         expect(report.processors.some((entry) => entry.status === "invalid-target")).toBeFalse();

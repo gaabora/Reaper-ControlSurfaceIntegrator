@@ -61,6 +61,7 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7 && primitive.nestedBlocks.empty()) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Bar" && primitive.encoding == Format2Encoding::Midi7) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiPalette) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiSysEx) {
         vector<int> prefix;
@@ -296,6 +297,29 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExTextFeedbackProcessor>(surface->csi_, surface, widget, payloadPrefix, *profile));
                 widget->MarkOskTextFeedback();
                 continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && primitive.encoding == Format2Encoding::Midi7) {
+                vector<int> message;
+                if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.empty() || message.size() > 2) continue;
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "MeterProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2MeterProfile* profile = nullptr;
+                for (const Format2MeterProfile& candidate : parsed.surface.meterProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                int valueBase = 0;
+                const Format2PropertySyntax* valueBaseProperty = FindProperty(primitive, "ValueBase");
+                if (valueBaseProperty) ReadByte(valueBaseProperty->value.scalar, valueBase);
+                Format2MidiValueCombine combine = Format2MidiValueCombine::Replace;
+                const Format2PropertySyntax* combineProperty = FindProperty(primitive, "Combine");
+                if (combineProperty && combineProperty->value.scalar.text == "Add") combine = Format2MidiValueCombine::Add;
+                else if (combineProperty && combineProperty->value.scalar.text == "BitOr") combine = Format2MidiValueCombine::BitOr;
+                const Format2PropertySyntax* refreshProperty = FindProperty(primitive, "Refresh");
+                const bool continuous = refreshProperty && refreshProperty->value.scalar.text == "Continuous";
+                const Format2PropertySyntax* refreshIntervalProperty = FindProperty(primitive, "RefreshIntervalMs");
+                const int refreshIntervalMs = refreshIntervalProperty ? atoi(refreshIntervalProperty->value.scalar.text.c_str()) : 0;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7MeterFeedbackProcessor>(surface->csi_, surface, widget, message, *profile, valueBase, combine, continuous, refreshIntervalMs));
+                widget->MarkOskMeterFeedback();
+                widget->MarkOskValueFeedback();
+                continue;
             } else continue;
 
             MidiWidgetContext context;
@@ -325,6 +349,12 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
             }
             if (!MidiWidgetRegistry::Dispatch(tokens[0], context)) LogToConsole("[ERROR] Unsupported format 2 MIDI runtime mapping in %s, line %d: %s\n", filePath.c_str(), primitive.location.line, tokens[0].c_str());
         }
+    }
+
+    if (parsed.surface.initialization) {
+        vector<vector<int>> messages;
+        for (const Format2MidiInitializationMessage& message : parsed.surface.initialization->midiMessages) messages.push_back(message.bytes);
+        surface->SetFormat2InitializationMessages(messages);
     }
 
     if (parsed.surface.oskLayout) surface->ApplyFormat2OSKLayout(filePath, *parsed.surface.oskLayout);

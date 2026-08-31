@@ -14,7 +14,9 @@ export interface LegacySurfaceProcessorTarget {
     protocol: "MIDI" | "OSC";
 }
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportTwoStateRgb" | "mcuDisplay" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "state" | "touch";
+export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
+
+type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportTwoStateRgb" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -38,8 +40,10 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_c4displayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcudisplaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcudisplayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_mcuvumeter", { kind: "mcuMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
     ["fb_mcuxtdisplaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcuxtdisplayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_mcuxtvumeter", { kind: "mcuMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
     ["fb_processor", {
         kind: "oscFeedback",
         targets: [
@@ -184,6 +188,35 @@ function textProfiles(widgets: SurfaceWidget[]): string[] {
     return ["TextProfile Display7 {", "  Encoding=ASCII7", "  Width=7", "  Padding=Space", '  ClearText=""', "  SilenceAsEmpty=true", "}", ""];
 }
 
+function meterProfile(widgets: SurfaceWidget[], mode: LegacyMcuMeterMode): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => ["fb_mcuvumeter", "fb_mcuxtvumeter"].includes((line.tokens[0] ?? "").toLowerCase())))) return [];
+    const profiles: Record<LegacyMcuMeterMode, { inputUnit: "Decibels" | "Normalized"; steps: Array<[number, number]> }> = {
+        IconV1M: { inputUnit: "Decibels", steps: [[-60.1, 1], [-48.1, 2], [-42.1, 3], [-36.1, 4], [-30.1, 5], [-24.1, 6], [-18.1, 7], [-12.1, 8], [-9.1, 9], [-6.1, 10], [-3.1, 11], [0.1, 14]] },
+        MCU: { inputUnit: "Normalized", steps: Array.from({ length: 14 }, (_, stepIdx) => [(stepIdx + 1) / 15, stepIdx + 1]) },
+        SSLNucleus2: { inputUnit: "Decibels", steps: [[-40.5, 3], [-30.5, 4], [-20.5, 5], [-14.5, 6], [-10.5, 7], [-8.5, 8], [-6.5, 9], [-4.5, 10], [-2.5, 11], [0, 12]] },
+        XTouch: { inputUnit: "Decibels", steps: [[-60.3, 1], [-54.1, 2], [-48.2, 3], [-42.1, 4], [-36.2, 5], [-30.1, 6], [-18.1, 7], [-15.1, 8], [-12.1, 9], [-9.1, 10], [-6.1, 11], [-4.6, 12], [-3.1, 13], [0.1, 14]] },
+    };
+    const profile = profiles[mode];
+    return ["MeterProfile SurfaceMeter {", "  Mode=Steps", `  InputUnit=${profile.inputUnit}`, "  Default=0", ...profile.steps.map(([minimum, output]) => `  Step Minimum=${minimum} Output=${output}`), "}", ""];
+}
+
+function meterInitialization(widgets: SurfaceWidget[]): string[] {
+    const deviceTypes = new Set<number>();
+    for (const widget of widgets) for (const line of widget.body) {
+        const processor = (line.tokens[0] ?? "").toLowerCase();
+        if (processor === "fb_mcuvumeter") deviceTypes.add(0x14);
+        else if (processor === "fb_mcuxtvumeter") deviceTypes.add(0x15);
+    }
+    if (!deviceTypes.size) return [];
+    const messages: number[][] = [[0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7]];
+    for (const deviceType of deviceTypes) {
+        messages.push([0xF0, 0x00, 0x00, 0x66, deviceType, 0x00, 0xF7]);
+        messages.push([0xF0, 0x00, 0x00, 0x66, deviceType, 0x21, 0x01, 0xF7]);
+        for (let channelIdx = 0; channelIdx < 8; channelIdx++) messages.push([0xF0, 0x00, 0x00, 0x66, deviceType, 0x20, channelIdx, 0x01, 0xF7]);
+    }
+    return ["Initialize {", ...messages.map((message) => `  MIDI Bytes=${midiList(message.map((byte) => byte.toString(16)))}`), "}", ""];
+}
+
 function sysExTextPayload(values: string[]): string {
     return `[ ${values.map(midiByte).join(", ")}, Text ]`;
 }
@@ -259,6 +292,10 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
                 return `Feedback Text { Encoding=MIDISysEx Payload=${sysExTextPayload(["00", "00", "66", displayType.toString(16), displayRow.toString(16), offset.toString(16)])} TextProfile=Display7 }`;
             }
         }
+    }
+    if (conversion.kind === "mcuMeter" && tokens[1] && /^\d+$/.test(tokens[1])) {
+        const channel = Number(tokens[1]);
+        if (channel >= 0 && channel <= 7) return `Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=SurfaceMeter ValueBase=${midiByte((channel << 4).toString(16))} Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }`;
     }
     addDiagnostic(diagnostics, "error", "legacy.surface.processor.parameters", `Legacy Surface processor has missing or invalid parameters: ${tokens[0]}`, lineNumber, documentPath);
     return undefined;
@@ -400,7 +437,7 @@ function inferredChannelCount(document: ReturnType<typeof parseSurface>): number
     return channels;
 }
 
-export function convertLegacySurfaceToFormat2(source: string, surfaceName: string, documentPath: string): LegacySurfaceConversion {
+export function convertLegacySurfaceToFormat2(source: string, surfaceName: string, documentPath: string, meterMode: LegacyMcuMeterMode = "XTouch"): LegacySurfaceConversion {
     if (/^\s*(?:\uFEFF)?@Meta\s*\{[^}]*\bVersion=2\b/i.test(source)) {
         const currentDocument = parseSurface(source, documentPath);
         return { diagnostics: currentDocument.diagnostics, source };
@@ -408,7 +445,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         for (const line of widget.body) {

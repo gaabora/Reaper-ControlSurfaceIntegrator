@@ -459,3 +459,94 @@ public:
         this->SendText(inputText);
     }
 };
+
+class Format2Midi7MeterFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<int> message_;
+    Format2MeterProfile profile_;
+    int valueBase_ = 0;
+    Format2MidiValueCombine combine_ = Format2MidiValueCombine::Replace;
+    bool continuous_ = false;
+    DWORD refreshIntervalMs_ = 0;
+    DWORD lastSendTime_ = 0;
+    int lastEncodedValue_ = 0;
+    bool hasLastValue_ = false;
+
+    int ProfileValue(double value) const {
+        const double input = this->profile_.inputUnit == Format2MeterInputUnit::Decibels ? VAL2DB(normalizedToVol(value)) : value;
+        if (this->profile_.mode == Format2MeterMode::Steps) {
+            int output = this->profile_.defaultValue.value_or(0);
+            for (const Format2MeterStep& step : this->profile_.steps) {
+                if (input < step.minimum) break;
+                output = step.output;
+            }
+            return output;
+        }
+        if (!this->profile_.inputRange || !this->profile_.outputRange) return 0;
+        const double minimum = (*this->profile_.inputRange)[0];
+        const double maximum = (*this->profile_.inputRange)[1];
+        const double normalized = std::clamp((input - minimum) / (maximum - minimum), 0.0, 1.0);
+        const double mapped = (*this->profile_.outputRange)[0] + normalized * ((*this->profile_.outputRange)[1] - (*this->profile_.outputRange)[0]);
+        return this->profile_.quantize == Format2Quantize::Round ? (int) std::round(mapped) : (int) std::floor(mapped);
+    }
+
+    int Encode(double value) const {
+        const int profileValue = this->ProfileValue(value);
+        if (this->combine_ == Format2MidiValueCombine::Add) return this->valueBase_ + profileValue;
+        if (this->combine_ == Format2MidiValueCombine::BitOr) return this->valueBase_ | profileValue;
+        return profileValue;
+    }
+
+    void Send(int value, bool force) {
+        if (this->message_.size() == 1) {
+            if (force) this->ForceMidiMessage(this->message_[0], value, 0);
+            else this->SendMidiMessage(this->message_[0], value, 0);
+        } else if (force) this->ForceMidiMessage(this->message_[0], this->message_[1], value);
+        else this->SendMidiMessage(this->message_[0], this->message_[1], value);
+        this->lastSendTime_ = GetTickCount();
+    }
+
+    int ClearValue() const {
+        if (this->profile_.mode == Format2MeterMode::Steps) return this->profile_.defaultValue.value_or(0);
+        return this->profile_.outputRange ? (*this->profile_.outputRange)[0] : 0;
+    }
+
+public:
+    Format2Midi7MeterFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& message, const Format2MeterProfile& profile, int valueBase, Format2MidiValueCombine combine, bool continuous, int refreshIntervalMs)
+        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), profile_(profile), valueBase_(valueBase), combine_(combine), continuous_(continuous), refreshIntervalMs_((DWORD) refreshIntervalMs) {}
+    virtual ~Format2Midi7MeterFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2Midi7MeterFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->lastDoubleValue_ = 0.0;
+        this->lastEncodedValue_ = this->combine_ == Format2MidiValueCombine::Add ? this->valueBase_ + this->ClearValue() : this->combine_ == Format2MidiValueCombine::BitOr ? this->valueBase_ | this->ClearValue() : this->ClearValue();
+        this->hasLastValue_ = true;
+        this->Send(this->lastEncodedValue_, true);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const int encoded = this->Encode(value);
+        const DWORD now = GetTickCount();
+        if (this->continuous_) {
+            if (this->hasLastValue_ && now - this->lastSendTime_ < this->refreshIntervalMs_) return;
+            this->lastDoubleValue_ = value;
+            this->lastEncodedValue_ = encoded;
+            this->hasLastValue_ = true;
+            this->Send(encoded, true);
+            return;
+        }
+        if (this->hasLastValue_ && encoded == this->lastEncodedValue_) return;
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = encoded;
+        this->hasLastValue_ = true;
+        this->Send(encoded, false);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = this->Encode(value);
+        this->hasLastValue_ = true;
+        this->Send(this->lastEncodedValue_, true);
+    }
+};

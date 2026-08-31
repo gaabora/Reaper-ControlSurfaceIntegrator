@@ -21,6 +21,8 @@
 - Format 2 `MIDIRGB` feedback must use its declared Enable, Red, Green, and Blue messages through the generic codec. EncoderProfile lookup must use the referenced profile ID and must not assume `RotaryWidgetClass`.
 - Format 2 `MIDI7` Value, Encoder, and Ring runtime behavior belongs to `format2_midi_generators.h` and `fb_format2.h`. Keep `SignedBit`, `SignedBitFixed`, and `Relative7Bit` explicit. Resolve Ring value and style through its referenced `RingProfile`; apply ValueBase, Combine, StyleTarget, StyleShift, and StyleCombine only where the Surface schema permits them.
 - Format 2 `MIDIPrefix` Press matches its declared two-byte prefix and emits a press for every matching third byte without inventing release behavior.
+- Send each validated format 2 `Initialize` MIDI message once after Surface loading and again after MIDI I/O reconnect. Keep complete channel and system messages plus complete SysEx framing in the Surface file.
+- Resolve format 2 `MIDI7` Meter values through the referenced MeterProfile. Keep scale thresholds, channel value prefixes, combination mode, and continuous refresh settings in Surface metadata instead of device-named feedback processors.
 
 ## Work Guidance
 
