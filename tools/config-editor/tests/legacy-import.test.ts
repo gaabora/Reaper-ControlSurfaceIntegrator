@@ -119,6 +119,29 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Value { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] }");
     });
 
+    test("converts the FaderPort Classic split fader as one symmetric 10-bit value", () => {
+        const legacySurface = `Widget Fader
+  FaderportClassicFader14Bit b0 00 7f b0 20 7f
+  FB_FaderportClassicFader14Bit b0 00 7f b0 20 7f
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort Classic", "Surfaces/User/faderport-classic.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("Input Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }");
+        expect(conversion.source).toContain("Feedback Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }");
+    });
+
+    test("rejects a FaderPort Classic split fader whose two parts have the same prefix", () => {
+        const legacySurface = `Widget Fader
+  FaderportClassicFader14Bit b0 00 7f b0 00 7f
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort Classic", "Surfaces/User/faderport-classic.txt");
+
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.midi-split.prefix.duplicate", line: 2 }));
+    });
+
     test("converts palette color, state-scaled RGB, and value bars to universal feedback", () => {
         const legacySurface = `Widget ColoredButton
   FB_FaderportTwoStateRGB 90 18 7f

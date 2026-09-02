@@ -94,6 +94,7 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiPrefix) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Touch" && primitive.encoding == Format2Encoding::MidiExact) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit && !FindProperty(primitive, "ValueProfile")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) return true;
@@ -102,6 +103,7 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
         return ReadStatePayload(FindProperty(primitive, "Payload"), payload);
     }
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7) {
         if (primitive.nestedBlocks.empty()) return true;
@@ -198,6 +200,22 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 tokens = MakeTokens("Fader14Bit", { statusByte, 0, 0 });
                 widget->MarkOskAbsoluteInput();
                 widget->MarkOskValueFeedback();
+            } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit) {
+                vector<int> msbMessage;
+                vector<int> lsbMessage;
+                const Format2PropertySyntax* bitsProperty = FindProperty(primitive, "Bits");
+                const Format2PropertySyntax* commitProperty = FindProperty(primitive, "Commit");
+                int bits = 0;
+                if (!ReadBytes(FindProperty(primitive, "MSBMessage"), msbMessage) || msbMessage.size() != 2 || !ReadBytes(FindProperty(primitive, "LSBMessage"), lsbMessage) || lsbMessage.size() != 2 || !bitsProperty || bitsProperty->value.list || !ReadByte(bitsProperty->value.scalar, bits) || bits < 8 || bits > 14 || !commitProperty || commitProperty->value.list) continue;
+                const Format2MidiSplitPart commitPart = commitProperty->value.scalar.text == "MSB" ? Format2MidiSplitPart::Msb : Format2MidiSplitPart::Lsb;
+                const shared_ptr<Format2MidiSplitValueState> state = make_shared<Format2MidiSplitValueState>(widget, bits, commitPart);
+                const string msbKey = to_string(msbMessage[0] * 0x10000 + msbMessage[1] * 0x100);
+                const string lsbKey = to_string(lsbMessage[0] * 0x10000 + lsbMessage[1] * 0x100);
+                surface->AddMessageGenerator(msbKey, make_unique<Format2MidiSplitValueMessageGenerator>(surface->csi_, widget, state, Format2MidiSplitPart::Msb));
+                surface->AddMessageGenerator(lsbKey, make_unique<Format2MidiSplitValueMessageGenerator>(surface->csi_, widget, state, Format2MidiSplitPart::Lsb));
+                widget->MarkOskAbsoluteInput();
+                widget->MarkOskValueFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7) {
                 vector<int> message;
                 if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.size() != 2) continue;
@@ -243,6 +261,21 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 if (!status || status->value.list || !ReadByte(status->value.scalar, statusByte)) continue;
                 tokens = MakeTokens("FB_Fader14Bit", { statusByte, 0, 0 });
                 widget->MarkOskValueFeedback();
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit) {
+                vector<int> msbMessage;
+                vector<int> lsbMessage;
+                const Format2PropertySyntax* bitsProperty = FindProperty(primitive, "Bits");
+                const Format2PropertySyntax* commitProperty = FindProperty(primitive, "Commit");
+                const Format2PropertySyntax* echoGuard = FindProperty(primitive, "EchoGuardMs");
+                const Format2PropertySyntax* suppressWhileTouched = FindProperty(primitive, "SuppressWhileTouched");
+                int bits = 0;
+                if (!ReadBytes(FindProperty(primitive, "MSBMessage"), msbMessage) || msbMessage.size() != 2 || !ReadBytes(FindProperty(primitive, "LSBMessage"), lsbMessage) || lsbMessage.size() != 2 || !bitsProperty || bitsProperty->value.list || !ReadByte(bitsProperty->value.scalar, bits) || bits < 8 || bits > 14 || !commitProperty || commitProperty->value.list) continue;
+                const Format2MidiSplitPart commitPart = commitProperty->value.scalar.text == "MSB" ? Format2MidiSplitPart::Msb : Format2MidiSplitPart::Lsb;
+                const int echoGuardMs = echoGuard ? atoi(echoGuard->value.scalar.text.c_str()) : 0;
+                const bool suppress = suppressWhileTouched && suppressWhileTouched->value.scalar.text == "true";
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSplitValueFeedbackProcessor>(surface->csi_, surface, widget, std::array<int, 2>{ msbMessage[0], msbMessage[1] }, std::array<int, 2>{ lsbMessage[0], lsbMessage[1] }, bits, commitPart, echoGuardMs, suppress));
+                widget->MarkOskValueFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7) {
                 vector<int> message;
                 if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.empty() || message.size() > 2) continue;

@@ -916,6 +916,8 @@ MIDI14 always represents a normalized value with 14 data bits. Status must be a 
 
 MIDISplit supports `Bits=8..14`. MSBMessage and LSBMessage are distinct two-byte MIDI prefixes. Commit is `MSB` or `LSB` and identifies which arriving part publishes a complete Input value. Feedback sends the non-commit part first and the commit part second. Unused high bits are zero. The two parts use up to seven bits each, with the low part holding the least significant bits. This replaces the FaderPort Classic two-message codec without naming that device.
 
+FaderPort Classic migration uses `Bits=10 Commit=LSB`. Input and Feedback both map the complete `0..1023` integer range to normalized `0..1`; migration does not preserve the legacy mismatch where Input divided by `16383` while Feedback multiplied by `1024`.
+
 MIDIRGB appends one calibrated seven-bit channel value to each Red, Green, and Blue prefix and sends the optional Enable message first. `InactiveBrightness` and `ActiveBrightness` are finite values from zero through one. When either is present, both are required, state input is enabled for the Color primitive, and it also derives Toggle. TrackColor defaults to false. Direct RGB uses ColorCalibration but no ColorProfile.
 
 MIDIPalette appends the selected ColorProfile integer value to Message. The value must fit one MIDI data byte. TrackColor defaults to false. It accepts one optional exact three-byte `Companion` message and `CompanionOrder=Before|After`, defaulting to After. The companion is sent with every accepted color output, including clear, and owns its own output key. It contains no dynamic field and cannot be selected or changed from a zone binding. This expresses hardware that needs one fixed mode message beside its palette value without adding general output scripting.
@@ -1645,6 +1647,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Add universal constant-prefix `MIDISysEx` Text feedback with a terminal Text field and TextProfile encoding, width, padding, clear text, silence handling, and global label restriction.
   - ✅ Add a universal Surface-level `Initialize` block whose MIDI lines contain complete validated channel, system, or SysEx messages. Send them after Surface loading and again after MIDI I/O reconnect.
   - ✅ Add universal `MIDI7` Meter feedback through MeterProfile, ValueBase/Combine, and explicit refresh metadata. Keep meter scales and output addressing out of device-named runtime classes.
+  - ✅ Add universal `MIDISplit` Value input and feedback with shared two-part input state, declared bit width, explicit commit order, symmetric normalized encoding, and FaderPort Classic legacy conversion.
   - ✅ Expand universal MIDISysEx Text feedback through the closed Payload field set for margins, font, presentation, background RGB, text RGB, and terminal Text. Resolve Surface defaults plus current binding overrides without device-name branches.
   - [ ] Add TypeScript and Lua readers for the same catalog when their format 2 consumers are implemented.
     - ✅ Add the TypeScript schema reader and use its representation lookup to validate declared legacy conversion targets.

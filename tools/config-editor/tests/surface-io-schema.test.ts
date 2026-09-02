@@ -62,6 +62,8 @@ describe("Surface I/O schema", () => {
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_fp8displaylowermiddle")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_fp8displaylower")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_qconproxmastervumeter")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "faderportclassicfader14bit")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_faderportclassicfader14bit")?.status).toBe("supported");
         expect(report.processors.some((entry) => entry.processor.toLowerCase() === "widget")).toBeFalse();
         expect(report.processors.some((entry) => entry.status === "invalid-target")).toBeFalse();
         expect(report.diagnostics).toEqual([]);

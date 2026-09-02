@@ -24,6 +24,65 @@ enum class Format2MidiRingStyleCombine {
     BitOr,
 };
 
+class Format2MidiSplitValueFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    std::array<int, 2> msbMessage_;
+    std::array<int, 2> lsbMessage_;
+    Format2MidiSplitPart commitPart_;
+    int maximumValue_;
+    int echoGuardMs_ = 0;
+    bool suppressWhileTouched_ = false;
+    int lastEncodedValue_ = -1;
+
+    int Encode(double value) const {
+        return (int) (std::clamp(value, 0.0, 1.0) * this->maximumValue_);
+    }
+
+    void SendPart(const std::array<int, 2>& message, int value) {
+        this->SendMidiMessage(message[0], message[1], value);
+    }
+
+    void SendEncodedValue(int value) {
+        const int msb = (value >> 7) & 0x7F;
+        const int lsb = value & 0x7F;
+        if (this->commitPart_ == Format2MidiSplitPart::Lsb) {
+            this->SendPart(this->msbMessage_, msb);
+            this->SendPart(this->lsbMessage_, lsb);
+        } else {
+            this->SendPart(this->lsbMessage_, lsb);
+            this->SendPart(this->msbMessage_, msb);
+        }
+    }
+
+public:
+    Format2MidiSplitValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const std::array<int, 2>& msbMessage, const std::array<int, 2>& lsbMessage, int bits, Format2MidiSplitPart commitPart, int echoGuardMs, bool suppressWhileTouched)
+        : Midi_FeedbackProcessor(csi, surface, widget), msbMessage_(msbMessage), lsbMessage_(lsbMessage), commitPart_(commitPart), maximumValue_((1 << bits) - 1), echoGuardMs_(echoGuardMs), suppressWhileTouched_(suppressWhileTouched) {}
+    virtual ~Format2MidiSplitValueFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiSplitValueFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        const PropertyList properties;
+        this->ForceValue(properties, 0.0);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        if (this->suppressWhileTouched_ && this->surface_->GetIsChannelTouched(this->widget_->GetChannelNumber())) return;
+        if (this->echoGuardMs_ > 0 && GetTickCount() - this->widget_->GetLastIncomingMessageTime() < (DWORD) this->echoGuardMs_) return;
+        const int encoded = this->Encode(value);
+        if (encoded == this->lastEncodedValue_) return;
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = encoded;
+        this->SendEncodedValue(encoded);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = this->Encode(value);
+        this->SendEncodedValue(this->lastEncodedValue_);
+    }
+};
+
 class Format2Midi7ValueFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:

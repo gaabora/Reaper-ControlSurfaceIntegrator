@@ -1,0 +1,1 @@
+Surface.txt: the legacy input and feedback range mismatch became one symmetric 10-bit value range from 0 through 1023.

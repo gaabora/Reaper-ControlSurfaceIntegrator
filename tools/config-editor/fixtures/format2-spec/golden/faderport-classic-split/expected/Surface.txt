@@ -1,0 +1,24 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPort Classic" }
+
+Widget Fader1 {
+  Input Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }
+  Feedback Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }
+}
+
+OSKLayout {
+  Row {
+    Widget Fader1 Shape=Fader Height=7 ValueTarget=Fader1
+  }
+  Row {
+  }
+  Row {
+  }
+  Row {
+  }
+  Row {
+  }
+  Row {
+  }
+  Row {
+  }
+}

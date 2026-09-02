@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -29,6 +29,7 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["encoder", { kind: "encoder", targets: [{ direction: "Input", encoding: "MIDI7", primitive: "Encoder", protocol: "MIDI" }] }],
     ["fader7bit", { kind: "fader7", targets: [{ direction: "Input", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
     ["fader14bit", { kind: "fader14", targets: [{ direction: "Input", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
+    ["faderportclassicfader14bit", { kind: "faderSplit", targets: [{ direction: "Input", encoding: "MIDISplit", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_encoder", { kind: "ring", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Ring", protocol: "MIDI" }] }],
     ["fb_aspariondisplayencoder", { kind: "asparionDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_aspariondisplaylower", { kind: "asparionDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
@@ -39,6 +40,7 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_asparionvumeterr", { kind: "asparionMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
     ["fb_fader7bit", { kind: "fader7Feedback", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_fader14bit", { kind: "fader14Feedback", targets: [{ direction: "Feedback", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
+    ["fb_faderportclassicfader14bit", { kind: "faderSplitFeedback", targets: [{ direction: "Feedback", encoding: "MIDISplit", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_faderportrgb", { kind: "faderportRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_fp8displaylower", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_fp8displaylowermiddle", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
@@ -101,6 +103,15 @@ function midiList(values: string[]): string {
 
 function numberList(values: string[]): string {
     return `[ ${values.join(", ")} ]`;
+}
+
+function isLegacyMidiMessage(values: string[]): boolean {
+    if (values.length !== 3) return false;
+    const bytes = values.map((value) => {
+        const normalized = value.replace(/^0x/i, "");
+        return /^[0-9a-f]{1,2}$/i.test(normalized) ? Number.parseInt(normalized, 16) : Number.NaN;
+    });
+    return bytes[0] >= 0x80 && bytes[0] <= 0xEF && bytes[1] >= 0 && bytes[1] <= 0x7F && bytes[2] >= 0 && bytes[2] <= 0x7F;
 }
 
 function propertyText(properties: Map<string, string>, ignored = new Set<string>()): string {
@@ -312,6 +323,20 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
     if (conversion.kind === "fader7Feedback" && tokens[1] && tokens[2]) return `Feedback Value { Encoding=MIDI7 Message=${midiList(tokens.slice(1, 3))} }`;
     if (conversion.kind === "fader14" && tokens[1]) return `Input Value { Encoding=MIDI14 Status=${midiByte(tokens[1])} }`;
     if (conversion.kind === "fader14Feedback" && tokens[1]) return `Feedback Value { Encoding=MIDI14 Status=${midiByte(tokens[1])} SuppressWhileTouched=true }`;
+    if (conversion.kind === "faderSplit" || conversion.kind === "faderSplitFeedback") {
+        const msbMessage = tokens.slice(1, 4);
+        const lsbMessage = tokens.slice(4, 7);
+        if (!isLegacyMidiMessage(msbMessage) || !isLegacyMidiMessage(lsbMessage)) {
+            addDiagnostic(diagnostics, "error", "legacy.surface.midi-split.message", `Legacy ${tokens[0]} requires two complete MIDI messages`, lineNumber, documentPath);
+            return undefined;
+        }
+        if (midiList(msbMessage.slice(0, 2)) === midiList(lsbMessage.slice(0, 2))) {
+            addDiagnostic(diagnostics, "error", "legacy.surface.midi-split.prefix.duplicate", `Legacy ${tokens[0]} uses the same prefix for both value parts`, lineNumber, documentPath);
+            return undefined;
+        }
+        const direction = conversion.kind === "faderSplit" ? "Input" : "Feedback";
+        return `${direction} Value { Encoding=MIDISplit MSBMessage=${midiList(msbMessage.slice(0, 2))} LSBMessage=${midiList(lsbMessage.slice(0, 2))} Bits=10 Commit=LSB }`;
+    }
     if (conversion.kind === "encoder" && tokens[1] && tokens[2]) {
         const profile = widget.widgetClass ? ` Profile=${widget.widgetClass}` : " Mode=SignedBit";
         return `Input Encoder { Encoding=MIDI7 Message=${midiList(tokens.slice(1, 3))}${profile} }`;
@@ -452,7 +477,7 @@ function isHiddenWidget(sourceLines: ReturnType<typeof splitSourceLines>, widget
 function visibleWidgets(sourceLines: ReturnType<typeof splitSourceLines>, widgets: SurfaceWidget[]): SurfaceWidget[] {
     return widgets.filter((widget) => {
         if (isHiddenWidget(sourceLines, widget)) return false;
-        return widget.body.some((line) => ["press", "anypress", "fader14bit", "encoder", "x32fader", "x32rotarytoencoder"].includes((line.tokens[0] ?? "").toLowerCase()));
+        return widget.body.some((line) => ["press", "anypress", "fader14bit", "faderportclassicfader14bit", "encoder", "x32fader", "x32rotarytoencoder"].includes((line.tokens[0] ?? "").toLowerCase()));
     });
 }
 

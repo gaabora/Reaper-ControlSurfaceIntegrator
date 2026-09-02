@@ -82,6 +82,11 @@ Widget Fader1 {
   Feedback Value { Encoding=MIDI14 Status=0xE0 SuppressWhileTouched=true }
 }
 
+Widget SplitFader {
+  Input Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }
+  Feedback Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }
+}
+
 Widget Rotary1 {
   Channel=1
   Input Encoder { Encoding=MIDI7 Message=[0xB0, 0x10] Profile=RelativeEncoder }

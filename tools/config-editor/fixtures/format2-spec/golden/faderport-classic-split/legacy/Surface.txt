@@ -1,0 +1,4 @@
+Widget Fader1
+  FaderportClassicFader14Bit b0 00 7f b0 20 7f
+  FB_FaderportClassicFader14Bit b0 00 7f b0 20 7f
+WidgetEnd

@@ -1,0 +1,5 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Duplicate split prefix" }
+
+Widget Fader {
+  Input Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x00 ] Bits=10 Commit=LSB }
+}

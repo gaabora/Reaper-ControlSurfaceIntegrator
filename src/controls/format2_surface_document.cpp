@@ -23,6 +23,16 @@ static bool ParsePositiveFormat2Integer(const Format2ValueSyntax& value, int& pa
     return result.ec == std::errc() && result.ptr == end && parsedValue > 0;
 }
 
+static bool Format2MidiMessageValuesEqual(const Format2PropertySyntax* first, const Format2PropertySyntax* second) {
+    if (!first || !second || !first->value.list || !second->value.list || first->value.items.size() != second->value.items.size()) return false;
+    for (std::size_t itemIdx = 0; itemIdx < first->value.items.size(); ++itemIdx) {
+        int firstValue = 0;
+        int secondValue = 0;
+        if (!ParseFormat2IntegerScalar(first->value.items[itemIdx], firstValue) || !ParseFormat2IntegerScalar(second->value.items[itemIdx], secondValue) || firstValue != secondValue) return false;
+    }
+    return true;
+}
+
 static const Format2PropertySyntax* FindFormat2PrimitiveProperty(const Format2SurfacePrimitive& primitive, const std::string& name) {
     for (const Format2PropertySyntax& property : primitive.properties) {
         if (property.name == name) return &property;
@@ -1534,6 +1544,11 @@ private:
         }
         for (const Format2ConstraintViolation& violation : ValidateFormat2PropertyConstraints(primitive.properties, representation->constraints, primitive.location)) {
             this->AddDiagnostic("format2.surface.primitive.property.constraint", violation.message, violation.location);
+        }
+        if (primitive.encoding == Format2Encoding::MidiSplit) {
+            const Format2PropertySyntax* msbMessage = FindFormat2PrimitiveProperty(primitive, "MSBMessage");
+            const Format2PropertySyntax* lsbMessage = FindFormat2PrimitiveProperty(primitive, "LSBMessage");
+            if (Format2MidiMessageValuesEqual(msbMessage, lsbMessage)) this->AddDiagnostic("format2.surface.midi-split.prefix.duplicate", "MIDISplit MSBMessage and LSBMessage must be different", lsbMessage->value.location);
         }
 
         std::set<std::string> nestedBlocks;

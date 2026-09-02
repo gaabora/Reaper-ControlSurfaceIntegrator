@@ -26,6 +26,7 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `shared-layer`: converts one legacy SubZone referenced by several parents to one reusable Layer without reporting an ambiguity.
 - `ambiguous-display`: rejects two possible upper-display sources for the same shared display-color channel.
 - `destination-collision`: rejects an imported zone ID that already exists in the same User profile and collection, including case-only spelling differences.
+- `faderport-classic-split`: converts the two-message FaderPort Classic fader to one symmetric 10-bit MIDISplit input and feedback codec.
 
 ## ✅ Current golden coverage complete
 
