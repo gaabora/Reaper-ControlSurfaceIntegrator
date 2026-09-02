@@ -206,6 +206,32 @@ WidgetEnd
         expect(conversion.source).toContain("Widget FP8Line2 {\n  Channel=4\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x03, 0x01, TextPresentationCode, Text ] }");
     });
 
+    test("converts FaderPort peak meters to valid continuous MIDI data", () => {
+        const legacySurface = `Widget VUMeter1
+  FB_FPVUMeter 0
+WidgetEnd
+Widget VUMeter8
+  FB_FPVUMeter 7
+WidgetEnd
+Widget VUMeter9
+  FB_FPVUMeter 8
+WidgetEnd
+Widget VUMeter16
+  FB_FPVUMeter 15
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort meters", "Surfaces/User/faderport-meters.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.match(/MeterProfile FaderPortPeakMeter \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("OutputRange=[ 0, 127 ]");
+        expect(conversion.source).toContain("Widget VUMeter1 {\n  Channel=1\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }");
+        expect(conversion.source).toContain("Widget VUMeter8 {\n  Channel=8\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD7 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }");
+        expect(conversion.source).toContain("Widget VUMeter9 {\n  Channel=9\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xC0 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }");
+        expect(conversion.source).toContain("Widget VUMeter16 {\n  Channel=16\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xC7 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }");
+        expect(conversion.source).not.toContain("0xA0");
+    });
+
     test("converts SCE24 encoder rings and explicit segment colors", () => {
         const legacySurface = `Widget Rotary1 RotaryWidgetClass
   Encoder b0 00 7f

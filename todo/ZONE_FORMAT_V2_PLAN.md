@@ -722,7 +722,7 @@ The source inventory identifies these required reusable encoding cases. They mus
 | XTouch track-color packet shared by several displays | One Surface-level feedback group that owns the packet and references its member display widgets; per-widget duplicate output ownership remains invalid |
 | MCU time and assignment displays | Normal Actions produce text or state; `Feedback Text` or `Feedback State` only encodes and sends it |
 
-The current FPVUMeter calculation can produce `0x80..0xA0` in a MIDI data-byte position. Format 2 cannot silently preserve bytes that violate the MIDI seven-bit data rule. Migration must report this case, and the final MeterProfile needs device documentation or hardware verification before the bundled FaderPort meter is converted.
+The old FPVUMeter calculation can produce `0x80..0xA0` in a MIDI data-byte position. The PreSonus FaderPort 8/16 MIDI protocol defines `vv` as `0x00..0x7F`, so format 2 fixes the old calculation with a linear normalized-to-`0..127` MeterProfile. Peak meters use continuous refresh because the same protocol states that they decay automatically.
 
 `MFT_RGB` also has a legacy branch that treats selected RGB bytes as arbitrary MIDI commands. This is not Color feedback and does not remain in the universal Color primitive. The importer reports any actual use of that branch instead of hiding commands inside colors.
 
@@ -1617,7 +1617,7 @@ Validation reports an error for an unknown key, unknown enum, invalid property c
 - ✅ Define exact reusable Value, Color, Ring, Bar, Meter, and Text profile blocks, references, interpolation, lookup, quantization, and validation rules.
 - ✅ Define the basic closed MIDI and OSC Encoding matrix, scalar packing, RGB and palette output, bounded SysEx fields, text characters, echo suppression, meter refresh, and encoder acknowledgement.
 - ✅ Define exact composition syntax for Ring value plus configuration output and Surface-level shared FeedbackGroup packets.
-- ✅ Review every remaining codec and keep it only when its smallest reusable behavior cannot be expressed safely as declarative data. Do not keep device-model names in the public schema; leave the invalid FPVUMeter output unresolved until hardware behavior is verified.
+- ✅ Review every remaining codec and keep it only when its smallest reusable behavior cannot be expressed safely as declarative data. Do not keep device-model names in the public schema. The previously invalid FPVUMeter output is resolved from the official PreSonus `0x00..0x7F` meter protocol.
 - ✅ Finalize the universal catalog's exact message matching, single-owner output keys, named properties, and derived capability sets.
 - ✅ Confirm ColorCalibration property defaults, ranges, processor-native OutputMax behavior, and compatibility with color-capable Feedback entries.
 - ✅ Specify snippets as versioned editor-only zone fragments with no semantic slot wrapper, explicit requirements, application identity, or saved provenance markers.
@@ -1709,6 +1709,7 @@ Public legacy Surface conversion has one completion gate:
   - ✅ Convert legacy `FB_SCE24Encoder` to a generic 18-segment Ring and nested MIDISysEx Configure output. Expand legacy ring and push colors into `RingColors`, repair standalone RotaryPush color declarations through their paired Rotary binding, and reject malformed, overlapping, or out-of-range color definitions.
   - ✅ Convert legacy `FB_SCE24LEDButton` to generic MIDISysEx State feedback. Convert its `OffColor` and `OnColor` properties to the ordered `StateColors` list and remove ignored alpha bytes.
   - ✅ Convert legacy `FB_FP8ScribbleLine1..4` and `FB_FP16ScribbleLine1..4` to one generic MIDISysEx Text profile. Preserve display type, zero-based hardware channel, row, 30-character limit, clear text, alignment, and inversion metadata, and publish the one-based logical Widget Channel.
+  - ✅ Convert legacy `FB_FPVUMeter` to generic MIDI7 Meter feedback. Replace the invalid old `value * 0xA0` calculation with the documented `0..127` range, preserve channel-pressure addressing for strips 1-8 and program-change addressing for strips 9-16, and use continuous refresh for hardware peak-meter decay.
   - [ ] Classify every currently unresolved inventory entry as a universal conversion, intentionally unsupported legacy behavior, or an ambiguity that requires user input.
   - [ ] Add parameter-complete golden fixtures for every supported processor family and malformed or ambiguous branch.
   - [ ] Make zero unclassified processors and zero invalid conversion targets a required migration verification result.

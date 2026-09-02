@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -43,6 +43,7 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_fp16scribbleline4", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_faderporttwostatergb", { kind: "faderportTwoStateRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_faderportvaluebar", { kind: "bar", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Bar", protocol: "MIDI" }] }],
+    ["fb_fpvumeter", { kind: "faderportMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
     ["fb_mft_rgb", { kind: "midiPalette", targets: [{ direction: "Feedback", encoding: "MIDIPalette", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_c4displaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_c4displayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
@@ -217,6 +218,11 @@ function meterProfile(widgets: SurfaceWidget[], mode: LegacyMcuMeterMode): strin
     return ["MeterProfile SurfaceMeter {", "  Mode=Steps", `  InputUnit=${profile.inputUnit}`, "  Default=0", ...profile.steps.map(([minimum, output]) => `  Step Minimum=${minimum} Output=${output}`), "}", ""];
 }
 
+function faderportMeterProfile(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_fpvumeter"))) return [];
+    return ["MeterProfile FaderPortPeakMeter {", "  Mode=Linear", "  InputUnit=Normalized", "  InputRange=[ 0, 1 ]", "  OutputRange=[ 0, 127 ]", "  Quantize=Floor", "}", ""];
+}
+
 function meterInitialization(widgets: SurfaceWidget[]): string[] {
     const deviceTypes = new Set<number>();
     for (const widget of widgets) for (const line of widget.body) {
@@ -336,6 +342,13 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const channel = Number(tokens[1]);
         if (channel >= 0 && channel <= 7) return `Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=SurfaceMeter ValueBase=${midiByte((channel << 4).toString(16))} Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }`;
     }
+    if (conversion.kind === "faderportMeter" && tokens[1] && /^\d+$/.test(tokens[1])) {
+        const channel = Number(tokens[1]);
+        if (channel >= 0 && channel <= 15) {
+            const status = channel < 8 ? 0xD0 + channel : 0xC0 + channel - 8;
+            return `Feedback Meter { Encoding=MIDI7 Message=[ ${midiByte(status.toString(16))} ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }`;
+        }
+    }
     if (conversion.kind === "sce24Text" && tokens.length >= 7) {
         const address = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16) + (processor === "fb_sce24oledbutton" ? 0x60 : 0);
         const topMargin = Number(tokens[4]);
@@ -361,9 +374,9 @@ function visibleWidgets(sourceLines: ReturnType<typeof splitSourceLines>, widget
     });
 }
 
-function faderportScribbleChannel(widget: SurfaceWidget): number | undefined {
+function legacyWidgetChannel(widget: SurfaceWidget): number | undefined {
     for (const line of widget.body) {
-        if (!/^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "")) continue;
+        if (!/^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
         const channel = Number(line.tokens[1]);
         if (Number.isInteger(channel) && channel >= 0 && channel <= 15) return channel + 1;
     }
@@ -503,10 +516,10 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
-        const channel = faderportScribbleChannel(widget);
+        const channel = legacyWidgetChannel(widget);
         if (channel) output.push(`  Channel=${channel}`);
         for (const line of widget.body) {
             const converted = convertProcessor(widget, line.tokens, line.lineNumber, diagnostics, documentPath);

@@ -23,6 +23,10 @@ Widget ValueBar1
   FB_FaderportValueBar 0
 WidgetEnd
 
+Widget VUMeter1
+  FB_FPVUMeter 0
+WidgetEnd
+
 Widget ScribbleStripMode
   FB_FP8ScribbleStripMode 0
 WidgetEnd

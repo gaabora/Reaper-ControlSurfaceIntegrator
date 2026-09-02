@@ -25,6 +25,14 @@ BarProfile StandardBar {
   Style Off Code=4
 }
 
+MeterProfile FaderPortPeakMeter {
+  Mode=Linear
+  InputUnit=Normalized
+  InputRange=[ 0, 1 ]
+  OutputRange=[ 0, 127 ]
+  Quantize=Floor
+}
+
 Widget Fader1 {
   Channel=1
   Input Value { Encoding=MIDI14 Status=0xE0 }
@@ -41,6 +49,11 @@ Widget Rotary1 {
 Widget ValueBar1 {
   Channel=1
   Feedback Bar { Encoding=MIDI7 Message=[0xB0, 0x30] StyleMessage=[0xB0, 0x38] BarProfile=StandardBar }
+}
+
+Widget VUMeter1 {
+  Channel=1
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }
 }
 
 Widget ScribbleStripMode {
