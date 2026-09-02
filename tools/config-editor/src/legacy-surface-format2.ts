@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -66,6 +66,8 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_c4displayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcudisplaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcudisplayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_mcuassignmentdisplay", { kind: "mcuAssignment", targets: [{ direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" }] }],
+    ["fb_mcutimedisplay", { kind: "mcuTime", targets: [{ direction: "Feedback", encoding: "MIDICharacters", primitive: "Text", protocol: "MIDI" }, { direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" }] }],
     ["fb_mcuvumeter", { kind: "mcuMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
     ["fb_mcuxtdisplaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcuxtdisplayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
@@ -226,6 +228,11 @@ function textProfiles(widgets: SurfaceWidget[]): string[] {
     return ["TextProfile Display7 {", "  Encoding=ASCII7", "  Width=7", "  Padding=Space", '  ClearText=""', "  SilenceAsEmpty=true", "}", ""];
 }
 
+function mcuTimeTextProfile(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_mcutimedisplay"))) return [];
+    return ["TextProfile MCUTimeCharacters {", "  Encoding=ASCII7", "  Width=10", "  Padding=Space", '  ClearText=""', "}", ""];
+}
+
 function asparionTextProfiles(widgets: SurfaceWidget[]): string[] {
     const processors = new Set(widgets.flatMap((widget) => widget.body.map((line) => (line.tokens[0] ?? "").toLowerCase())));
     const result: string[] = [];
@@ -369,6 +376,8 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         if (Number.isInteger(address) && address >= 0 && address <= 0x7F) return `Feedback State { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x38, 0x01, ${midiByte(address.toString(16))}, Red7, Green7, Blue7 ] }`;
     }
     if (conversion.kind === "state" && tokens.length >= 7) return `Feedback State { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
+    if (conversion.kind === "mcuAssignment" && tokens.length === 1) return "Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4B, 0x07 ] Off=[ 0xB0, 0x4B, 0x13 ] Clear=[ 0xB0, 0x4B, 0x20 ] }\n  Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4A, 0x0C ] Off=[ 0xB0, 0x4A, 0x05 ] Clear=[ 0xB0, 0x4A, 0x20 ] }";
+    if (conversion.kind === "mcuTime" && tokens.length === 1) return "Feedback Text { Encoding=MIDICharacters Status=0xB0 StartData=0x49 Direction=Descending TextProfile=MCUTimeCharacters }\n  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x71, 0x7F ] Off=[ 0x90, 0x71, 0x00 ] Clear=[ 0x90, 0x71, 0x00 ] ActiveValues=[ 5 ] }\n  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x72, 0x7F ] Off=[ 0x90, 0x72, 0x00 ] Clear=[ 0x90, 0x72, 0x00 ] ActiveValues=[ 1, 2 ] }";
     if (conversion.kind === "faderportRgb" && tokens.length >= 4) {
         const dataByte = midiByte(tokens[2]);
         return `Feedback Color { Encoding=MIDIRGB Enable=${midiList(tokens.slice(1, 4))} Red=${midiList(["91", dataByte])} Green=${midiList(["92", dataByte])} Blue=${midiList(["93", dataByte])} }`;
@@ -628,7 +637,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         const channel = legacyWidgetChannel(widget);

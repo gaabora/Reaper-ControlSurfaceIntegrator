@@ -22,6 +22,7 @@ private:
     static const Format2PropertySyntax* FindProperty(const Format2SurfacePrimitive& primitive, const string& name);
     static bool ReadByte(const Format2ScalarSyntax& scalar, int& value);
     static bool ReadBytes(const Format2PropertySyntax* property, vector<int>& values);
+    static bool ReadFiniteValues(const Format2PropertySyntax* property, vector<double>& values);
     static bool ReadStatePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExStatePayloadItem>& payload);
     static bool ReadTextPayload(const Format2PropertySyntax* property, vector<Format2MidiSysExTextPayloadItem>& payload);
     static bool ReadRingConfigurePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExRingConfigureItem>& payload);

@@ -590,14 +590,95 @@ public:
 //!
 //! @zone_usage  TimeDisplay    MCUTimeDisplay
 //!
-//! @feedback Value — sends 0.0 (MCU time display formatting is handled by the feedback processor).
+//! @feedback Text and mode value - sends a fixed ten-character display string, then the current time mode number.
 class MCUTimeDisplay : public DisplayAction
 {
+private:
+    static void CopyRightAligned(char* destination, size_t destinationSize, const char* source) {
+        const size_t sourceLength = strlen(source);
+        const size_t copyLength = (std::min)(sourceLength, destinationSize);
+        memcpy(destination + destinationSize - copyLength, source + sourceLength - copyLength, copyLength);
+    }
+
 public:
     ActionType GetType() const override { return ActionType::MCUTimeDisplay; }
 
     virtual void RequestUpdate(ActionContext* context) override {
-        context->UpdateWidgetValue(0.0);
+        char displayText[11];
+        memset(displayText, ' ', 10);
+        displayText[10] = 0;
+        double position = (GetPlayState() & 1) ? GetPlayPosition() : GetCursorPosition();
+        const int timeMode = context->GetCSI()->GetResolvedTimeMode();
+
+        if (timeMode == TIMEMODE_SECONDS) {
+            double* timeOffset = context->GetCSI()->GetTimeOffsPtr();
+            if (timeOffset) position += *timeOffset;
+            char buffer[64];
+            snprintf(buffer, sizeof(buffer), "%d %02d", (int) position, ((int) (position * 100.0)) % 100);
+            CopyRightAligned(displayText, 10, buffer);
+        } else if (timeMode == TIMEMODE_SAMPLES) {
+            char buffer[128];
+            format_timestr_pos(position, buffer, sizeof(buffer), TIMEMODE_SAMPLES);
+            CopyRightAligned(displayText, 10, buffer);
+        } else if (timeMode == TIMEMODE_FRAMES) {
+            char buffer[128];
+            format_timestr_pos(position, buffer, sizeof(buffer), TIMEMODE_FRAMES);
+            char* input = buffer;
+            char* output = buffer;
+            int colonCount = 0;
+            while (*input) {
+                if (*input == ':') {
+                    colonCount++;
+                    if (colonCount != 3) {
+                        input++;
+                        continue;
+                    }
+                    *input = ' ';
+                }
+                *output++ = *input++;
+            }
+            *output = 0;
+            CopyRightAligned(displayText, 10, buffer);
+        } else if (timeMode > TIMEMODE_DEFAULT) {
+            int measureCount = 0;
+            int timeSignatureNumerator = 0;
+            double beats = TimeMap2_timeToBeats(NULL, position, &measureCount, &timeSignatureNumerator, NULL, NULL) + 0.000000000001;
+            const double wholeBeats = floor(beats);
+            beats -= wholeBeats;
+            if (measureCount <= 0 && position < 0.0) --measureCount;
+            int* measureOffset = context->GetCSI()->GetMeasOffsPtr();
+            int measure = measureCount + 1 + (measureOffset ? *measureOffset : 0);
+            if (measure < 0) displayText[0] = '-';
+            measure = std::abs(measure);
+            if (measure >= 100) displayText[0] = '0' + (measure / 100) % 10;
+            if (measure >= 10) displayText[1] = '0' + (measure / 10) % 10;
+            displayText[2] = '0' + measure % 10;
+            const int beat = (position < 0.0 ? timeSignatureNumerator : 0) + (int) wholeBeats + 1;
+            if (beat >= 10) displayText[3] = '0' + (beat / 10) % 10;
+            displayText[4] = '0' + beat % 10;
+            const int fractionalBeats = (int) (1000.0 * beats);
+            displayText[7] = '0' + (fractionalBeats / 100) % 10;
+            displayText[8] = '0' + (fractionalBeats / 10) % 10;
+            displayText[9] = '0' + fractionalBeats % 10;
+        } else {
+            double* timeOffset = context->GetCSI()->GetTimeOffsPtr();
+            if (timeOffset) position += *timeOffset;
+            const int wholeSeconds = (int) position;
+            const int milliseconds = (int) ((position - wholeSeconds) * 1000.0);
+            if (wholeSeconds >= 360000) displayText[0] = '0' + (wholeSeconds / 360000) % 10;
+            if (wholeSeconds >= 36000) displayText[1] = '0' + (wholeSeconds / 36000) % 10;
+            if (wholeSeconds >= 3600) displayText[2] = '0' + (wholeSeconds / 3600) % 10;
+            displayText[3] = '0' + (wholeSeconds / 600) % 6;
+            displayText[4] = '0' + (wholeSeconds / 60) % 10;
+            displayText[5] = '0' + (wholeSeconds / 10) % 6;
+            displayText[6] = '0' + wholeSeconds % 10;
+            displayText[7] = '0' + (milliseconds / 100) % 10;
+            displayText[8] = '0' + (milliseconds / 10) % 10;
+            displayText[9] = '0' + milliseconds % 10;
+        }
+
+        context->UpdateWidgetValue(displayText);
+        context->UpdateWidgetValue((double) timeMode);
     }
 };
 

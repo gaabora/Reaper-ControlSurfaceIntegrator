@@ -1,0 +1,10 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Invalid MIDI character range" }
+
+TextProfile TenCharacters {
+  Encoding=ASCII7
+  Width=10
+}
+
+Widget Display {
+  Feedback Text { Encoding=MIDICharacters Status=0xB0 StartData=0x05 Direction=Descending TextProfile=TenCharacters }
+}

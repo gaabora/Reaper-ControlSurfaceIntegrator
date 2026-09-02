@@ -1,0 +1,20 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="MCU displays" }
+
+TextProfile MCUTimeCharacters {
+  Encoding=ASCII7
+  Width=10
+  Padding=Space
+  ClearText=""
+}
+
+Widget TimeDisplay {
+  Feedback Text { Encoding=MIDICharacters Status=0xB0 StartData=0x49 Direction=Descending TextProfile=MCUTimeCharacters }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x71, 0x7F ] Off=[ 0x90, 0x71, 0x00 ] Clear=[ 0x90, 0x71, 0x00 ] ActiveValues=[ 5 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0x90, 0x72, 0x7F ] Off=[ 0x90, 0x72, 0x00 ] Clear=[ 0x90, 0x72, 0x00 ] ActiveValues=[ 1, 2 ] }
+}
+
+Widget AssignmentDisplay {
+  Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4B, 0x07 ] Off=[ 0xB0, 0x4B, 0x13 ] Clear=[ 0xB0, 0x4B, 0x20 ] }
+  Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4A, 0x0C ] Off=[ 0xB0, 0x4A, 0x05 ] Clear=[ 0xB0, 0x4A, 0x20 ] }
+}
+

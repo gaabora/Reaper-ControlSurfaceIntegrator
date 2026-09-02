@@ -1284,6 +1284,15 @@ private:
         if (this->result_.document.metadata.protocol == Format2SurfaceProtocol::Midi && encoding != this->textProfileEncodings_.end() && encoding->second != Format2TextEncoding::Ascii7) this->AddDiagnostic("format2.surface.text-profile.midi-encoding", "MIDI Text feedback requires TextProfile Encoding=ASCII7", property.value.location);
         const auto width = this->textProfileWidths_.find(property.value.scalar.text);
         if (primitive.encoding == Format2Encoding::MidiCharacters && (width == this->textProfileWidths_.end() || !width->second)) this->AddDiagnostic("format2.surface.text-profile.characters.width", "MIDICharacters requires a TextProfile with Width", property.value.location);
+        if (primitive.encoding == Format2Encoding::MidiCharacters && width != this->textProfileWidths_.end() && width->second) {
+            const Format2PropertySyntax* startDataProperty = FindFormat2PrimitiveProperty(primitive, "StartData");
+            const Format2PropertySyntax* directionProperty = FindFormat2PrimitiveProperty(primitive, "Direction");
+            int startData = 0;
+            if (startDataProperty && !startDataProperty->value.list && ParseFormat2IntegerScalar(startDataProperty->value.scalar, startData) && directionProperty && !directionProperty->value.list) {
+                const int finalData = directionProperty->value.scalar.text == "Ascending" ? startData + *width->second - 1 : startData - *width->second + 1;
+                if (finalData < 0 || finalData > 0x7F) this->AddDiagnostic("format2.surface.text-profile.characters.range", "MIDICharacters TextProfile Width extends beyond the MIDI data-byte range", startDataProperty->value.location);
+            }
+        }
     }
 
     Format2SurfaceWidget* FindWidget(const std::string& id) {

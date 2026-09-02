@@ -249,6 +249,14 @@ std::string ValidateFormat2ValueRule(const Format2PropertySyntax& property, cons
         }
         return {};
     }
+    if (rule == "FiniteList") {
+        if (!property.value.list || property.value.items.empty()) return "one non-empty list of finite numbers";
+        for (const Format2ScalarSyntax& item : property.value.items) {
+            double value = 0.0;
+            if (!ParseFormat2FiniteScalar(item, value)) return "one non-empty list of finite numbers";
+        }
+        return {};
+    }
     if (rule == "FinitePair") {
         if (!property.value.list || property.value.items.size() != 2) return "a list of two finite numbers";
         for (const Format2ScalarSyntax& item : property.value.items) {

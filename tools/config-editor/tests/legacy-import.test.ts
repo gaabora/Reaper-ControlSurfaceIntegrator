@@ -191,6 +191,25 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x17, 0x30, 0x38, Text ] TextProfile=Display7 }");
     });
 
+    test("converts MCU time characters, mode lights, and assignment letters to universal feedback", () => {
+        const legacySurface = `Widget TimeDisplay
+  FB_MCUTimeDisplay
+WidgetEnd
+Widget AssignmentDisplay
+  FB_MCUAssignmentDisplay
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "MCU displays", "Surfaces/User/mcu-displays.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.match(/TextProfile MCUTimeCharacters \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("Feedback Text { Encoding=MIDICharacters Status=0xB0 StartData=0x49 Direction=Descending TextProfile=MCUTimeCharacters }");
+        expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0x90, 0x71, 0x7F ] Off=[ 0x90, 0x71, 0x00 ] Clear=[ 0x90, 0x71, 0x00 ] ActiveValues=[ 5 ] }");
+        expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0x90, 0x72, 0x7F ] Off=[ 0x90, 0x72, 0x00 ] Clear=[ 0x90, 0x72, 0x00 ] ActiveValues=[ 1, 2 ] }");
+        expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4B, 0x07 ] Off=[ 0xB0, 0x4B, 0x13 ] Clear=[ 0xB0, 0x4B, 0x20 ] }");
+        expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4A, 0x0C ] Off=[ 0xB0, 0x4A, 0x05 ] Clear=[ 0xB0, 0x4A, 0x20 ] }");
+    });
+
     test("converts Icon display variants to universal seven-character text feedback", () => {
         const legacySurface = `Widget Icon1Upper
   FB_IconDisplay1Upper 0

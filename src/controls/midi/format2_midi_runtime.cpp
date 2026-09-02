@@ -30,6 +30,17 @@ bool Format2MidiRuntimeLoader::ReadBytes(const Format2PropertySyntax* property, 
     return true;
 }
 
+bool Format2MidiRuntimeLoader::ReadFiniteValues(const Format2PropertySyntax* property, vector<double>& values) {
+    if (!property || !property->value.list) return false;
+    values.clear();
+    for (const Format2ScalarSyntax& item : property->value.items) {
+        double value = 0.0;
+        if (!ParseFormat2FiniteScalar(item, value)) return false;
+        values.push_back(value);
+    }
+    return !values.empty();
+}
+
 bool Format2MidiRuntimeLoader::ReadStatePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExStatePayloadItem>& payload) {
     if (!property || !property->value.list || property->value.items.empty()) return false;
     payload.clear();
@@ -120,6 +131,7 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
         vector<Format2MidiSysExTextPayloadItem> payload;
         return ReadTextPayload(FindProperty(primitive, "Payload"), payload);
     }
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiCharacters) return true;
     return primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb;
 }
 
@@ -246,9 +258,16 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) {
                 vector<int> on;
                 vector<int> off;
+                vector<int> clear;
+                vector<double> activeValues;
                 if (!ReadBytes(FindProperty(primitive, "On"), on) || !ReadBytes(FindProperty(primitive, "Off"), off)) continue;
-                tokens = MakeTokens("FB_TwoState", on, off);
+                const Format2PropertySyntax* clearProperty = FindProperty(primitive, "Clear");
+                const Format2PropertySyntax* activeValuesProperty = FindProperty(primitive, "ActiveValues");
+                if (clearProperty && !ReadBytes(clearProperty, clear)) continue;
+                if (activeValuesProperty && !ReadFiniteValues(activeValuesProperty, activeValues)) continue;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiExactStateFeedbackProcessor>(surface->csi_, surface, widget, on, off, clear, activeValues));
                 widget->MarkOskToggleFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiSysEx) {
                 vector<Format2MidiSysExStatePayloadItem> payload;
                 if (!ReadStatePayload(FindProperty(primitive, "Payload"), payload)) continue;
@@ -408,6 +427,21 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExTextFeedbackProcessor>(surface->csi_, surface, widget, payload, *profile, topMargin, bottomMargin, font, backgroundColor, textColor));
                 widget->MarkOskTextFeedback();
                 if (std::find(primitive.capabilities.begin(), primitive.capabilities.end(), Format2Capability::Color) != primitive.capabilities.end()) widget->MarkOskColorFeedback();
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiCharacters) {
+                const Format2PropertySyntax* statusProperty = FindProperty(primitive, "Status");
+                const Format2PropertySyntax* startDataProperty = FindProperty(primitive, "StartData");
+                const Format2PropertySyntax* directionProperty = FindProperty(primitive, "Direction");
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "TextProfile");
+                int status = 0;
+                int startData = 0;
+                if (!statusProperty || statusProperty->value.list || !ReadByte(statusProperty->value.scalar, status) || !startDataProperty || startDataProperty->value.list || !ReadByte(startDataProperty->value.scalar, startData) || !directionProperty || directionProperty->value.list || !profileProperty || profileProperty->value.list) continue;
+                const Format2TextProfile* profile = nullptr;
+                for (const Format2TextProfile& candidate : parsed.surface.textProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile || !profile->width) continue;
+                const bool ascending = directionProperty->value.scalar.text == "Ascending";
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiCharactersTextFeedbackProcessor>(surface->csi_, surface, widget, status, startData, ascending, *profile));
+                widget->MarkOskTextFeedback();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && primitive.encoding == Format2Encoding::Midi7) {
                 vector<int> message;

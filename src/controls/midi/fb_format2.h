@@ -125,6 +125,111 @@ public:
     }
 };
 
+class Format2MidiExactStateFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<int> on_;
+    vector<int> off_;
+    vector<int> clear_;
+    vector<double> activeValues_;
+    bool lastState_ = false;
+    bool hasLastState_ = false;
+
+    bool IsActive(double value) const {
+        if (this->activeValues_.empty()) return value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE;
+        return std::find(this->activeValues_.begin(), this->activeValues_.end(), value) != this->activeValues_.end();
+    }
+
+    void SendMessage(const vector<int>& message, bool force) {
+        if (force) this->ForceMidiMessage(message[0], message[1], message[2]);
+        else this->SendMidiMessage(message[0], message[1], message[2]);
+    }
+
+public:
+    Format2MidiExactStateFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& on, const vector<int>& off, const vector<int>& clear, const vector<double>& activeValues)
+        : Midi_FeedbackProcessor(csi, surface, widget), on_(on), off_(off), clear_(clear), activeValues_(activeValues) {}
+    virtual ~Format2MidiExactStateFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiExactStateFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->hasLastState_ = false;
+        this->SendMessage(this->clear_.empty() ? this->off_ : this->clear_, true);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const bool state = this->IsActive(value);
+        if (this->hasLastState_ && state == this->lastState_) return;
+        this->lastDoubleValue_ = value;
+        this->lastState_ = state;
+        this->hasLastState_ = true;
+        this->SendMessage(state ? this->on_ : this->off_, false);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        const bool state = this->IsActive(value);
+        this->lastDoubleValue_ = value;
+        this->lastState_ = state;
+        this->hasLastState_ = true;
+        this->SendMessage(state ? this->on_ : this->off_, true);
+    }
+};
+
+class Format2MidiCharactersTextFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    int status_;
+    int startData_;
+    bool ascending_;
+    Format2TextProfile profile_;
+    string lastEncoded_;
+
+    string EncodeText(const char* inputText) const {
+        char restrictedText[MEDBUF];
+        const char* source = this->surface_->GetRestrictedLengthText(inputText, restrictedText, sizeof(restrictedText));
+        if (this->profile_.silenceAsEmpty && IsSameString(source, SILENCE_DB_STRING)) source = "";
+        const size_t width = (size_t) this->profile_.width.value_or(0);
+        string result;
+        for (const unsigned char character : string(source)) {
+            if (result.size() >= width) break;
+            result.push_back(character <= 0x7F ? (char) character : '?');
+        }
+        result.append(width - result.size(), ' ');
+        return result;
+    }
+
+    void Update(const char* inputText, bool force) {
+        const string encoded = this->EncodeText(inputText);
+        for (size_t characterIdx = 0; characterIdx < encoded.size(); ++characterIdx) {
+            if (!force && characterIdx < this->lastEncoded_.size() && encoded[characterIdx] == this->lastEncoded_[characterIdx]) continue;
+            const int data = this->ascending_ ? this->startData_ + (int) characterIdx : this->startData_ - (int) characterIdx;
+            if (force) this->ForceMidiMessage(this->status_, data, (unsigned char) encoded[characterIdx]);
+            else this->SendMidiMessage(this->status_, data, (unsigned char) encoded[characterIdx]);
+        }
+        this->lastEncoded_ = encoded;
+    }
+
+public:
+    Format2MidiCharactersTextFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, int status, int startData, bool ascending, const Format2TextProfile& profile)
+        : Midi_FeedbackProcessor(csi, surface, widget), status_(status), startData_(startData), ascending_(ascending), profile_(profile) {}
+    virtual ~Format2MidiCharactersTextFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiCharactersTextFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->lastStringValue_ = this->profile_.clearText;
+        this->Update(this->profile_.clearText.c_str(), true);
+    }
+
+    virtual void SetValue(const PropertyList& properties, const char* const& inputText) override {
+        this->lastStringValue_ = inputText;
+        this->Update(inputText, false);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, const char* const& inputText) override {
+        this->lastStringValue_ = inputText;
+        this->Update(inputText, true);
+    }
+};
+
 class Format2MidiSysExStateFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:

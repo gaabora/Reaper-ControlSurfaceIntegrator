@@ -1,0 +1,6 @@
+Widget TimeDisplay
+  FB_MCUTimeDisplay
+WidgetEnd
+Widget AssignmentDisplay
+  FB_MCUAssignmentDisplay
+WidgetEnd

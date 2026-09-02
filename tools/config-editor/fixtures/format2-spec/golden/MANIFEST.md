@@ -27,6 +27,7 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `ambiguous-display`: rejects two possible upper-display sources for the same shared display-color channel.
 - `destination-collision`: rejects an imported zone ID that already exists in the same User profile and collection, including case-only spelling differences.
 - `faderport-classic-split`: converts the two-message FaderPort Classic fader to one symmetric 10-bit MIDISplit input and feedback codec.
+- `mcu-character-displays`: converts MCU time characters, mode lights, and assignment letters to universal MIDICharacters and MIDIExact State feedback.
 
 ## ✅ Current golden coverage complete
 
