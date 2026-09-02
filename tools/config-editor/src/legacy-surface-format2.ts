@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -68,6 +68,7 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_mcuxtdisplaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcuxtdisplayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcuxtvumeter", { kind: "mcuMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
+    ["fb_qconproxmastervumeter", { kind: "qconMasterMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
     ["fb_sce24encoder", { kind: "sce24Ring", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Ring", protocol: "MIDI" }] }],
     ["fb_sce24ledbutton", { kind: "sce24State", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "State", protocol: "MIDI" }] }],
     ["fb_sce24encodertext", { kind: "sce24Text", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
@@ -262,6 +263,11 @@ function asparionMeterProfile(widgets: SurfaceWidget[]): string[] {
     return ["MeterProfile AsparionMeter {", "  Mode=Steps", "  InputUnit=Normalized", "  Default=0", ...Array.from({ length: 13 }, (_, stepIdx) => `  Step Minimum=${(stepIdx + 1) / 15} Output=${stepIdx + 1}`), "}", ""];
 }
 
+function qconMasterMeterProfile(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_qconproxmastervumeter"))) return [];
+    return ["MeterProfile QConMasterMeter {", "  Mode=Steps", "  InputUnit=Decibels", "  Default=0", "  Step Minimum=-60.1 Output=1", "  Step Minimum=-48.1 Output=2", "  Step Minimum=-42.1 Output=3", "  Step Minimum=-36.1 Output=4", "  Step Minimum=-30.1 Output=5", "  Step Minimum=-24.1 Output=6", "  Step Minimum=-18.1 Output=7", "  Step Minimum=-12.1 Output=8", "  Step Minimum=-9.1 Output=9", "  Step Minimum=-6.1 Output=10", "  Step Minimum=-3.1 Output=11", "  Step Minimum=0.1 Output=14", "}", ""];
+}
+
 function meterInitialization(widgets: SurfaceWidget[]): string[] {
     const deviceTypes = new Set<number>();
     for (const widget of widgets) for (const line of widget.body) {
@@ -424,6 +430,7 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const channel = Number(tokens[1]);
         if (channel >= 0 && channel <= 7) return `Feedback Meter { Encoding=MIDI7 Message=[ ${processor.endsWith("r") ? "0xD1" : "0xD0"} ] MeterProfile=AsparionMeter ValueBase=${midiByte((channel << 4).toString(16))} Combine=BitOr }`;
     }
+    if (conversion.kind === "qconMasterMeter" && tokens[1] && /^[01]$/.test(tokens[1])) return `Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=QConMasterMeter ValueBase=${midiByte((Number(tokens[1]) << 4).toString(16))} Combine=BitOr }`;
     if (conversion.kind === "sce24Text" && tokens.length >= 7) {
         const address = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16) + (processor === "fb_sce24oledbutton" ? 0x60 : 0);
         const topMargin = Number(tokens[4]);
@@ -596,7 +603,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         const channel = legacyWidgetChannel(widget);

@@ -328,6 +328,26 @@ WidgetEnd
         expect(conversion.source).not.toContain("0xA0");
     });
 
+    test("converts QCon master stereo meters without treating their side as a surface channel", () => {
+        const legacySurface = `Widget MasterMeterLeft
+  FB_QConProXMasterVUMeter 0
+WidgetEnd
+Widget MasterMeterRight
+  FB_QConProXMasterVUMeter 1
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "QCon master", "Surfaces/User/qcon-master.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(parseSurface(conversion.source, "Surfaces/User/qcon-master.txt").diagnostics).toEqual([]);
+        expect(conversion.source.match(/MeterProfile QConMasterMeter \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("Step Minimum=-3.1 Output=11");
+        expect(conversion.source).toContain("Step Minimum=0.1 Output=14");
+        expect(conversion.source).toContain("Widget MasterMeterLeft {\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=QConMasterMeter ValueBase=0x00 Combine=BitOr }");
+        expect(conversion.source).toContain("Widget MasterMeterRight {\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=QConMasterMeter ValueBase=0x10 Combine=BitOr }");
+        expect(conversion.source).not.toContain("Channel=");
+    });
+
     test("converts SCE24 encoder rings and explicit segment colors", () => {
         const legacySurface = `Widget Rotary1 RotaryWidgetClass
   Encoder b0 00 7f
