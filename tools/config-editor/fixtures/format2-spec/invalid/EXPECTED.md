@@ -7,6 +7,7 @@
 - `surface-channels.txt`: reject a non-positive Surface channel count.
 - `surface-initialize-midi.txt`: reject a SysEx initialization message without its terminal `0xF7` byte.
 - `surface-text-payload-defaults.txt`: require `TopMargin` and `TextColor` defaults for the matching dynamic text Payload fields.
+- `surface-ring-configure-payload.txt`: reject Ring Configure fields that are not in the canonical mask, red, green, blue order.
 - `main-zone-body.zon`: reject `IncludedZones` on a zone layer, multiple button events on one binding, and the removed free Widget wildcard syntax.
 - `main-layer-target.zon`: interpret as a Main zone and reject Target on `Role=Layer`.
 - `fx-main-metadata.zon`: interpret as an FX zone and reject Main Role metadata.

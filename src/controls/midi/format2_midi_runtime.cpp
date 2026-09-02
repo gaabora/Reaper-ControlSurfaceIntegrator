@@ -52,6 +52,21 @@ bool Format2MidiRuntimeLoader::ReadTextPayload(const Format2PropertySyntax* prop
     return !payload.empty() && payload.back().field == Format2MidiSysExTextPayloadField::Text;
 }
 
+bool Format2MidiRuntimeLoader::ReadRingConfigurePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExRingConfigureItem>& payload) {
+    if (!property || !property->value.list || property->value.items.empty()) return false;
+    payload.clear();
+    for (const Format2ScalarSyntax& item : property->value.items) {
+        int value = 0;
+        if (ReadByte(item, value) && value <= 0x7F) payload.push_back({ Format2MidiSysExRingConfigureField::Byte, value });
+        else if (item.text == "SegmentMasks") payload.push_back({ Format2MidiSysExRingConfigureField::SegmentMasks, 0 });
+        else if (item.text == "SegmentRed7") payload.push_back({ Format2MidiSysExRingConfigureField::SegmentRed, 0 });
+        else if (item.text == "SegmentGreen7") payload.push_back({ Format2MidiSysExRingConfigureField::SegmentGreen, 0 });
+        else if (item.text == "SegmentBlue7") payload.push_back({ Format2MidiSysExRingConfigureField::SegmentBlue, 0 });
+        else return false;
+    }
+    return true;
+}
+
 vector<string> Format2MidiRuntimeLoader::MakeTokens(const string& type, const vector<int>& firstMessage, const vector<int>& secondMessage) {
     vector<string> tokens = { type };
     for (int value : firstMessage) tokens.push_back(to_string(value));
@@ -69,7 +84,14 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7 && primitive.nestedBlocks.empty()) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7) {
+        if (primitive.nestedBlocks.empty()) return true;
+        if (primitive.nestedBlocks.size() != 1 || primitive.nestedBlocks[0].positionalTokens.empty() || primitive.nestedBlocks[0].positionalTokens[0].text != "Configure") return false;
+        const Format2PropertySyntax* payloadProperty = nullptr;
+        for (const Format2PropertySyntax& property : primitive.nestedBlocks[0].properties) if (property.name == "Payload") payloadProperty = &property;
+        vector<Format2MidiSysExRingConfigureItem> payload;
+        return ReadRingConfigurePayload(payloadProperty, payload);
+    }
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Bar" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiPalette) return true;
@@ -237,7 +259,13 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 Format2MidiRingStyleCombine styleCombine = Format2MidiRingStyleCombine::BitOr;
                 const Format2PropertySyntax* styleCombineProperty = FindProperty(primitive, "StyleCombine");
                 if (styleCombineProperty && styleCombineProperty->value.scalar.text == "Add") styleCombine = Format2MidiRingStyleCombine::Add;
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7RingFeedbackProcessor>(surface->csi_, surface, widget, message, *profile, valueBase, valueCombine, styleTarget, styleShift, styleCombine));
+                vector<Format2MidiSysExRingConfigureItem> configurePayload;
+                if (!primitive.nestedBlocks.empty()) {
+                    const Format2PropertySyntax* payloadProperty = nullptr;
+                    for (const Format2PropertySyntax& property : primitive.nestedBlocks[0].properties) if (property.name == "Payload") payloadProperty = &property;
+                    if (!ReadRingConfigurePayload(payloadProperty, configurePayload)) continue;
+                }
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7RingFeedbackProcessor>(surface->csi_, surface, widget, message, *profile, valueBase, valueCombine, styleTarget, styleShift, styleCombine, configurePayload));
                 widget->MarkOskValueFeedback();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb) {

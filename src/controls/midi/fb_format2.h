@@ -76,8 +76,77 @@ private:
     Format2MidiRingStyleTarget styleTarget_ = Format2MidiRingStyleTarget::Value;
     int styleShift_ = 0;
     Format2MidiRingStyleCombine styleCombine_ = Format2MidiRingStyleCombine::BitOr;
+    vector<Format2MidiSysExRingConfigureItem> configurePayload_;
     std::array<int, 3> lastMessage_{};
     bool hasLastMessage_ = false;
+
+    static rgba_color RgbColor(std::uint32_t value) {
+        rgba_color color;
+        color.r = (value >> 16) & 0xFF;
+        color.g = (value >> 8) & 0xFF;
+        color.b = value & 0xFF;
+        return color;
+    }
+
+    vector<rgba_color> ResolveColors(const PropertyList& properties) const {
+        const int segmentCount = this->profile_.segments.value_or(0);
+        vector<rgba_color> colors;
+        const char* propertyValue = properties.get_prop(PropertyType_RingColors);
+        if (propertyValue) {
+            string source = propertyValue;
+            ReplaceAllWith(source, "[", "");
+            ReplaceAllWith(source, "]", "");
+            ReplaceAllWith(source, "\"", "");
+            size_t start = 0;
+            while (start <= source.size()) {
+                const size_t separator = source.find(',', start);
+                string token = source.substr(start, separator == string::npos ? string::npos : separator - start);
+                token.erase(0, token.find_first_not_of(" \t"));
+                const size_t lastText = token.find_last_not_of(" \t");
+                if (lastText != string::npos) token.erase(lastText + 1);
+                if (!token.empty()) {
+                    rgba_color color;
+                    GetColorValue(token.c_str(), color);
+                    colors.push_back(color);
+                }
+                if (separator == string::npos) break;
+                start = separator + 1;
+            }
+        }
+        if (colors.size() == 1 && segmentCount > 1) colors.resize(segmentCount, colors.front());
+        if ((int) colors.size() != segmentCount) colors.assign(segmentCount, RgbColor(this->profile_.defaultColor));
+        return colors;
+    }
+
+    void SendConfiguration(const vector<rgba_color>& colors) {
+        if (this->configurePayload_.empty() || colors.empty()) return;
+        vector<rgba_color> groups;
+        vector<vector<int>> masks;
+        const int maskCount = ((int) colors.size() + 6) / 7;
+        for (size_t colorIdx = 0; colorIdx < colors.size(); ++colorIdx) {
+            size_t groupIdx = 0;
+            while (groupIdx < groups.size() && groups[groupIdx] != colors[colorIdx]) ++groupIdx;
+            if (groupIdx == groups.size()) {
+                groups.push_back(colors[colorIdx]);
+                masks.push_back(vector<int>(maskCount, 0));
+            }
+            masks[groupIdx][colorIdx / 7] |= 1 << (colorIdx % 7);
+        }
+        for (size_t groupIdx = 0; groupIdx < groups.size(); ++groupIdx) {
+            const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(groups[groupIdx], 127);
+            SysExBuilder builder;
+            builder.begin();
+            for (const Format2MidiSysExRingConfigureItem& item : this->configurePayload_) {
+                if (item.field == Format2MidiSysExRingConfigureField::Byte) builder.add((unsigned char) item.byte);
+                else if (item.field == Format2MidiSysExRingConfigureField::SegmentMasks) for (int mask : masks[groupIdx]) builder.add((unsigned char) mask);
+                else if (item.field == Format2MidiSysExRingConfigureField::SegmentRed) builder.add((unsigned char) deviceColor.r);
+                else if (item.field == Format2MidiSysExRingConfigureField::SegmentGreen) builder.add((unsigned char) deviceColor.g);
+                else if (item.field == Format2MidiSysExRingConfigureField::SegmentBlue) builder.add((unsigned char) deviceColor.b);
+            }
+            builder.end();
+            this->SendMidiSysExMessage(builder.message());
+        }
+    }
 
     static Format2RingStyle ResolveStyle(const PropertyList& properties) {
         const char* value = properties.get_prop(PropertyType_RingStyle);
@@ -122,14 +191,23 @@ private:
     void Send(const std::array<int, 3>& message) { this->SendMidiMessage(message[0], message[1], message[2]); }
 
 public:
-    Format2Midi7RingFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& message, const Format2RingProfile& profile, int valueBase, Format2MidiValueCombine valueCombine, Format2MidiRingStyleTarget styleTarget, int styleShift, Format2MidiRingStyleCombine styleCombine)
-        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), profile_(profile), valueBase_(valueBase), valueCombine_(valueCombine), styleTarget_(styleTarget), styleShift_(styleShift), styleCombine_(styleCombine) {}
+    Format2Midi7RingFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& message, const Format2RingProfile& profile, int valueBase, Format2MidiValueCombine valueCombine, Format2MidiRingStyleTarget styleTarget, int styleShift, Format2MidiRingStyleCombine styleCombine, const vector<Format2MidiSysExRingConfigureItem>& configurePayload)
+        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), profile_(profile), valueBase_(valueBase), valueCombine_(valueCombine), styleTarget_(styleTarget), styleShift_(styleShift), styleCombine_(styleCombine), configurePayload_(configurePayload) {}
     virtual ~Format2Midi7RingFeedbackProcessor() {}
     virtual const char* GetName() override { return "Format2Midi7RingFeedbackProcessor"; }
 
     virtual void ForceClear() override {
         const PropertyList properties;
+        const vector<rgba_color> colors = this->ResolveColors(properties);
+        this->SendConfiguration(colors);
         this->ForceValue(properties, 0.0);
+    }
+
+    virtual void Configure(const vector<unique_ptr<ActionContext>>& contexts) override {
+        const PropertyList emptyProperties;
+        const PropertyList& properties = contexts.empty() ? emptyProperties : contexts[0]->GetWidgetProperties();
+        const vector<rgba_color> colors = this->ResolveColors(properties);
+        this->SendConfiguration(colors);
     }
 
     virtual void SetValue(const PropertyList& properties, double value) override {

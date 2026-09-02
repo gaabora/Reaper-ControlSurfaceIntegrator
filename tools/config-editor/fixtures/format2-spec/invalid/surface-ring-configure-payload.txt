@@ -1,0 +1,19 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Invalid ring configuration" }
+
+RingProfile Ring {
+  Segments=11
+  DefaultColor=#000000
+  Style Dot Code=0 Steps=11
+}
+
+Widget Rotary1 {
+  Feedback Ring {
+    Encoding=MIDI7
+    Message=[0xB0, 0x30]
+    RingProfile=Ring
+    Configure {
+      Encoding=MIDISysEx
+      Payload=[0x00, SegmentMasks, SegmentBlue7, SegmentGreen7, SegmentRed7]
+    }
+  }
+}

@@ -4,6 +4,7 @@
 
 class Midi_ControlSurface;
 struct Format2MidiSysExTextPayloadItem;
+struct Format2MidiSysExRingConfigureItem;
 struct Format2PropertySyntax;
 struct Format2ScalarSyntax;
 struct Format2SurfacePrimitive;
@@ -21,6 +22,7 @@ private:
     static bool ReadByte(const Format2ScalarSyntax& scalar, int& value);
     static bool ReadBytes(const Format2PropertySyntax* property, vector<int>& values);
     static bool ReadTextPayload(const Format2PropertySyntax* property, vector<Format2MidiSysExTextPayloadItem>& payload);
+    static bool ReadRingConfigurePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExRingConfigureItem>& payload);
     static vector<string> MakeTokens(const string& type, const vector<int>& firstMessage, const vector<int>& secondMessage = {});
     static bool IsSupported(const Format2SurfacePrimitive& primitive);
 

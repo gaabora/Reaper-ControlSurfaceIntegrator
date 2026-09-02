@@ -246,6 +246,19 @@ struct Format2MidiSysExTextPayloadItem {
     int byte = 0;
 };
 
+enum class Format2MidiSysExRingConfigureField {
+    Byte,
+    SegmentMasks,
+    SegmentRed,
+    SegmentGreen,
+    SegmentBlue,
+};
+
+struct Format2MidiSysExRingConfigureItem {
+    Format2MidiSysExRingConfigureField field = Format2MidiSysExRingConfigureField::Byte;
+    int byte = 0;
+};
+
 enum class Format2TrackColorCondition {
     Always,
     SourceTextPresent,

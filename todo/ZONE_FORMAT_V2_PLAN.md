@@ -1640,7 +1640,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Add the first format 2 MIDI runtime bridge for the converted FaderPort set: `MIDIExact` Press, Touch, and State; `MIDI14` Value input and feedback; `MIDI7` Encoder; and `MIDIRGB` Color. Construct Widgets only after typed validation and report unsupported primitives instead of sending format 2 source to the legacy parser.
   - ✅ Replace the bridge's FaderPort-specific RGB dispatch with one `MIDIRGB` codec driven by declared Enable, Red, Green, Blue, state-brightness, and ColorCalibration metadata. Resolve accelerated encoder values through the referenced EncoderProfile ID instead of a fixed WidgetClass name.
   - ✅ Add universal `MIDI7` Value input and feedback for one- or two-byte prefixes, ValueBase/Combine output, echo and touch suppression, plus explicit `SignedBit`, `SignedBitFixed`, and `Relative7Bit` Encoder modes.
-  - ✅ Add universal `MIDI7` Ring value and RingStyle feedback through `RingProfile`, ValueBase/Combine, StyleTarget, StyleShift, and StyleCombine. Keep nested Ring color Configure for its separate remaining runtime step.
+  - ✅ Add universal `MIDI7` Ring value, RingStyle, and nested color Configure feedback through `RingProfile`, ValueBase/Combine, StyleTarget, StyleShift, StyleCombine, SegmentMasks, calibrated RGB fields, and binding `RingColors`.
   - ✅ Add `MIDIPrefix` Press runtime behavior for legacy `AnyPress` conversion without a fabricated release message.
   - ✅ Add universal constant-prefix `MIDISysEx` Text feedback with a terminal Text field and TextProfile encoding, width, padding, clear text, silence handling, and global label restriction.
   - ✅ Add a universal Surface-level `Initialize` block whose MIDI lines contain complete validated channel, system, or SysEx messages. Send them after Surface loading and again after MIDI I/O reconnect.
@@ -1652,6 +1652,8 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - [ ] Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
+  - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.
+  - [ ] Implement Surface-level TrackColor FeedbackGroup ownership.
 - ✅ Implement Bar feedback with separate value and style outputs, plus the bounded MIDIPalette Companion message.
 - [ ] Verify that a new device which uses an existing protocol shape needs only a Surface file and no new C++ class.
 - [ ] Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them.

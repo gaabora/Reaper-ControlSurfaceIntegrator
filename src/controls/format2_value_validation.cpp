@@ -101,6 +101,19 @@ static bool ValidateFormat2TextPayload(const Format2ValueSyntax& value) {
     return true;
 }
 
+static bool ValidateFormat2RingConfigurePayload(const Format2ValueSyntax& value) {
+    if (!value.list || value.items.empty()) return false;
+    const std::vector<std::string> fields = { "SegmentMasks", "SegmentRed7", "SegmentGreen7", "SegmentBlue7" };
+    size_t fieldIdx = 0;
+    for (const Format2ScalarSyntax& item : value.items) {
+        int byte = 0;
+        if (ParseFormat2IntegerScalar(item, byte)) {
+            if (byte < 0 || byte > 0x7F) return false;
+        } else if (item.quoted || fieldIdx >= fields.size() || item.text != fields[fieldIdx++]) return false;
+    }
+    return fieldIdx == fields.size();
+}
+
 static bool ValidateFormat2Enum(const Format2ValueSyntax& value, const std::string& values) {
     if (value.list || value.scalar.quoted) return false;
     std::size_t start = 0;
@@ -168,6 +181,7 @@ std::string ValidateFormat2ValueRule(const Format2PropertySyntax& property, cons
     if (rule == "MIDIMessage1Or2") return ValidateFormat2MidiMessage(property.value, 1, 2) ? std::string{} : "a one- or two-byte MIDI message prefix";
     if (rule == "MIDIInitializationMessage") return ValidateFormat2MidiInitializationMessage(property.value) ? std::string{} : "one complete MIDI message";
     if (rule == "TextPayload") return ValidateFormat2TextPayload(property.value) ? std::string{} : "MIDI data bytes and supported text fields followed by Text";
+    if (rule == "RingConfigurePayload") return ValidateFormat2RingConfigurePayload(property.value) ? std::string{} : "MIDI data bytes plus one SegmentMasks and one segment RGB field set";
     if (rule == "OSCAddress") {
         if (!property.value.list && !property.value.scalar.text.empty() && property.value.scalar.text[0] == '/') return {};
         return "one OSC address that starts with /";
