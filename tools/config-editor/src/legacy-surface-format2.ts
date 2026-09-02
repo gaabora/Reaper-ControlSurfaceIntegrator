@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -30,6 +30,13 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fader7bit", { kind: "fader7", targets: [{ direction: "Input", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
     ["fader14bit", { kind: "fader14", targets: [{ direction: "Input", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_encoder", { kind: "ring", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Ring", protocol: "MIDI" }] }],
+    ["fb_aspariondisplayencoder", { kind: "asparionDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_aspariondisplaylower", { kind: "asparionDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_aspariondisplayupper", { kind: "asparionDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_asparionencoder", { kind: "asparionRing", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Ring", protocol: "MIDI" }] }],
+    ["fb_asparionrgb", { kind: "asparionRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
+    ["fb_asparionvumeterl", { kind: "asparionMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
+    ["fb_asparionvumeterr", { kind: "asparionMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
     ["fb_fader7bit", { kind: "fader7Feedback", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_fader14bit", { kind: "fader14Feedback", targets: [{ direction: "Feedback", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_faderportrgb", { kind: "faderportRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
@@ -154,6 +161,9 @@ function ringProfiles(widgets: SurfaceWidget[]): string[] {
     if (widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_sce24encoder"))) {
         result.push("RingProfile SCE24Ring {", "  Segments=18", "  DefaultColor=#000000", "  Quantize=Floor", "  ValueOffset=65", "  Style Dot Code=0 Steps=15", "  Style BoostCut Code=1 Steps=15", "  Style Fill Code=2 Steps=15", "  Style Spread Code=3 Steps=8", "}", "");
     }
+    if (widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_asparionencoder"))) {
+        result.push("RingProfile AsparionRing {", "  Segments=128", "  Quantize=Floor", "  ValueOffset=0", "  Style Dot Code=2 Steps=128", "  Style Fill Code=1 Steps=128", "}", "");
+    }
     return result;
 }
 
@@ -200,6 +210,14 @@ function textProfiles(widgets: SurfaceWidget[]): string[] {
     return ["TextProfile Display7 {", "  Encoding=ASCII7", "  Width=7", "  Padding=Space", '  ClearText=""', "  SilenceAsEmpty=true", "}", ""];
 }
 
+function asparionTextProfiles(widgets: SurfaceWidget[]): string[] {
+    const processors = new Set(widgets.flatMap((widget) => widget.body.map((line) => (line.tokens[0] ?? "").toLowerCase())));
+    const result: string[] = [];
+    if (processors.has("fb_aspariondisplayupper") || processors.has("fb_aspariondisplaylower")) result.push("TextProfile Display12 {", "  Encoding=ASCII7", "  Width=12", "  Padding=Space", '  ClearText=""', "  SilenceAsEmpty=true", "}", "");
+    if (processors.has("fb_aspariondisplayencoder")) result.push("TextProfile Display8 {", "  Encoding=ASCII7", "  Width=8", "  Padding=Space", '  ClearText=""', "  SilenceAsEmpty=true", "}", "");
+    return result;
+}
+
 function dynamicTextProfiles(widgets: SurfaceWidget[]): string[] {
     if (!widgets.some((widget) => widget.body.some((line) => ["fb_sce24encodertext", "fb_sce24oledbutton"].includes((line.tokens[0] ?? "").toLowerCase())))) return [];
     return ["TextProfile DynamicText {", "  Encoding=ASCII7", "  Padding=None", '  ClearText=""', "}", ""];
@@ -225,6 +243,11 @@ function meterProfile(widgets: SurfaceWidget[], mode: LegacyMcuMeterMode): strin
 function faderportMeterProfile(widgets: SurfaceWidget[]): string[] {
     if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_fpvumeter"))) return [];
     return ["MeterProfile FaderPortPeakMeter {", "  Mode=Linear", "  InputUnit=Normalized", "  InputRange=[ 0, 1 ]", "  OutputRange=[ 0, 127 ]", "  Quantize=Floor", "}", ""];
+}
+
+function asparionMeterProfile(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => ["fb_asparionvumeterl", "fb_asparionvumeterr"].includes((line.tokens[0] ?? "").toLowerCase())))) return [];
+    return ["MeterProfile AsparionMeter {", "  Mode=Steps", "  InputUnit=Normalized", "  Default=0", ...Array.from({ length: 13 }, (_, stepIdx) => `  Step Minimum=${(stepIdx + 1) / 15} Output=${stepIdx + 1}`), "}", ""];
 }
 
 function meterInitialization(widgets: SurfaceWidget[]): string[] {
@@ -283,6 +306,12 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         }
         return `Feedback Ring { Encoding=MIDI7 Message=${midiList([tokens[1], dataByte.toString(16)])} RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }`;
     }
+    if (conversion.kind === "asparionRing" && tokens.length >= 4) {
+        const status = Number.parseInt(tokens[1].replace(/^0x/i, ""), 16);
+        const address = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16) + 0x20;
+        const legacyValue = Number.parseInt(tokens[3].replace(/^0x/i, ""), 16);
+        if (Number.isInteger(status) && status >= 0x80 && status <= 0xEC && Number.isInteger(address) && address >= 0 && address <= 0x7F && Number.isInteger(legacyValue) && legacyValue >= 0 && legacyValue <= 0x7F) return `Feedback Ring { Encoding=MIDI7 Message=${midiList([tokens[1], address.toString(16)])} RingProfile=AsparionRing StyleTarget=Status StyleCombine=Add }`;
+    }
     if (conversion.kind === "sce24Ring" && tokens.length >= 4) {
         const status = Number.parseInt(tokens[1].replace(/^0x/i, ""), 16);
         const address = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16);
@@ -304,6 +333,11 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
     if (conversion.kind === "faderportTwoStateRgb" && tokens.length >= 4) {
         const dataByte = midiByte(tokens[2]);
         return `Feedback Color { Encoding=MIDIRGB Enable=${midiList(["90", dataByte, "7f"])} Red=${midiList(["91", dataByte])} Green=${midiList(["92", dataByte])} Blue=${midiList(["93", dataByte])} InactiveBrightness=0.1111111111111111 ActiveBrightness=1 }`;
+    }
+    if (conversion.kind === "asparionRgb" && tokens.length >= 4) {
+        const dataByte = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16);
+        const legacyValue = Number.parseInt(tokens[3].replace(/^0x/i, ""), 16);
+        if (Number.isInteger(dataByte) && dataByte >= 0 && dataByte <= 0x7F && Number.isInteger(legacyValue) && legacyValue >= 0 && legacyValue <= 0x7F) return `Feedback Color { Encoding=MIDIRGB Red=${midiList(["91", tokens[2]])} Green=${midiList(["92", tokens[2]])} Blue=${midiList(["93", tokens[2]])} TrackColor=true }`;
     }
     if (conversion.kind === "faderportScribble" && tokens[1] && /^fb_fp(?:8|16)scribbleline[1-4]$/.test(processor)) {
         const channel = Number(tokens[1]);
@@ -354,6 +388,16 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
             return `Feedback Text { Encoding=MIDISysEx Payload=${sysExTextPayload([...manufacturerBytes, displayType, displayRow, offset.toString(16)])} TextProfile=Display7 }`;
         }
     }
+    if (conversion.kind === "asparionDisplay" && tokens[1] && /^\d+$/.test(tokens[1])) {
+        const channel = Number(tokens[1]);
+        if (channel >= 0 && channel <= 7) {
+            const encoder = processor === "fb_aspariondisplayencoder";
+            const displayTextType = encoder ? "19" : "1a";
+            const offset = channel * (encoder ? 8 : 12);
+            const fields = encoder ? ["00", "00", "66", "14", displayTextType, offset.toString(16)] : ["00", "00", "66", "14", displayTextType, offset.toString(16), processor.endsWith("lower") ? "02" : "01"];
+            return `Feedback Text { Encoding=MIDISysEx Payload=${sysExTextPayload(fields)} TextProfile=${encoder ? "Display8" : "Display12"} }`;
+        }
+    }
     if (conversion.kind === "mcuMeter" && tokens[1] && /^\d+$/.test(tokens[1])) {
         const channel = Number(tokens[1]);
         if (channel >= 0 && channel <= 7) return `Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=SurfaceMeter ValueBase=${midiByte((channel << 4).toString(16))} Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }`;
@@ -364,6 +408,10 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
             const status = channel < 8 ? 0xD0 + channel : 0xC0 + channel - 8;
             return `Feedback Meter { Encoding=MIDI7 Message=[ ${midiByte(status.toString(16))} ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }`;
         }
+    }
+    if (conversion.kind === "asparionMeter" && tokens[1] && /^\d+$/.test(tokens[1])) {
+        const channel = Number(tokens[1]);
+        if (channel >= 0 && channel <= 7) return `Feedback Meter { Encoding=MIDI7 Message=[ ${processor.endsWith("r") ? "0xD1" : "0xD0"} ] MeterProfile=AsparionMeter ValueBase=${midiByte((channel << 4).toString(16))} Combine=BitOr }`;
     }
     if (conversion.kind === "sce24Text" && tokens.length >= 7) {
         const address = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16) + (processor === "fb_sce24oledbutton" ? 0x60 : 0);
@@ -392,9 +440,14 @@ function visibleWidgets(sourceLines: ReturnType<typeof splitSourceLines>, widget
 
 function legacyWidgetChannel(widget: SurfaceWidget): number | undefined {
     for (const line of widget.body) {
-        if (!/^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "") && !/^fb_icondisplay[12](?:upper|lower)$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
+        if (!/^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "") && !/^fb_icondisplay[12](?:upper|lower)$/i.test(line.tokens[0] ?? "") && !/^fb_asparion(?:display(?:upper|lower|encoder)|vumeter[lr])$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
         const channel = Number(line.tokens[1]);
         if (Number.isInteger(channel) && channel >= 0 && channel <= 15) return channel + 1;
+    }
+    if (widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_asparionrgb")) {
+        const suffix = widget.name.match(/(\d+)$/)?.[1];
+        const channel = suffix ? Number(suffix) : 0;
+        if (Number.isInteger(channel) && channel > 0) return channel;
     }
     return undefined;
 }
@@ -532,11 +585,15 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         const channel = legacyWidgetChannel(widget);
         if (channel) output.push(`  Channel=${channel}`);
+        else {
+            const trackColorLine = widget.body.find((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_asparionrgb");
+            if (trackColorLine) addDiagnostic(diagnostics, "error", "legacy.widget.channel.unresolved", "Track-color feedback requires a channel, but the processor has no channel argument and the Widget ID has no unambiguous numeric suffix.", trackColorLine.lineNumber, documentPath);
+        }
         for (const line of widget.body) {
             const converted = convertProcessor(widget, line.tokens, line.lineNumber, diagnostics, documentPath);
             if (converted) output.push(`  ${converted}`);

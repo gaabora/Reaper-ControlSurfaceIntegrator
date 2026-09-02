@@ -9,6 +9,7 @@ import { migrateLegacySce24StateColors } from "../src/legacy-sce24-state.ts";
 import { ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { ConfigurationStore, EditorOperationError } from "../src/store.ts";
+import { parseSurface } from "../src/surface.ts";
 
 const identity: EditorProductIdentity = {
     configFilename: "TestProduct.conf",
@@ -189,6 +190,52 @@ WidgetEnd
         expect(conversion.source).toContain("Widget Icon1Lower {\n  Channel=8\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x69, Text ] TextProfile=Display7 }");
         expect(conversion.source).toContain("Widget Icon2Upper {\n  Channel=2\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x07, Text ] TextProfile=Display7 }");
         expect(conversion.source).toContain("Widget Icon2Lower {\n  Channel=7\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x62, Text ] TextProfile=Display7 }");
+    });
+
+    test("converts Asparion color, ring, displays, and meters to universal feedback", () => {
+        const legacySurface = `Widget TrackColor1
+  FB_AsparionRGB 90 20 7f
+WidgetEnd
+Widget Rotary1
+  FB_AsparionEncoder b0 10 7f
+WidgetEnd
+Widget DisplayUpper1
+  FB_AsparionDisplayUpper 0
+WidgetEnd
+Widget DisplayLower8
+  FB_AsparionDisplayLower 7
+WidgetEnd
+Widget DisplayEncoder2
+  FB_AsparionDisplayEncoder 1
+WidgetEnd
+Widget MeterLeft1
+  FB_AsparionVUMeterL 0
+WidgetEnd
+Widget MeterRight8
+  FB_AsparionVUMeterR 7
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Asparion", "Surfaces/User/asparion.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(parseSurface(conversion.source, "Surfaces/User/asparion.txt").diagnostics).toEqual([]);
+        expect(conversion.source.match(/RingProfile AsparionRing \{/g)).toHaveLength(1);
+        expect(conversion.source.match(/MeterProfile AsparionMeter \{/g)).toHaveLength(1);
+        expect(conversion.source.match(/TextProfile Display12 \{/g)).toHaveLength(1);
+        expect(conversion.source.match(/TextProfile Display8 \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("Widget TrackColor1 {\n  Channel=1\n  Feedback Color { Encoding=MIDIRGB Red=[ 0x91, 0x20 ] Green=[ 0x92, 0x20 ] Blue=[ 0x93, 0x20 ] TrackColor=true }");
+        expect(conversion.source).toContain("Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] RingProfile=AsparionRing StyleTarget=Status StyleCombine=Add }");
+        expect(conversion.source).toContain("Widget DisplayUpper1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x1A, 0x00, 0x01, Text ] TextProfile=Display12 }");
+        expect(conversion.source).toContain("Widget DisplayLower8 {\n  Channel=8\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x1A, 0x54, 0x02, Text ] TextProfile=Display12 }");
+        expect(conversion.source).toContain("Widget DisplayEncoder2 {\n  Channel=2\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x19, 0x08, Text ] TextProfile=Display8 }");
+        expect(conversion.source).toContain("Widget MeterLeft1 {\n  Channel=1\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=AsparionMeter ValueBase=0x00 Combine=BitOr }");
+        expect(conversion.source).toContain("Widget MeterRight8 {\n  Channel=8\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=AsparionMeter ValueBase=0x70 Combine=BitOr }");
+    });
+
+    test("requires an explicit channel for imported Asparion track-color feedback", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget TrackColor\n  FB_AsparionRGB 90 20 7f\nWidgetEnd\n", "Asparion", "Surfaces/User/asparion.txt");
+
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.widget.channel.unresolved", line: 2 }));
     });
 
     test("converts legacy dynamic text and OLED button displays to universal SysEx fields", () => {
