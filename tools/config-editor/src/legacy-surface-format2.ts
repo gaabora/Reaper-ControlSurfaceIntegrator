@@ -40,6 +40,10 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_fader7bit", { kind: "fader7Feedback", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_fader14bit", { kind: "fader14Feedback", targets: [{ direction: "Feedback", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_faderportrgb", { kind: "faderportRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
+    ["fb_fp8displaylower", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp8displaylowermiddle", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp8displayupper", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp8displayuppermiddle", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_fp8scribbleline1", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_fp8scribbleline2", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_fp8scribbleline3", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
@@ -224,8 +228,16 @@ function dynamicTextProfiles(widgets: SurfaceWidget[]): string[] {
 }
 
 function faderportScribbleProfiles(widgets: SurfaceWidget[]): string[] {
-    if (!widgets.some((widget) => widget.body.some((line) => /^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "")))) return [];
+    if (!widgets.some((widget) => widget.body.some((line) => faderportScribbleMetadata((line.tokens[0] ?? "").toLowerCase())))) return [];
     return ["TextProfile FaderPortScribble {", "  Encoding=ASCII7", "  Width=30", "  Padding=None", '  ClearText="                            "', "  DefaultAlignment=Center", "  Alignment Center Code=0", "  Alignment Left Code=1", "  Alignment Right Code=2", "  InvertCode=4", "  PresentationCombine=BitOr", "}", ""];
+}
+
+function faderportScribbleMetadata(processor: string): { displayType: number; row: number } | undefined {
+    const currentMatch = processor.match(/^fb_fp(8|16)scribbleline([1-4])$/);
+    if (currentMatch) return { displayType: currentMatch[1] === "16" ? 0x16 : 0x02, row: Number(currentMatch[2]) - 1 };
+    const legacyRows = new Map<string, number>([["fb_fp8displayupper", 0], ["fb_fp8displayuppermiddle", 1], ["fb_fp8displaylowermiddle", 2], ["fb_fp8displaylower", 3]]);
+    const row = legacyRows.get(processor);
+    return row === undefined ? undefined : { displayType: 0x02, row };
 }
 
 function meterProfile(widgets: SurfaceWidget[], mode: LegacyMcuMeterMode): string[] {
@@ -339,12 +351,11 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const legacyValue = Number.parseInt(tokens[3].replace(/^0x/i, ""), 16);
         if (Number.isInteger(dataByte) && dataByte >= 0 && dataByte <= 0x7F && Number.isInteger(legacyValue) && legacyValue >= 0 && legacyValue <= 0x7F) return `Feedback Color { Encoding=MIDIRGB Red=${midiList(["91", tokens[2]])} Green=${midiList(["92", tokens[2]])} Blue=${midiList(["93", tokens[2]])} TrackColor=true }`;
     }
-    if (conversion.kind === "faderportScribble" && tokens[1] && /^fb_fp(?:8|16)scribbleline[1-4]$/.test(processor)) {
+    if (conversion.kind === "faderportScribble" && tokens[1]) {
+        const metadata = faderportScribbleMetadata(processor);
         const channel = Number(tokens[1]);
-        const row = Number(processor.at(-1)) - 1;
-        const displayType = processor.startsWith("fb_fp16") ? 0x16 : 0x02;
-        if (Number.isInteger(channel) && channel >= 0 && channel <= 15) {
-            const prefix = ["00", "01", "06", displayType.toString(16), "12", channel.toString(16), row.toString(16)].map(midiByte).join(", ");
+        if (metadata && Number.isInteger(channel) && channel >= 0 && channel <= 15) {
+            const prefix = ["00", "01", "06", metadata.displayType.toString(16), "12", channel.toString(16), metadata.row.toString(16)].map(midiByte).join(", ");
             return `Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ ${prefix}, TextPresentationCode, Text ] }`;
         }
     }
@@ -440,7 +451,7 @@ function visibleWidgets(sourceLines: ReturnType<typeof splitSourceLines>, widget
 
 function legacyWidgetChannel(widget: SurfaceWidget): number | undefined {
     for (const line of widget.body) {
-        if (!/^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "") && !/^fb_icondisplay[12](?:upper|lower)$/i.test(line.tokens[0] ?? "") && !/^fb_asparion(?:display(?:upper|lower|encoder)|vumeter[lr])$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
+        if (!faderportScribbleMetadata((line.tokens[0] ?? "").toLowerCase()) && !/^fb_icondisplay[12](?:upper|lower)$/i.test(line.tokens[0] ?? "") && !/^fb_asparion(?:display(?:upper|lower|encoder)|vumeter[lr])$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
         const channel = Number(line.tokens[1]);
         if (Number.isInteger(channel) && channel >= 0 && channel <= 15) return channel + 1;
     }

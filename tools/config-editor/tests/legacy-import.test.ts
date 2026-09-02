@@ -277,6 +277,31 @@ WidgetEnd
         expect(conversion.source).toContain("Widget FP8Line2 {\n  Channel=4\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x03, 0x01, TextPresentationCode, Text ] }");
     });
 
+    test("converts removed FaderPort 8 display aliases to the universal scribble profile", () => {
+        const legacySurface = `Widget DisplayUpper1
+  FB_FP8DisplayUpper 0
+WidgetEnd
+Widget DisplayUpperMiddle2
+  FB_FP8DisplayUpperMiddle 1
+WidgetEnd
+Widget DisplayLowerMiddle7
+  FB_FP8DisplayLowerMiddle 6
+WidgetEnd
+Widget DisplayLower8
+  FB_FP8DisplayLower 7
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Legacy FaderPort 8", "Surfaces/User/faderport8.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(parseSurface(conversion.source, "Surfaces/User/faderport8.txt").diagnostics).toEqual([]);
+        expect(conversion.source.match(/TextProfile FaderPortScribble \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("Widget DisplayUpper1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x00, 0x00, TextPresentationCode, Text ] }");
+        expect(conversion.source).toContain("Widget DisplayUpperMiddle2 {\n  Channel=2\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x01, 0x01, TextPresentationCode, Text ] }");
+        expect(conversion.source).toContain("Widget DisplayLowerMiddle7 {\n  Channel=7\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x06, 0x02, TextPresentationCode, Text ] }");
+        expect(conversion.source).toContain("Widget DisplayLower8 {\n  Channel=8\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x07, 0x03, TextPresentationCode, Text ] }");
+    });
+
     test("converts FaderPort peak meters to valid continuous MIDI data", () => {
         const legacySurface = `Widget VUMeter1
   FB_FPVUMeter 0
