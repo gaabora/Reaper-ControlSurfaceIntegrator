@@ -198,7 +198,7 @@ WidgetEnd
         expect(conversion.source).toContain("RingProfile SCE24Ring {");
         expect(conversion.source).toContain("Payload=[ 0x00, 0x02, 0x38, 0x01, 0x00, SegmentMasks, SegmentRed7, SegmentGreen7, SegmentBlue7 ]");
         expect(zone.diagnostics).toEqual([]);
-        expect(zone.source).toContain("RingColors=[#003F00,#003F00,#003F00,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF]");
+        expect(zone.source).toContain("RingColors=[ #003F00, #003F00, #003F00, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF ]");
         expect(zone.source).not.toContain("LEDRingColor=");
         expect(zone.source).not.toContain("PushColor=");
     });
@@ -207,7 +207,7 @@ WidgetEnd
         const migration = migrateLegacySce24RingColors("Zone FX\n  RotaryB4 NoAction\n  RotaryPushB4 FXParam 10 PushColor=#003f00ff\nZoneEnd\n", "Zones/FX.zon");
 
         expect(migration.diagnostics).toEqual([]);
-        expect(migration.source).toContain("RotaryB4 NoAction RingColors=[#003F00,#003F00,#003F00,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000]");
+        expect(migration.source).toContain("RotaryB4 NoAction RingColors=[ #003F00, #003F00, #003F00, #000000, #000000, #000000, #000000, #000000, #000000, #000000, #000000, #000000, #000000, #000000, #000000, #000000, #000000, #000000 ]");
         expect(migration.source).toContain("RotaryPushB4 FXParam 10");
         expect(migration.source).not.toContain("PushColor=");
     });
@@ -234,7 +234,7 @@ WidgetEnd
         const convertedZone = preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source;
 
         expect(convertedSurface).toContain("RingProfile SCE24Ring {");
-        expect(convertedZone).toContain("RingColors=[#003F00,#003F00,#003F00,#0000FF");
+        expect(convertedZone).toContain("RingColors=[ #003F00, #003F00, #003F00, #0000FF");
         expect(convertedZone).not.toContain("LEDRingColor=");
         expect(convertedZone).not.toContain("PushColor=");
         expect(await readFile(zonePath, "utf8")).toBe(legacyZone);

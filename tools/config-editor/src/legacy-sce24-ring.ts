@@ -64,9 +64,8 @@ function applyRangeColors(binding: LegacyRingBinding, value: string | undefined,
         const color = canonicalColor(match[3])!;
         if (firstPosition > lastPosition || firstPosition < 0 || lastPosition > 17) {
             addMigrationError(diagnostics, "legacy.zone.sce24-ring.range", `SCE24 ring range ${firstPosition}-${lastPosition} must stay inside 0-17 and start before it ends.`, binding, documentPath);
-            continue;
         }
-        for (let position = firstPosition; position <= lastPosition; position++) assignColor(binding, position, color, diagnostics, documentPath);
+        for (let position = Math.max(0, firstPosition); position <= Math.min(17, lastPosition); position++) assignColor(binding, position, color, diagnostics, documentPath);
     }
 }
 
@@ -74,7 +73,7 @@ function appendRingColors(text: string, colors: string[]): string {
     const commentOffset = text.indexOf("//");
     const content = (commentOffset >= 0 ? text.slice(0, commentOffset) : text).replace(LEGACY_COLOR_PROPERTY, "").trimEnd();
     const comment = commentOffset >= 0 ? ` ${text.slice(commentOffset)}` : "";
-    return `${content} RingColors=[${colors.join(",")}]${comment}`;
+    return `${content} RingColors=[ ${colors.join(", ")} ]${comment}`;
 }
 
 function createBinding(lines: SourceLine[], lineIdx: number): LegacyRingBinding | undefined {
@@ -83,7 +82,7 @@ function createBinding(lines: SourceLine[], lineIdx: number): LegacyRingBinding 
     if (line.kind === "comment" || line.tokens.length < 2 || line.tokens[0] === "Zone" || line.tokens[0] === "ZoneEnd" || line.tokens[0].startsWith("#")) return undefined;
     const widgetExpression = line.tokens[0];
     const widget = widgetExpression.split("+").at(-1) ?? "";
-    return { colors: Array<string | undefined>(18), existingRingColors: line.tokens.slice(2).some((token) => /^RingColors=/i.test(token)), invalid: false, line, lineIdx, touched: false, widget, widgetExpression };
+    return { colors: Array.from<string | undefined>({ length: 18 }), existingRingColors: line.tokens.slice(2).some((token) => /^RingColors=/i.test(token)), invalid: false, line, lineIdx, touched: false, widget, widgetExpression };
 }
 
 export function migrateLegacySce24RingColors(source: string, documentPath?: string): LegacySce24RingMigration {
@@ -121,7 +120,7 @@ export function migrateLegacySce24RingColors(source: string, documentPath?: stri
             if (!pairedBinding) {
                 const indentation = binding.line.text.match(/^\s*/)?.[0] ?? "";
                 const insertedLine: SourceLine = { ending: binding.line.ending, kind: "entry", lineNumber: binding.line.lineNumber, text: `${indentation}${pairedExpression} NoAction`, tokens: [pairedExpression, "NoAction"] };
-                pairedBinding = { colors: Array<string | undefined>(18), existingRingColors: false, invalid: false, line: insertedLine, lineIdx: binding.lineIdx, touched: false, widget: pairedWidget, widgetExpression: pairedExpression };
+                pairedBinding = { colors: Array.from<string | undefined>({ length: 18 }), existingRingColors: false, invalid: false, line: insertedLine, lineIdx: binding.lineIdx, touched: false, widget: pairedWidget, widgetExpression: pairedExpression };
                 bindingsByExpression.set(pairedExpression.toLowerCase(), pairedBinding);
                 bindings.push(pairedBinding);
             }

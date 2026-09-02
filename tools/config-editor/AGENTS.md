@@ -48,6 +48,7 @@
 - Parse Product values from the root `Settings` block and Device values from nested `Device Settings` blocks. Validate both scopes atomically with the shared schema and inherited cross-setting constraints.
 - Require positive `Channels` in Surface `@Meta`, omit it from product Device blocks and I/O forms, and report when one Device is assigned to Surface templates with different channel counts.
 - Keep parsers independent from the browser UI and file-writing service.
+- Keep whitespace inside a named list property such as `RingColors=[ #FF0000, #000000 ]` in one token. Do not combine positional action parameters such as `[ 0.716 ]`.
 - Bind the editor server only to `127.0.0.1` and require a random session token for every API request. Deliver the token in the generated initial HTML, not in the URL or persistent browser storage.
 - Let the user select only the REAPER `Data` directory. Derive the internal product configuration folder from product identity before file access.
 - Open the first valid discovered REAPER `Data` directory automatically. Derive the old CSI default as the sibling `CSI` directory and keep manual path selection as an advanced fallback.

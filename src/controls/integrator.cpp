@@ -149,29 +149,53 @@ void ReplaceAllWith(string& output, const char* charsToReplace, const char* repl
 
 void GetTokens(vector<string>& tokens, const string& line) {
     bool insideQuote = false;
+    int propertyListDepth = 0;
     string token;
+    auto pushToken = [&tokens, &token]() {
+        if (token.empty()) return;
+        if (token.rfind("RingColors=[", 0) == 0 && token.back() == ']') {
+            string content = token.substr(12, token.size() - 13);
+            vector<string> colors;
+            GetTokens(colors, content, ',');
+            token = "RingColors=[ ";
+            for (size_t colorIdx = 0; colorIdx < colors.size(); ++colorIdx) {
+                const size_t firstText = colors[colorIdx].find_first_not_of(" \t");
+                const size_t lastText = colors[colorIdx].find_last_not_of(" \t");
+                if (colorIdx > 0) token += ", ";
+                if (firstText != string::npos) token += colors[colorIdx].substr(firstText, lastText - firstText + 1);
+            }
+            token += " ]";
+        }
+        tokens.push_back(token);
+        token.clear();
+    };
 
     for (size_t i = 0; i < line.size(); ++i) {
         char c = line[i];
 
         if (c == '"') {
             insideQuote = !insideQuote;
-            if (!insideQuote) {
-                tokens.push_back(token);
-                token.clear();
-            }
-        } else if (isspace(c) && !insideQuote) {
-            if (!token.empty()) {
-                tokens.push_back(token);
-                token.clear();
-            }
+            if (!insideQuote && propertyListDepth == 0) pushToken();
+        } else if (!insideQuote && c == '[' && (propertyListDepth > 0 || token.find('=') != string::npos)) {
+            propertyListDepth++;
+            token += c;
+        } else if (!insideQuote && c == '[') {
+            pushToken();
+            tokens.push_back("[");
+        } else if (!insideQuote && c == ']' && propertyListDepth > 0) {
+            propertyListDepth--;
+            token += c;
+        } else if (!insideQuote && c == ']') {
+            pushToken();
+            tokens.push_back("]");
+        } else if (isspace(c) && !insideQuote && propertyListDepth == 0) {
+            pushToken();
         } else {
             token += c;
         }
     }
 
-    if (!token.empty())
-        tokens.push_back(token);
+    pushToken();
 }
 
 void GetTokens(vector<string>& tokens, const string& line, char delimiter) {

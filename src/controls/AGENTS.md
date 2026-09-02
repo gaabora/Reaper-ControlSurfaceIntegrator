@@ -53,6 +53,7 @@
 - The pre-release Lua bridge uses only documented `ReaCtrlSurf_*` sections and scoped configuration statuses; do not add legacy aliases without a publication requirement.
 - Surface-independent behavior belongs here; protocol-specific behavior belongs in `midi/` or `osc/`.
 - Keep the format 2 lexer independent from legacy `GetTokens()` and preserve source offsets plus one-based line and column locations for every token and diagnostic.
+- In legacy `GetTokens()`, keep whitespace inside a named list property such as `RingColors=[ #FF0000, #000000 ]` in one property token. Do not combine positional action parameters such as `[ 0.716 ]`.
 - Build format 2 document-specific parsers on the shared syntax tree. Do not tokenize or scan the same source again inside Surface, Zone, Learn FX, OSK, or snippet consumers.
 - Keep a compiled format 2 action-context specification as an index into its immutable source binding vector. Expand only terminal `#` channel-placeholder specifications and do not clone the typed zone or channel-neutral bindings.
 - Resolve format 2 Main and FX Vendor/User sources per case-insensitive zone ID before profile validation. A User source blocks the matching Vendor source even when the User document is invalid, and same-layer duplicates must not select a source by directory order.

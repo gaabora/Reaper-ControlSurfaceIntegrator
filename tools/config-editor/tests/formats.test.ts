@@ -7,6 +7,7 @@ import { parseByPath } from "../src/formats.ts";
 import { serializeDocument } from "../src/model.ts";
 import { parseProductIdentity } from "../src/product-identity.ts";
 import { loadSettingsSchema } from "../src/settings-schema.ts";
+import { tokenizeLine } from "../src/text.ts";
 import { validateDocumentSet } from "../src/validation.ts";
 
 const editorRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -51,6 +52,11 @@ describe("configuration formats", () => {
     test("mixed line endings round-trip without normalization", () => {
         const source = "// @format zone 1\r\nZone Home\r\n  // keep this comment\n  Play Play\r\nZoneEnd";
         expect(serializeDocument(parseByPath(source, "Home.zon"))).toBe(source);
+    });
+
+    test("keeps a spaced property list in one token without joining positional step values", () => {
+        expect(tokenizeLine("Rotary1 TrackPan RingColors=[ #003F00, #0000FF ] [ 0.5 ]")).toEqual(["Rotary1", "TrackPan", "RingColors=[ #003F00, #0000FF ]", "[", "0.5", "]"]);
+        expect(tokenizeLine("Rotary1 TrackPan [0.5] RingColors=[#003F00,#0000FF]")).toEqual(["Rotary1", "TrackPan", "[", "0.5", "]", "RingColors=[ #003F00, #0000FF ]"]);
     });
 
     test("product identity accepts hash comments", async () => {

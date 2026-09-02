@@ -50,6 +50,16 @@ export function tokenizeLine(text: string): string[] {
     let token = "";
     let insideQuote = false;
     let escaped = false;
+    let propertyListDepth = 0;
+    const pushToken = (): void => {
+        if (!token) return;
+        if (/^RingColors=\[.*\]$/i.test(token)) {
+            const content = token.slice(token.indexOf("[") + 1, -1);
+            token = `RingColors=[ ${content.split(",").map((color) => color.trim()).join(", ")} ]`;
+        }
+        tokens.push(token);
+        token = "";
+    };
     for (let idx = 0; idx < text.length; idx++) {
         const character = text[idx];
         const nextCharacter = text[idx + 1];
@@ -61,15 +71,27 @@ export function tokenizeLine(text: string): string[] {
             escaped = true;
         } else if (character === "\"") {
             insideQuote = !insideQuote;
-        } else if (/\s/.test(character) && !insideQuote) {
-            if (token) tokens.push(token);
-            token = "";
+            if (!insideQuote && propertyListDepth === 0) pushToken();
+        } else if (!insideQuote && character === "[" && (propertyListDepth > 0 || token.includes("="))) {
+            propertyListDepth++;
+            token += character;
+        } else if (!insideQuote && character === "[") {
+            pushToken();
+            tokens.push("[");
+        } else if (!insideQuote && character === "]" && propertyListDepth > 0) {
+            propertyListDepth--;
+            token += character;
+        } else if (!insideQuote && character === "]") {
+            pushToken();
+            tokens.push("]");
+        } else if (/\s/.test(character) && !insideQuote && propertyListDepth === 0) {
+            pushToken();
         } else {
             token += character;
         }
     }
     if (escaped) token += "\\";
-    if (token) tokens.push(token);
+    pushToken();
     return tokens;
 }
 
