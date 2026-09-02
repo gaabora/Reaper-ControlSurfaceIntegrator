@@ -210,6 +210,55 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4A, 0x0C ] Off=[ 0xB0, 0x4A, 0x05 ] Clear=[ 0xB0, 0x4A, 0x20 ] }");
     });
 
+    test("converts X-Touch displays and their shared track-color packet", () => {
+        const legacySurface = `Widget DisplayUpper1
+  FB_XTouchDisplayUpper 0
+WidgetEnd
+Widget DisplayUpper2
+  FB_MCUDisplayUpper 1
+WidgetEnd
+Widget DisplayLower1
+  FB_MCUDisplayLower 0
+WidgetEnd
+Widget DisplayLower2
+  FB_MCUDisplayLower 1
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "X-Touch", "Surfaces/User/x-touch.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("ColorProfile XTouchColors {");
+        expect(conversion.source).toContain("Widget DisplayUpper1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x00, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("FeedbackGroup TrackColors {");
+        expect(conversion.source).toContain("Payload=[ 0x00, 0x00, 0x66, 0x14, 0x72, SlotColors ]");
+        expect(conversion.source).toContain("Slot Source=DisplayUpper1 Members=[ DisplayUpper1, DisplayLower1 ]");
+        expect(conversion.source).toContain("Slot Source=DisplayUpper2 Members=[ DisplayUpper2, DisplayLower2 ]");
+    });
+
+    test("converts iCON displays and their shared RGB7 track-color packet", () => {
+        const legacySurface = `Widget DisplayUpper1
+  FB_iCON_V1XDisplayUpper 0
+WidgetEnd
+Widget DisplayUpper2
+  FB_MCUXTDisplayUpper 1
+WidgetEnd
+Widget DisplayLower1
+  FB_MCUXTDisplayLower 0
+WidgetEnd
+Widget DisplayLower2
+  FB_MCUXTDisplayLower 1
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "iCON V1X", "Surfaces/User/icon-v1x.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("Widget DisplayUpper1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x15, 0x12, 0x00, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("ColorEncoding=RGB7");
+        expect(conversion.source).toContain("BlueScaleAtGreenMinimum=0.70");
+        expect(conversion.source).toContain("Payload=[ 0x00, 0x02, 0x4E, 0x16, 0x14, SlotColors ]");
+        expect(conversion.source).toContain("Slot Source=DisplayUpper2 Members=[ DisplayUpper2, DisplayLower2 ]");
+    });
+
     test("converts Icon display variants to universal seven-character text feedback", () => {
         const legacySurface = `Widget Icon1Upper
   FB_IconDisplay1Upper 0
@@ -317,6 +366,13 @@ WidgetEnd
         expect(conversion.source).toContain("Widget ScribbleLine1_1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x16, 0x12, 0x00, 0x00, TextPresentationCode, Text ] }");
         expect(conversion.source).toContain("Widget ScribbleLine4_16 {\n  Channel=16\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x16, 0x12, 0x0F, 0x03, TextPresentationCode, Text ] }");
         expect(conversion.source).toContain("Widget FP8Line2 {\n  Channel=4\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x03, 0x01, TextPresentationCode, Text ] }");
+    });
+
+    test("converts a shared FaderPort scribble-strip mode to one SysEx initial value", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget ScribbleStripMode\n  FB_FP16ScribbleStripMode 0\nWidgetEnd\n", "FaderPort 16", "Surfaces/User/faderport16.txt", "XTouch", 2);
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("Feedback Value { Encoding=MIDISysEx InitialValue=2 Payload=[ 0x00, 0x01, 0x06, 0x16, 0x13, 0x00, Value7 ] }");
     });
 
     test("converts removed FaderPort 8 display aliases to the universal scribble profile", () => {
@@ -562,6 +618,22 @@ WidgetEnd
         expect(convertedSurface).toContain("InputUnit=Decibels");
         expect(convertedSurface).toContain("Step Minimum=-60.1 Output=1");
         expect(convertedSurface).not.toContain("Step Minimum=-60.3 Output=1");
+    });
+
+    test("moves repeated scribble-strip Mode settings into the converted Surface", async () => {
+        const surfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
+        const homePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        const transportPath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "GoZones", "Transport.zon");
+        await writeFile(surfacePath, "Widget ScribbleStripMode\n  FB_FP8ScribbleStripMode 0\nWidgetEnd\n", "utf8");
+        await writeFile(homePath, "Zone Home\n  ScribbleStripMode Mode=2\nZoneEnd\n", "utf8");
+        await writeFile(transportPath, "Zone Transport\n  ScribbleStripMode Mode=2\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const convertedSurface = preview.items.find((item) => item.kind === "surface")?.source;
+        const convertedHome = preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source;
+
+        expect(convertedSurface).toContain("InitialValue=2");
+        expect(convertedHome).not.toContain("ScribbleStripMode");
     });
 
     test("reports conflicting legacy meter scales before import", async () => {

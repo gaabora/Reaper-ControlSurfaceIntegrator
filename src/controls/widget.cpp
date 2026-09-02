@@ -19,11 +19,13 @@ void Widget::UpdateValue(const PropertyList& properties, double value) {
 void Widget::UpdateValue(const PropertyList& properties, const char* const& value) {
     for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->SetValue(properties, value);
+    this->surface_->SetTrackColorSourceText(this, value);
 }
 
 void Widget::ForceValue(const PropertyList& properties, const char* const& value) {
     for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->ForceValue(properties, value);
+    this->surface_->SetTrackColorSourceText(this, value);
 }
 
 void Widget::UpdateColorValue(const rgba_color& color) {
@@ -45,6 +47,7 @@ void Widget::RestoreXTouchDisplayColors() {
 void Widget::ForceClear() {
     for (auto& feedbackProcessor : feedbackProcessors_)
         feedbackProcessor->ForceClear();
+    this->surface_->SetTrackColorSourceText(this, "");
 }
 
 void Widget::LogInput(double value) {

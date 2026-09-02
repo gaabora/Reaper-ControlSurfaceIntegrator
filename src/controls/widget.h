@@ -79,6 +79,7 @@ public:
     bool IsVirtual() { return isVirtual_; }
 
     int GetChannelNumber() { return channelNumber_; }
+    void SetChannelNumber(int channelNumber) { this->channelNumber_ = channelNumber; }
 
     void SetStepSize(double stepSize) { stepSize_ = stepSize; }
     double GetStepSize() { return stepSize_; }

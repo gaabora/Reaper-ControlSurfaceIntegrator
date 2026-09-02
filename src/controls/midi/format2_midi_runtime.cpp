@@ -56,6 +56,18 @@ bool Format2MidiRuntimeLoader::ReadStatePayload(const Format2PropertySyntax* pro
     return true;
 }
 
+bool Format2MidiRuntimeLoader::ReadValuePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExValuePayloadItem>& payload) {
+    if (!property || !property->value.list || property->value.items.empty()) return false;
+    payload.clear();
+    for (const Format2ScalarSyntax& item : property->value.items) {
+        int value = 0;
+        if (ReadByte(item, value) && value <= 0x7F) payload.push_back({ Format2MidiSysExValuePayloadField::Byte, value });
+        else if (item.text == "Value7") payload.push_back({ Format2MidiSysExValuePayloadField::Value, 0 });
+        else return false;
+    }
+    return payload.back().field == Format2MidiSysExValuePayloadField::Value;
+}
+
 bool Format2MidiRuntimeLoader::ReadTextPayload(const Format2PropertySyntax* property, vector<Format2MidiSysExTextPayloadItem>& payload) {
     if (!property || !property->value.list || property->value.items.empty()) return false;
     payload.clear();
@@ -116,6 +128,10 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSysEx) {
+        vector<Format2MidiSysExValuePayloadItem> payload;
+        return ReadValuePayload(FindProperty(primitive, "Payload"), payload);
+    }
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7) {
         if (primitive.nestedBlocks.empty()) return true;
         if (primitive.nestedBlocks.size() != 1 || primitive.nestedBlocks[0].positionalTokens.empty() || primitive.nestedBlocks[0].positionalTokens[0].text != "Configure") return false;
@@ -181,6 +197,7 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
         surface->AddWidget(surface, definition.id.c_str());
         Widget* widget = surface->GetWidgetByName(definition.id);
         if (!widget) continue;
+        if (definition.channel) widget->SetChannelNumber(*definition.channel);
 
         for (const Format2SurfacePrimitive& primitive : definition.primitives) {
             vector<string> tokens;
@@ -311,6 +328,18 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 const bool suppress = suppressWhileTouched && suppressWhileTouched->value.scalar.text == "true";
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7ValueFeedbackProcessor>(surface->csi_, surface, widget, message, valueBaseByte, combineMode, echoGuardMs, suppress));
                 widget->MarkOskValueFeedback();
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSysEx) {
+                vector<Format2MidiSysExValuePayloadItem> payload;
+                if (!ReadValuePayload(FindProperty(primitive, "Payload"), payload)) continue;
+                const Format2PropertySyntax* initialValue = FindProperty(primitive, "InitialValue");
+                const std::optional<int> initial = initialValue && !initialValue->value.list ? std::optional<int>((int) atof(initialValue->value.scalar.text.c_str())) : std::nullopt;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExValueFeedbackProcessor>(surface->csi_, surface, widget, payload, initial));
+                widget->MarkOskValueFeedback();
+                if (initial) {
+                    const PropertyList properties;
+                    widget->GetFeedbackProcessors().back()->ForceValue(properties, *initial);
+                }
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7) {
                 vector<int> message;
@@ -495,6 +524,16 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
             }
             if (!MidiWidgetRegistry::Dispatch(tokens[0], context)) LogToConsole("[ERROR] Unsupported format 2 MIDI runtime mapping in %s, line %d: %s\n", filePath.c_str(), primitive.location.line, tokens[0].c_str());
         }
+    }
+
+    for (const Format2FeedbackGroup& group : parsed.surface.feedbackGroups) {
+        const Format2ColorProfile* profile = nullptr;
+        for (const Format2ColorProfile& candidate : parsed.surface.colorProfiles) if (candidate.id == group.colorProfile) { profile = &candidate; break; }
+        if ((group.colorEncoding == Format2TrackColorEncoding::Palette && !profile) || group.slots.empty()) continue;
+        Widget* owner = surface->GetWidgetByName(group.slots.front().source);
+        if (!owner) continue;
+        owner->GetFeedbackProcessors().push_back(make_unique<Format2MidiTrackColorFeedbackGroupProcessor>(surface->csi_, surface, owner, group, profile));
+        surface->AddTrackColorFeedbackProcessor(owner->GetFeedbackProcessors().back().get());
     }
 
     if (parsed.surface.initialization) {

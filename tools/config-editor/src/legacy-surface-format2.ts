@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportScribbleMode" | "faderportTwoStateRgb" | "iconDisplay" | "iconTrackColorDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch" | "xTouchDisplay";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -54,6 +54,8 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_fp16scribbleline2", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_fp16scribbleline3", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_fp16scribbleline4", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp8scribblestripmode", { kind: "faderportScribbleMode", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Value", protocol: "MIDI" }] }],
+    ["fb_fp16scribblestripmode", { kind: "faderportScribbleMode", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_faderporttwostatergb", { kind: "faderportTwoStateRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_faderportvaluebar", { kind: "bar", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Bar", protocol: "MIDI" }] }],
     ["fb_fpvumeter", { kind: "faderportMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
@@ -61,6 +63,8 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_icondisplay1lower", { kind: "iconDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_icondisplay2upper", { kind: "iconDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_icondisplay2lower", { kind: "iconDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_icon_v1mdisplayupper", { kind: "iconTrackColorDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_icon_v1xdisplayupper", { kind: "iconTrackColorDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mft_rgb", { kind: "midiPalette", targets: [{ direction: "Feedback", encoding: "MIDIPalette", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_c4displaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_c4displayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
@@ -86,6 +90,8 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
         ],
     }],
     ["fb_twostate", { kind: "state", targets: [{ direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" }] }],
+    ["fb_xtouchdisplayupper", { kind: "xTouchDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_xtouchxtdisplayupper", { kind: "xTouchDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["press", { kind: "press", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Press", protocol: "MIDI" }] }],
     ["touch", { kind: "touch", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Touch", protocol: "MIDI" }] }],
 ]);
@@ -223,9 +229,110 @@ function paletteProfiles(widgets: SurfaceWidget[]): string[] {
 }
 
 function textProfiles(widgets: SurfaceWidget[]): string[] {
-    const displayProcessors = new Set(["fb_c4displaylower", "fb_c4displayupper", "fb_icondisplay1lower", "fb_icondisplay1upper", "fb_icondisplay2lower", "fb_icondisplay2upper", "fb_mcudisplaylower", "fb_mcudisplayupper", "fb_mcuxtdisplaylower", "fb_mcuxtdisplayupper"]);
+    const displayProcessors = new Set(["fb_c4displaylower", "fb_c4displayupper", "fb_icondisplay1lower", "fb_icondisplay1upper", "fb_icondisplay2lower", "fb_icondisplay2upper", "fb_icon_v1mdisplayupper", "fb_icon_v1xdisplayupper", "fb_mcudisplaylower", "fb_mcudisplayupper", "fb_mcuxtdisplaylower", "fb_mcuxtdisplayupper", "fb_xtouchdisplayupper", "fb_xtouchxtdisplayupper"]);
     if (!widgets.some((widget) => widget.body.some((line) => displayProcessors.has((line.tokens[0] ?? "").toLowerCase())))) return [];
     return ["TextProfile Display7 {", "  Encoding=ASCII7", "  Width=7", "  Padding=Space", '  ClearText=""', "  SilenceAsEmpty=true", "}", ""];
+}
+
+function xTouchColorProfile(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => ["fb_xtouchdisplayupper", "fb_xtouchxtdisplayupper"].includes((line.tokens[0] ?? "").toLowerCase())))) return [];
+    return [
+        "ColorProfile XTouchColors {",
+        "  Match=HueRanges",
+        "  Default=7",
+        "  MinimumBrightness=0.10",
+        "  MaximumNeutralSaturation=0.10",
+        "  HueRange Minimum=330 Maximum=20 Value=1",
+        "  HueRange Minimum=20 Maximum=80 Value=3",
+        "  HueRange Minimum=80 Maximum=160 Value=2",
+        "  HueRange Minimum=160 Maximum=210 Value=6",
+        "  HueRange Minimum=210 Maximum=250 Value=4",
+        "  HueRange Minimum=250 Maximum=330 Value=5",
+        "}",
+        "",
+    ];
+}
+
+function xTouchFeedbackGroup(widgets: SurfaceWidget[], diagnostics: Diagnostic[], documentPath: string): string[] {
+    const specialLines = widgets.flatMap((widget) => widget.body.filter((line) => ["fb_xtouchdisplayupper", "fb_xtouchxtdisplayupper"].includes((line.tokens[0] ?? "").toLowerCase())).map((line) => ({ line, widget })));
+    if (!specialLines.length) return [];
+    if (specialLines.length !== 1) {
+        for (const entry of specialLines) addDiagnostic(diagnostics, "error", "legacy.surface.track-color.owner", "A Surface must contain exactly one X-Touch track-color display processor.", entry.line.lineNumber, documentPath);
+        return [];
+    }
+
+    const specialProcessor = specialLines[0].line.tokens[0].toLowerCase();
+    const xt = specialProcessor === "fb_xtouchxtdisplayupper";
+    const upperProcessors = new Set([xt ? "fb_mcuxtdisplayupper" : "fb_mcudisplayupper", specialProcessor]);
+    const lowerProcessor = xt ? "fb_mcuxtdisplaylower" : "fb_mcudisplaylower";
+    const slots = new Map<number, { lower?: SurfaceWidget; upper?: SurfaceWidget }>();
+    for (const widget of widgets) for (const line of widget.body) {
+        const processor = (line.tokens[0] ?? "").toLowerCase();
+        if (!upperProcessors.has(processor) && processor !== lowerProcessor) continue;
+        const channel = Number(line.tokens[1]);
+        if (!Number.isInteger(channel) || channel < 0 || channel > 7) {
+            addDiagnostic(diagnostics, "error", "legacy.surface.track-color.channel", `Legacy ${line.tokens[0]} requires a channel from 0 through 7.`, line.lineNumber, documentPath);
+            continue;
+        }
+        const slot = slots.get(channel) ?? {};
+        const side = upperProcessors.has(processor) ? "upper" : "lower";
+        if (slot[side]) addDiagnostic(diagnostics, "error", "legacy.surface.track-color.member.duplicate", `Channel ${channel + 1} has more than one ${side} display for the X-Touch track-color packet.`, line.lineNumber, documentPath);
+        else slot[side] = widget;
+        slots.set(channel, slot);
+    }
+
+    const lines = ["FeedbackGroup TrackColors {", "  Capability=TrackColor", "  Encoding=MIDISysEx", "  ColorProfile=XTouchColors", "  EmptyColor=#FFFFFF", "  UseTrackColorWhen=SourceTextPresent", `  Payload=[ 0x00, 0x00, 0x66, ${xt ? "0x15" : "0x14"}, 0x72, SlotColors ]`];
+    for (const [channel, slot] of [...slots].sort(([left], [right]) => left - right)) {
+        if (!slot.upper || !slot.lower) {
+            const source = slot.upper ?? slot.lower;
+            addDiagnostic(diagnostics, "error", "legacy.surface.track-color.family.incomplete", `Channel ${channel + 1} requires one upper and one lower display for the X-Touch track-color packet.`, source?.line ?? specialLines[0].line.lineNumber, documentPath);
+            continue;
+        }
+        lines.push(`  Slot Source=${slot.upper.name} Members=[ ${slot.upper.name}, ${slot.lower.name} ]`);
+    }
+    lines.push("}");
+    return diagnostics.some((diagnostic) => diagnostic.code.startsWith("legacy.surface.track-color.")) ? [] : lines;
+}
+
+function iconFeedbackGroup(widgets: SurfaceWidget[], diagnostics: Diagnostic[], documentPath: string): string[] {
+    const specialLines = widgets.flatMap((widget) => widget.body.filter((line) => ["fb_icon_v1mdisplayupper", "fb_icon_v1xdisplayupper"].includes((line.tokens[0] ?? "").toLowerCase())).map((line) => ({ line, widget })));
+    if (!specialLines.length) return [];
+    if (specialLines.length !== 1) {
+        for (const entry of specialLines) addDiagnostic(diagnostics, "error", "legacy.surface.icon-track-color.owner", "A Surface must contain exactly one iCON track-color display processor.", entry.line.lineNumber, documentPath);
+        return [];
+    }
+
+    const specialProcessor = specialLines[0].line.tokens[0].toLowerCase();
+    const xt = specialProcessor === "fb_icon_v1xdisplayupper";
+    const upperProcessors = new Set([xt ? "fb_mcuxtdisplayupper" : "fb_mcudisplayupper", specialProcessor]);
+    const lowerProcessor = xt ? "fb_mcuxtdisplaylower" : "fb_mcudisplaylower";
+    const slots = new Map<number, { lower?: SurfaceWidget; upper?: SurfaceWidget }>();
+    for (const widget of widgets) for (const line of widget.body) {
+        const processor = (line.tokens[0] ?? "").toLowerCase();
+        if (!upperProcessors.has(processor) && processor !== lowerProcessor) continue;
+        const channel = Number(line.tokens[1]);
+        if (!Number.isInteger(channel) || channel < 0 || channel > 7) {
+            addDiagnostic(diagnostics, "error", "legacy.surface.icon-track-color.channel", `Legacy ${line.tokens[0]} requires a channel from 0 through 7.`, line.lineNumber, documentPath);
+            continue;
+        }
+        const slot = slots.get(channel) ?? {};
+        const side = upperProcessors.has(processor) ? "upper" : "lower";
+        if (slot[side]) addDiagnostic(diagnostics, "error", "legacy.surface.icon-track-color.member.duplicate", `Channel ${channel + 1} has more than one ${side} display for the iCON track-color packet.`, line.lineNumber, documentPath);
+        else slot[side] = widget;
+        slots.set(channel, slot);
+    }
+
+    const lines = ["FeedbackGroup TrackColors {", "  Capability=TrackColor", "  Encoding=MIDISysEx", "  ColorEncoding=RGB7", "  BlueScaleAtGreenMinimum=0.70", "  BlueScaleAtGreenMaximum=1", "  Payload=[ 0x00, 0x02, 0x4E, 0x16, 0x14, SlotColors ]"];
+    for (const [channel, slot] of [...slots].sort(([left], [right]) => left - right)) {
+        if (!slot.upper || !slot.lower) {
+            const source = slot.upper ?? slot.lower;
+            addDiagnostic(diagnostics, "error", "legacy.surface.icon-track-color.family.incomplete", `Channel ${channel + 1} requires one upper and one lower display for the iCON track-color packet.`, source?.line ?? specialLines[0].line.lineNumber, documentPath);
+            continue;
+        }
+        lines.push(`  Slot Source=${slot.upper.name} Members=[ ${slot.upper.name}, ${slot.lower.name} ]`);
+    }
+    lines.push("}");
+    return diagnostics.some((diagnostic) => diagnostic.code.startsWith("legacy.surface.icon-track-color.")) ? [] : lines;
 }
 
 function mcuTimeTextProfile(widgets: SurfaceWidget[]): string[] {
@@ -307,7 +414,7 @@ function sysExTextPayload(values: string[]): string {
     return `[ ${values.map(midiByte).join(", ")}, Text ]`;
 }
 
-function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: number, diagnostics: Diagnostic[], documentPath: string): string | undefined {
+function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: number, diagnostics: Diagnostic[], documentPath: string, scribbleStripMode?: number): string | undefined {
     const processor = (tokens[0] ?? "").toLowerCase();
     const conversion = LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor);
     if (!conversion) {
@@ -399,6 +506,14 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
             return `Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ ${prefix}, TextPresentationCode, Text ] }`;
         }
     }
+    if (conversion.kind === "faderportScribbleMode" && tokens[1] && /^\d+$/.test(tokens[1])) {
+        const channel = Number(tokens[1]);
+        if (channel >= 0 && channel <= 15) {
+            const displayType = processor.startsWith("fb_fp16") ? "16" : "02";
+            const initialValue = scribbleStripMode === undefined ? "" : ` InitialValue=${scribbleStripMode}`;
+            return `Feedback Value { Encoding=MIDISysEx${initialValue} Payload=[ 0x00, 0x01, 0x06, 0x${displayType}, 0x13, ${midiByte(tokens[1])}, Value7 ] }`;
+        }
+    }
     if (conversion.kind === "bar" && tokens[1] && /^\d+$/.test(tokens[1])) {
         const channel = Number(tokens[1]);
         if (channel >= 0 && channel <= 15) {
@@ -411,7 +526,7 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const status = Number.parseInt(tokens[1].replace(/^0x/i, ""), 16);
         if (Number.isInteger(status) && status >= 0x80 && status < 0xEF) return `Feedback Color { Encoding=MIDIPalette Message=${midiList(tokens.slice(1, 3))} ColorProfile=Palette128 Companion=${midiList([(status + 1).toString(16), tokens[2], "2f"])} CompanionOrder=After }`;
     }
-    if (conversion.kind === "mcuDisplay") {
+    if (conversion.kind === "mcuDisplay" || conversion.kind === "xTouchDisplay" || conversion.kind === "iconTrackColorDisplay") {
         const lower = processor.includes("lower");
         const c4 = processor.startsWith("fb_c4");
         const channelToken = c4 ? tokens[2] : tokens[1];
@@ -420,7 +535,7 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
             const channel = Number(channelToken);
             const row = rowToken ? Number(rowToken) : 0;
             if (channel >= 0 && channel <= 7 && (!c4 || (row >= 0 && row <= 3))) {
-                const displayType = c4 ? 0x17 : processor.startsWith("fb_mcuxt") ? 0x15 : 0x14;
+                const displayType = c4 ? 0x17 : processor.startsWith("fb_mcuxt") || processor.startsWith("fb_xtouchxt") || processor.startsWith("fb_icon_v1x") ? 0x15 : 0x14;
                 const displayRow = c4 ? 0x30 + row : 0x12;
                 const offset = channel * 7 + (lower ? 56 : 0);
                 return `Feedback Text { Encoding=MIDISysEx Payload=${sysExTextPayload(["00", "00", "66", displayType.toString(16), displayRow.toString(16), offset.toString(16)])} TextProfile=Display7 }`;
@@ -492,7 +607,7 @@ function visibleWidgets(sourceLines: ReturnType<typeof splitSourceLines>, widget
 
 function legacyWidgetChannel(widget: SurfaceWidget): number | undefined {
     for (const line of widget.body) {
-        if (!faderportScribbleMetadata((line.tokens[0] ?? "").toLowerCase()) && !/^fb_icondisplay[12](?:upper|lower)$/i.test(line.tokens[0] ?? "") && !/^fb_asparion(?:display(?:upper|lower|encoder)|vumeter[lr])$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
+        if (!faderportScribbleMetadata((line.tokens[0] ?? "").toLowerCase()) && !/^fb_(?:mcu|mcuxt|xtouch|xtouchxt)display(?:upper|lower)$/i.test(line.tokens[0] ?? "") && !/^fb_icon_v1[MX]displayupper$/i.test(line.tokens[0] ?? "") && !/^fb_icondisplay[12](?:upper|lower)$/i.test(line.tokens[0] ?? "") && !/^fb_asparion(?:display(?:upper|lower|encoder)|vumeter[lr])$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
         const channel = Number(line.tokens[1]);
         if (Number.isInteger(channel) && channel >= 0 && channel <= 15) return channel + 1;
     }
@@ -629,7 +744,7 @@ function inferredChannelCount(document: ReturnType<typeof parseSurface>): number
     return channels;
 }
 
-export function convertLegacySurfaceToFormat2(source: string, surfaceName: string, documentPath: string, meterMode: LegacyMcuMeterMode = "XTouch"): LegacySurfaceConversion {
+export function convertLegacySurfaceToFormat2(source: string, surfaceName: string, documentPath: string, meterMode: LegacyMcuMeterMode = "XTouch", scribbleStripMode?: number): LegacySurfaceConversion {
     if (/^\s*(?:\uFEFF)?@Meta\s*\{[^}]*\bVersion=2\b/i.test(source)) {
         const currentDocument = parseSurface(source, documentPath);
         return { diagnostics: currentDocument.diagnostics, source };
@@ -637,7 +752,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         const channel = legacyWidgetChannel(widget);
@@ -647,11 +762,13 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
             if (trackColorLine) addDiagnostic(diagnostics, "error", "legacy.widget.channel.unresolved", "Track-color feedback requires a channel, but the processor has no channel argument and the Widget ID has no unambiguous numeric suffix.", trackColorLine.lineNumber, documentPath);
         }
         for (const line of widget.body) {
-            const converted = convertProcessor(widget, line.tokens, line.lineNumber, diagnostics, documentPath);
+            const converted = convertProcessor(widget, line.tokens, line.lineNumber, diagnostics, documentPath, scribbleStripMode);
             if (converted) output.push(`  ${converted}`);
         }
         output.push("}", "");
     }
+    output.push(...xTouchFeedbackGroup(document.semantic.widgets, diagnostics, documentPath), "");
+    output.push(...iconFeedbackGroup(document.semantic.widgets, diagnostics, documentPath), "");
     output.push(...(explicitLayout(source) ?? legacyCommentLayout(source, document.semantic.widgets) ?? automaticLayout(source, document.semantic.widgets)), "");
     return { diagnostics, source: output.join("\n") };
 }

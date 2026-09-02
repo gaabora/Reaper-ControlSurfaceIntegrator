@@ -24,6 +24,7 @@ public:
     virtual void ForceValue(const PropertyList& properties, const char* const& value) {}
     virtual void ForceColorValue(const rgba_color& color) {}
     virtual void ForceUpdateTrackColors() {}
+    virtual void SetTrackColorSourceText(Widget* source, const char* text) {}
     virtual void ForceClear() {}
 
     virtual void SetXTouchDisplayColors(const char* colors) {}

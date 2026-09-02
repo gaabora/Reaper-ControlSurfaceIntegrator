@@ -95,6 +95,11 @@ void ControlSurface::ForceUpdateTrackColors() {
         trackColorFeedbackProcessor->ForceUpdateTrackColors();
 }
 
+void ControlSurface::SetTrackColorSourceText(Widget* source, const char* text) {
+    for (auto trackColorFeedbackProcessor : this->trackColorFeedbackProcessors_)
+        trackColorFeedbackProcessor->SetTrackColorSourceText(source, text);
+}
+
 rgba_color ControlSurface::GetTrackColorForChannel(int channel) {
     rgba_color white;
     white.r = 255;

@@ -955,7 +955,7 @@ Acknowledge is optional, sends one declared constant only after accepted input, 
 
 Feedback Value accepts `EchoGuardMs=0..10000` and `SuppressWhileTouched=true|false`, both defaulting to zero or false. EchoGuardMs suppresses output for that many milliseconds after the same Widget accepts Value input. SuppressWhileTouched requires Touch input on the same channel. These properties describe motor and bidirectional controls without a Motor primitive.
 
-Feedback Value also accepts optional `InitialValue`, a finite product-side value validated through its ValueProfile or normal zero-through-one range. Its presence sends that value once when the Surface is initialized, even when no zone binding targets the Widget. It is static Surface configuration and cannot vary by zone.
+Feedback Value also accepts optional `InitialValue`. Normal value encodings use a ValueProfile or the zero-through-one range. MIDISysEx Value uses constant bytes followed by terminal `Value7`; its InitialValue is a direct integer from 0 through 127. InitialValue is sent once when the Surface is initialized, even when no zone binding targets the Widget. It is static Surface configuration and cannot vary by zone.
 
 Feedback Meter accepts `Refresh=OnChange|Continuous`, defaulting to OnChange. Continuous requires `RefreshIntervalMs=10..5000` and resends the current mapped value even when it has not changed. OnChange rejects RefreshIntervalMs. Clear sends the MeterProfile Default or the lower Linear OutputRange endpoint.
 
@@ -1003,7 +1003,7 @@ FeedbackGroup TrackColors {
 }
 ```
 
-The initial FeedbackGroup schema requires `Capability=TrackColor`, `Encoding=MIDISysEx`, ColorProfile, Payload, and one or more Slot lines. Payload contains `SlotColors` exactly once. SlotColors expands to one palette data byte per Slot in declaration order. No other dynamic MIDISysEx field is valid in this block. EmptyColor defaults to `#000000`. `UseTrackColorWhen` is `Always` or `SourceTextPresent` and defaults to Always. SourceTextPresent uses EmptyColor while the Source Widget's most recent Text feedback is empty.
+The initial FeedbackGroup schema requires `Capability=TrackColor`, `Encoding=MIDISysEx`, Payload, and one or more Slot lines. `ColorEncoding=Palette` is the default, requires ColorProfile, and expands `SlotColors` to one palette data byte per Slot. `ColorEncoding=RGB7` does not use ColorProfile and expands every Slot to red, green, and blue MIDI data bytes. Optional `BlueScaleAtGreenMinimum` and `BlueScaleAtGreenMaximum` apply a linear blue correction based on the resolved green level. Payload contains `SlotColors` exactly once. No other dynamic MIDISysEx field is valid in this block. EmptyColor defaults to `#000000`. `UseTrackColorWhen` is `Always` or `SourceTextPresent` and defaults to Always. SourceTextPresent uses EmptyColor while the Source Widget's most recent Text feedback is empty.
 
 Each Slot Source and Member references a declared Widget with an explicit positive Channel. A Source occurs in its own non-empty Members list. All Members in one Slot have the same Channel as Source, and different Slots have different channels. A Widget can belong to only one TrackColor FeedbackGroup. Group membership derives TrackColor capability for every Member but does not derive Color, Text, Toggle, or any action feedback property.
 
@@ -1655,9 +1655,9 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
     - [ ] Add the Lua reader when Lua begins consuming format 2 Surface primitives directly.
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
-- [ ] Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
+- ✅ Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
   - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.
-  - [ ] Implement Surface-level TrackColor FeedbackGroup ownership.
+  - ✅ Implement Surface-level TrackColor FeedbackGroup ownership with palette mapping, explicit source channels, source-text presence tracking, and one shared SysEx packet.
 - ✅ Implement Bar feedback with separate value and style outputs, plus the bounded MIDIPalette Companion message.
 - [ ] Verify that a new device which uses an existing protocol shape needs only a Surface file and no new C++ class.
 - [ ] Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them.
@@ -1718,9 +1718,9 @@ Public legacy Surface conversion has one completion gate:
   - ✅ Convert legacy `FB_IconDisplay1Upper`, `FB_IconDisplay1Lower`, `FB_IconDisplay2Upper`, and `FB_IconDisplay2Lower` to the shared seven-character MIDISysEx Text feedback. Preserve each manufacturer header, display type, row, upper/lower offset, hardware channel, silence handling, and one-based logical Widget Channel.
   - ✅ Convert the legacy Asparion feedback family to universal primitives: `FB_AsparionRGB` to track-aware MIDIRGB Color, `FB_AsparionEncoder` to a two-style MIDI7 Ring, all three displays to fixed-width MIDISysEx Text, and both meters to one capped MIDI7 MeterProfile. Preserve literal addresses and zero-based hardware channels while publishing one-based Widget Channels. Require a complete positive numeric Widget suffix when legacy Asparion track-color feedback has no channel argument.
   - ✅ Convert legacy `FB_QConProXMasterVUMeter` to one decibel-step MeterProfile and generic MIDI7 Meter feedback. Preserve the left/right nibble in `ValueBase`; do not publish it as Widget `Channel` because it selects a stereo meter side, not a surface channel.
-  - [ ] Classify every currently unresolved inventory entry as a universal conversion, intentionally unsupported legacy behavior, or an ambiguity that requires user input.
+  - ✅ Classify every inventory entry as a universal conversion, intentionally unsupported legacy behavior, or an ambiguity that requires user input.
   - [ ] Add parameter-complete golden fixtures for every supported processor family and malformed or ambiguous branch.
-  - [ ] Make zero unclassified processors and zero invalid conversion targets a required migration verification result.
+  - ✅ Make zero unclassified processors and zero invalid conversion targets a required migration verification result. The coverage command now succeeds only when both counts are zero.
 
 The initial conversion matrix is:
 
@@ -1816,8 +1816,10 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Convert MCU, MCUXT, and C4 upper and lower seven-character displays to one shared TextProfile and explicit MIDISysEx payloads without retaining device-specific runtime processor names.
   - ✅ Convert MCU time characters, time-mode lights, and assignment letters to universal MIDICharacters and MIDIExact State feedback with all device bytes in Surface metadata.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
+  - ✅ Convert X-Touch palette and iCON RGB7 shared track-color display packets to Surface FeedbackGroup blocks with explicit display channels and complete slot membership.
 - ✅ Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
-- [ ] Convert legacy TextAlign and TextInvert to typed Text properties. Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue and report differing per-zone modes as unresolved.
+- [ ] Convert legacy TextAlign and TextInvert to typed Text properties.
+  - ✅ Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue, remove the repeated imported zone lines, and report differing per-zone modes as unresolved.
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
 - [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.
 - ✅ Move the surface-channel count from product Device blocks to required Surface `@Meta Channels=N`. Derive legacy imports from the numbered widget families with a fallback of one, remove the field from I/O forms, and reject reuse of one Device with conflicting Surface channel counts.

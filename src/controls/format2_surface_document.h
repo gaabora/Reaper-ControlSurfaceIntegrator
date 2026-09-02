@@ -259,6 +259,16 @@ struct Format2MidiSysExStatePayloadItem {
     int byte = 0;
 };
 
+enum class Format2MidiSysExValuePayloadField {
+    Byte,
+    Value,
+};
+
+struct Format2MidiSysExValuePayloadItem {
+    Format2MidiSysExValuePayloadField field = Format2MidiSysExValuePayloadField::Byte;
+    int byte = 0;
+};
+
 enum class Format2MidiSysExRingConfigureField {
     Byte,
     SegmentMasks,
@@ -277,6 +287,11 @@ enum class Format2TrackColorCondition {
     SourceTextPresent,
 };
 
+enum class Format2TrackColorEncoding {
+    Palette,
+    Rgb7,
+};
+
 struct Format2FeedbackGroupSlot {
     std::string source;
     std::vector<std::string> members;
@@ -286,9 +301,12 @@ struct Format2FeedbackGroupSlot {
 struct Format2FeedbackGroup {
     std::string id;
     Format2SourceLocation location;
+    Format2TrackColorEncoding colorEncoding = Format2TrackColorEncoding::Palette;
     std::string colorProfile;
     std::uint32_t emptyColor = 0;
     Format2TrackColorCondition useTrackColorWhen = Format2TrackColorCondition::Always;
+    double blueScaleAtGreenMinimum = 1.0;
+    double blueScaleAtGreenMaximum = 1.0;
     std::vector<int> payloadPrefix;
     std::vector<Format2FeedbackGroupSlot> slots;
 };

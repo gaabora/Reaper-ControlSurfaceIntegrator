@@ -313,6 +313,42 @@ public:
     }
 };
 
+class Format2MidiSysExValueFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<Format2MidiSysExValuePayloadItem> payload_;
+    std::optional<int> initialValue_;
+    int lastValue_ = -1;
+
+    void Send(int value) {
+        SysExBuilder builder;
+        builder.begin();
+        for (const Format2MidiSysExValuePayloadItem& item : this->payload_) builder.add((unsigned char) (item.field == Format2MidiSysExValuePayloadField::Byte ? item.byte : value));
+        builder.end();
+        this->SendMidiSysExMessage(builder.message());
+    }
+
+public:
+    Format2MidiSysExValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExValuePayloadItem>& payload, const std::optional<int>& initialValue)
+        : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload), initialValue_(initialValue) {}
+    virtual ~Format2MidiSysExValueFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiSysExValueFeedbackProcessor"; }
+
+    virtual void ForceClear() override { this->ForceValue(PropertyList(), this->initialValue_.value_or(0)); }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const int encoded = std::clamp((int) value, 0, 127);
+        if (encoded == this->lastValue_) return;
+        this->ForceValue(properties, value);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastValue_ = std::clamp((int) value, 0, 127);
+        this->Send(this->lastValue_);
+    }
+};
+
 class Format2Midi7RingFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:
@@ -539,6 +575,66 @@ public:
     }
 };
 
+inline rgba_color UnpackFormat2Color(std::uint32_t color) {
+    rgba_color result;
+    result.r = (color >> 16) & 0xFF;
+    result.g = (color >> 8) & 0xFF;
+    result.b = color & 0xFF;
+    return result;
+}
+
+inline double GetFormat2ColorHue(const rgba_color& color) {
+    const double red = color.r / 255.0;
+    const double green = color.g / 255.0;
+    const double blue = color.b / 255.0;
+    const double maximum = (std::max)(red, (std::max)(green, blue));
+    const double minimum = (std::min)(red, (std::min)(green, blue));
+    const double difference = maximum - minimum;
+    if (difference == 0.0) return 0.0;
+    double hue = maximum == red ? 60.0 * std::fmod((green - blue) / difference, 6.0) : maximum == green ? 60.0 * ((blue - red) / difference + 2.0) : 60.0 * ((red - green) / difference + 4.0);
+    if (hue < 0.0) hue += 360.0;
+    return hue;
+}
+
+inline bool Format2HueRangeContains(const Format2HueRange& range, double hue) {
+    if (range.minimum < range.maximum) return hue >= range.minimum && hue < range.maximum;
+    return hue >= range.minimum || hue < range.maximum;
+}
+
+inline int ResolveFormat2MidiPaletteValue(Midi_ControlSurface* surface, const Format2ColorProfile& profile, const rgba_color& sourceColor) {
+    const rgba_color color = surface->GetDeviceFeedbackColor(sourceColor, 255);
+    if (profile.match == Format2ColorMatch::HueRanges) {
+        const double maximum = (std::max)(color.r, (std::max)(color.g, color.b)) / 255.0;
+        const double minimum = (std::min)(color.r, (std::min)(color.g, color.b)) / 255.0;
+        const double saturation = maximum == 0.0 ? 0.0 : (maximum - minimum) / maximum;
+        if (maximum <= profile.minimumBrightness.value_or(0.0) || saturation <= profile.maximumNeutralSaturation.value_or(0.0)) return profile.defaultValue;
+        const double hue = GetFormat2ColorHue(color);
+        for (const Format2HueRange& range : profile.hueRanges) if (Format2HueRangeContains(range, hue)) return range.value;
+        return profile.defaultValue;
+    }
+
+    const std::uint32_t packed = ((std::uint32_t) color.r << 16) | ((std::uint32_t) color.g << 8) | (std::uint32_t) color.b;
+    if (profile.match == Format2ColorMatch::Exact) {
+        for (const Format2ColorProfileEntry& entry : profile.entries) if (entry.color == packed) return entry.value;
+        return profile.defaultValue;
+    }
+
+    int selectedValue = profile.defaultValue;
+    long long selectedDistance = (std::numeric_limits<long long>::max)();
+    for (const Format2ColorProfileEntry& entry : profile.entries) {
+        const rgba_color entryColor = UnpackFormat2Color(entry.color);
+        const long long redDifference = color.r - entryColor.r;
+        const long long greenDifference = color.g - entryColor.g;
+        const long long blueDifference = color.b - entryColor.b;
+        const long long distance = redDifference * redDifference + greenDifference * greenDifference + blueDifference * blueDifference;
+        if (distance < selectedDistance) {
+            selectedDistance = distance;
+            selectedValue = entry.value;
+        }
+    }
+    return selectedValue;
+}
+
 class Format2MidiPaletteFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:
@@ -547,66 +643,6 @@ private:
     bool hasCompanion_ = false;
     std::array<int, 3> companion_{};
     bool companionBefore_ = false;
-
-    static rgba_color UnpackColor(std::uint32_t color) {
-        rgba_color result;
-        result.r = (color >> 16) & 0xFF;
-        result.g = (color >> 8) & 0xFF;
-        result.b = color & 0xFF;
-        return result;
-    }
-
-    static double Hue(const rgba_color& color) {
-        const double red = color.r / 255.0;
-        const double green = color.g / 255.0;
-        const double blue = color.b / 255.0;
-        const double maximum = (std::max)(red, (std::max)(green, blue));
-        const double minimum = (std::min)(red, (std::min)(green, blue));
-        const double difference = maximum - minimum;
-        if (difference == 0.0) return 0.0;
-        double hue = maximum == red ? 60.0 * std::fmod((green - blue) / difference, 6.0) : maximum == green ? 60.0 * ((blue - red) / difference + 2.0) : 60.0 * ((red - green) / difference + 4.0);
-        if (hue < 0.0) hue += 360.0;
-        return hue;
-    }
-
-    static bool ContainsHue(const Format2HueRange& range, double hue) {
-        if (range.minimum < range.maximum) return hue >= range.minimum && hue < range.maximum;
-        return hue >= range.minimum || hue < range.maximum;
-    }
-
-    int ResolveValue(const rgba_color& sourceColor) const {
-        const rgba_color color = this->surface_->GetDeviceFeedbackColor(sourceColor, 255);
-        if (this->profile_.match == Format2ColorMatch::HueRanges) {
-            const double maximum = (std::max)(color.r, (std::max)(color.g, color.b)) / 255.0;
-            const double minimum = (std::min)(color.r, (std::min)(color.g, color.b)) / 255.0;
-            const double saturation = maximum == 0.0 ? 0.0 : (maximum - minimum) / maximum;
-            if (maximum <= this->profile_.minimumBrightness.value_or(0.0) || saturation <= this->profile_.maximumNeutralSaturation.value_or(0.0)) return this->profile_.defaultValue;
-            const double hue = Hue(color);
-            for (const Format2HueRange& range : this->profile_.hueRanges) if (ContainsHue(range, hue)) return range.value;
-            return this->profile_.defaultValue;
-        }
-
-        const std::uint32_t packed = ((std::uint32_t) color.r << 16) | ((std::uint32_t) color.g << 8) | (std::uint32_t) color.b;
-        if (this->profile_.match == Format2ColorMatch::Exact) {
-            for (const Format2ColorProfileEntry& entry : this->profile_.entries) if (entry.color == packed) return entry.value;
-            return this->profile_.defaultValue;
-        }
-
-        int selectedValue = this->profile_.defaultValue;
-        long long selectedDistance = (std::numeric_limits<long long>::max)();
-        for (const Format2ColorProfileEntry& entry : this->profile_.entries) {
-            const rgba_color entryColor = UnpackColor(entry.color);
-            const long long redDifference = color.r - entryColor.r;
-            const long long greenDifference = color.g - entryColor.g;
-            const long long blueDifference = color.b - entryColor.b;
-            const long long distance = redDifference * redDifference + greenDifference * greenDifference + blueDifference * blueDifference;
-            if (distance < selectedDistance) {
-                selectedDistance = distance;
-                selectedValue = entry.value;
-            }
-        }
-        return selectedValue;
-    }
 
     void Send(int value) {
         if (this->hasCompanion_ && this->companionBefore_) this->SendMidiMessage(this->companion_[0], this->companion_[1], this->companion_[2]);
@@ -628,7 +664,7 @@ public:
 
     virtual void ForceClear() override {
         this->lastColor_ = rgba_color();
-        this->Send(this->ResolveValue(this->lastColor_));
+        this->Send(ResolveFormat2MidiPaletteValue(this->surface_, this->profile_, this->lastColor_));
     }
 
     virtual void SetColorValue(const rgba_color& color) override {
@@ -638,7 +674,75 @@ public:
 
     virtual void ForceColorValue(const rgba_color& color) override {
         this->lastColor_ = color;
-        this->Send(this->ResolveValue(color));
+        this->Send(ResolveFormat2MidiPaletteValue(this->surface_, this->profile_, color));
+    }
+};
+
+class Format2MidiTrackColorFeedbackGroupProcessor : public Midi_FeedbackProcessor
+{
+private:
+    Format2FeedbackGroup group_;
+    std::optional<Format2ColorProfile> profile_;
+    map<string, bool> sourceTextPresent_;
+    vector<int> lastPayload_;
+
+    rgba_color EmptyColor() const { return UnpackFormat2Color(this->group_.emptyColor); }
+
+    vector<int> ResolvePayload() const {
+        vector<int> payload = this->group_.payloadPrefix;
+        for (const Format2FeedbackGroupSlot& slot : this->group_.slots) {
+            Widget* source = this->surface_->GetWidgetByName(slot.source);
+            const bool sourcePresent = this->sourceTextPresent_.find(slot.source) != this->sourceTextPresent_.end() && this->sourceTextPresent_.at(slot.source);
+            const bool useTrackColor = this->group_.useTrackColorWhen == Format2TrackColorCondition::Always || sourcePresent;
+            const rgba_color color = useTrackColor && source ? this->surface_->GetTrackColorForChannel(source->GetChannelNumber() - 1) : this->EmptyColor();
+            if (this->group_.colorEncoding == Format2TrackColorEncoding::Palette && this->profile_) {
+                payload.push_back(ResolveFormat2MidiPaletteValue(this->surface_, *this->profile_, color));
+                continue;
+            }
+            const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color, 127);
+            const double greenRatio = (double) deviceColor.g / 127.0;
+            const double blueScale = this->group_.blueScaleAtGreenMinimum + greenRatio * (this->group_.blueScaleAtGreenMaximum - this->group_.blueScaleAtGreenMinimum);
+            payload.push_back(deviceColor.r);
+            payload.push_back(deviceColor.g);
+            payload.push_back(std::clamp((int) (deviceColor.b * blueScale), 0, 127));
+        }
+        return payload;
+    }
+
+    void Send(bool force) {
+        const vector<int> payload = this->ResolvePayload();
+        if (!force && payload == this->lastPayload_) return;
+        this->lastPayload_ = payload;
+        SysExBuilder builder;
+        builder.begin();
+        for (int byte : payload) builder.add((unsigned char) byte);
+        builder.end();
+        this->SendMidiSysExMessage(builder.message());
+    }
+
+public:
+    Format2MidiTrackColorFeedbackGroupProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const Format2FeedbackGroup& group, const Format2ColorProfile* profile)
+        : Midi_FeedbackProcessor(csi, surface, widget), group_(group) {
+        if (profile) this->profile_ = *profile;
+        for (const Format2FeedbackGroupSlot& slot : this->group_.slots) this->sourceTextPresent_[slot.source] = false;
+    }
+    virtual ~Format2MidiTrackColorFeedbackGroupProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiTrackColorFeedbackGroupProcessor"; }
+
+    virtual void ForceClear() override {
+        for (auto& source : this->sourceTextPresent_) source.second = false;
+        this->Send(true);
+    }
+
+    virtual void ForceUpdateTrackColors() override { this->Send(false); }
+
+    virtual void SetTrackColorSourceText(Widget* source, const char* text) override {
+        const auto current = this->sourceTextPresent_.find(source->GetName());
+        if (current == this->sourceTextPresent_.end()) return;
+        const bool present = text && text[0] != '\0';
+        if (current->second == present) return;
+        current->second = present;
+        this->Send(false);
     }
 };
 

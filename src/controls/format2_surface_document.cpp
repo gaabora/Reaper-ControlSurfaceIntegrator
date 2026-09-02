@@ -1070,12 +1070,16 @@ private:
         group.location = node.location;
         const auto colorProfile = body.properties.find("ColorProfile");
         const auto payload = body.properties.find("Payload");
-        if (colorProfile == body.properties.end() || payload == body.properties.end()) return;
-        group.colorProfile = colorProfile->second->value.scalar.text;
+        if (payload == body.properties.end()) return;
+        const auto colorEncoding = body.properties.find("ColorEncoding");
+        if (colorEncoding != body.properties.end() && colorEncoding->second->value.scalar.text == "RGB7") group.colorEncoding = Format2TrackColorEncoding::Rgb7;
+        if (colorProfile != body.properties.end()) group.colorProfile = colorProfile->second->value.scalar.text;
         const auto emptyColor = body.properties.find("EmptyColor");
         if (emptyColor != body.properties.end()) ParseFormat2ColorScalar(emptyColor->second->value.scalar, group.emptyColor);
         const auto condition = body.properties.find("UseTrackColorWhen");
         if (condition != body.properties.end() && condition->second->value.scalar.text == "SourceTextPresent") group.useTrackColorWhen = Format2TrackColorCondition::SourceTextPresent;
+        this->ParseCalibrationFinite(body, "BlueScaleAtGreenMinimum", group.blueScaleAtGreenMinimum);
+        this->ParseCalibrationFinite(body, "BlueScaleAtGreenMaximum", group.blueScaleAtGreenMaximum);
         if (payload->second->value.list) {
             for (std::size_t itemIdx = 0; itemIdx + 1 < payload->second->value.items.size(); ++itemIdx) {
                 int value = 0;
@@ -1321,10 +1325,13 @@ private:
         std::map<std::vector<int>, Format2SourceLocation> payloadOwners;
         for (Format2FeedbackGroup& group : this->result_.surface.feedbackGroups) {
             if (this->result_.document.metadata.protocol != Format2SurfaceProtocol::Midi) this->AddDiagnostic("format2.surface.feedback-group.protocol", "FeedbackGroup Encoding=MIDISysEx requires Surface Protocol=MIDI", group.location);
-            const auto colorProfile = this->colorProfileIds_.find(group.colorProfile);
-            if (colorProfile == this->colorProfileIds_.end()) this->AddDiagnostic("format2.surface.feedback-group.color-profile.reference", "FeedbackGroup references unknown ColorProfile: " + group.colorProfile, group.location);
-            const auto midiSafe = this->colorProfileMidiSafe_.find(group.colorProfile);
-            if (midiSafe != this->colorProfileMidiSafe_.end() && !midiSafe->second) this->AddDiagnostic("format2.surface.feedback-group.color-profile.midi-range", "FeedbackGroup ColorProfile values must fit one MIDI data byte from 0 through 0x7F", group.location);
+            if (group.colorEncoding == Format2TrackColorEncoding::Palette) {
+                if (group.colorProfile.empty()) this->AddDiagnostic("format2.surface.feedback-group.color-profile.required", "FeedbackGroup ColorEncoding=Palette requires ColorProfile", group.location);
+                const auto colorProfile = this->colorProfileIds_.find(group.colorProfile);
+                if (!group.colorProfile.empty() && colorProfile == this->colorProfileIds_.end()) this->AddDiagnostic("format2.surface.feedback-group.color-profile.reference", "FeedbackGroup references unknown ColorProfile: " + group.colorProfile, group.location);
+                const auto midiSafe = this->colorProfileMidiSafe_.find(group.colorProfile);
+                if (midiSafe != this->colorProfileMidiSafe_.end() && !midiSafe->second) this->AddDiagnostic("format2.surface.feedback-group.color-profile.midi-range", "FeedbackGroup ColorProfile values must fit one MIDI data byte from 0 through 0x7F", group.location);
+            } else if (!group.colorProfile.empty()) this->AddDiagnostic("format2.surface.feedback-group.color-profile.unused", "FeedbackGroup ColorEncoding=RGB7 does not use ColorProfile", group.location);
             if (!payloadOwners.emplace(group.payloadPrefix, group.location).second) this->AddDiagnostic("format2.surface.feedback-group.output.duplicate", "FeedbackGroup MIDISysEx output prefix is already owned by another FeedbackGroup", group.location);
             std::set<int> slotChannels;
             for (Format2FeedbackGroupSlot& slot : group.slots) this->ValidateFeedbackGroupSlot(group, slot, slotChannels, memberGroups);

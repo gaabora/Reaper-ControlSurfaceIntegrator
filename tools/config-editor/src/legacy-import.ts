@@ -188,6 +188,37 @@ function resolveLegacyMcuMeterMode(zones: Array<{ source: string; sourcePath: st
     return { diagnostics, mode: modes[0] ?? "XTouch" };
 }
 
+function resolveLegacyScribbleStripMode(zones: Array<{ source: string; sourcePath: string }>, draftMap: Map<string, LegacyImportDraft>): { diagnostics: Diagnostic[]; mode?: number } {
+    const diagnostics: Diagnostic[] = [];
+    const occurrences: Array<{ line: number; mode: number; path: string }> = [];
+    for (const zone of zones) {
+        const source = draftMap.get(zone.sourcePath)?.source ?? zone.source;
+        for (const line of splitSourceLines(source)) {
+            initializeLine(line);
+            if ((line.tokens[0] ?? "").toLowerCase() !== "scribblestripmode") continue;
+            const property = line.tokens.find((token) => /^Mode=/i.test(token));
+            const mode = property ? Number(property.slice(property.indexOf("=") + 1)) : Number.NaN;
+            if (!Number.isInteger(mode) || mode < 0 || mode > 8) addDiagnostic(diagnostics, "error", "legacy.surface.initial-value.invalid", "ScribbleStripMode requires Mode from 0 through 8 before it can become one Surface InitialValue.", line.lineNumber, zone.sourcePath);
+            else occurrences.push({ line: line.lineNumber, mode, path: zone.sourcePath });
+        }
+    }
+    const modes = [...new Set(occurrences.map((occurrence) => occurrence.mode))];
+    if (modes.length > 1) {
+        const first = occurrences[0];
+        addDiagnostic(diagnostics, "error", "legacy.surface.initial-value.conflict", `ScribbleStripMode uses several values (${modes.join(", ")}). Keep one Mode value before import.`, first.line, first.path, occurrences.slice(1).map((occurrence) => ({ line: occurrence.line, path: occurrence.path })));
+    }
+    return { diagnostics, mode: diagnostics.length || !occurrences.length ? undefined : modes[0] };
+}
+
+function removeLegacyScribbleStripMode(source: string): string {
+    const lines = splitSourceLines(source);
+    for (const line of lines) {
+        initializeLine(line);
+        if ((line.tokens[0] ?? "").toLowerCase() === "scribblestripmode" && line.tokens.some((token) => /^Mode=/i.test(token))) line.text = "";
+    }
+    return lines.map((line) => line.text + line.ending).join("");
+}
+
 function formatSource(source: string, kind: LegacyImportKind, targetPath: string, knownActions: Set<string>): string {
     const document = parseByPath(source, targetPath, knownActions);
     if (document.version !== "unversioned") return source;
@@ -480,13 +511,17 @@ export class LegacyCsiSource {
         }
 
         const meterMode = resolveLegacyMcuMeterMode(files.zones, draftMap);
+        const surfaceSource = draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source;
+        const hasScribbleStripMode = /^\s*FB_FP(?:8|16)ScribbleStripMode\b/im.test(surfaceSource);
+        const scribbleStripMode = hasScribbleStripMode ? resolveLegacyScribbleStripMode(files.zones, draftMap) : { diagnostics: [], mode: undefined };
         const surfaceTargetPath = targetPathMap.get(files.surface.sourcePath) || `Surfaces/User/${targetProfileId}.txt`;
         this.validateTargetScope("surface", surfaceTargetPath, targetProfileId);
-        const surfaceConversion = convertLegacySurfaceToFormat2(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source, files.name, surfaceTargetPath, meterMode.mode);
+        const migrateSharedMode = includeSurface && !useExistingSurface && hasScribbleStripMode && scribbleStripMode.mode !== undefined;
+        const surfaceConversion = convertLegacySurfaceToFormat2(surfaceSource, files.name, surfaceTargetPath, meterMode.mode, migrateSharedMode ? scribbleStripMode.mode : undefined);
         const migratedSurface = surfaceConversion.source;
         const surfaceDocument = parseByPath(migratedSurface, surfaceTargetPath, knownActions);
         surfaceDocument.diagnostics.push(...surfaceConversion.diagnostics);
-        if (includeSurface && !useExistingSurface) surfaceDocument.diagnostics.push(...meterMode.diagnostics);
+        if (includeSurface && !useExistingSurface) surfaceDocument.diagnostics.push(...meterMode.diagnostics, ...scribbleStripMode.diagnostics);
         const hasSce24Ring = /^\s*FB_SCE24Encoder\b/im.test(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source);
         const hasSce24State = /^\s*FB_SCE24LEDButton\b/im.test(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source);
         const zoneDocuments = new Map<string, AnyDocument>();
@@ -497,7 +532,8 @@ export class LegacyCsiSource {
             const targetPath = targetPathMap.get(zone.sourcePath) || `Zones/User/${targetProfileId}/${zone.profile}/${zone.relativePath}`;
             this.validateTargetScope("zone", targetPath, targetProfileId);
             const initialSource = draftMap.get(zone.sourcePath)?.source ?? zone.source;
-            const ringMigration = hasSce24Ring ? migrateLegacySce24RingColors(initialSource, zone.sourcePath) : { diagnostics: [], source: initialSource };
+            const sharedModeSource = migrateSharedMode ? removeLegacyScribbleStripMode(initialSource) : initialSource;
+            const ringMigration = hasSce24Ring ? migrateLegacySce24RingColors(sharedModeSource, zone.sourcePath) : { diagnostics: [], source: sharedModeSource };
             const stateMigration = hasSce24State ? migrateLegacySce24StateColors(ringMigration.source, zone.sourcePath) : { diagnostics: [], source: ringMigration.source };
             zoneMigrationDiagnostics.set(zone.sourcePath, [...ringMigration.diagnostics, ...stateMigration.diagnostics]);
             const migratedSource = formatSource(stateMigration.source, "zone", targetPath, knownActions);

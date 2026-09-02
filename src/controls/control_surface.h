@@ -242,6 +242,7 @@ public:
     virtual void RequestUpdate();
     void ForceClearTrack(int trackNum);
     void ForceUpdateTrackColors();
+    void SetTrackColorSourceText(Widget* source, const char* text);
     void OnTrackSelection(MediaTrack* track);
     virtual void SendOSCMessage(const char* zoneName) {}
     virtual void SendOSCMessage(const char* zoneName, int value) {}

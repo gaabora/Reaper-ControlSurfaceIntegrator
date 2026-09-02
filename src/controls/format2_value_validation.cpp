@@ -236,6 +236,14 @@ std::string ValidateFormat2ValueRule(const Format2PropertySyntax& property, cons
         }
         return {};
     }
+    if (rule == "ValuePayload") {
+        if (!property.value.list || property.value.items.size() < 2 || property.value.items.back().quoted || property.value.items.back().text != "Value7") return "constant bytes followed by Value7";
+        for (std::size_t itemIdx = 0; itemIdx + 1 < property.value.items.size(); ++itemIdx) {
+            int value = 0;
+            if (!ParseFormat2IntegerScalar(property.value.items[itemIdx], value) || value < 0 || value > 0xFF) return "constant bytes followed by Value7";
+        }
+        return {};
+    }
     if (rule == "PositiveFinite") {
         double value = 0.0;
         if (ParseFormat2FiniteValue(property.value, value) && value > 0.0) return {};
