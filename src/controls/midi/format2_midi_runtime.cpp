@@ -30,6 +30,21 @@ bool Format2MidiRuntimeLoader::ReadBytes(const Format2PropertySyntax* property, 
     return true;
 }
 
+bool Format2MidiRuntimeLoader::ReadStatePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExStatePayloadItem>& payload) {
+    if (!property || !property->value.list || property->value.items.empty()) return false;
+    payload.clear();
+    for (const Format2ScalarSyntax& item : property->value.items) {
+        int value = 0;
+        if (ReadByte(item, value) && value <= 0x7F) payload.push_back({ Format2MidiSysExStatePayloadField::Byte, value });
+        else if (item.text == "State7") payload.push_back({ Format2MidiSysExStatePayloadField::State, 0 });
+        else if (item.text == "Red7") payload.push_back({ Format2MidiSysExStatePayloadField::Red, 0 });
+        else if (item.text == "Green7") payload.push_back({ Format2MidiSysExStatePayloadField::Green, 0 });
+        else if (item.text == "Blue7") payload.push_back({ Format2MidiSysExStatePayloadField::Blue, 0 });
+        else return false;
+    }
+    return true;
+}
+
 bool Format2MidiRuntimeLoader::ReadTextPayload(const Format2PropertySyntax* property, vector<Format2MidiSysExTextPayloadItem>& payload) {
     if (!property || !property->value.list || property->value.items.empty()) return false;
     payload.clear();
@@ -82,6 +97,10 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiSysEx) {
+        vector<Format2MidiSysExStatePayloadItem> payload;
+        return ReadStatePayload(FindProperty(primitive, "Payload"), payload);
+    }
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7) {
@@ -212,6 +231,12 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 if (!ReadBytes(FindProperty(primitive, "On"), on) || !ReadBytes(FindProperty(primitive, "Off"), off)) continue;
                 tokens = MakeTokens("FB_TwoState", on, off);
                 widget->MarkOskToggleFeedback();
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiSysEx) {
+                vector<Format2MidiSysExStatePayloadItem> payload;
+                if (!ReadStatePayload(FindProperty(primitive, "Payload"), payload)) continue;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExStateFeedbackProcessor>(surface->csi_, surface, widget, payload));
+                widget->MarkOskToggleFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14) {
                 const Format2PropertySyntax* status = FindProperty(primitive, "Status");
                 int statusByte = 0;

@@ -1707,6 +1707,7 @@ Public legacy Surface conversion has one completion gate:
   - ✅ Convert legacy `FB_MCUVUMeter` and `FB_MCUXTVUMeter` to generic MIDI7 Meter feedback. Move MCU/MCUXT setup packets into `Initialize`, infer the shared scale from legacy zone `MeterMode`, preserve XTouch, MCU, SSLNucleus2, and IconV1M thresholds, and block unknown or conflicting scales.
   - ✅ Convert legacy `FB_SCE24EncoderText` and `FB_SCE24OLEDButton` to generic MIDISysEx Text feedback. Preserve each literal display address, margin and font defaults, color fields, and state-capable text behavior without a device-specific runtime processor.
   - ✅ Convert legacy `FB_SCE24Encoder` to a generic 18-segment Ring and nested MIDISysEx Configure output. Expand legacy ring and push colors into `RingColors`, repair standalone RotaryPush color declarations through their paired Rotary binding, and reject malformed, overlapping, or out-of-range color definitions.
+  - ✅ Convert legacy `FB_SCE24LEDButton` to generic MIDISysEx State feedback. Convert its `OffColor` and `OnColor` properties to the ordered `StateColors` list and remove ignored alpha bytes.
   - [ ] Classify every currently unresolved inventory entry as a universal conversion, intentionally unsupported legacy behavior, or an ambiguity that requires user input.
   - [ ] Add parameter-complete golden fixtures for every supported processor family and malformed or ambiguous branch.
   - [ ] Make zero unclassified processors and zero invalid conversion targets a required migration verification result.

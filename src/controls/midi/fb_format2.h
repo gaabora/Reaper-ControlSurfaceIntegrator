@@ -66,6 +66,89 @@ public:
     }
 };
 
+class Format2MidiSysExStateFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<Format2MidiSysExStatePayloadItem> payload_;
+    vector<int> lastPayload_;
+
+    static vector<rgba_color> ReadStateColors(const PropertyList& properties) {
+        vector<rgba_color> colors;
+        const char* propertyValue = properties.get_prop(PropertyType_StateColors);
+        if (!propertyValue) return colors;
+        string source = propertyValue;
+        ReplaceAllWith(source, "[", "");
+        ReplaceAllWith(source, "]", "");
+        ReplaceAllWith(source, "\"", "");
+        size_t start = 0;
+        while (start <= source.size()) {
+            const size_t separator = source.find(',', start);
+            string token = source.substr(start, separator == string::npos ? string::npos : separator - start);
+            token.erase(0, token.find_first_not_of(" \t"));
+            const size_t lastText = token.find_last_not_of(" \t");
+            if (lastText != string::npos) token.erase(lastText + 1);
+            if (!token.empty()) {
+                rgba_color color;
+                GetColorValue(token.c_str(), color);
+                colors.push_back(color);
+            }
+            if (separator == string::npos) break;
+            start = separator + 1;
+        }
+        return colors;
+    }
+
+    vector<int> ResolvePayload(const PropertyList& properties, int state) const {
+        const vector<rgba_color> colors = ReadStateColors(properties);
+        const rgba_color sourceColor = colors.empty() ? rgba_color() : colors[(std::min)((size_t) state, colors.size() - 1)];
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(sourceColor, 127);
+        vector<int> result;
+        for (const Format2MidiSysExStatePayloadItem& item : this->payload_) {
+            if (item.field == Format2MidiSysExStatePayloadField::Byte) result.push_back(item.byte);
+            else if (item.field == Format2MidiSysExStatePayloadField::State) result.push_back(state ? 0x7F : 0x00);
+            else if (item.field == Format2MidiSysExStatePayloadField::Red) result.push_back(deviceColor.r);
+            else if (item.field == Format2MidiSysExStatePayloadField::Green) result.push_back(deviceColor.g);
+            else if (item.field == Format2MidiSysExStatePayloadField::Blue) result.push_back(deviceColor.b);
+        }
+        return result;
+    }
+
+    void SendPayload(const vector<int>& payload) {
+        SysExBuilder builder;
+        builder.begin();
+        for (int byte : payload) builder.add((unsigned char) byte);
+        builder.end();
+        this->SendMidiSysExMessage(builder.message());
+    }
+
+public:
+    Format2MidiSysExStateFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExStatePayloadItem>& payload)
+        : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload) {}
+    virtual ~Format2MidiSysExStateFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiSysExStateFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        const PropertyList properties;
+        this->ForceValue(properties, ActionContext::BUTTON_RELEASE_MESSAGE_VALUE);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const int state = value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE ? 0 : 1;
+        const vector<int> payload = this->ResolvePayload(properties, state);
+        if (payload == this->lastPayload_) return;
+        this->lastDoubleValue_ = value;
+        this->lastPayload_ = payload;
+        this->SendPayload(payload);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        const int state = value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE ? 0 : 1;
+        this->lastDoubleValue_ = value;
+        this->lastPayload_ = this->ResolvePayload(properties, state);
+        this->SendPayload(this->lastPayload_);
+    }
+};
+
 class Format2Midi7RingFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:

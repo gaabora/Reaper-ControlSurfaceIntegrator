@@ -5,6 +5,7 @@ import path from "node:path";
 import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
 import { convertLegacySurfaceToFormat2 } from "../src/legacy-surface-format2.ts";
 import { migrateLegacySce24RingColors } from "../src/legacy-sce24-ring.ts";
+import { migrateLegacySce24StateColors } from "../src/legacy-sce24-state.ts";
 import { ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { ConfigurationStore, EditorOperationError } from "../src/store.ts";
@@ -203,6 +204,18 @@ WidgetEnd
         expect(zone.source).not.toContain("PushColor=");
     });
 
+    test("converts SCE24 LED buttons and their binary state colors", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget LEDButton1\n  Press 90 05 7f 90 05 00\n  FB_SCE24LEDButton 90 05 7f\nWidgetEnd\n", "SCE24", "Surfaces/User/sce24.txt");
+        const zone = migrateLegacySce24StateColors("Zone Home\n  LEDButton1 Shift OnColor=#2f0f0000 OffColor=#00000000\nZoneEnd\n", "Zones/Home.zon");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("Feedback State { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x38, 0x01, 0x65, Red7, Green7, Blue7 ] }");
+        expect(zone.diagnostics).toEqual([]);
+        expect(zone.source).toContain("LEDButton1 Shift StateColors=[ #000000, #2F0F00 ]");
+        expect(zone.source).not.toContain("OnColor=");
+        expect(zone.source).not.toContain("OffColor=");
+    });
+
     test("moves a standalone SCE24 push color to its paired ring binding", () => {
         const migration = migrateLegacySce24RingColors("Zone FX\n  RotaryB4 NoAction\n  RotaryPushB4 FXParam 10 PushColor=#003f00ff\nZoneEnd\n", "Zones/FX.zon");
 
@@ -238,6 +251,23 @@ WidgetEnd
         expect(convertedZone).not.toContain("LEDRingColor=");
         expect(convertedZone).not.toContain("PushColor=");
         expect(await readFile(zonePath, "utf8")).toBe(legacyZone);
+    });
+
+    test("includes SCE24 LED state migration in the import preview", async () => {
+        const surfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
+        const zonePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        await writeFile(surfacePath, "Widget LEDButton1\n  Press 90 05 7f 90 05 00\n  FB_SCE24LEDButton 90 05 7f\nWidgetEnd\n", "utf8");
+        await writeFile(zonePath, "Zone Home\n  LEDButton1 Shift OnColor=#2f0f0000 OffColor=#00000000\nZoneEnd\n", "utf8");
+
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);
+        const convertedSurface = preview.items.find((item) => item.kind === "surface")?.source;
+        const convertedZone = preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source;
+
+        expect(convertedSurface).toContain("Feedback State { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x38, 0x01, 0x65, Red7, Green7, Blue7 ] }");
+        expect(convertedZone).toContain("StateColors=[ #000000, #2F0F00 ]");
+        expect(convertedZone).not.toContain("OnColor=");
+        expect(convertedZone).not.toContain("OffColor=");
     });
 
     test("converts legacy MCU meters to a universal meter profile and Surface initialization", () => {

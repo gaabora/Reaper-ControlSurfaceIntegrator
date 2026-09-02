@@ -24,6 +24,7 @@
 - Send each validated format 2 `Initialize` MIDI message once after Surface loading and again after MIDI I/O reconnect. Keep complete channel and system messages plus complete SysEx framing in the Surface file.
 - Resolve format 2 `MIDI7` Meter values through the referenced MeterProfile. Keep scale thresholds, channel value prefixes, combination mode, and continuous refresh settings in Surface metadata instead of device-named feedback processors.
 - Resolve format 2 MIDISysEx Text Payload items from the closed canonical field set. Apply Surface defaults and binding overrides for margins, font, presentation, text color, background color, and state colors before sending one complete packet.
+- Resolve format 2 MIDISysEx State Payload items from a constant prefix followed by `State7` or the `Red7`, `Green7`, `Blue7` set. Resolve RGB state output from the binding `StateColors` list and apply Surface color calibration before sending one complete packet.
 - Resolve format 2 Ring Configure Payload items through the closed segment-mask and RGB field set. Expand masks from RingProfile Segments, group equal colors, apply ColorCalibration, and send configuration when the Ring binding becomes active.
 
 ## Work Guidance

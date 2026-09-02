@@ -228,6 +228,7 @@ enum PropertyType {
   D(LEDRingColor) \
   D(LEDRingColors) \
   D(RingColors) \
+  D(StateColors) \
   D(BarStyle) \
   D(TextAlign) \
   D(TextInvert) \

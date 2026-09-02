@@ -101,6 +101,25 @@ static bool ValidateFormat2TextPayload(const Format2ValueSyntax& value) {
     return true;
 }
 
+static bool ValidateFormat2StatePayload(const Format2ValueSyntax& value) {
+    if (!value.list || value.items.size() < 2) return false;
+    std::vector<std::string> fields;
+    bool reachedField = false;
+    size_t constantCount = 0;
+    for (const Format2ScalarSyntax& item : value.items) {
+        int byte = 0;
+        if (ParseFormat2IntegerScalar(item, byte)) {
+            if (reachedField || byte < 0 || byte > 0x7F) return false;
+            constantCount++;
+            continue;
+        }
+        reachedField = true;
+        if (item.quoted) return false;
+        fields.push_back(item.text);
+    }
+    return constantCount > 0 && (fields == std::vector<std::string>{ "State7" } || fields == std::vector<std::string>{ "Red7", "Green7", "Blue7" });
+}
+
 static bool ValidateFormat2RingConfigurePayload(const Format2ValueSyntax& value) {
     if (!value.list || value.items.empty()) return false;
     const std::vector<std::string> fields = { "SegmentMasks", "SegmentRed7", "SegmentGreen7", "SegmentBlue7" };
@@ -180,6 +199,7 @@ std::string ValidateFormat2ValueRule(const Format2PropertySyntax& property, cons
     if (rule == "MIDIMessage3") return ValidateFormat2MidiMessage(property.value, 3, 3) ? std::string{} : "a complete three-byte MIDI message";
     if (rule == "MIDIMessage1Or2") return ValidateFormat2MidiMessage(property.value, 1, 2) ? std::string{} : "a one- or two-byte MIDI message prefix";
     if (rule == "MIDIInitializationMessage") return ValidateFormat2MidiInitializationMessage(property.value) ? std::string{} : "one complete MIDI message";
+    if (rule == "StatePayload") return ValidateFormat2StatePayload(property.value) ? std::string{} : "MIDI data bytes followed by State7 or Red7, Green7, and Blue7";
     if (rule == "TextPayload") return ValidateFormat2TextPayload(property.value) ? std::string{} : "MIDI data bytes and supported text fields followed by Text";
     if (rule == "RingConfigurePayload") return ValidateFormat2RingConfigurePayload(property.value) ? std::string{} : "MIDI data bytes plus one SegmentMasks and one segment RGB field set";
     if (rule == "OSCAddress") {

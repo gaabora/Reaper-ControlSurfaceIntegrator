@@ -8,6 +8,7 @@ import { EditorOperationError } from "./store.ts";
 import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
 import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy-surface-format2.ts";
 import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
+import { migrateLegacySce24StateColors } from "./legacy-sce24-state.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
@@ -487,6 +488,7 @@ export class LegacyCsiSource {
         surfaceDocument.diagnostics.push(...surfaceConversion.diagnostics);
         if (includeSurface && !useExistingSurface) surfaceDocument.diagnostics.push(...meterMode.diagnostics);
         const hasSce24Ring = /^\s*FB_SCE24Encoder\b/im.test(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source);
+        const hasSce24State = /^\s*FB_SCE24LEDButton\b/im.test(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source);
         const zoneDocuments = new Map<string, AnyDocument>();
         const zoneMigrationDiagnostics = new Map<string, Diagnostic[]>();
         const migratedZoneSources = new Map<string, string>();
@@ -494,9 +496,11 @@ export class LegacyCsiSource {
         for (const zone of files.zones) {
             const targetPath = targetPathMap.get(zone.sourcePath) || `Zones/User/${targetProfileId}/${zone.profile}/${zone.relativePath}`;
             this.validateTargetScope("zone", targetPath, targetProfileId);
-            const ringMigration = hasSce24Ring ? migrateLegacySce24RingColors(draftMap.get(zone.sourcePath)?.source ?? zone.source, zone.sourcePath) : { diagnostics: [], source: draftMap.get(zone.sourcePath)?.source ?? zone.source };
-            zoneMigrationDiagnostics.set(zone.sourcePath, ringMigration.diagnostics);
-            const migratedSource = formatSource(ringMigration.source, "zone", targetPath, knownActions);
+            const initialSource = draftMap.get(zone.sourcePath)?.source ?? zone.source;
+            const ringMigration = hasSce24Ring ? migrateLegacySce24RingColors(initialSource, zone.sourcePath) : { diagnostics: [], source: initialSource };
+            const stateMigration = hasSce24State ? migrateLegacySce24StateColors(ringMigration.source, zone.sourcePath) : { diagnostics: [], source: ringMigration.source };
+            zoneMigrationDiagnostics.set(zone.sourcePath, [...ringMigration.diagnostics, ...stateMigration.diagnostics]);
+            const migratedSource = formatSource(stateMigration.source, "zone", targetPath, knownActions);
             migratedZoneSources.set(zone.sourcePath, migratedSource);
             const zoneDocument = parseByPath(migratedSource, targetPath, knownActions);
             zoneDocument.diagnostics.push(...ringMigration.diagnostics);
