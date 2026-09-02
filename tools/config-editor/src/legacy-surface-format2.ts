@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportTwoStateRgb" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -33,6 +33,14 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_fader7bit", { kind: "fader7Feedback", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_fader14bit", { kind: "fader14Feedback", targets: [{ direction: "Feedback", encoding: "MIDI14", primitive: "Value", protocol: "MIDI" }] }],
     ["fb_faderportrgb", { kind: "faderportRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
+    ["fb_fp8scribbleline1", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp8scribbleline2", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp8scribbleline3", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp8scribbleline4", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp16scribbleline1", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp16scribbleline2", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp16scribbleline3", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_fp16scribbleline4", { kind: "faderportScribble", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_faderporttwostatergb", { kind: "faderportTwoStateRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_faderportvaluebar", { kind: "bar", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Bar", protocol: "MIDI" }] }],
     ["fb_mft_rgb", { kind: "midiPalette", targets: [{ direction: "Feedback", encoding: "MIDIPalette", primitive: "Color", protocol: "MIDI" }] }],
@@ -192,6 +200,11 @@ function dynamicTextProfiles(widgets: SurfaceWidget[]): string[] {
     return ["TextProfile DynamicText {", "  Encoding=ASCII7", "  Padding=None", '  ClearText=""', "}", ""];
 }
 
+function faderportScribbleProfiles(widgets: SurfaceWidget[]): string[] {
+    if (!widgets.some((widget) => widget.body.some((line) => /^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "")))) return [];
+    return ["TextProfile FaderPortScribble {", "  Encoding=ASCII7", "  Width=30", "  Padding=None", '  ClearText="                            "', "  DefaultAlignment=Center", "  Alignment Center Code=0", "  Alignment Left Code=1", "  Alignment Right Code=2", "  InvertCode=4", "  PresentationCombine=BitOr", "}", ""];
+}
+
 function meterProfile(widgets: SurfaceWidget[], mode: LegacyMcuMeterMode): string[] {
     if (!widgets.some((widget) => widget.body.some((line) => ["fb_mcuvumeter", "fb_mcuxtvumeter"].includes((line.tokens[0] ?? "").toLowerCase())))) return [];
     const profiles: Record<LegacyMcuMeterMode, { inputUnit: "Decibels" | "Normalized"; steps: Array<[number, number]> }> = {
@@ -282,6 +295,15 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const dataByte = midiByte(tokens[2]);
         return `Feedback Color { Encoding=MIDIRGB Enable=${midiList(["90", dataByte, "7f"])} Red=${midiList(["91", dataByte])} Green=${midiList(["92", dataByte])} Blue=${midiList(["93", dataByte])} InactiveBrightness=0.1111111111111111 ActiveBrightness=1 }`;
     }
+    if (conversion.kind === "faderportScribble" && tokens[1] && /^fb_fp(?:8|16)scribbleline[1-4]$/.test(processor)) {
+        const channel = Number(tokens[1]);
+        const row = Number(processor.at(-1)) - 1;
+        const displayType = processor.startsWith("fb_fp16") ? 0x16 : 0x02;
+        if (Number.isInteger(channel) && channel >= 0 && channel <= 15) {
+            const prefix = ["00", "01", "06", displayType.toString(16), "12", channel.toString(16), row.toString(16)].map(midiByte).join(", ");
+            return `Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ ${prefix}, TextPresentationCode, Text ] }`;
+        }
+    }
     if (conversion.kind === "bar" && tokens[1] && /^\d+$/.test(tokens[1])) {
         const channel = Number(tokens[1]);
         if (channel >= 0 && channel <= 15) {
@@ -337,6 +359,15 @@ function visibleWidgets(sourceLines: ReturnType<typeof splitSourceLines>, widget
         if (isHiddenWidget(sourceLines, widget)) return false;
         return widget.body.some((line) => ["press", "anypress", "fader14bit", "encoder", "x32fader", "x32rotarytoencoder"].includes((line.tokens[0] ?? "").toLowerCase()));
     });
+}
+
+function faderportScribbleChannel(widget: SurfaceWidget): number | undefined {
+    for (const line of widget.body) {
+        if (!/^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "")) continue;
+        const channel = Number(line.tokens[1]);
+        if (Number.isInteger(channel) && channel >= 0 && channel <= 15) return channel + 1;
+    }
+    return undefined;
 }
 
 function convertedLayoutCell(cell: OskLayoutCell): string {
@@ -472,9 +503,11 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
+        const channel = faderportScribbleChannel(widget);
+        if (channel) output.push(`  Channel=${channel}`);
         for (const line of widget.body) {
             const converted = convertProcessor(widget, line.tokens, line.lineNumber, diagnostics, documentPath);
             if (converted) output.push(`  ${converted}`);

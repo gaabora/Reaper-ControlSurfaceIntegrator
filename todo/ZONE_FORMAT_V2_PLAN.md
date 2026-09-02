@@ -1708,6 +1708,7 @@ Public legacy Surface conversion has one completion gate:
   - ✅ Convert legacy `FB_SCE24EncoderText` and `FB_SCE24OLEDButton` to generic MIDISysEx Text feedback. Preserve each literal display address, margin and font defaults, color fields, and state-capable text behavior without a device-specific runtime processor.
   - ✅ Convert legacy `FB_SCE24Encoder` to a generic 18-segment Ring and nested MIDISysEx Configure output. Expand legacy ring and push colors into `RingColors`, repair standalone RotaryPush color declarations through their paired Rotary binding, and reject malformed, overlapping, or out-of-range color definitions.
   - ✅ Convert legacy `FB_SCE24LEDButton` to generic MIDISysEx State feedback. Convert its `OffColor` and `OnColor` properties to the ordered `StateColors` list and remove ignored alpha bytes.
+  - ✅ Convert legacy `FB_FP8ScribbleLine1..4` and `FB_FP16ScribbleLine1..4` to one generic MIDISysEx Text profile. Preserve display type, zero-based hardware channel, row, 30-character limit, clear text, alignment, and inversion metadata, and publish the one-based logical Widget Channel.
   - [ ] Classify every currently unresolved inventory entry as a universal conversion, intentionally unsupported legacy behavior, or an ambiguity that requires user input.
   - [ ] Add parameter-complete golden fixtures for every supported processor family and malformed or ambiguous branch.
   - [ ] Make zero unclassified processors and zero invalid conversion targets a required migration verification result.

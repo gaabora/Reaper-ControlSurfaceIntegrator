@@ -183,6 +183,29 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=1 BottomMargin=63 Font=6 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x6D, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }");
     });
 
+    test("converts FaderPort scribble rows to one universal text profile", () => {
+        const legacySurface = `Widget ScribbleLine1_1
+  FB_FP16ScribbleLine1 "0"
+WidgetEnd
+Widget ScribbleLine4_16
+  FB_FP16ScribbleLine4 "15"
+WidgetEnd
+Widget FP8Line2
+  FB_FP8ScribbleLine2 "3"
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort displays", "Surfaces/User/faderport-displays.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.match(/TextProfile FaderPortScribble \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("Width=30");
+        expect(conversion.source).toContain("DefaultAlignment=Center");
+        expect(conversion.source).toContain("InvertCode=4");
+        expect(conversion.source).toContain("Widget ScribbleLine1_1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x16, 0x12, 0x00, 0x00, TextPresentationCode, Text ] }");
+        expect(conversion.source).toContain("Widget ScribbleLine4_16 {\n  Channel=16\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x16, 0x12, 0x0F, 0x03, TextPresentationCode, Text ] }");
+        expect(conversion.source).toContain("Widget FP8Line2 {\n  Channel=4\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x03, 0x01, TextPresentationCode, Text ] }");
+    });
+
     test("converts SCE24 encoder rings and explicit segment colors", () => {
         const legacySurface = `Widget Rotary1 RotaryWidgetClass
   Encoder b0 00 7f
