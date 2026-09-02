@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
 import { convertLegacySurfaceToFormat2 } from "../src/legacy-surface-format2.ts";
+import { migrateLegacySce24RingColors } from "../src/legacy-sce24-ring.ts";
 import { ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { ConfigurationStore, EditorOperationError } from "../src/store.ts";
@@ -179,6 +180,64 @@ WidgetEnd
         expect(conversion.source.match(/TextProfile DynamicText \{/g)).toHaveLength(1);
         expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=0 BottomMargin=15 Font=2 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x20, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }");
         expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=1 BottomMargin=63 Font=6 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x6D, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }");
+    });
+
+    test("converts SCE24 encoder rings and explicit segment colors", () => {
+        const legacySurface = `Widget Rotary1 RotaryWidgetClass
+  Encoder b0 00 7f
+  FB_SCE24Encoder b0 00 7f
+WidgetEnd
+Widget RotaryPush1
+  Press 90 20 7f 90 20 00
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "SCE24", "Surfaces/User/sce24.txt");
+        const zone = migrateLegacySce24RingColors("Zone Track\n  Rotary1 TrackVolume LEDRingColor=#0000ffff PushColor=#003f00ff\nZoneEnd\n", "Zones/Track.zon");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("RingProfile SCE24Ring {");
+        expect(conversion.source).toContain("Payload=[ 0x00, 0x02, 0x38, 0x01, 0x00, SegmentMasks, SegmentRed7, SegmentGreen7, SegmentBlue7 ]");
+        expect(zone.diagnostics).toEqual([]);
+        expect(zone.source).toContain("RingColors=[#003F00,#003F00,#003F00,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF,#0000FF]");
+        expect(zone.source).not.toContain("LEDRingColor=");
+        expect(zone.source).not.toContain("PushColor=");
+    });
+
+    test("moves a standalone SCE24 push color to its paired ring binding", () => {
+        const migration = migrateLegacySce24RingColors("Zone FX\n  RotaryB4 NoAction\n  RotaryPushB4 FXParam 10 PushColor=#003f00ff\nZoneEnd\n", "Zones/FX.zon");
+
+        expect(migration.diagnostics).toEqual([]);
+        expect(migration.source).toContain("RotaryB4 NoAction RingColors=[#003F00,#003F00,#003F00,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000]");
+        expect(migration.source).toContain("RotaryPushB4 FXParam 10");
+        expect(migration.source).not.toContain("PushColor=");
+    });
+
+    test("reports invalid and overlapping SCE24 ring ranges without changing the binding", () => {
+        const source = "Zone Track\n  Rotary1 TrackVolume LEDRingColors=3-8-#ff0000ff+8-18-#00ff00ff\nZoneEnd\n";
+        const migration = migrateLegacySce24RingColors(source, "Zones/Track.zon");
+
+        expect(migration.diagnostics.map((diagnostic) => diagnostic.code)).toContain("legacy.zone.sce24-ring.overlap");
+        expect(migration.diagnostics.map((diagnostic) => diagnostic.code)).toContain("legacy.zone.sce24-ring.range");
+        expect(migration.source).toBe(source);
+    });
+
+    test("includes SCE24 ring and color migration in the import preview", async () => {
+        const surfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
+        const zonePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        const legacyZone = "Zone Home\n  Rotary1 TrackPan LEDRingColor=#0000ffff\n  RotaryPush1 Play PushColor=#003f00ff\nZoneEnd\n";
+        await writeFile(surfacePath, "Widget Rotary1 RotaryWidgetClass\n  Encoder b0 00 7f\n  FB_SCE24Encoder b0 00 7f\nWidgetEnd\nWidget RotaryPush1\n  Press 90 20 7f 90 20 00\nWidgetEnd\n", "utf8");
+        await writeFile(zonePath, legacyZone, "utf8");
+
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);
+        const convertedSurface = preview.items.find((item) => item.kind === "surface")?.source;
+        const convertedZone = preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source;
+
+        expect(convertedSurface).toContain("RingProfile SCE24Ring {");
+        expect(convertedZone).toContain("RingColors=[#003F00,#003F00,#003F00,#0000FF");
+        expect(convertedZone).not.toContain("LEDRingColor=");
+        expect(convertedZone).not.toContain("PushColor=");
+        expect(await readFile(zonePath, "utf8")).toBe(legacyZone);
     });
 
     test("converts legacy MCU meters to a universal meter profile and Surface initialization", () => {

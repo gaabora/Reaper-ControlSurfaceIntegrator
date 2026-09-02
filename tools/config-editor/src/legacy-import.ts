@@ -7,6 +7,7 @@ import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts
 import { EditorOperationError } from "./store.ts";
 import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
 import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy-surface-format2.ts";
+import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
 import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
@@ -485,15 +486,21 @@ export class LegacyCsiSource {
         const surfaceDocument = parseByPath(migratedSurface, surfaceTargetPath, knownActions);
         surfaceDocument.diagnostics.push(...surfaceConversion.diagnostics);
         if (includeSurface && !useExistingSurface) surfaceDocument.diagnostics.push(...meterMode.diagnostics);
+        const hasSce24Ring = /^\s*FB_SCE24Encoder\b/im.test(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source);
         const zoneDocuments = new Map<string, AnyDocument>();
+        const zoneMigrationDiagnostics = new Map<string, Diagnostic[]>();
         const migratedZoneSources = new Map<string, string>();
         const zoneTargetPaths = new Map<string, string>();
         for (const zone of files.zones) {
             const targetPath = targetPathMap.get(zone.sourcePath) || `Zones/User/${targetProfileId}/${zone.profile}/${zone.relativePath}`;
             this.validateTargetScope("zone", targetPath, targetProfileId);
-            const migratedSource = formatSource(draftMap.get(zone.sourcePath)?.source ?? zone.source, "zone", targetPath, knownActions);
+            const ringMigration = hasSce24Ring ? migrateLegacySce24RingColors(draftMap.get(zone.sourcePath)?.source ?? zone.source, zone.sourcePath) : { diagnostics: [], source: draftMap.get(zone.sourcePath)?.source ?? zone.source };
+            zoneMigrationDiagnostics.set(zone.sourcePath, ringMigration.diagnostics);
+            const migratedSource = formatSource(ringMigration.source, "zone", targetPath, knownActions);
             migratedZoneSources.set(zone.sourcePath, migratedSource);
-            zoneDocuments.set(zone.sourcePath, parseByPath(migratedSource, targetPath, knownActions));
+            const zoneDocument = parseByPath(migratedSource, targetPath, knownActions);
+            zoneDocument.diagnostics.push(...ringMigration.diagnostics);
+            zoneDocuments.set(zone.sourcePath, zoneDocument);
             zoneTargetPaths.set(zone.sourcePath, targetPath);
         }
 
@@ -504,7 +511,9 @@ export class LegacyCsiSource {
             if (!selectedPaths.has(sourcePath)) continue;
             const source = replaceMappedWidgets(migratedZoneSources.get(sourcePath)!, document, widgetMappingResult.validMappings);
             migratedZoneSources.set(sourcePath, source);
-            zoneDocuments.set(sourcePath, parseByPath(source, document.path!, knownActions));
+            const mappedDocument = parseByPath(source, document.path!, knownActions);
+            mappedDocument.diagnostics.push(...(zoneMigrationDiagnostics.get(sourcePath) ?? []));
+            zoneDocuments.set(sourcePath, mappedDocument);
         }
         if (targetSurface) addMftCommandDiagnostics(zoneDocuments, selectedPaths, targetSurface, widgetMappingResult.validMappings);
 

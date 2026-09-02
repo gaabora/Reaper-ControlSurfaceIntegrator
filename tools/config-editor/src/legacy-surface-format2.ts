@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportTwoStateRgb" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportRgb" | "faderportTwoStateRgb" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24Text" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -44,6 +44,7 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_mcuxtdisplaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcuxtdisplayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mcuxtvumeter", { kind: "mcuMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
+    ["fb_sce24encoder", { kind: "sce24Ring", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Ring", protocol: "MIDI" }] }],
     ["fb_sce24encodertext", { kind: "sce24Text", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_sce24oledbutton", { kind: "sce24Text", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_processor", {
@@ -132,19 +133,14 @@ function colorCalibration(blocks: Map<string, string[][]>): string[] {
 }
 
 function ringProfiles(widgets: SurfaceWidget[]): string[] {
-    if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_encoder"))) return [];
-    return [
-        "RingProfile RotaryRing {",
-        "  Segments=11",
-        "  Quantize=Floor",
-        "  ValueOffset=1",
-        "  Style Dot Code=0 Steps=11",
-        "  Style BoostCut Code=1 Steps=11",
-        "  Style Fill Code=2 Steps=11",
-        "  Style Spread Code=3 Steps=6",
-        "}",
-        "",
-    ];
+    const result: string[] = [];
+    if (widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_encoder"))) {
+        result.push("RingProfile RotaryRing {", "  Segments=11", "  Quantize=Floor", "  ValueOffset=1", "  Style Dot Code=0 Steps=11", "  Style BoostCut Code=1 Steps=11", "  Style Fill Code=2 Steps=11", "  Style Spread Code=3 Steps=6", "}", "");
+    }
+    if (widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_sce24encoder"))) {
+        result.push("RingProfile SCE24Ring {", "  Segments=18", "  DefaultColor=#000000", "  Quantize=Floor", "  ValueOffset=65", "  Style Dot Code=0 Steps=15", "  Style BoostCut Code=1 Steps=15", "  Style Fill Code=2 Steps=15", "  Style Spread Code=3 Steps=8", "}", "");
+    }
+    return result;
 }
 
 function barProfiles(widgets: SurfaceWidget[]): string[] {
@@ -262,6 +258,15 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
             return undefined;
         }
         return `Feedback Ring { Encoding=MIDI7 Message=${midiList([tokens[1], dataByte.toString(16)])} RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }`;
+    }
+    if (conversion.kind === "sce24Ring" && tokens.length >= 4) {
+        const status = Number.parseInt(tokens[1].replace(/^0x/i, ""), 16);
+        const address = Number.parseInt(tokens[2].replace(/^0x/i, ""), 16);
+        const legacyValue = Number.parseInt(tokens[3].replace(/^0x/i, ""), 16);
+        if (Number.isInteger(status) && status >= 0x80 && status <= 0xEF && Number.isInteger(address) && address >= 0 && address <= 0x7F && Number.isInteger(legacyValue) && legacyValue >= 0 && legacyValue <= 0x7F) {
+            const payload = `[ 0x00, 0x02, 0x38, 0x01, ${midiByte(address.toString(16))}, SegmentMasks, SegmentRed7, SegmentGreen7, SegmentBlue7 ]`;
+            return `Feedback Ring {\n    Encoding=MIDI7\n    Message=${midiList([tokens[1], tokens[2]])}\n    RingProfile=SCE24Ring\n    StyleTarget=Value\n    StyleShift=4\n    StyleCombine=BitOr\n    Configure { Encoding=MIDISysEx Payload=${payload} }\n  }`;
+        }
     }
     if (conversion.kind === "state" && tokens.length >= 7) return `Feedback State { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
     if (conversion.kind === "faderportRgb" && tokens.length >= 4) {
