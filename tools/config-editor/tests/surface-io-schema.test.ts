@@ -48,6 +48,8 @@ describe("Surface I/O schema", () => {
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_fp16scribbleline1")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_fp16scribbleline4")?.status).toBe("supported");
         expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_fpvumeter")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_icondisplay2upper")?.status).toBe("supported");
+        expect(report.processors.find((entry) => entry.processor.toLowerCase() === "fb_icondisplay2lower")?.status).toBe("supported");
         expect(report.processors.some((entry) => entry.processor.toLowerCase() === "widget")).toBeFalse();
         expect(report.processors.some((entry) => entry.status === "invalid-target")).toBeFalse();
         expect(report.diagnostics).toEqual([]);

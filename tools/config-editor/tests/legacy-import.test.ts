@@ -167,6 +167,30 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x17, 0x30, 0x38, Text ] TextProfile=Display7 }");
     });
 
+    test("converts Icon display variants to universal seven-character text feedback", () => {
+        const legacySurface = `Widget Icon1Upper
+  FB_IconDisplay1Upper 0
+WidgetEnd
+Widget Icon1Lower
+  FB_IconDisplay1Lower 7
+WidgetEnd
+Widget Icon2Upper
+  FB_IconDisplay2Upper 1
+WidgetEnd
+Widget Icon2Lower
+  FB_IconDisplay2Lower 6
+WidgetEnd
+`;
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Icon displays", "Surfaces/User/icon-displays.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.match(/TextProfile Display7 \{/g)).toHaveLength(1);
+        expect(conversion.source).toContain("Widget Icon1Upper {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x00, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("Widget Icon1Lower {\n  Channel=8\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x69, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("Widget Icon2Upper {\n  Channel=2\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x07, Text ] TextProfile=Display7 }");
+        expect(conversion.source).toContain("Widget Icon2Lower {\n  Channel=7\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x62, Text ] TextProfile=Display7 }");
+    });
+
     test("converts legacy dynamic text and OLED button displays to universal SysEx fields", () => {
         const legacySurface = `Widget Display1
   FB_SCE24EncoderText 90 20 7f 0 15 2

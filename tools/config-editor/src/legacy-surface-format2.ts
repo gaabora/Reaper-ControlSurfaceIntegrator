@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportTwoStateRgb" | "iconDisplay" | "mcuDisplay" | "mcuMeter" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -44,6 +44,10 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
     ["fb_faderporttwostatergb", { kind: "faderportTwoStateRgb", targets: [{ direction: "Feedback", encoding: "MIDIRGB", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_faderportvaluebar", { kind: "bar", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Bar", protocol: "MIDI" }] }],
     ["fb_fpvumeter", { kind: "faderportMeter", targets: [{ direction: "Feedback", encoding: "MIDI7", primitive: "Meter", protocol: "MIDI" }] }],
+    ["fb_icondisplay1upper", { kind: "iconDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_icondisplay1lower", { kind: "iconDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_icondisplay2upper", { kind: "iconDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
+    ["fb_icondisplay2lower", { kind: "iconDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_mft_rgb", { kind: "midiPalette", targets: [{ direction: "Feedback", encoding: "MIDIPalette", primitive: "Color", protocol: "MIDI" }] }],
     ["fb_c4displaylower", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_c4displayupper", { kind: "mcuDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
@@ -191,7 +195,7 @@ function paletteProfiles(widgets: SurfaceWidget[]): string[] {
 }
 
 function textProfiles(widgets: SurfaceWidget[]): string[] {
-    const displayProcessors = new Set(["fb_c4displaylower", "fb_c4displayupper", "fb_mcudisplaylower", "fb_mcudisplayupper", "fb_mcuxtdisplaylower", "fb_mcuxtdisplayupper"]);
+    const displayProcessors = new Set(["fb_c4displaylower", "fb_c4displayupper", "fb_icondisplay1lower", "fb_icondisplay1upper", "fb_icondisplay2lower", "fb_icondisplay2upper", "fb_mcudisplaylower", "fb_mcudisplayupper", "fb_mcuxtdisplaylower", "fb_mcuxtdisplayupper"]);
     if (!widgets.some((widget) => widget.body.some((line) => displayProcessors.has((line.tokens[0] ?? "").toLowerCase())))) return [];
     return ["TextProfile Display7 {", "  Encoding=ASCII7", "  Width=7", "  Padding=Space", '  ClearText=""', "  SilenceAsEmpty=true", "}", ""];
 }
@@ -338,6 +342,18 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
             }
         }
     }
+    if (conversion.kind === "iconDisplay" && tokens[1] && /^\d+$/.test(tokens[1])) {
+        const channel = Number(tokens[1]);
+        const lower = processor.endsWith("lower");
+        const secondDisplay = processor.includes("display2");
+        if (channel >= 0 && channel <= 7) {
+            const manufacturerBytes = secondDisplay ? ["00", "02", "4e"] : ["00", "00", "66"];
+            const displayType = secondDisplay ? "15" : "14";
+            const displayRow = secondDisplay ? "13" : "12";
+            const offset = channel * 7 + (lower ? 56 : 0);
+            return `Feedback Text { Encoding=MIDISysEx Payload=${sysExTextPayload([...manufacturerBytes, displayType, displayRow, offset.toString(16)])} TextProfile=Display7 }`;
+        }
+    }
     if (conversion.kind === "mcuMeter" && tokens[1] && /^\d+$/.test(tokens[1])) {
         const channel = Number(tokens[1]);
         if (channel >= 0 && channel <= 7) return `Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=SurfaceMeter ValueBase=${midiByte((channel << 4).toString(16))} Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }`;
@@ -376,7 +392,7 @@ function visibleWidgets(sourceLines: ReturnType<typeof splitSourceLines>, widget
 
 function legacyWidgetChannel(widget: SurfaceWidget): number | undefined {
     for (const line of widget.body) {
-        if (!/^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
+        if (!/^fb_fp(?:8|16)scribbleline[1-4]$/i.test(line.tokens[0] ?? "") && !/^fb_icondisplay[12](?:upper|lower)$/i.test(line.tokens[0] ?? "") && (line.tokens[0] ?? "").toLowerCase() !== "fb_fpvumeter") continue;
         const channel = Number(line.tokens[1]);
         if (Number.isInteger(channel) && channel >= 0 && channel <= 15) return channel + 1;
     }
