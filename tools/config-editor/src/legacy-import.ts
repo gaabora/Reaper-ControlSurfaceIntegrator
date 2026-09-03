@@ -160,6 +160,12 @@ export function migrateLegacyZoneSyntax(source: string): string {
     for (const line of lines) {
         initializeLine(line);
         if (line.tokens.some((token) => /^BarStyle=BiPolar$/i.test(token))) line.text = line.text.replace(/\bBarStyle=BiPolar\b/i, "BarStyle=Bipolar");
+        for (const token of line.tokens) {
+            const alignment = token.match(/^TextAlign=(Left|Center|Right)$/i)?.[1];
+            if (alignment) line.text = line.text.replace(token, `TextAlign=${alignment[0].toUpperCase()}${alignment.slice(1).toLowerCase()}`);
+            const inversion = token.match(/^TextInvert=(Yes|No|True|False)$/i)?.[1];
+            if (inversion) line.text = line.text.replace(token, `TextInvert=${/^(Yes|True)$/i.test(inversion)}`);
+        }
     }
     return lines.map((line) => line.text + line.ending).join("");
 }

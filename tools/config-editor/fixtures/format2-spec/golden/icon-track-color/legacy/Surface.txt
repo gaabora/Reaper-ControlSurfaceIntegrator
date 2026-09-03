@@ -1,0 +1,12 @@
+Widget DisplayUpper1
+  FB_iCON_V1XDisplayUpper 0
+WidgetEnd
+Widget DisplayUpper2
+  FB_MCUXTDisplayUpper 1
+WidgetEnd
+Widget DisplayLower1
+  FB_MCUXTDisplayLower 0
+WidgetEnd
+Widget DisplayLower2
+  FB_MCUXTDisplayLower 1
+WidgetEnd

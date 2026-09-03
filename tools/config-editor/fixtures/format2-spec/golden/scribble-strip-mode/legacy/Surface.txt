@@ -1,0 +1,3 @@
+Widget ScribbleStripMode
+  FB_FP16ScribbleStripMode 0
+WidgetEnd

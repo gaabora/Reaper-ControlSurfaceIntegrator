@@ -96,6 +96,7 @@
 - Use Bun-compatible TypeScript and Node standard-library APIs. Use CodeMirror only for browser text editing and bundle it locally without a CDN. Do not add another package dependency when the standard library or the existing editor dependencies are sufficient.
 - Keep parsers line-oriented until a format feature requires a more complex grammar.
 - Add a valid and malformed fixture when a public grammar rule changes.
+- Treat a golden migration as executable only when a Bun test compares the complete generated document with its expected file. Keep future-format examples identified as normative until their migration stage runs them.
 - Keep browser assets embedded so compiled executables do not need adjacent UI files.
 - Keep HTML, CSS, and browser JavaScript in their native file types under `src/ui/`. Bundle the browser JavaScript and CodeMirror dependencies through `src/ui.ts` so standalone builds still embed them.
 - Generate standalone identity and action data from repository contracts during compile. Do not source-control generated compile input or `dist/` output.

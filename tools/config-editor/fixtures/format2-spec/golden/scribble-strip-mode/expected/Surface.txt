@@ -1,0 +1,5 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPort 16" }
+
+Widget ScribbleStripMode {
+  Feedback Value { Encoding=MIDISysEx InitialValue=2 Payload=[ 0x00, 0x01, 0x06, 0x16, 0x13, 0x00, Value7 ] }
+}

@@ -1,0 +1,41 @@
+@Meta { Version=2 Protocol=MIDI Channels=2 Name="iCON V1X" }
+
+TextProfile Display7 {
+  Encoding=ASCII7
+  Width=7
+  Padding=Space
+  ClearText=""
+  SilenceAsEmpty=true
+}
+
+Widget DisplayUpper1 {
+  Channel=1
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x15, 0x12, 0x00, Text ] TextProfile=Display7 }
+}
+
+Widget DisplayUpper2 {
+  Channel=2
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x15, 0x12, 0x07, Text ] TextProfile=Display7 }
+}
+
+Widget DisplayLower1 {
+  Channel=1
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x15, 0x12, 0x38, Text ] TextProfile=Display7 }
+}
+
+Widget DisplayLower2 {
+  Channel=2
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x15, 0x12, 0x3F, Text ] TextProfile=Display7 }
+}
+
+
+FeedbackGroup TrackColors {
+  Capability=TrackColor
+  Encoding=MIDISysEx
+  ColorEncoding=RGB7
+  BlueScaleAtGreenMinimum=0.70
+  BlueScaleAtGreenMaximum=1
+  Payload=[ 0x00, 0x02, 0x4E, 0x16, 0x14, SlotColors ]
+  Slot Source=DisplayUpper1 Members=[ DisplayUpper1, DisplayLower1 ]
+  Slot Source=DisplayUpper2 Members=[ DisplayUpper2, DisplayLower2 ]
+}

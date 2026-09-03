@@ -23,9 +23,14 @@ const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
 const fxSource = "Zone ReaEQ\n  Play Play\nZoneEnd\n";
+const goldenFixtureRoot = path.join(import.meta.dir, "..", "fixtures", "format2-spec", "golden");
 let temporaryRoot = "";
 let legacyRoot = "";
 let productRoot = "";
+
+async function readGoldenFixture(scenario: string, kind: "expected" | "legacy", filename: string): Promise<string> {
+    return readFile(path.join(goldenFixtureRoot, scenario, kind, filename), "utf8");
+}
 
 async function createStore(): Promise<ConfigurationStore> {
     const guard = await ProductRootGuard.create(productRoot, identity);
@@ -210,53 +215,22 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4A, 0x0C ] Off=[ 0xB0, 0x4A, 0x05 ] Clear=[ 0xB0, 0x4A, 0x20 ] }");
     });
 
-    test("converts X-Touch displays and their shared track-color packet", () => {
-        const legacySurface = `Widget DisplayUpper1
-  FB_XTouchDisplayUpper 0
-WidgetEnd
-Widget DisplayUpper2
-  FB_MCUDisplayUpper 1
-WidgetEnd
-Widget DisplayLower1
-  FB_MCUDisplayLower 0
-WidgetEnd
-Widget DisplayLower2
-  FB_MCUDisplayLower 1
-WidgetEnd
-`;
+    test("matches the X-Touch text and track-color golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("xtouch-text", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("xtouch-text", "expected", "surface.txt");
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "X-Touch", "Surfaces/User/x-touch.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toContain("ColorProfile XTouchColors {");
-        expect(conversion.source).toContain("Widget DisplayUpper1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x00, Text ] TextProfile=Display7 }");
-        expect(conversion.source).toContain("FeedbackGroup TrackColors {");
-        expect(conversion.source).toContain("Payload=[ 0x00, 0x00, 0x66, 0x14, 0x72, SlotColors ]");
-        expect(conversion.source).toContain("Slot Source=DisplayUpper1 Members=[ DisplayUpper1, DisplayLower1 ]");
-        expect(conversion.source).toContain("Slot Source=DisplayUpper2 Members=[ DisplayUpper2, DisplayLower2 ]");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
-    test("converts iCON displays and their shared RGB7 track-color packet", () => {
-        const legacySurface = `Widget DisplayUpper1
-  FB_iCON_V1XDisplayUpper 0
-WidgetEnd
-Widget DisplayUpper2
-  FB_MCUXTDisplayUpper 1
-WidgetEnd
-Widget DisplayLower1
-  FB_MCUXTDisplayLower 0
-WidgetEnd
-Widget DisplayLower2
-  FB_MCUXTDisplayLower 1
-WidgetEnd
-`;
+    test("matches the iCON text and track-color golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("icon-track-color", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("icon-track-color", "expected", "Surface.txt");
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "iCON V1X", "Surfaces/User/icon-v1x.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toContain("Widget DisplayUpper1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x15, 0x12, 0x00, Text ] TextProfile=Display7 }");
-        expect(conversion.source).toContain("ColorEncoding=RGB7");
-        expect(conversion.source).toContain("BlueScaleAtGreenMinimum=0.70");
-        expect(conversion.source).toContain("Payload=[ 0x00, 0x02, 0x4E, 0x16, 0x14, SlotColors ]");
-        expect(conversion.source).toContain("Slot Source=DisplayUpper2 Members=[ DisplayUpper2, DisplayLower2 ]");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("converts Icon display variants to universal seven-character text feedback", () => {
@@ -368,11 +342,13 @@ WidgetEnd
         expect(conversion.source).toContain("Widget FP8Line2 {\n  Channel=4\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x03, 0x01, TextPresentationCode, Text ] }");
     });
 
-    test("converts a shared FaderPort scribble-strip mode to one SysEx initial value", () => {
-        const conversion = convertLegacySurfaceToFormat2("Widget ScribbleStripMode\n  FB_FP16ScribbleStripMode 0\nWidgetEnd\n", "FaderPort 16", "Surfaces/User/faderport16.txt", "XTouch", 2);
+    test("matches the FaderPort scribble-strip mode golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("scribble-strip-mode", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("scribble-strip-mode", "expected", "Surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort 16", "Surfaces/User/faderport16.txt", "XTouch", 2);
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toContain("Feedback Value { Encoding=MIDISysEx InitialValue=2 Payload=[ 0x00, 0x01, 0x06, 0x16, 0x13, 0x00, Value7 ] }");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("converts removed FaderPort 8 display aliases to the universal scribble profile", () => {
@@ -555,6 +531,18 @@ WidgetEnd
 
     test("normalizes the legacy value-bar style spelling", () => {
         expect(migrateLegacyZoneSyntax("Zone Track\n  ValueBar| TrackPan BarStyle=BiPolar\nZoneEnd\n")).toContain("BarStyle=Bipolar");
+    });
+
+    test("normalizes legacy text presentation properties", () => {
+        const source = "Zone Track\n  Upper TrackNameDisplay TextAlign=left TextInvert=YES\n  Lower TrackVolumeDisplay TextAlign=RIGHT TextInvert=no\nZoneEnd\n";
+
+        expect(migrateLegacyZoneSyntax(source)).toBe("Zone Track\n  Upper TrackNameDisplay TextAlign=Left TextInvert=true\n  Lower TrackVolumeDisplay TextAlign=Right TextInvert=false\nZoneEnd\n");
+    });
+
+    test("does not guess unsupported legacy text presentation values", () => {
+        const source = "Zone Track\n  Upper TrackNameDisplay TextAlign=Justify TextInvert=Maybe\nZoneEnd\n";
+
+        expect(migrateLegacyZoneSyntax(source)).toBe(source);
     });
 
     test("splits generic legacy OSC input and feedback into typed primitives", () => {

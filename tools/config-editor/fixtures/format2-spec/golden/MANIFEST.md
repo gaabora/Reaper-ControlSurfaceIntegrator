@@ -18,6 +18,8 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `mft-palette`: converts the complete legacy MFT palette and per-widget mode Companion, converts normal zone colors, and detects the raw-command branch only after resolving the selected Surface widget.
 - `sce24-ring`: converts SCE24 ring value and color output to a universal Ring profile and Configure block, expands range colors, and restores the declared push color in the first three physical segments.
 - `xtouch-text`: splits legacy XTouch display behavior into normal Text feedback and one shared TrackColor FeedbackGroup with exact channels, slots, members, and hue-range color mapping.
+- `icon-track-color`: splits iCON display behavior into normal Text feedback and one shared RGB7 TrackColor FeedbackGroup with exact channels, slots, members, and blue correction.
+- `scribble-strip-mode`: moves one confirmed legacy FaderPort scribble mode into a universal Surface Value initial message.
 - `text-feedback`: converts SCE24 text and OLED output plus FaderPort scribble text to universal Text feedback, including fixed text, alignment, inversion, margins, font, constant colors, and state-indexed colors.
 - `osk-color-calibration`: converts MIDI and OSC OSK layouts without a layout version, normalizes layout colors to opaque `#RRGGBB`, removes ignored legacy alpha bytes, and converts an enabled legacy device color calibration block.
 - `overrides`: selects complete User Surface and snippet documents by ID while resolving Main and FX zones per ID without hiding unrelated Vendor zones.
@@ -29,6 +31,6 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `faderport-classic-split`: converts the two-message FaderPort Classic fader to one symmetric 10-bit MIDISplit input and feedback codec.
 - `mcu-character-displays`: converts MCU time characters, mode lights, and assignment letters to universal MIDICharacters and MIDIExact State feedback.
 
-## ✅ Current golden coverage complete
+## [ ] Executable golden coverage
 
-No additional action rename has a final approved name or parameter transformation. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.
+The Bun tests compare the complete generated Surface with expected output for `xtouch-text`, `icon-track-color`, and `scribble-strip-mode`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.
