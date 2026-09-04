@@ -164,6 +164,15 @@ WidgetEnd
         expect(conversion.source.match(/  Entry Color=#[0-9A-F]{6} Value=\d+/g)).toHaveLength(128);
     });
 
+    test("matches the MFT palette golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("mft-palette", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("mft-palette", "expected", "surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported MIDI Fighter Twister Surface", "Surfaces/User/mft.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+    });
+
     test("converts MCU-family display rows to universal SysEx text feedback", () => {
         const legacySurface = `Widget McuUpper
   FB_MCUDisplayUpper 2
@@ -243,44 +252,14 @@ WidgetEnd
         expect(conversion.source).toContain("Widget Icon2Lower {\n  Channel=7\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x62, Text ] TextProfile=Display7 }");
     });
 
-    test("converts Asparion color, ring, displays, and meters to universal feedback", () => {
-        const legacySurface = `Widget TrackColor1
-  FB_AsparionRGB 90 20 7f
-WidgetEnd
-Widget Rotary1
-  FB_AsparionEncoder b0 10 7f
-WidgetEnd
-Widget DisplayUpper1
-  FB_AsparionDisplayUpper 0
-WidgetEnd
-Widget DisplayLower8
-  FB_AsparionDisplayLower 7
-WidgetEnd
-Widget DisplayEncoder2
-  FB_AsparionDisplayEncoder 1
-WidgetEnd
-Widget MeterLeft1
-  FB_AsparionVUMeterL 0
-WidgetEnd
-Widget MeterRight8
-  FB_AsparionVUMeterR 7
-WidgetEnd
-`;
+    test("matches the Asparion feedback golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("asparion-feedback", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("asparion-feedback", "expected", "Surface.txt");
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "Asparion", "Surfaces/User/asparion.txt");
 
         expect(conversion.diagnostics).toEqual([]);
         expect(parseSurface(conversion.source, "Surfaces/User/asparion.txt").diagnostics).toEqual([]);
-        expect(conversion.source.match(/RingProfile AsparionRing \{/g)).toHaveLength(1);
-        expect(conversion.source.match(/MeterProfile AsparionMeter \{/g)).toHaveLength(1);
-        expect(conversion.source.match(/TextProfile Display12 \{/g)).toHaveLength(1);
-        expect(conversion.source.match(/TextProfile Display8 \{/g)).toHaveLength(1);
-        expect(conversion.source).toContain("Widget TrackColor1 {\n  Channel=1\n  Feedback Color { Encoding=MIDIRGB Red=[ 0x91, 0x20 ] Green=[ 0x92, 0x20 ] Blue=[ 0x93, 0x20 ] TrackColor=true }");
-        expect(conversion.source).toContain("Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] RingProfile=AsparionRing StyleTarget=Status StyleCombine=Add }");
-        expect(conversion.source).toContain("Widget DisplayUpper1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x1A, 0x00, 0x01, Text ] TextProfile=Display12 }");
-        expect(conversion.source).toContain("Widget DisplayLower8 {\n  Channel=8\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x1A, 0x54, 0x02, Text ] TextProfile=Display12 }");
-        expect(conversion.source).toContain("Widget DisplayEncoder2 {\n  Channel=2\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x19, 0x08, Text ] TextProfile=Display8 }");
-        expect(conversion.source).toContain("Widget MeterLeft1 {\n  Channel=1\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=AsparionMeter ValueBase=0x00 Combine=BitOr }");
-        expect(conversion.source).toContain("Widget MeterRight8 {\n  Channel=8\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=AsparionMeter ValueBase=0x70 Combine=BitOr }");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("requires an explicit channel for imported Asparion track-color feedback", () => {
@@ -492,24 +471,13 @@ WidgetEnd
         expect(convertedZone).not.toContain("OffColor=");
     });
 
-    test("converts legacy MCU meters to a universal meter profile and Surface initialization", () => {
-        const legacySurface = `Widget Meter1
-  FB_MCUVUMeter 0
-WidgetEnd
-Widget Meter8
-  FB_MCUXTVUMeter 7
-WidgetEnd
-`;
-        const conversion = convertLegacySurfaceToFormat2(legacySurface, "MCU meters", "Surfaces/User/mcu-meters.txt");
+    test("matches the MCU meter and display golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("mcu-meter-display", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("mcu-meter-display", "expected", "Surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "MCU meter and displays", "Surfaces/User/mcu.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toContain("MeterProfile SurfaceMeter {");
-        expect(conversion.source).toContain("Step Minimum=-60.3 Output=1");
-        expect(conversion.source).toContain("Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=SurfaceMeter ValueBase=0x00 Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }");
-        expect(conversion.source).toContain("Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=SurfaceMeter ValueBase=0x70 Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }");
-        expect(conversion.source.match(/  MIDI Bytes=/g)).toHaveLength(21);
-        expect(conversion.source).toContain("MIDI Bytes=[ 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x00, 0x01, 0xF7 ]");
-        expect(conversion.source).toContain("MIDI Bytes=[ 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x07, 0x01, 0xF7 ]");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("normalizes the legacy value-bar style spelling", () => {

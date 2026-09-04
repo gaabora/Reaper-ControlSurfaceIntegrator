@@ -31,7 +31,9 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `destination-collision`: rejects an imported zone ID that already exists in the same User profile and collection, including case-only spelling differences.
 - `faderport-classic-split`: converts the two-message FaderPort Classic fader to one symmetric 10-bit MIDISplit input and feedback codec.
 - `mcu-character-displays`: converts MCU time characters, mode lights, and assignment letters to universal MIDICharacters and MIDIExact State feedback.
+- `mcu-meter-display`: converts MCU, MCUXT, and C4 display rows together with MCU and MCUXT meters, their shared scale, and Surface initialization.
+- `asparion-feedback`: converts Asparion RGB, ring, text, and meter processors while keeping explicit channel metadata.
 
 ## [ ] Executable golden coverage
 
-The Bun tests compare complete generated output for `xtouch-text`, `icon-track-color`, `scribble-strip-mode`, `mcu-character-displays`, `faderport-classic-split`, `sce24-ring`, `sce24-state`, and the FaderPort and SCE24 Surfaces in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.
+The Bun tests compare complete generated output for `xtouch-text`, `icon-track-color`, `scribble-strip-mode`, `mcu-character-displays`, `mcu-meter-display`, `faderport-classic-split`, `mft-palette`, `sce24-ring`, `sce24-state`, `asparion-feedback`, and the FaderPort and SCE24 Surfaces in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.

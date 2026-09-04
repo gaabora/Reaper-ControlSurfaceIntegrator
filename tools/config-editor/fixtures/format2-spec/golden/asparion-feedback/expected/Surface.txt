@@ -1,0 +1,78 @@
+@Meta { Version=2 Protocol=MIDI Channels=8 Name="Asparion" }
+
+RingProfile AsparionRing {
+  Segments=128
+  Quantize=Floor
+  ValueOffset=0
+  Style Dot Code=2 Steps=128
+  Style Fill Code=1 Steps=128
+}
+
+TextProfile Display12 {
+  Encoding=ASCII7
+  Width=12
+  Padding=Space
+  ClearText=""
+  SilenceAsEmpty=true
+}
+
+TextProfile Display8 {
+  Encoding=ASCII7
+  Width=8
+  Padding=Space
+  ClearText=""
+  SilenceAsEmpty=true
+}
+
+MeterProfile AsparionMeter {
+  Mode=Steps
+  InputUnit=Normalized
+  Default=0
+  Step Minimum=0.06666666666666667 Output=1
+  Step Minimum=0.13333333333333333 Output=2
+  Step Minimum=0.2 Output=3
+  Step Minimum=0.26666666666666666 Output=4
+  Step Minimum=0.3333333333333333 Output=5
+  Step Minimum=0.4 Output=6
+  Step Minimum=0.4666666666666667 Output=7
+  Step Minimum=0.5333333333333333 Output=8
+  Step Minimum=0.6 Output=9
+  Step Minimum=0.6666666666666666 Output=10
+  Step Minimum=0.7333333333333333 Output=11
+  Step Minimum=0.8 Output=12
+  Step Minimum=0.8666666666666667 Output=13
+}
+
+Widget TrackColor1 {
+  Channel=1
+  Feedback Color { Encoding=MIDIRGB Red=[ 0x91, 0x20 ] Green=[ 0x92, 0x20 ] Blue=[ 0x93, 0x20 ] TrackColor=true }
+}
+
+Widget Rotary1 {
+  Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] RingProfile=AsparionRing StyleTarget=Status StyleCombine=Add }
+}
+
+Widget DisplayUpper1 {
+  Channel=1
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x1A, 0x00, 0x01, Text ] TextProfile=Display12 }
+}
+
+Widget DisplayLower8 {
+  Channel=8
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x1A, 0x54, 0x02, Text ] TextProfile=Display12 }
+}
+
+Widget DisplayEncoder2 {
+  Channel=2
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x19, 0x08, Text ] TextProfile=Display8 }
+}
+
+Widget MeterLeft1 {
+  Channel=1
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=AsparionMeter ValueBase=0x00 Combine=BitOr }
+}
+
+Widget MeterRight8 {
+  Channel=8
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=AsparionMeter ValueBase=0x70 Combine=BitOr }
+}

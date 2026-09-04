@@ -1820,6 +1820,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Compare complete generated Surface output with executable golden fixtures for X-Touch palette, iCON RGB7, and FaderPort scribble-strip mode conversion.
   - ✅ Compare complete generated Surface output with executable golden fixtures for MCU time and assignment displays, FaderPort Classic split values, and FaderPort scribble text.
   - ✅ Compare complete generated output with executable golden fixtures for SCE24 ring, LED button state, and dynamic text conversion.
+  - ✅ Compare complete generated Surface output with executable golden fixtures for MFT palette, MCU display and meter initialization, and all Asparion feedback families.
 - ✅ Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties.
   - ✅ Normalize legacy alignment names and convert `TextInvert=Yes|No` to Boolean `TextInvert=true|false` in import drafts without guessing invalid values.
@@ -1827,6 +1828,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
 - [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.
 - ✅ Move the surface-channel count from product Device blocks to required Surface `@Meta Channels=N`. Derive legacy imports from the numbered widget families with a fallback of one, remove the field from I/O forms, and reject reuse of one Device with conflicting Surface channel counts.
+  - ✅ Ensure inferred `Channels` is not smaller than an explicit Widget `Channel` extracted from trusted legacy processor metadata.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
 - [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.

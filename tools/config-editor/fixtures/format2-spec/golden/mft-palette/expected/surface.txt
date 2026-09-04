@@ -1,6 +1,6 @@
 @Meta { Version=2 Protocol=MIDI Channels=1 Name="Imported MIDI Fighter Twister Surface" }
 
-ColorProfile MFTPalette {
+ColorProfile Palette128 {
   Match=Nearest
   Default=0
   Entry Color=#000000 Value=0
@@ -134,18 +134,28 @@ ColorProfile MFTPalette {
 }
 
 Widget SoloButton1 {
-  Channel=1
-  Input Press { Encoding=MIDIExact On=[0xB1, 0x00, 0x7F] Off=[0xB1, 0x00, 0x00] }
-  Feedback Color { Encoding=MIDIPalette Message=[0xB1, 0x00] ColorProfile=MFTPalette Companion=[0xB2, 0x00, 0x2F] CompanionOrder=After }
+  Input Press { Encoding=MIDIExact On=[ 0xB1, 0x00, 0x7F ] Off=[ 0xB1, 0x00, 0x00 ] }
+  Feedback Color { Encoding=MIDIPalette Message=[ 0xB1, 0x00 ] ColorProfile=Palette128 Companion=[ 0xB2, 0x00, 0x2F ] CompanionOrder=After }
 }
 
 Widget MuteButton1 {
-  Channel=1
-  Input Press { Encoding=MIDIExact On=[0xB1, 0x01, 0x7F] Off=[0xB1, 0x01, 0x00] }
-  Feedback Color { Encoding=MIDIPalette Message=[0xB1, 0x01] ColorProfile=MFTPalette Companion=[0xB2, 0x01, 0x2F] CompanionOrder=After }
+  Input Press { Encoding=MIDIExact On=[ 0xB1, 0x01, 0x7F ] Off=[ 0xB1, 0x01, 0x00 ] }
+  Feedback Color { Encoding=MIDIPalette Message=[ 0xB1, 0x01 ] ColorProfile=Palette128 Companion=[ 0xB2, 0x01, 0x2F ] CompanionOrder=After }
 }
 
 Widget ModeButton {
-  Input Press { Encoding=MIDIExact On=[0xB1, 0x02, 0x7F] Off=[0xB1, 0x02, 0x00] }
-  Feedback Color { Encoding=MIDIPalette Message=[0xB1, 0x02] ColorProfile=MFTPalette Companion=[0xB2, 0x02, 0x2F] CompanionOrder=After }
+  Input Press { Encoding=MIDIExact On=[ 0xB1, 0x02, 0x7F ] Off=[ 0xB1, 0x02, 0x00 ] }
+  Feedback Color { Encoding=MIDIPalette Message=[ 0xB1, 0x02 ] ColorProfile=Palette128 Companion=[ 0xB2, 0x02, 0x2F ] CompanionOrder=After }
+}
+
+
+
+OSKLayout {
+  Row {
+    Widget SoloButton1
+    Widget ModeButton
+  }
+  Row {
+    Widget MuteButton1
+  }
 }

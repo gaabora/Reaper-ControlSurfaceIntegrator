@@ -1,0 +1,18 @@
+Widget DisplayUpper1
+  FB_MCUDisplayUpper 0
+WidgetEnd
+Widget DisplayLower1
+  FB_MCUDisplayLower 0
+WidgetEnd
+Widget ExtenderUpper2
+  FB_MCUXTDisplayUpper 1
+WidgetEnd
+Widget C4Lower1
+  FB_C4DisplayLower 0 0
+WidgetEnd
+Widget Meter1
+  FB_MCUVUMeter 0
+WidgetEnd
+Widget Meter2
+  FB_MCUXTVUMeter 1
+WidgetEnd

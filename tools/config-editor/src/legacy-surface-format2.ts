@@ -728,14 +728,15 @@ function legacyProtocol(document: ReturnType<typeof parseSurface>): "MIDI" | "OS
 
 function inferredChannelCount(document: ReturnType<typeof parseSurface>): number {
     const suffixesByFamily = new Map<string, Set<number>>();
+    let channels = 1;
     for (const widget of document.semantic.widgets) {
+        channels = Math.max(channels, legacyWidgetChannel(widget) ?? 1);
         const match = widget.name.match(/^(.*?)(\d+)$/);
         if (!match) continue;
         const suffixes = suffixesByFamily.get(match[1]) ?? new Set<number>();
         suffixes.add(Number(match[2]));
         suffixesByFamily.set(match[1], suffixes);
     }
-    let channels = 1;
     for (const suffixes of suffixesByFamily.values()) {
         let contiguousCount = 0;
         while (suffixes.has(contiguousCount + 1)) contiguousCount++;

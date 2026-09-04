@@ -1,0 +1,21 @@
+Widget TrackColor1
+  FB_AsparionRGB 90 20 7f
+WidgetEnd
+Widget Rotary1
+  FB_AsparionEncoder b0 10 7f
+WidgetEnd
+Widget DisplayUpper1
+  FB_AsparionDisplayUpper 0
+WidgetEnd
+Widget DisplayLower8
+  FB_AsparionDisplayLower 7
+WidgetEnd
+Widget DisplayEncoder2
+  FB_AsparionDisplayEncoder 1
+WidgetEnd
+Widget MeterLeft1
+  FB_AsparionVUMeterL 0
+WidgetEnd
+Widget MeterRight8
+  FB_AsparionVUMeterR 7
+WidgetEnd
