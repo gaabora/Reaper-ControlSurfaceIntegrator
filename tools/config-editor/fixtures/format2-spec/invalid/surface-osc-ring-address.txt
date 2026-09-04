@@ -1,0 +1,11 @@
+@Meta { Version=2 Protocol=OSC Channels=1 Name="Invalid OSC ring address" }
+
+RingProfile Ring {
+  Quantize=Floor
+  ValueOffset=0
+  Style Dot Code=0 Steps=11
+}
+
+Widget Rotary {
+  Feedback Ring { Encoding=OSCInt Address="/ring/value" RingProfile=Ring }
+}

@@ -1,0 +1,37 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Invalid profile payload fields" }
+
+RingProfile Ring {
+  Quantize=Floor
+  ValueOffset=0
+  Style Dot Code=0 Steps=11
+}
+
+BarProfile Bar {
+  Default=Off
+  Style Normal Code=0
+  Style Off Code=1
+}
+
+MeterProfile Meter {
+  Mode=Linear
+  InputUnit=Normalized
+  InputRange=[ 0, 1 ]
+  OutputRange=[ 0, 127 ]
+  Quantize=Floor
+}
+
+Widget Color {
+  Feedback Color { Encoding=MIDISysEx Payload=[ 0x00, Red7, Blue7, Green7 ] }
+}
+
+Widget Ring {
+  Feedback Ring { Encoding=MIDISysEx Payload=[ 0x00, RingValue7 ] RingProfile=Ring }
+}
+
+Widget Bar {
+  Feedback Bar { Encoding=MIDISysEx Payload=[ 0x00, RingValue7, BarStyleCode7 ] BarProfile=Bar }
+}
+
+Widget Meter {
+  Feedback Meter { Encoding=MIDISysEx Payload=[ 0x00, MeterValue7, 0x01 ] MeterProfile=Meter }
+}

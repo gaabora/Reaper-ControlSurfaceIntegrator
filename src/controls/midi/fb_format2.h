@@ -388,6 +388,243 @@ public:
     }
 };
 
+class Format2MidiSysExColorFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<Format2MidiSysExProfilePayloadItem> payload_;
+    bool hasStateBrightness_ = false;
+    bool active_ = false;
+    float inactiveBrightness_ = 1.0f;
+    float activeBrightness_ = 1.0f;
+    rgba_color sourceColor_;
+
+    void SendResolvedColor() {
+        const float brightness = this->hasStateBrightness_ ? (this->active_ ? this->activeBrightness_ : this->inactiveBrightness_) : 1.0f;
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(this->sourceColor_, 127, brightness);
+        SysExBuilder builder;
+        builder.begin();
+        for (const Format2MidiSysExProfilePayloadItem& item : this->payload_) {
+            if (item.field == Format2MidiSysExProfilePayloadField::Byte) builder.add((unsigned char) item.byte);
+            else if (item.field == Format2MidiSysExProfilePayloadField::Red) builder.add((unsigned char) deviceColor.r);
+            else if (item.field == Format2MidiSysExProfilePayloadField::Green) builder.add((unsigned char) deviceColor.g);
+            else if (item.field == Format2MidiSysExProfilePayloadField::Blue) builder.add((unsigned char) deviceColor.b);
+        }
+        builder.end();
+        this->SendMidiSysExMessage(builder.message());
+    }
+
+public:
+    Format2MidiSysExColorFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExProfilePayloadItem>& payload, bool hasStateBrightness, float inactiveBrightness, float activeBrightness)
+        : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload), hasStateBrightness_(hasStateBrightness), inactiveBrightness_(inactiveBrightness), activeBrightness_(activeBrightness) {}
+    virtual ~Format2MidiSysExColorFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiSysExColorFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->active_ = false;
+        this->sourceColor_ = rgba_color();
+        this->lastColor_ = this->sourceColor_;
+        this->SendResolvedColor();
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        if (!this->hasStateBrightness_) return;
+        const bool active = value != 0.0;
+        if (active == this->active_) return;
+        this->active_ = active;
+        this->lastDoubleValue_ = value;
+        this->SendResolvedColor();
+    }
+
+    virtual void SetColorValue(const rgba_color& color) override {
+        if (color == this->lastColor_) return;
+        this->ForceColorValue(color);
+    }
+
+    virtual void ForceColorValue(const rgba_color& color) override {
+        this->sourceColor_ = color;
+        this->lastColor_ = color;
+        this->SendResolvedColor();
+    }
+
+    virtual void ForceUpdateTrackColors() override { this->ForceColorValue(this->surface_->GetTrackColorForChannel(this->widget_->GetChannelNumber())); }
+};
+
+class Format2MidiSysExRingFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<Format2MidiSysExProfilePayloadItem> payload_;
+    Format2RingProfile profile_;
+    vector<int> lastPayload_;
+
+    const Format2RingStyleEntry& ResolveStyleEntry(const PropertyList& properties) const {
+        Format2RingStyle style = Format2RingStyle::Dot;
+        const char* value = properties.get_prop(PropertyType_RingStyle);
+        if (value && IsSameString(value, "Fill")) style = Format2RingStyle::Fill;
+        else if (value && IsSameString(value, "BoostCut")) style = Format2RingStyle::BoostCut;
+        else if (value && IsSameString(value, "Spread")) style = Format2RingStyle::Spread;
+        for (const Format2RingStyleEntry& entry : this->profile_.styles) if (entry.style == style) return entry;
+        for (const Format2RingStyleEntry& entry : this->profile_.styles) if (entry.style == Format2RingStyle::Dot) return entry;
+        return this->profile_.styles.front();
+    }
+
+    vector<int> ResolvePayload(const PropertyList& properties, double value) const {
+        const Format2RingStyleEntry& entry = this->ResolveStyleEntry(properties);
+        const double scaled = std::clamp(value, 0.0, 1.0) * (entry.steps - 1);
+        const int position = this->profile_.quantize == Format2Quantize::Round ? (int) std::round(scaled) : (int) std::floor(scaled);
+        const int ringValue = this->profile_.valueOffset + position;
+        vector<int> result;
+        for (const Format2MidiSysExProfilePayloadItem& item : this->payload_) {
+            if (item.field == Format2MidiSysExProfilePayloadField::Byte) result.push_back(item.byte);
+            else if (item.field == Format2MidiSysExProfilePayloadField::RingValue) result.push_back(ringValue);
+            else if (item.field == Format2MidiSysExProfilePayloadField::RingStyleCode) result.push_back(entry.code);
+        }
+        return result;
+    }
+
+    void Send(const vector<int>& payload) {
+        SysExBuilder builder;
+        builder.begin();
+        for (int byte : payload) builder.add((unsigned char) byte);
+        builder.end();
+        this->SendMidiSysExMessage(builder.message());
+    }
+
+public:
+    Format2MidiSysExRingFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExProfilePayloadItem>& payload, const Format2RingProfile& profile) : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload), profile_(profile) {}
+    virtual ~Format2MidiSysExRingFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiSysExRingFeedbackProcessor"; }
+
+    virtual void ForceClear() override { this->ForceValue(PropertyList(), 0.0); }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const vector<int> payload = this->ResolvePayload(properties, value);
+        if (payload == this->lastPayload_) return;
+        this->lastDoubleValue_ = value;
+        this->lastPayload_ = payload;
+        this->Send(payload);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastPayload_ = this->ResolvePayload(properties, value);
+        this->Send(this->lastPayload_);
+    }
+};
+
+class Format2MidiSysExBarFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<Format2MidiSysExProfilePayloadItem> payload_;
+    Format2BarProfile profile_;
+    vector<int> lastPayload_;
+
+    int ResolveStyleCode(const PropertyList& properties, bool clear) const {
+        Format2BarStyle style = clear ? Format2BarStyle::Off : this->profile_.defaultStyle;
+        const char* value = properties.get_prop(PropertyType_BarStyle);
+        if (!clear && value && IsSameString(value, "Normal")) style = Format2BarStyle::Normal;
+        else if (!clear && value && IsSameString(value, "Bipolar")) style = Format2BarStyle::Bipolar;
+        else if (!clear && value && IsSameString(value, "Fill")) style = Format2BarStyle::Fill;
+        else if (!clear && value && IsSameString(value, "Spread")) style = Format2BarStyle::Spread;
+        else if (!clear && value && IsSameString(value, "Off")) style = Format2BarStyle::Off;
+        for (const Format2BarStyleEntry& entry : this->profile_.styles) if (entry.style == style) return entry.code;
+        return 0;
+    }
+
+    vector<int> ResolvePayload(const PropertyList& properties, double value, bool clear) const {
+        const int barValue = clear ? 0 : (int) (std::clamp(value, 0.0, 1.0) * 127.0);
+        const int styleCode = this->ResolveStyleCode(properties, clear);
+        vector<int> result;
+        for (const Format2MidiSysExProfilePayloadItem& item : this->payload_) {
+            if (item.field == Format2MidiSysExProfilePayloadField::Byte) result.push_back(item.byte);
+            else if (item.field == Format2MidiSysExProfilePayloadField::BarValue) result.push_back(barValue);
+            else if (item.field == Format2MidiSysExProfilePayloadField::BarStyleCode) result.push_back(styleCode);
+        }
+        return result;
+    }
+
+    void Send(const vector<int>& payload) {
+        SysExBuilder builder;
+        builder.begin();
+        for (int byte : payload) builder.add((unsigned char) byte);
+        builder.end();
+        this->SendMidiSysExMessage(builder.message());
+    }
+
+public:
+    Format2MidiSysExBarFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExProfilePayloadItem>& payload, const Format2BarProfile& profile) : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload), profile_(profile) {}
+    virtual ~Format2MidiSysExBarFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiSysExBarFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->lastPayload_ = this->ResolvePayload(PropertyList(), 0.0, true);
+        this->Send(this->lastPayload_);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const vector<int> payload = this->ResolvePayload(properties, value, false);
+        if (payload == this->lastPayload_) return;
+        this->lastDoubleValue_ = value;
+        this->lastPayload_ = payload;
+        this->Send(payload);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastPayload_ = this->ResolvePayload(properties, value, false);
+        this->Send(this->lastPayload_);
+    }
+};
+
+class Format2MidiSysExMeterFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    vector<Format2MidiSysExProfilePayloadItem> payload_;
+    Format2MeterProfile profile_;
+    bool continuous_ = false;
+    DWORD refreshIntervalMs_ = 0;
+    DWORD lastSendTime_ = 0;
+    int lastEncodedValue_ = 0;
+    bool hasLastValue_ = false;
+
+    void Send(int value) {
+        SysExBuilder builder;
+        builder.begin();
+        for (const Format2MidiSysExProfilePayloadItem& item : this->payload_) builder.add((unsigned char) (item.field == Format2MidiSysExProfilePayloadField::Byte ? item.byte : value));
+        builder.end();
+        this->SendMidiSysExMessage(builder.message());
+        this->lastSendTime_ = GetTickCount();
+    }
+
+public:
+    Format2MidiSysExMeterFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExProfilePayloadItem>& payload, const Format2MeterProfile& profile, bool continuous, int refreshIntervalMs) : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload), profile_(profile), continuous_(continuous), refreshIntervalMs_((DWORD) refreshIntervalMs) {}
+    virtual ~Format2MidiSysExMeterFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2MidiSysExMeterFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        this->lastEncodedValue_ = ClearFormat2MeterProfileValue(this->profile_);
+        this->hasLastValue_ = true;
+        this->Send(this->lastEncodedValue_);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const int encoded = EncodeFormat2MeterProfile(this->profile_, value);
+        const DWORD now = GetTickCount();
+        if (this->continuous_ && this->hasLastValue_ && now - this->lastSendTime_ < this->refreshIntervalMs_) return;
+        if (!this->continuous_ && this->hasLastValue_ && encoded == this->lastEncodedValue_) return;
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = encoded;
+        this->hasLastValue_ = true;
+        this->Send(encoded);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = EncodeFormat2MeterProfile(this->profile_, value);
+        this->hasLastValue_ = true;
+        this->Send(this->lastEncodedValue_);
+    }
+};
+
 class Format2Midi7RingFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:

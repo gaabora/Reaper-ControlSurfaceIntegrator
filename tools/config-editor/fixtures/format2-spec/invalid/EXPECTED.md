@@ -10,6 +10,8 @@
 - `surface-text-payload-defaults.txt`: require `TopMargin` and `TextColor` defaults for the matching dynamic text Payload fields.
 - `surface-midi-characters-range.txt`: reject a character-addressed display whose TextProfile Width extends below MIDI data byte zero.
 - `surface-ring-configure-payload.txt`: reject Ring Configure fields that are not in the canonical mask, red, green, blue order.
+- `surface-profile-payloads.txt`: reject MIDISysEx profile payload fields that are missing, out of order, or do not match their primitive.
+- `surface-osc-ring-address.txt`: reject OSC Ring without `ValueAddress`.
 - `main-zone-body.zon`: reject `IncludedZones` on a zone layer, multiple button events on one binding, and the removed free Widget wildcard syntax.
 - `main-layer-target.zon`: interpret as a Main zone and reject Target on `Role=Layer`.
 - `fx-main-metadata.zon`: interpret as an FX zone and reject Main Role metadata.

@@ -884,10 +884,10 @@ Alignment names use `Left`, `Center`, and `Right`. When Alignment entries exist,
 | `MIDISplit` | MIDI | Input or Feedback `Value` | two-byte `MSBMessage` and `LSBMessage` prefixes, `Bits`, and `Commit` |
 | `MIDIRGB` | MIDI | Feedback `Color` | optional three-byte `Enable`; two-byte `Red`, `Green`, and `Blue` prefixes |
 | `MIDIPalette` | MIDI | Feedback `Color` | two-byte `Message` prefix and `ColorProfile` |
-| `MIDISysEx` | MIDI | any Feedback primitive | one non-empty `Payload` list |
+| `MIDISysEx` | MIDI | Feedback `State`, `Value`, `Color`, `Ring`, `Bar`, `Meter`, or `Text` | one primitive-specific typed `Payload` list |
 | `MIDICharacters` | MIDI | Feedback `Text` | `Status`, `StartData`, `Direction`, and `TextProfile` |
-| `OSCFloat` | OSC | Input `Press`, `Touch`, `Value`, or `Encoder`; Feedback `State`, `Value`, `Ring`, or `Meter` | `Address` |
-| `OSCInt` | OSC | Input `Press`, `Touch`, `Value`, or `Encoder`; Feedback `State`, `Value`, `Color`, `Ring`, or `Meter` | `Address` |
+| `OSCFloat` | OSC | Input `Press`, `Touch`, `Value`, or `Encoder`; Feedback `State`, `Value`, `Ring`, or `Meter` | `Address`, except Ring uses `ValueAddress` and optional `StyleAddress` |
+| `OSCInt` | OSC | Input `Press`, `Touch`, `Value`, or `Encoder`; Feedback `State`, `Value`, `Color`, `Ring`, or `Meter` | `Address`, except Ring uses `ValueAddress` and optional `StyleAddress` |
 | `OSCString` | OSC | Feedback `Text` or `Color` | `Address`; Color also requires `Format=HexRGBA` |
 
 Numeric primitives are `Value`, `Encoder`, `State`, `Ring`, `Bar`, and `Meter` where that direction exists. `Press` and `Touch` can also use OSCFloat or OSCInt. `Match=Any` emits Press for every message and is invalid for Touch. `Match=NonZero` treats non-zero as On and zero as Off. `Match=Exact` requires OnValue; OffValue is optional for Press and required for Touch. State feedback defaults to OffValue zero and OnValue one. MIDIExact State uses `On` for every value except zero unless `ActiveValues` supplies the exact finite values that select `On`. `Clear` is an optional three-byte message used when the Widget is cleared; without it, State sends `Off`. Value and Encoder default to no ValueProfile. Color with OSCInt requires ColorProfile.
@@ -922,24 +922,30 @@ MIDIRGB appends one calibrated seven-bit channel value to each Red, Green, and B
 
 MIDIPalette appends the selected ColorProfile integer value to Message. The value must fit one MIDI data byte. TrackColor defaults to false. It accepts one optional exact three-byte `Companion` message and `CompanionOrder=Before|After`, defaulting to After. The companion is sent with every accepted color output, including clear, and owns its own output key. It contains no dynamic field and cannot be selected or changed from a zone binding. This expresses hardware that needs one fixed mode message beside its palette value without adding general output scripting.
 
-MIDISysEx automatically adds leading `0xF0` and trailing `0xF7`. Payload is an ordered list containing MIDI data-byte constants and fields from this closed set:
+MIDISysEx automatically adds leading `0xF0` and trailing `0xF7`. Payload starts with one or more MIDI data-byte constants and ends with the exact fields required by its primitive:
 
-- `State7`, `Value7`, `ValueLSB7`, `ValueMSB7`;
-- `Red7`, `Green7`, `Blue7`, `PaletteValue`;
-- `RingValue`, `RingStyleCode`, `BarValue`, `BarStyleCode`, `MeterValue`;
+- State: terminal `State7`, or terminal `Red7`, `Green7`, `Blue7`;
+- Value: terminal `Value7`;
+- Color: terminal `Red7`, `Green7`, `Blue7`;
+- Ring: terminal `RingValue7`, `RingStyleCode7`;
+- Bar: terminal `BarValue7`, `BarStyleCode7`;
+- Meter: terminal `MeterValue7`;
+- Text: zero or more supported fixed fields followed by terminal `Text`;
+- Ring Configure: `SegmentMasks`, `SegmentRed7`, `SegmentGreen7`, `SegmentBlue7`;
+- TrackColor FeedbackGroup: terminal `SlotColors`.
+
+The supported Text fixed fields are:
+
 - `TopMargin7`, `BottomMargin7`, `Font7`;
 - `TextPresentationCode`;
 - `BackgroundRed7`, `BackgroundGreen7`, `BackgroundBlue7`;
 - `TextRed7`, `TextGreen7`, `TextBlue7`;
-- `SegmentMasks`, `SegmentRed7`, `SegmentGreen7`, `SegmentBlue7`;
-- `SlotColors`;
-- `Text`.
 
-Each field requires the matching primitive input or profile. Text requires TextProfile and must be the final Payload entry because its encoded length can vary. A Text Feedback block whose Payload contains `TopMargin7`, `BottomMargin7`, or `Font7` must declare the matching `TopMargin`, `BottomMargin`, or `Font` default on that block. A Payload that contains background or text RGB fields must declare the matching `BackgroundColor` or `TextColor` default. The presence of these Payload fields permits the same named binding overrides; no separate supported-properties list is needed. State-specific background, text color, or brightness properties enable state input and derive Toggle. No field can contain an expression, offset, condition, loop, action, or arbitrary property lookup. Device and channel constants are resolved into literal Payload bytes in each Widget declaration.
+Each field requires the matching primitive input or profile. RingProfile supplies RingValue7 and RingStyleCode7. BarProfile supplies BarStyleCode7 while the normal bar value supplies BarValue7. MeterProfile supplies MeterValue7. MIDISysEx Color is direct calibrated RGB and does not use ColorProfile. Text requires TextProfile and must be the final Payload entry because its encoded length can vary. A Text Feedback block whose Payload contains `TopMargin7`, `BottomMargin7`, or `Font7` must declare the matching `TopMargin`, `BottomMargin`, or `Font` default on that block. A Payload that contains background or text RGB fields must declare the matching `BackgroundColor` or `TextColor` default. The presence of these Payload fields permits the same named binding overrides; no separate supported-properties list is needed. State-specific background, text color, or brightness properties enable state input and derive Toggle. No field can contain an expression, offset, condition, loop, action, or arbitrary property lookup. Device and channel constants are resolved into literal Payload bytes in each Widget declaration.
 
 MIDICharacters sends one three-byte message per encoded character. Status is a MIDI status byte, StartData is a data byte, Direction is `Ascending` or `Descending`, and TextProfile supplies Width and encoded text. The second byte starts at StartData and changes by one per character; the third byte is the character. TextProfile Width is required, the full address range must remain between zero and `0x7F`, and short text is padded with spaces so old characters cannot remain on the device. This supports character-addressed displays after a normal Action supplies their text. MCU time display migration uses this encoding for the ten characters and two MIDIExact State blocks with `ActiveValues` for its mode lights. MCU assignment display migration uses two MIDIExact State blocks with explicit `Clear` letter codes.
 
-OSCFloat sends or accepts one 32-bit float argument, OSCInt one 32-bit integer argument, and OSCString one string argument. Address is explicit and starts with `/`; no encoding adds `/Color` or rewrites an address. ValueProfile, ColorProfile, RingProfile, MeterProfile, and TextProfile run before output or after input as applicable. OSCString Feedback Color requires `Format=HexRGBA` and sends lower-case `#RRGGBBAA`; this is a transport representation for compatible OSC clients, not configurable hardware transparency.
+OSCFloat sends or accepts one 32-bit float argument, OSCInt one 32-bit integer argument, and OSCString one string argument. Address is explicit and starts with `/`; no encoding adds `/Color` or rewrites an address. OSC Ring is the only two-result feedback primitive: it requires `ValueAddress`, sends RingValue there, and sends RingStyleCode to optional `StyleAddress`. When StyleAddress is omitted, the style code is intentionally not transmitted. ValueProfile, ColorProfile, RingProfile, MeterProfile, and TextProfile run before output or after input as applicable. OSCString Feedback Color requires `Format=HexRGBA` and sends lower-case `#RRGGBBAA`; this is a transport representation for compatible OSC clients, not configurable hardware transparency.
 
 Input Encoder with OSCFloat or OSCInt requires either ValueProfile or `Scale`, where Scale is a non-zero finite multiplier applied to the signed received value. It can contain:
 
@@ -1670,8 +1676,8 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
     - ✅ Apply the shared TextProfile codec to MIDI and OSC Text feedback, including Width, Padding, ClearText, SilenceAsEmpty, ASCII7, and UTF8.
     - ✅ Apply the shared ColorProfile lookup to MIDI and OSCInt Color feedback and make direct TrackColor processors refresh from their Widget channel.
     - ✅ Apply the shared MeterProfile encoder to MIDI7 and OSCFloat or OSCInt Meter feedback, including OnChange and Continuous refresh.
-    - [ ] Define typed dynamic payload fields before implementing MIDISysEx Color, Ring, Bar, and Meter. Their current `Payload=NonEmptyList` schema does not say where encoded values belong.
-    - [ ] Define whether OSC Ring sends `RingValue`, `RingStyleCode`, or both, and give each emitted value an explicit Address before implementing it.
+    - ✅ Define and implement typed MIDISysEx Color, Ring, Bar, and Meter payloads through `Red7`, `Green7`, `Blue7`, `RingValue7`, `RingStyleCode7`, `BarValue7`, `BarStyleCode7`, and `MeterValue7`.
+    - ✅ Implement OSC Ring with required `ValueAddress` and optional `StyleAddress`, sending RingValue and RingStyleCode as separate arguments without inferred address suffixes.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - ✅ Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
   - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.

@@ -121,6 +121,23 @@ Widget Meter1 {
   Feedback Meter { Encoding=MIDI7 Message=[0xD0] MeterProfile=MeterSteps ValueBase=0x00 Combine=BitOr Refresh=Continuous RefreshIntervalMs=10 }
 }
 
+Widget SysExColor {
+  Channel=1
+  Feedback Color { Encoding=MIDISysEx Payload=[ 0x00, 0x10, Red7, Green7, Blue7 ] TrackColor=true }
+}
+
+Widget SysExRing {
+  Feedback Ring { Encoding=MIDISysEx Payload=[ 0x00, 0x11, RingValue7, RingStyleCode7 ] RingProfile=ElevenSegmentRing }
+}
+
+Widget SysExBar {
+  Feedback Bar { Encoding=MIDISysEx Payload=[ 0x00, 0x12, BarValue7, BarStyleCode7 ] BarProfile=StandardBar }
+}
+
+Widget SysExMeter {
+  Feedback Meter { Encoding=MIDISysEx Payload=[ 0x00, 0x13, MeterValue7 ] MeterProfile=MeterSteps Refresh=Continuous RefreshIntervalMs=10 }
+}
+
 Widget PaletteButton1 {
   Channel=1
   Feedback Color { Encoding=MIDIPalette Message=[0xB1, 0x00] ColorProfile=EightColors Companion=[0xB2, 0x00, 0x2F] CompanionOrder=After }

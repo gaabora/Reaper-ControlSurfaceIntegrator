@@ -8,6 +8,9 @@
 #include "format2_osc_runtime.h"
 #include "osc_surface.h"
 
+#include <algorithm>
+#include <cmath>
+
 static const Format2PropertySyntax* FindFormat2OscProperty(const Format2SurfacePrimitive& primitive, const string& name) {
     for (const Format2PropertySyntax& property : primitive.properties) if (property.name == name) return &property;
     return nullptr;
@@ -250,6 +253,57 @@ public:
     virtual void ForceUpdateTrackColors() override { this->ForceColorValue(this->surface_->GetTrackColorForChannel(this->widget_->GetChannelNumber())); }
 };
 
+class Format2OscRingFeedbackProcessor : public FeedbackProcessor
+{
+private:
+    OSC_ControlSurface* const surface_;
+    string const valueAddress_;
+    string const styleAddress_;
+    bool const integer_;
+    Format2RingProfile profile_;
+    int lastValue_ = 0;
+    int lastStyle_ = 0;
+    bool hasLastValue_ = false;
+    bool hasLastStyle_ = false;
+
+    const Format2RingStyleEntry& ResolveStyleEntry(const PropertyList& properties) const {
+        Format2RingStyle style = Format2RingStyle::Dot;
+        const char* value = properties.get_prop(PropertyType_RingStyle);
+        if (value && IsSameString(value, "Fill")) style = Format2RingStyle::Fill;
+        else if (value && IsSameString(value, "BoostCut")) style = Format2RingStyle::BoostCut;
+        else if (value && IsSameString(value, "Spread")) style = Format2RingStyle::Spread;
+        for (const Format2RingStyleEntry& entry : this->profile_.styles) if (entry.style == style) return entry;
+        for (const Format2RingStyleEntry& entry : this->profile_.styles) if (entry.style == Format2RingStyle::Dot) return entry;
+        return this->profile_.styles.front();
+    }
+
+    void Send(const string& address, int value) {
+        if (this->integer_) this->surface_->SendOSCMessage(address.c_str(), value);
+        else this->surface_->SendOSCMessage(address.c_str(), (double) value);
+    }
+
+    void Update(const PropertyList& properties, double value, bool force) {
+        const Format2RingStyleEntry& entry = this->ResolveStyleEntry(properties);
+        const double scaled = std::clamp(value, 0.0, 1.0) * (entry.steps - 1);
+        const int position = this->profile_.quantize == Format2Quantize::Round ? (int) std::round(scaled) : (int) std::floor(scaled);
+        const int encodedValue = this->profile_.valueOffset + position;
+        if (force || !this->hasLastValue_ || encodedValue != this->lastValue_) this->Send(this->valueAddress_, encodedValue);
+        if (!this->styleAddress_.empty() && (force || !this->hasLastStyle_ || entry.code != this->lastStyle_)) this->Send(this->styleAddress_, entry.code);
+        this->lastDoubleValue_ = value;
+        this->lastValue_ = encodedValue;
+        this->lastStyle_ = entry.code;
+        this->hasLastValue_ = true;
+        this->hasLastStyle_ = true;
+    }
+
+public:
+    Format2OscRingFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& valueAddress, const string& styleAddress, bool integer, const Format2RingProfile& profile) : FeedbackProcessor(csi, widget), surface_(surface), valueAddress_(valueAddress), styleAddress_(styleAddress), integer_(integer), profile_(profile) {}
+
+    virtual void ForceClear() override { this->Update(PropertyList(), 0.0, true); }
+    virtual void SetValue(const PropertyList& properties, double value) override { this->Update(properties, value, false); }
+    virtual void ForceValue(const PropertyList& properties, double value) override { this->Update(properties, value, true); }
+};
+
 class Format2OscMeterFeedbackProcessor : public FeedbackProcessor
 {
 private:
@@ -303,7 +357,7 @@ const Format2PropertySyntax* Format2OscRuntimeLoader::FindProperty(const Format2
 }
 
 string Format2OscRuntimeLoader::ReadAddress(const Format2SurfacePrimitive& primitive) {
-    const Format2PropertySyntax* address = FindProperty(primitive, "Address");
+    const Format2PropertySyntax* address = FindProperty(primitive, primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" ? "ValueAddress" : "Address");
     return !address || address->value.list ? string{} : address->value.scalar.text;
 }
 
@@ -324,6 +378,7 @@ bool Format2OscRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primiti
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::OscString) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::OscInt) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::OscString) {
         const Format2PropertySyntax* format = FindProperty(primitive, "Format");
@@ -414,6 +469,16 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
                     if (trackColor && !trackColor->value.list && trackColor->value.scalar.text == "true") surface->AddTrackColorFeedbackProcessor(widget->GetFeedbackProcessors().back().get());
                 } else widget->GetFeedbackProcessors().push_back(make_unique<Format2OscHexRgbaFeedbackProcessor>(surface->csi_, surface, widget, address));
                 widget->MarkOskColorFeedback();
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring") {
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "RingProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2RingProfile* profile = nullptr;
+                for (const Format2RingProfile& candidate : parsed.surface.ringProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                const Format2PropertySyntax* styleAddressProperty = FindProperty(primitive, "StyleAddress");
+                const string styleAddress = styleAddressProperty && !styleAddressProperty->value.list ? styleAddressProperty->value.scalar.text : string{};
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2OscRingFeedbackProcessor>(surface->csi_, surface, widget, address, styleAddress, primitive.encoding == Format2Encoding::OscInt, *profile));
+                widget->MarkOskValueFeedback();
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter") {
                 const Format2MeterProfile* profile = FindFormat2MeterProfile(parsed.surface, primitive);
                 if (!profile) continue;

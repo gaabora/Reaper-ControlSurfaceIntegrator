@@ -23,6 +23,7 @@
 - Resolve format 2 `MIDI7` Meter values through the referenced MeterProfile. Keep scale thresholds, channel value prefixes, combination mode, and continuous refresh settings in Surface metadata instead of device-named feedback processors.
 - Resolve format 2 MIDISysEx Text Payload items from the closed canonical field set. Apply Surface defaults and binding overrides for margins, font, presentation, text color, background color, and state colors before sending one complete packet.
 - Resolve format 2 MIDISysEx State Payload items from a constant prefix followed by `State7` or the `Red7`, `Green7`, `Blue7` set. Resolve RGB state output from the binding `StateColors` list and apply Surface color calibration before sending one complete packet.
+- Resolve format 2 MIDISysEx Color, Ring, Bar, and Meter through their closed typed Payload suffixes. Color uses `Red7`, `Green7`, `Blue7`; Ring uses `RingValue7`, `RingStyleCode7`; Bar uses `BarValue7`, `BarStyleCode7`; Meter uses `MeterValue7`. Keep all device and channel bytes as literal prefix data.
 - Resolve format 2 Ring Configure Payload items through the closed segment-mask and RGB field set. Expand masks from RingProfile Segments, group equal colors, apply ColorCalibration, and send configuration when the Ring binding becomes active.
 - Construct MIDIExact Press and Touch plus MIDI14 Value input and feedback directly from typed properties. Do not convert them back to legacy token lines.
 

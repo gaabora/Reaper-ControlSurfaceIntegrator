@@ -10,6 +10,13 @@ ValueProfile FaderCurve {
   Point Input=1.0 Output=10.0
 }
 
+RingProfile PanRing {
+  Quantize=Round
+  ValueOffset=0
+  Style Dot Code=0 Steps=11
+  Style BoostCut Code=1 Steps=11
+}
+
 Widget Fader1 {
   Channel=1
   Input Value { Encoding=OSCFloat Address="/ch/01/mix/fader" ValueProfile=FaderCurve }
@@ -24,6 +31,7 @@ Widget Rotary1 {
     Scale=0.01
     Acknowledge { Encoding=OSCInt Address="/ch/01/mix/pan/ack" Value=64 }
   }
+  Feedback Ring { Encoding=OSCInt ValueAddress="/ch/01/mix/pan/value" StyleAddress="/ch/01/mix/pan/style" RingProfile=PanRing }
 }
 
 Widget Mute1 {

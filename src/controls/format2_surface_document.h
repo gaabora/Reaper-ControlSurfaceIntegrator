@@ -269,6 +269,23 @@ struct Format2MidiSysExValuePayloadItem {
     int byte = 0;
 };
 
+enum class Format2MidiSysExProfilePayloadField {
+    Byte,
+    Red,
+    Green,
+    Blue,
+    RingValue,
+    RingStyleCode,
+    BarValue,
+    BarStyleCode,
+    MeterValue,
+};
+
+struct Format2MidiSysExProfilePayloadItem {
+    Format2MidiSysExProfilePayloadField field = Format2MidiSysExProfilePayloadField::Byte;
+    int byte = 0;
+};
+
 enum class Format2MidiSysExRingConfigureField {
     Byte,
     SegmentMasks,

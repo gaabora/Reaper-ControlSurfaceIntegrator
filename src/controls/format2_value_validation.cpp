@@ -120,6 +120,20 @@ static bool ValidateFormat2StatePayload(const Format2ValueSyntax& value) {
     return constantCount > 0 && (fields == std::vector<std::string>{ "State7" } || fields == std::vector<std::string>{ "Red7", "Green7", "Blue7" });
 }
 
+static bool ValidateFormat2ProfilePayload(const Format2ValueSyntax& value, const std::vector<std::string>& expectedFields) {
+    if (!value.list || value.items.size() <= expectedFields.size()) return false;
+    const std::size_t constantCount = value.items.size() - expectedFields.size();
+    for (std::size_t itemIdx = 0; itemIdx < constantCount; ++itemIdx) {
+        int byte = 0;
+        if (!ParseFormat2IntegerScalar(value.items[itemIdx], byte) || byte < 0 || byte > 0x7F) return false;
+    }
+    for (std::size_t fieldIdx = 0; fieldIdx < expectedFields.size(); ++fieldIdx) {
+        const Format2ScalarSyntax& item = value.items[constantCount + fieldIdx];
+        if (item.quoted || item.text != expectedFields[fieldIdx]) return false;
+    }
+    return true;
+}
+
 static bool ValidateFormat2RingConfigurePayload(const Format2ValueSyntax& value) {
     if (!value.list || value.items.empty()) return false;
     const std::vector<std::string> fields = { "SegmentMasks", "SegmentRed7", "SegmentGreen7", "SegmentBlue7" };
@@ -202,6 +216,10 @@ std::string ValidateFormat2ValueRule(const Format2PropertySyntax& property, cons
     if (rule == "StatePayload") return ValidateFormat2StatePayload(property.value) ? std::string{} : "MIDI data bytes followed by State7 or Red7, Green7, and Blue7";
     if (rule == "TextPayload") return ValidateFormat2TextPayload(property.value) ? std::string{} : "MIDI data bytes and supported text fields followed by Text";
     if (rule == "RingConfigurePayload") return ValidateFormat2RingConfigurePayload(property.value) ? std::string{} : "MIDI data bytes plus one SegmentMasks and one segment RGB field set";
+    if (rule == "ColorPayload") return ValidateFormat2ProfilePayload(property.value, { "Red7", "Green7", "Blue7" }) ? std::string{} : "MIDI data bytes followed by Red7, Green7, and Blue7";
+    if (rule == "RingPayload") return ValidateFormat2ProfilePayload(property.value, { "RingValue7", "RingStyleCode7" }) ? std::string{} : "MIDI data bytes followed by RingValue7 and RingStyleCode7";
+    if (rule == "BarPayload") return ValidateFormat2ProfilePayload(property.value, { "BarValue7", "BarStyleCode7" }) ? std::string{} : "MIDI data bytes followed by BarValue7 and BarStyleCode7";
+    if (rule == "MeterPayload") return ValidateFormat2ProfilePayload(property.value, { "MeterValue7" }) ? std::string{} : "MIDI data bytes followed by MeterValue7";
     if (rule == "OSCAddress") {
         if (!property.value.list && !property.value.scalar.text.empty() && property.value.scalar.text[0] == '/') return {};
         return "one OSC address that starts with /";

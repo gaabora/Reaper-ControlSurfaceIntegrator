@@ -15,6 +15,9 @@ describe("Surface I/O schema", () => {
 
         expect(schema.version).toBe(1);
         expect(findSurfaceIoRepresentation(schema, "Feedback", "Ring", "MIDI", "MIDI7")?.required).toEqual(["Message", "RingProfile", "StyleTarget"]);
+        expect(findSurfaceIoRepresentation(schema, "Feedback", "Ring", "MIDI", "MIDISysEx")?.required).toEqual(["Payload", "RingProfile"]);
+        expect(findSurfaceIoRepresentation(schema, "Feedback", "Ring", "OSC", "OSCInt")?.required).toEqual(["ValueAddress", "RingProfile"]);
+        expect(findSurfaceIoRepresentation(schema, "Feedback", "Ring", "OSC", "OSCInt")?.optional).toEqual(["StyleAddress"]);
         expect(findSurfaceIoRepresentation(schema, "Input", "Encoder", "OSC", "OSCFloat")?.nested).toEqual(["Acknowledge"]);
         expect(findSurfaceIoRepresentation(schema, "Feedback", "Color", "OSC", "OSCString")?.required).toEqual(["Address", "Format"]);
     });

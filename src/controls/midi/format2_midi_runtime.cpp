@@ -75,6 +75,25 @@ bool Format2MidiRuntimeLoader::ReadValuePayload(const Format2PropertySyntax* pro
     return payload.back().field == Format2MidiSysExValuePayloadField::Value;
 }
 
+bool Format2MidiRuntimeLoader::ReadProfilePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExProfilePayloadItem>& payload) {
+    if (!property || !property->value.list || property->value.items.empty()) return false;
+    payload.clear();
+    for (const Format2ScalarSyntax& item : property->value.items) {
+        int value = 0;
+        if (ReadByte(item, value) && value <= 0x7F) payload.push_back({ Format2MidiSysExProfilePayloadField::Byte, value });
+        else if (item.text == "Red7") payload.push_back({ Format2MidiSysExProfilePayloadField::Red, 0 });
+        else if (item.text == "Green7") payload.push_back({ Format2MidiSysExProfilePayloadField::Green, 0 });
+        else if (item.text == "Blue7") payload.push_back({ Format2MidiSysExProfilePayloadField::Blue, 0 });
+        else if (item.text == "RingValue7") payload.push_back({ Format2MidiSysExProfilePayloadField::RingValue, 0 });
+        else if (item.text == "RingStyleCode7") payload.push_back({ Format2MidiSysExProfilePayloadField::RingStyleCode, 0 });
+        else if (item.text == "BarValue7") payload.push_back({ Format2MidiSysExProfilePayloadField::BarValue, 0 });
+        else if (item.text == "BarStyleCode7") payload.push_back({ Format2MidiSysExProfilePayloadField::BarStyleCode, 0 });
+        else if (item.text == "MeterValue7") payload.push_back({ Format2MidiSysExProfilePayloadField::MeterValue, 0 });
+        else return false;
+    }
+    return true;
+}
+
 bool Format2MidiRuntimeLoader::ReadTextPayload(const Format2PropertySyntax* property, vector<Format2MidiSysExTextPayloadItem>& payload) {
     if (!property || !property->value.list || property->value.items.empty()) return false;
     payload.clear();
@@ -139,6 +158,10 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
         for (const Format2PropertySyntax& property : primitive.nestedBlocks[0].properties) if (property.name == "Payload") payloadProperty = &property;
         vector<Format2MidiSysExRingConfigureItem> payload;
         return ReadRingConfigurePayload(payloadProperty, payload);
+    }
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && (primitive.type == "Color" || primitive.type == "Ring" || primitive.type == "Bar" || primitive.type == "Meter") && primitive.encoding == Format2Encoding::MidiSysEx) {
+        vector<Format2MidiSysExProfilePayloadItem> payload;
+        return ReadProfilePayload(FindProperty(primitive, "Payload"), payload);
     }
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Bar" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && primitive.encoding == Format2Encoding::Midi7) return true;
@@ -398,6 +421,17 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7RingFeedbackProcessor>(surface->csi_, surface, widget, message, *profile, valueBase, valueCombine, styleTarget, styleShift, styleCombine, configurePayload));
                 widget->MarkOskValueFeedback();
                 continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::MidiSysEx) {
+                vector<Format2MidiSysExProfilePayloadItem> payload;
+                if (!ReadProfilePayload(FindProperty(primitive, "Payload"), payload)) continue;
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "RingProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2RingProfile* profile = nullptr;
+                for (const Format2RingProfile& candidate : parsed.surface.ringProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExRingFeedbackProcessor>(surface->csi_, surface, widget, payload, *profile));
+                widget->MarkOskValueFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiRgb) {
                 vector<int> enable;
                 vector<int> red;
@@ -412,6 +446,20 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 const float inactiveBrightnessValue = hasStateBrightness ? (float) atof(inactiveBrightness->value.scalar.text.c_str()) : 1.0f;
                 const float activeBrightnessValue = hasStateBrightness ? (float) atof(activeBrightness->value.scalar.text.c_str()) : 1.0f;
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiRgbFeedbackProcessor>(surface->csi_, surface, widget, std::array<int, 2>{ red[0], red[1] }, std::array<int, 2>{ green[0], green[1] }, std::array<int, 2>{ blue[0], blue[1] }, enable, hasStateBrightness, inactiveBrightnessValue, activeBrightnessValue));
+                widget->MarkOskColorFeedback();
+                if (hasStateBrightness) widget->MarkOskToggleFeedback();
+                const Format2PropertySyntax* trackColor = FindProperty(primitive, "TrackColor");
+                if (trackColor && trackColor->value.scalar.text == "true") surface->AddTrackColorFeedbackProcessor(widget->GetFeedbackProcessors().back().get());
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::MidiSysEx) {
+                vector<Format2MidiSysExProfilePayloadItem> payload;
+                if (!ReadProfilePayload(FindProperty(primitive, "Payload"), payload)) continue;
+                const Format2PropertySyntax* inactiveBrightness = FindProperty(primitive, "InactiveBrightness");
+                const Format2PropertySyntax* activeBrightness = FindProperty(primitive, "ActiveBrightness");
+                const bool hasStateBrightness = inactiveBrightness && activeBrightness;
+                const float inactiveBrightnessValue = hasStateBrightness ? (float) atof(inactiveBrightness->value.scalar.text.c_str()) : 1.0f;
+                const float activeBrightnessValue = hasStateBrightness ? (float) atof(activeBrightness->value.scalar.text.c_str()) : 1.0f;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExColorFeedbackProcessor>(surface->csi_, surface, widget, payload, hasStateBrightness, inactiveBrightnessValue, activeBrightnessValue));
                 widget->MarkOskColorFeedback();
                 if (hasStateBrightness) widget->MarkOskToggleFeedback();
                 const Format2PropertySyntax* trackColor = FindProperty(primitive, "TrackColor");
@@ -452,6 +500,17 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 if (combineProperty && combineProperty->value.scalar.text == "Add") combine = Format2MidiValueCombine::Add;
                 else if (combineProperty && combineProperty->value.scalar.text == "BitOr") combine = Format2MidiValueCombine::BitOr;
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7BarFeedbackProcessor>(surface->csi_, surface, widget, message, std::array<int, 2>{ styleMessage[0], styleMessage[1] }, *profile, valueBase, combine));
+                widget->MarkOskValueFeedback();
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Bar" && primitive.encoding == Format2Encoding::MidiSysEx) {
+                vector<Format2MidiSysExProfilePayloadItem> payload;
+                if (!ReadProfilePayload(FindProperty(primitive, "Payload"), payload)) continue;
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "BarProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2BarProfile* profile = nullptr;
+                for (const Format2BarProfile& candidate : parsed.surface.barProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExBarFeedbackProcessor>(surface->csi_, surface, widget, payload, *profile));
                 widget->MarkOskValueFeedback();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::MidiSysEx) {
@@ -516,6 +575,22 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 const Format2PropertySyntax* refreshIntervalProperty = FindProperty(primitive, "RefreshIntervalMs");
                 const int refreshIntervalMs = refreshIntervalProperty ? atoi(refreshIntervalProperty->value.scalar.text.c_str()) : 0;
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7MeterFeedbackProcessor>(surface->csi_, surface, widget, message, *profile, valueBase, combine, continuous, refreshIntervalMs));
+                widget->MarkOskMeterFeedback();
+                widget->MarkOskValueFeedback();
+                continue;
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && primitive.encoding == Format2Encoding::MidiSysEx) {
+                vector<Format2MidiSysExProfilePayloadItem> payload;
+                if (!ReadProfilePayload(FindProperty(primitive, "Payload"), payload)) continue;
+                const Format2PropertySyntax* profileProperty = FindProperty(primitive, "MeterProfile");
+                if (!profileProperty || profileProperty->value.list) continue;
+                const Format2MeterProfile* profile = nullptr;
+                for (const Format2MeterProfile& candidate : parsed.surface.meterProfiles) if (candidate.id == profileProperty->value.scalar.text) { profile = &candidate; break; }
+                if (!profile) continue;
+                const Format2PropertySyntax* refreshProperty = FindProperty(primitive, "Refresh");
+                const bool continuous = refreshProperty && refreshProperty->value.scalar.text == "Continuous";
+                const Format2PropertySyntax* refreshIntervalProperty = FindProperty(primitive, "RefreshIntervalMs");
+                const int refreshIntervalMs = refreshIntervalProperty ? atoi(refreshIntervalProperty->value.scalar.text.c_str()) : 0;
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExMeterFeedbackProcessor>(surface->csi_, surface, widget, payload, *profile, continuous, refreshIntervalMs));
                 widget->MarkOskMeterFeedback();
                 widget->MarkOskValueFeedback();
                 continue;
