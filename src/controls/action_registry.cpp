@@ -6,7 +6,6 @@
 #include "integrator.h"
 #include "midi/midi_widgets.h"
 #include "midi/widget_factory.h"
-#include "osc/osc_widgets.h"
 #include "../actions/reaper_actions.h"
 #include "../actions/manager_actions.h"
 

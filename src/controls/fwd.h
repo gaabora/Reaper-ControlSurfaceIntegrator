@@ -19,8 +19,5 @@ class Navigator;
 class Action;
 class ModifierManager;
 class MessageGenerator;
-class AnyPress_MessageGenerator;
-class Touch_MessageGenerator;
 class Midi_MessageGenerator;
-class OSC_FeedbackProcessor;
 class OSC_ControlSurfaceIO;

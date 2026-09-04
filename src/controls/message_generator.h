@@ -18,28 +18,6 @@ public:
     }
 };
 
-class AnyPress_MessageGenerator : public MessageGenerator
-{
-public:
-    AnyPress_MessageGenerator(CSurfIntegrator* const csi, Widget* widget) : MessageGenerator(csi, widget) {}
-    virtual ~AnyPress_MessageGenerator() {}
-
-    virtual void ProcessMessage(double value) override {
-        widget_->GetZoneManager()->DoAction(widget_, 1.0);
-    }
-};
-
-class Touch_MessageGenerator : public MessageGenerator
-{
-public:
-    Touch_MessageGenerator(CSurfIntegrator* const csi, Widget* widget) : MessageGenerator(csi, widget) {}
-    virtual ~Touch_MessageGenerator() {}
-
-    virtual void ProcessMessage(double value) override {
-        widget_->GetZoneManager()->DoTouch(widget_, value);
-    }
-};
-
 class Midi_MessageGenerator : public MessageGenerator
 {
 protected:

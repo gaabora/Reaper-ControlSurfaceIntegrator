@@ -1,6 +1,5 @@
 #include "../integrator.h"
 #include "format2_osc_runtime.h"
-#include "osc_widgets.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC I/O Manager
@@ -221,19 +220,4 @@ void OSC_ControlSurface::SendOSCMessage(const char* oscAddress, double value) {
 void OSC_ControlSurface::SendOSCMessage(const char* oscAddress, const char* value) {
     surfaceIO_->SendOSCMessage(oscAddress, value);
     if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %s # Surface::SendOSCMessage 3\n", name_.c_str(), oscAddress, value);
-}
-
-void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, double value) {
-    surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %f # Surface::SendOSCMessage 4\n", feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
-}
-
-void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, int value) {
-    surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %s %d # Surface::SendOSCMessage 5\n", name_.c_str(), feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
-}
-
-void OSC_ControlSurface::SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, const char* value) {
-    surfaceIO_->SendOSCMessage(oscAddress, value);
-    if (g_surfaceOutDisplay) LogToConsole("[DEBUG] OUT->%s %s %s %s # Surface::SendOSCMessage 6\n", name_.c_str(), feedbackProcessor->GetWidget()->GetName(), oscAddress, value);
 }

@@ -1,42 +1,9 @@
 #pragma once
 //
-//  osc_surface.h — OSC feedback processors, OSC_ControlSurfaceIO, OSC_ControlSurface
+//  osc_surface.h — OSC_ControlSurfaceIO and OSC_ControlSurface
 //
 #include "../preamble.h"
 #include "../control_surface.h"
-#include "../feedback.h"
-class OSC_FeedbackProcessor : public FeedbackProcessor
-{
-protected:
-    OSC_ControlSurface* const surface_;
-    string const oscAddress_;
-
-public:
-    OSC_FeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& oscAddress)
-        : FeedbackProcessor(csi, widget) , surface_(surface) , oscAddress_(oscAddress) {}
-    ~OSC_FeedbackProcessor() {}
-
-    virtual const char* GetName() override { return "OSC_FeedbackProcessor"; }
-
-    virtual void SetColorValue(const rgba_color& color) override;
-    virtual void ForceValue(const PropertyList& properties, double value) override;
-    virtual void ForceValue(const PropertyList& properties, const char* const& value) override;
-    virtual void ForceClear() override;
-};
-
-class OSC_IntFeedbackProcessor : public OSC_FeedbackProcessor
-{
-public:
-    OSC_IntFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& oscAddress)
-        : OSC_FeedbackProcessor(csi, surface, widget, oscAddress) {}
-    ~OSC_IntFeedbackProcessor() {}
-
-    virtual const char* GetName() override { return "OSC_IntFeedbackProcessor"; }
-
-    virtual void ForceValue(const PropertyList& properties, double value) override;
-    virtual void ForceClear() override;
-};
-
 class OSC_ControlSurfaceIO
 {
 protected:
@@ -210,9 +177,6 @@ public:
     virtual ~OSC_ControlSurface() {}
 
     void ProcessOSCMessage(const char* message, double value);
-    void SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, double value);
-    void SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, int value);
-    void SendOSCMessage(OSC_FeedbackProcessor* feedbackProcessor, const char* oscAddress, const char* value);
     virtual void SendOSCMessage(const char* zoneName) override;
     virtual void SendOSCMessage(const char* zoneName, int value) override;
     virtual void SendOSCMessage(const char* zoneName, double value) override;

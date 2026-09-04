@@ -15,7 +15,7 @@ The Control Panel must make common settings easy to find without duplicating C++
 
 ## Current State
 
-- [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cpp) is the native device configuration window. It edits MIDI and OSC I/O records, pages, surface assignments, zone folder fields, listener relationships, input settings, and logging values. It also writes the complete product INI.
+- [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cpp) is now only the native callback launcher. It opens or focuses the Lua Control Panel and closes the temporary REAPER-owned dialog. It does not parse or write product configuration.
 - [`../Scripts/settings_ui.lua`](../Scripts/settings_ui.lua) already edits Product and Surface input settings through [`../Scripts/settings_protocol.lua`](../Scripts/settings_protocol.lua). C++ validates and saves these values.
 - [`../Scripts/settings_schema.conf`](../Scripts/settings_schema.conf) is the canonical metadata source for Behavior and Timing settings.
 - [`../Scripts/theme_settings.lua`](../Scripts/theme_settings.lua) contains fixed shared style values and separate persistent OSK, OSD, and Notifications schemas.
@@ -33,7 +33,7 @@ The Control Panel must make common settings easy to find without duplicating C++
 - Keep a draft separate from the current saved and active configuration. `Save changes` validates, persists, and applies the complete draft without closing the Control Panel. `Revert` restores the last saved state without closing the Control Panel.
 - Show validation errors before Save. C++ must validate the complete draft again before it saves anything.
 - Preview Appearance changes immediately from the draft, but do not persist them until Save. Revert or discard must restore the saved appearance.
-- Keep the native C++ dialog until the Lua Devices page has feature parity and has passed manual runtime checks.
+- Keep the small native callback launcher because REAPER expects a native window handle. Configuration editing belongs to the Lua Control Panel.
 - Do not add surface, zone, snippet, legacy import, or batch text editing to this Control Panel. Provide a command that opens the standalone editor for these tasks.
 - Keep one Appearance page, but do not create one flat settings table. Use separate `OSK`, `OSD`, and `Notifications` setting groups.
 - Treat runtime logs as disposable diagnostics. Store them in bounded daily files under the operating system user temporary directory.
@@ -141,7 +141,7 @@ The GUI must not assume that every Surface template has a matching Vendor profil
 
 ### C++ dialog migration
 
-Direct replacement of [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cpp) is possible, but it must not be a direct Lua port. The native dialog is tied to the REAPER Control/OSC/Web configuration callback and currently owns complete INI serialization.
+[`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cpp) now contains only the launcher required by the REAPER Control/OSC/Web configuration callback. C++ format 2 parsing, validation, serialization, atomic writing, and runtime reload remain outside the dialog.
 
 - ✅ Phase A: add an `Open Control Panel` button to the native dialog. Launch or focus Lua first, then close the REAPER-owned parent dialog as Cancel so it does not remain modal and unfinished native edits are not applied.
 - [ ] Manually verify that `Open Control Panel` closes the native parent dialog on macOS and does not save unfinished native edits.
@@ -150,8 +150,8 @@ Direct replacement of [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cp
 - ✅ Phase D: add C++ draft validation and transactional Save for the complete configuration model.
 - ✅ Phase E: enable Lua editing one section at a time, in this order: assignments and profiles, I/O definitions, Pages, then listeners.
 - [ ] Phase F: compare native and Lua save output with representative MIDI and OSC configurations.
-- [ ] Phase G: replace the native editor with a small launcher and status dialog only after feature parity and manual checks on Windows, macOS, and Linux.
-- [ ] Keep the native launcher available because REAPER owns the configuration callback and expects a native window handle.
+- ✅ Phase G: replace the native editor with a small launcher. Cross-platform checks and optional recovery information remain incomplete below.
+- ✅ Keep the native launcher available because REAPER owns the configuration callback and expects a native window handle.
 
 ## General Tab
 
@@ -399,7 +399,7 @@ Ready when representative MIDI and OSC configurations produce the same valid res
 ### Phase 6. Native dialog reduction
 
 - [ ] Complete manual feature-parity checks on Windows, macOS, and Linux.
-- [ ] Replace the native configuration editor body with a Control Panel launcher, current status, and recovery information.
+- ✅ Replace the native configuration editor body with the Control Panel launcher.
 - [ ] Keep a safe fallback path for missing ReaImGui or missing Lua scripts.
 - [ ] Remove obsolete native control resources only after the replacement is stable.
 

@@ -96,7 +96,6 @@ private:
     map<string, string> oskConfigZonePathsByWidget_;
     int oskRunCounter_ = 0;
 
-    void ParseOskProperties(const string& propsPart, OskWidgetInfo& info);
     void ApplyOskWidgetMetadata(OskWidgetInfo& info);
     void ApplyGroupedOskTargets(const vector<OskWidgetInfo>& hiddenWidgets);
     void BuildCachedLayoutString();
@@ -481,7 +480,6 @@ public:
     bool GetOskEnabled() const { return isOskEnabled_; }
     void LoadOskEnabledSetting();
     void SetOskEnabled(bool value);
-    void ParseOSKLayout(const string& surfaceFilePath);
     void ApplyFormat2OSKLayout(const string& surfaceFilePath, const Format2OskLayout& layout);
     void ApplyFormat2ColorCalibration(const Format2ColorCalibration& calibration);
     void PublishOSKLayout();

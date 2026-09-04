@@ -1658,7 +1658,8 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
     - ✅ Implement OSC ValueProfile decoding and inverse feedback encoding, OSC Encoder Scale or decode-only ValueProfile input, and optional constant OSC acknowledgement output. Preserve the X32 fader curve and rotary direction without a device-named runtime branch.
     - ✅ Implement OSCFloat and OSCInt Press and Touch input with catalog-defined Match behavior, plus State feedback with explicit OffValue and OnValue defaults.
-    - ✅ Reject legacy Surface syntax at runtime and remove the shared MIDI/OSC legacy Surface parser from the build. Legacy conversion remains a Bun importer responsibility.
+    - ✅ Reject legacy Surface syntax at runtime and remove the shared MIDI/OSC legacy Surface and OSK parsers from the build. Legacy conversion remains a Bun importer responsibility.
+    - ✅ Remove the unreferenced legacy OSC Widget processor layer after the format 2 runtime replaces its supported behavior. Keep the MIDI registry only while format 2 still uses it as a codec adapter.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - ✅ Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
   - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.

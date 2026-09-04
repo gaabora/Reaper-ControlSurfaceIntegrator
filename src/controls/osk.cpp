@@ -491,25 +491,6 @@ static bool CommitZoneFile(const string& zonePath, const vector<string>& updated
     return false;
 }
 
-static string UnescapeOskLayoutValue(const string& value) {
-    if (value.size() < 2 || value.front() != '"' || value.back() != '"') return value;
-
-    string result;
-    result.reserve(value.size() - 2);
-    for (size_t idx = 1; idx + 1 < value.size(); ++idx) {
-        const char ch = value[idx];
-        if (ch == '\\' && idx + 2 < value.size()) {
-            const char nextCh = value[++idx];
-            if (nextCh == 'n') result += '\n';
-            else if (nextCh == 'r') result += '\r';
-            else result += nextCh;
-        } else {
-            result += ch;
-        }
-    }
-    return result;
-}
-
 static string EscapeOskLayoutValue(const string& value) {
     const bool needsQuotes = value.find_first_of(",|\"\\\n\r") != string::npos;
     if (!needsQuotes) return value;
@@ -534,47 +515,6 @@ static string JoinOskList(const vector<string>& values) {
         result += value;
     }
     return result;
-}
-
-void ControlSurface::ParseOskProperties(const string& propsPart, OskWidgetInfo& info) {
-    if (propsPart.empty()) return;
-    vector<string> tokens;
-    GetTokens(tokens, propsPart);
-
-    for (const auto& token : tokens) {
-        if (token == "OSKHidden") {
-            info.hidden = true;
-            continue;
-        }
-        auto eqPos = token.find('=');
-        if (eqPos == string::npos) continue;
-        string key = token.substr(0, eqPos);
-        string val = token.substr(eqPos + 1);
-        // TrimLine(key);
-        // TrimLine(val);
-        // transform(key.begin(), key.end(), key.begin(), ::tolower);
-        // if (key != "label") transform(val.begin(), val.end(), val.begin(), ::tolower);
-        //TODO: review the formats, maybe make all parsers everywhere case insensitive and trim tokens
-
-        val = UnescapeOskLayoutValue(val);
-
-        if (key == "Shape") info.shape = val;
-        else if (key == "Width") info.width = (float) atof(val.c_str());
-        else if (key == "Height") info.height = (float) atof(val.c_str());
-        else if (key == "Top") info.top = (float) atof(val.c_str());
-        else if (key == "Group") info.group = val;
-        else if (key == "Label") info.label = val;
-        else if (key == "Color") info.color = val;
-        else if (key == "Class" || key == "WidgetClass") info.widgetClass = val;
-        else if (key == "Role") info.role = val;
-        else if (key == "Input") info.input = val;
-        else if (key == "Feedback") info.feedback = val;
-        else if (key == "PressTarget" || key == "PushTarget") info.pressTarget = val;
-        else if (key == "ScrollTarget") info.scrollTarget = val;
-        else if (key == "ValueTarget") info.valueTarget = val;
-        else if (key == "TouchTarget") info.touchTarget = val;
-        else if (key == "RotaryStyle") info.rotaryStyle = val;
-    }
 }
 
 void ControlSurface::ApplyOskWidgetMetadata(OskWidgetInfo& info) {
@@ -679,96 +619,6 @@ void ControlSurface::BuildCachedLayoutString() {
                 appendProperty("RotaryStyle", cell.widget.rotaryStyle);
             }
         }
-    }
-}
-
-void ControlSurface::ParseOSKLayout(const string& surfaceFilePath) {
-    this->surfaceFilePath_ = surfaceFilePath;
-    this->oskLayout_.clear();
-    this->cachedOskLayoutString_.clear();
-    try {
-        ifstream file(surfaceFilePath);
-        if (!file.is_open()) return;
-
-        vector<string> lines;
-        for (string line; getline(file, line);) {
-            TrimLine(line);
-            lines.push_back(line);
-        }
-
-        OskRow currentRow;
-        vector<OskWidgetInfo> hiddenWidgets;
-        bool hasRow = false;
-        bool inLayout = false;
-        bool layoutComplete = false;
-        for (const auto& line : lines) {
-            if (IsCommentedOrEmpty(line)) continue;
-            vector<string> tokens;
-            GetTokens(tokens, line);
-            if (tokens.empty()) continue;
-
-            if (!inLayout) {
-                if (tokens[0] != "OSKLayout") continue;
-                if (std::find(tokens.begin() + 1, tokens.end(), "Version=1") == tokens.end()) throw std::runtime_error("OSKLayout requires supported Version=1");
-                inLayout = true;
-                continue;
-            }
-            if (tokens[0] == "OSKLayoutEnd") {
-                if (hasRow) throw std::runtime_error("OSK layout row has no RowEnd");
-                layoutComplete = true;
-                break;
-            }
-            if (tokens[0] == "Row") {
-                if (hasRow) throw std::runtime_error("OSK layout rows cannot be nested");
-                currentRow = OskRow();
-                hasRow = true;
-                continue;
-            }
-            if (tokens[0] == "RowEnd") {
-                if (!hasRow) throw std::runtime_error("OSK RowEnd has no matching Row");
-                if (!currentRow.cells.empty()) this->oskLayout_.push_back(std::move(currentRow));
-                currentRow = OskRow();
-                hasRow = false;
-                continue;
-            }
-            if (!hasRow) throw std::runtime_error("OSK layout cells must be inside a Row block");
-
-            if (tokens[0] == "Spacer") {
-                float width = 0.5f;
-                const auto widthPosition = line.find("Width=");
-                if (widthPosition != string::npos) width = (float) atof(line.c_str() + widthPosition + 6);
-                OskCell cell;
-                cell.isSpacer = true;
-                cell.spacerWidth = width;
-                currentRow.cells.push_back(cell);
-                continue;
-            }
-
-            if (tokens[0] != "Widget") throw std::runtime_error("Unknown OSK layout entry: " + tokens[0]);
-            if (tokens.size() < 2) throw std::runtime_error("OSK layout Widget requires a name");
-            OskWidgetInfo info;
-            info.name = tokens[1];
-            if (!this->GetWidgetByName(info.name)) throw std::runtime_error("OSK layout references unknown widget: " + info.name);
-            const size_t widgetNamePosition = line.find(tokens[1]);
-            const string propsPart = widgetNamePosition == string::npos ? "" : line.substr(widgetNamePosition + tokens[1].size());
-            this->ParseOskProperties(propsPart, info);
-            this->ApplyOskWidgetMetadata(info);
-
-            if (info.hidden) {
-                hiddenWidgets.push_back(info);
-                continue;
-            }
-            OskCell cell;
-            cell.isSpacer = false;
-            cell.widget = info;
-            currentRow.cells.push_back(cell);
-        }
-        if (inLayout && !layoutComplete) throw std::runtime_error("OSKLayout has no OSKLayoutEnd");
-
-        this->ApplyGroupedOskTargets(hiddenWidgets);
-        this->BuildCachedLayoutString();
-    } catch (const std::exception& error) {
-        LogToConsole("[ERROR] ParseOSKLayout failed for %s: %s\n", surfaceFilePath.c_str(), error.what());
     }
 }
 
