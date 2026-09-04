@@ -1,0 +1,15 @@
+Widget ValueBar1
+  FB_FaderportValueBar 0
+WidgetEnd
+Widget VUMeter1
+  FB_FPVUMeter 0
+WidgetEnd
+Widget VUMeter8
+  FB_FPVUMeter 7
+WidgetEnd
+Widget VUMeter9
+  FB_FPVUMeter 8
+WidgetEnd
+Widget VUMeter16
+  FB_FPVUMeter 15
+WidgetEnd

@@ -33,7 +33,10 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `mcu-character-displays`: converts MCU time characters, mode lights, and assignment letters to universal MIDICharacters and MIDIExact State feedback.
 - `mcu-meter-display`: converts MCU, MCUXT, and C4 display rows together with MCU and MCUXT meters, their shared scale, and Surface initialization.
 - `asparion-feedback`: converts Asparion RGB, ring, text, and meter processors while keeping explicit channel metadata.
+- `qcon-meter`: converts both QCon Pro X master-meter sides without treating the side selector as a Surface channel.
+- `icon-displays`: converts both Icon display protocols and their upper and lower row offsets.
+- `faderport-feedback`: converts value bars and both FaderPort peak-meter status ranges, including channels 1, 8, 9, and 16.
 
 ## [ ] Executable golden coverage
 
-The Bun tests compare complete generated output for `xtouch-text`, `icon-track-color`, `scribble-strip-mode`, `mcu-character-displays`, `mcu-meter-display`, `faderport-classic-split`, `mft-palette`, `sce24-ring`, `sce24-state`, `asparion-feedback`, and the FaderPort and SCE24 Surfaces in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.
+The Bun tests compare complete generated output for `xtouch-text`, `icon-track-color`, `icon-displays`, `scribble-strip-mode`, `mcu-character-displays`, `mcu-meter-display`, `faderport-classic-split`, `faderport-feedback`, `mft-palette`, `sce24-ring`, `sce24-state`, `asparion-feedback`, `qcon-meter`, and the FaderPort and SCE24 Surfaces in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.

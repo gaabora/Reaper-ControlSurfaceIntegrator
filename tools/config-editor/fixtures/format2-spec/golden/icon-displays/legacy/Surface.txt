@@ -1,0 +1,12 @@
+Widget Icon1Upper
+  FB_IconDisplay1Upper 0
+WidgetEnd
+Widget Icon1Lower
+  FB_IconDisplay1Lower 7
+WidgetEnd
+Widget Icon2Upper
+  FB_IconDisplay2Upper 1
+WidgetEnd
+Widget Icon2Lower
+  FB_IconDisplay2Lower 6
+WidgetEnd

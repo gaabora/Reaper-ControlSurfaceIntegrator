@@ -1,0 +1,6 @@
+Widget MasterMeterLeft
+  FB_QConProXMasterVUMeter 0
+WidgetEnd
+Widget MasterMeterRight
+  FB_QConProXMasterVUMeter 1
+WidgetEnd

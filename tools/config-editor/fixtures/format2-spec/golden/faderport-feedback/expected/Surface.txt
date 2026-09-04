@@ -1,0 +1,42 @@
+@Meta { Version=2 Protocol=MIDI Channels=16 Name="FaderPort feedback" }
+
+BarProfile StandardBar {
+  Default=Off
+  Style Normal Code=0
+  Style Bipolar Code=1
+  Style Fill Code=2
+  Style Spread Code=3
+  Style Off Code=4
+}
+
+MeterProfile FaderPortPeakMeter {
+  Mode=Linear
+  InputUnit=Normalized
+  InputRange=[ 0, 1 ]
+  OutputRange=[ 0, 127 ]
+  Quantize=Floor
+}
+
+Widget ValueBar1 {
+  Feedback Bar { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] StyleMessage=[ 0xB0, 0x38 ] BarProfile=StandardBar }
+}
+
+Widget VUMeter1 {
+  Channel=1
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }
+}
+
+Widget VUMeter8 {
+  Channel=8
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xD7 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }
+}
+
+Widget VUMeter9 {
+  Channel=9
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xC0 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }
+}
+
+Widget VUMeter16 {
+  Channel=16
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xC7 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }
+}

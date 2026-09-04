@@ -228,28 +228,13 @@ WidgetEnd
         expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
-    test("converts Icon display variants to universal seven-character text feedback", () => {
-        const legacySurface = `Widget Icon1Upper
-  FB_IconDisplay1Upper 0
-WidgetEnd
-Widget Icon1Lower
-  FB_IconDisplay1Lower 7
-WidgetEnd
-Widget Icon2Upper
-  FB_IconDisplay2Upper 1
-WidgetEnd
-Widget Icon2Lower
-  FB_IconDisplay2Lower 6
-WidgetEnd
-`;
+    test("matches the Icon display golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("icon-displays", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("icon-displays", "expected", "Surface.txt");
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "Icon displays", "Surfaces/User/icon-displays.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.match(/TextProfile Display7 \{/g)).toHaveLength(1);
-        expect(conversion.source).toContain("Widget Icon1Upper {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x00, Text ] TextProfile=Display7 }");
-        expect(conversion.source).toContain("Widget Icon1Lower {\n  Channel=8\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x69, Text ] TextProfile=Display7 }");
-        expect(conversion.source).toContain("Widget Icon2Upper {\n  Channel=2\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x07, Text ] TextProfile=Display7 }");
-        expect(conversion.source).toContain("Widget Icon2Lower {\n  Channel=7\n  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x62, Text ] TextProfile=Display7 }");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("matches the Asparion feedback golden Surface", async () => {
@@ -343,50 +328,23 @@ WidgetEnd
         expect(conversion.source).toContain("Widget DisplayLower8 {\n  Channel=8\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x07, 0x03, TextPresentationCode, Text ] }");
     });
 
-    test("converts FaderPort peak meters to valid continuous MIDI data", () => {
-        const legacySurface = `Widget VUMeter1
-  FB_FPVUMeter 0
-WidgetEnd
-Widget VUMeter8
-  FB_FPVUMeter 7
-WidgetEnd
-Widget VUMeter9
-  FB_FPVUMeter 8
-WidgetEnd
-Widget VUMeter16
-  FB_FPVUMeter 15
-WidgetEnd
-`;
-        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort meters", "Surfaces/User/faderport-meters.txt");
+    test("matches the FaderPort value-bar and peak-meter golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("faderport-feedback", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("faderport-feedback", "expected", "Surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort feedback", "Surfaces/User/faderport-feedback.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.match(/MeterProfile FaderPortPeakMeter \{/g)).toHaveLength(1);
-        expect(conversion.source).toContain("OutputRange=[ 0, 127 ]");
-        expect(conversion.source).toContain("Widget VUMeter1 {\n  Channel=1\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD0 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }");
-        expect(conversion.source).toContain("Widget VUMeter8 {\n  Channel=8\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD7 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }");
-        expect(conversion.source).toContain("Widget VUMeter9 {\n  Channel=9\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xC0 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }");
-        expect(conversion.source).toContain("Widget VUMeter16 {\n  Channel=16\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xC7 ] MeterProfile=FaderPortPeakMeter Refresh=Continuous RefreshIntervalMs=10 }");
-        expect(conversion.source).not.toContain("0xA0");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
-    test("converts QCon master stereo meters without treating their side as a surface channel", () => {
-        const legacySurface = `Widget MasterMeterLeft
-  FB_QConProXMasterVUMeter 0
-WidgetEnd
-Widget MasterMeterRight
-  FB_QConProXMasterVUMeter 1
-WidgetEnd
-`;
+    test("matches the QCon master-meter golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("qcon-meter", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("qcon-meter", "expected", "Surface.txt");
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "QCon master", "Surfaces/User/qcon-master.txt");
 
         expect(conversion.diagnostics).toEqual([]);
         expect(parseSurface(conversion.source, "Surfaces/User/qcon-master.txt").diagnostics).toEqual([]);
-        expect(conversion.source.match(/MeterProfile QConMasterMeter \{/g)).toHaveLength(1);
-        expect(conversion.source).toContain("Step Minimum=-3.1 Output=11");
-        expect(conversion.source).toContain("Step Minimum=0.1 Output=14");
-        expect(conversion.source).toContain("Widget MasterMeterLeft {\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=QConMasterMeter ValueBase=0x00 Combine=BitOr }");
-        expect(conversion.source).toContain("Widget MasterMeterRight {\n  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=QConMasterMeter ValueBase=0x10 Combine=BitOr }");
-        expect(conversion.source).not.toContain("Channel=");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("matches the SCE24 ring golden Surface and migrates its zone colors", async () => {

@@ -1,0 +1,27 @@
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="QCon master" }
+
+MeterProfile QConMasterMeter {
+  Mode=Steps
+  InputUnit=Decibels
+  Default=0
+  Step Minimum=-60.1 Output=1
+  Step Minimum=-48.1 Output=2
+  Step Minimum=-42.1 Output=3
+  Step Minimum=-36.1 Output=4
+  Step Minimum=-30.1 Output=5
+  Step Minimum=-24.1 Output=6
+  Step Minimum=-18.1 Output=7
+  Step Minimum=-12.1 Output=8
+  Step Minimum=-9.1 Output=9
+  Step Minimum=-6.1 Output=10
+  Step Minimum=-3.1 Output=11
+  Step Minimum=0.1 Output=14
+}
+
+Widget MasterMeterLeft {
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=QConMasterMeter ValueBase=0x00 Combine=BitOr }
+}
+
+Widget MasterMeterRight {
+  Feedback Meter { Encoding=MIDI7 Message=[ 0xD1 ] MeterProfile=QConMasterMeter ValueBase=0x10 Combine=BitOr }
+}

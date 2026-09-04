@@ -1821,6 +1821,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Compare complete generated Surface output with executable golden fixtures for MCU time and assignment displays, FaderPort Classic split values, and FaderPort scribble text.
   - ✅ Compare complete generated output with executable golden fixtures for SCE24 ring, LED button state, and dynamic text conversion.
   - ✅ Compare complete generated Surface output with executable golden fixtures for MFT palette, MCU display and meter initialization, and all Asparion feedback families.
+  - ✅ Compare complete generated Surface output with executable golden fixtures for QCon master meters, both Icon display variants, FaderPort value bars, and both FaderPort peak-meter status ranges.
 - ✅ Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties.
   - ✅ Normalize legacy alignment names and convert `TextInvert=Yes|No` to Boolean `TextInvert=true|false` in import drafts without guessing invalid values.

@@ -1,0 +1,29 @@
+@Meta { Version=2 Protocol=MIDI Channels=8 Name="Icon displays" }
+
+TextProfile Display7 {
+  Encoding=ASCII7
+  Width=7
+  Padding=Space
+  ClearText=""
+  SilenceAsEmpty=true
+}
+
+Widget Icon1Upper {
+  Channel=1
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x00, Text ] TextProfile=Display7 }
+}
+
+Widget Icon1Lower {
+  Channel=8
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x14, 0x12, 0x69, Text ] TextProfile=Display7 }
+}
+
+Widget Icon2Upper {
+  Channel=2
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x07, Text ] TextProfile=Display7 }
+}
+
+Widget Icon2Lower {
+  Channel=7
+  Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x4E, 0x15, 0x13, 0x62, Text ] TextProfile=Display7 }
+}
