@@ -120,6 +120,7 @@ Read `DOX.md` before editing. This file is the repository-wide contract.
 - No newlines between params in methods and conditions if line <200 symbols.
 - Never use one-letter variable names. Use `idx` for index variables.
 - Use `this->` when accessing class members from class methods.
+- WDL/SWELL defines `min` and `max` macros on some platforms. Always use the macro-safe forms `(std::min)(...)`, `(std::max)(...)`, `(std::numeric_limits<T>::min)()`, and `(std::numeric_limits<T>::max)()`.
 - Keep the project on C++17 and follow the existing WDL/SWELL portability patterns.
 - Maintain the precompiled-header exceptions for `src/main.cpp` and `src/controls/integrator.cpp`.
 

@@ -1,5 +1,8 @@
 #include "../integrator.h"
+#include "../format2_color_profile.h"
+#include "../format2_meter_profile.h"
 #include "../format2_surface_document.h"
+#include "../format2_text_profile.h"
 #include "../format2_value_profile.h"
 #include "../format2_value_validation.h"
 #include "format2_osc_runtime.h"
@@ -176,19 +179,23 @@ class Format2OscStringFeedbackProcessor : public FeedbackProcessor
 private:
     OSC_ControlSurface* const surface_;
     string const address_;
+    std::optional<Format2TextProfile> profile_;
 
 public:
-    Format2OscStringFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& address) : FeedbackProcessor(csi, widget), surface_(surface), address_(address) {}
+    Format2OscStringFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& address, const Format2TextProfile* profile) : FeedbackProcessor(csi, widget), surface_(surface), address_(address), profile_(profile ? std::optional<Format2TextProfile>(*profile) : std::nullopt) {}
 
     virtual void ForceValue(const PropertyList& properties, const char* const& value) override {
         this->lastStringValue_ = value;
         char restrictedText[MEDBUF];
-        this->surface_->SendOSCMessage(this->address_.c_str(), this->widget_->GetSurface()->GetRestrictedLengthText(value, restrictedText, sizeof(restrictedText)));
+        const char* restricted = this->widget_->GetSurface()->GetRestrictedLengthText(value, restrictedText, sizeof(restrictedText));
+        const string encoded = this->profile_ ? EncodeFormat2TextProfile(*this->profile_, restricted) : restricted;
+        this->surface_->SendOSCMessage(this->address_.c_str(), encoded.c_str());
     }
 
     virtual void ForceClear() override {
-        this->lastStringValue_.clear();
-        this->surface_->SendOSCMessage(this->address_.c_str(), "");
+        const string clearText = this->profile_ ? EncodeFormat2TextProfile(*this->profile_, this->profile_->clearText.c_str()) : "";
+        this->lastStringValue_ = clearText;
+        this->surface_->SendOSCMessage(this->address_.c_str(), clearText.c_str());
     }
 };
 
@@ -207,6 +214,87 @@ public:
         const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color);
         char colorText[10];
         this->surface_->SendOSCMessage(this->address_.c_str(), deviceColor.rgba_to_string(colorText));
+    }
+};
+
+class Format2OscIntColorFeedbackProcessor : public FeedbackProcessor
+{
+private:
+    OSC_ControlSurface* const surface_;
+    string const address_;
+    Format2ColorProfile profile_;
+
+    void SendColor(const rgba_color& color) {
+        const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color, 255);
+        this->surface_->SendOSCMessage(this->address_.c_str(), ResolveFormat2ColorProfileValue(this->profile_, deviceColor));
+    }
+
+public:
+    Format2OscIntColorFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& address, const Format2ColorProfile& profile) : FeedbackProcessor(csi, widget), surface_(surface), address_(address), profile_(profile) {}
+
+    virtual void ForceClear() override {
+        this->lastColor_ = rgba_color();
+        this->SendColor(this->lastColor_);
+    }
+
+    virtual void SetColorValue(const rgba_color& color) override {
+        if (this->lastColor_ == color) return;
+        this->ForceColorValue(color);
+    }
+
+    virtual void ForceColorValue(const rgba_color& color) override {
+        this->lastColor_ = color;
+        this->SendColor(color);
+    }
+
+    virtual void ForceUpdateTrackColors() override { this->ForceColorValue(this->surface_->GetTrackColorForChannel(this->widget_->GetChannelNumber())); }
+};
+
+class Format2OscMeterFeedbackProcessor : public FeedbackProcessor
+{
+private:
+    OSC_ControlSurface* const surface_;
+    string const address_;
+    bool const integer_;
+    Format2MeterProfile profile_;
+    bool continuous_ = false;
+    DWORD refreshIntervalMs_ = 0;
+    DWORD lastSendTime_ = 0;
+    int lastEncodedValue_ = 0;
+    bool hasLastValue_ = false;
+
+    void Send(int value) {
+        if (this->integer_) this->surface_->SendOSCMessage(this->address_.c_str(), value);
+        else this->surface_->SendOSCMessage(this->address_.c_str(), (double) value);
+        this->lastSendTime_ = GetTickCount();
+    }
+
+public:
+    Format2OscMeterFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& address, bool integer, const Format2MeterProfile& profile, bool continuous, int refreshIntervalMs) : FeedbackProcessor(csi, widget), surface_(surface), address_(address), integer_(integer), profile_(profile), continuous_(continuous), refreshIntervalMs_((DWORD) refreshIntervalMs) {}
+
+    virtual void ForceClear() override {
+        this->lastDoubleValue_ = 0.0;
+        this->lastEncodedValue_ = ClearFormat2MeterProfileValue(this->profile_);
+        this->hasLastValue_ = true;
+        this->Send(this->lastEncodedValue_);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        const int encoded = EncodeFormat2MeterProfile(this->profile_, value);
+        const DWORD now = GetTickCount();
+        if (this->continuous_ && this->hasLastValue_ && now - this->lastSendTime_ < this->refreshIntervalMs_) return;
+        if (!this->continuous_ && this->hasLastValue_ && encoded == this->lastEncodedValue_) return;
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = encoded;
+        this->hasLastValue_ = true;
+        this->Send(encoded);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = EncodeFormat2MeterProfile(this->profile_, value);
+        this->hasLastValue_ = true;
+        this->Send(this->lastEncodedValue_);
     }
 };
 
@@ -234,7 +322,9 @@ bool Format2OscRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primiti
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::OscString && !FindProperty(primitive, "TextProfile")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::OscString) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::OscInt) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::OscString) {
         const Format2PropertySyntax* format = FindProperty(primitive, "Format");
         return format && !format->value.list && format->value.scalar.text == "HexRGBA";
@@ -313,11 +403,25 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2OscStateFeedbackProcessor>(surface->csi_, surface, widget, address, primitive.encoding == Format2Encoding::OscInt, offValue.value_or(0.0), onValue.value_or(1.0)));
                 widget->MarkOskToggleFeedback();
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text") {
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2OscStringFeedbackProcessor>(surface->csi_, surface, widget, address));
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2OscStringFeedbackProcessor>(surface->csi_, surface, widget, address, FindFormat2TextProfile(parsed.surface, primitive)));
                 widget->MarkOskTextFeedback();
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color") {
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2OscHexRgbaFeedbackProcessor>(surface->csi_, surface, widget, address));
+                if (primitive.encoding == Format2Encoding::OscInt) {
+                    const Format2ColorProfile* profile = FindFormat2ColorProfile(parsed.surface, primitive);
+                    if (!profile) continue;
+                    widget->GetFeedbackProcessors().push_back(make_unique<Format2OscIntColorFeedbackProcessor>(surface->csi_, surface, widget, address, *profile));
+                    const Format2PropertySyntax* trackColor = FindProperty(primitive, "TrackColor");
+                    if (trackColor && !trackColor->value.list && trackColor->value.scalar.text == "true") surface->AddTrackColorFeedbackProcessor(widget->GetFeedbackProcessors().back().get());
+                } else widget->GetFeedbackProcessors().push_back(make_unique<Format2OscHexRgbaFeedbackProcessor>(surface->csi_, surface, widget, address));
                 widget->MarkOskColorFeedback();
+            } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Meter") {
+                const Format2MeterProfile* profile = FindFormat2MeterProfile(parsed.surface, primitive);
+                if (!profile) continue;
+                const Format2PropertySyntax* refresh = FindProperty(primitive, "Refresh");
+                const bool continuous = refresh && !refresh->value.list && refresh->value.scalar.text == "Continuous";
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2OscMeterFeedbackProcessor>(surface->csi_, surface, widget, address, primitive.encoding == Format2Encoding::OscInt, *profile, continuous, ReadIntegerProperty(primitive, "RefreshIntervalMs", 0)));
+                widget->MarkOskMeterFeedback();
+                widget->MarkOskValueFeedback();
             }
         }
     }

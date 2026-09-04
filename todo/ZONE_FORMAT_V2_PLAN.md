@@ -1667,6 +1667,11 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
     - ✅ Apply the shared ValueProfile codec to MIDI7, MIDI14, and MIDISplit input and feedback instead of accepting ValueProfile only in the parser and OSC runtime.
     - ✅ Register Feedback Value `InitialValue` through the common Surface model, send it after protocol initialization, and restore it after MIDI reconnect.
     - ✅ Apply OSC Widget Channel metadata and support Value feedback `SuppressWhileTouched` instead of rejecting the schema-valid primitive.
+    - ✅ Apply the shared TextProfile codec to MIDI and OSC Text feedback, including Width, Padding, ClearText, SilenceAsEmpty, ASCII7, and UTF8.
+    - ✅ Apply the shared ColorProfile lookup to MIDI and OSCInt Color feedback and make direct TrackColor processors refresh from their Widget channel.
+    - ✅ Apply the shared MeterProfile encoder to MIDI7 and OSCFloat or OSCInt Meter feedback, including OnChange and Continuous refresh.
+    - [ ] Define typed dynamic payload fields before implementing MIDISysEx Color, Ring, Bar, and Meter. Their current `Payload=NonEmptyList` schema does not say where encoded values belong.
+    - [ ] Define whether OSC Ring sends `RingValue`, `RingStyleCode`, or both, and give each emitted value an explicit Address before implementing it.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - ✅ Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
   - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.

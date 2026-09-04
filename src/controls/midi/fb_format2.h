@@ -1,6 +1,9 @@
 #pragma once
 
+#include "../format2_color_profile.h"
+#include "../format2_meter_profile.h"
 #include "../format2_surface_document.h"
+#include "../format2_text_profile.h"
 #include "../format2_value_profile.h"
 
 #include <algorithm>
@@ -232,15 +235,7 @@ private:
     string EncodeText(const char* inputText) const {
         char restrictedText[MEDBUF];
         const char* source = this->surface_->GetRestrictedLengthText(inputText, restrictedText, sizeof(restrictedText));
-        if (this->profile_.silenceAsEmpty && IsSameString(source, SILENCE_DB_STRING)) source = "";
-        const size_t width = (size_t) this->profile_.width.value_or(0);
-        string result;
-        for (const unsigned char character : string(source)) {
-            if (result.size() >= width) break;
-            result.push_back(character <= 0x7F ? (char) character : '?');
-        }
-        result.append(width - result.size(), ' ');
-        return result;
+        return EncodeFormat2TextProfile(this->profile_, source);
     }
 
     void Update(const char* inputText, bool force) {
@@ -617,67 +612,9 @@ public:
         this->lastColor_ = color;
         this->SendResolvedColor();
     }
+
+    virtual void ForceUpdateTrackColors() override { this->ForceColorValue(this->surface_->GetTrackColorForChannel(this->widget_->GetChannelNumber())); }
 };
-
-inline rgba_color UnpackFormat2Color(std::uint32_t color) {
-    rgba_color result;
-    result.r = (color >> 16) & 0xFF;
-    result.g = (color >> 8) & 0xFF;
-    result.b = color & 0xFF;
-    return result;
-}
-
-inline double GetFormat2ColorHue(const rgba_color& color) {
-    const double red = color.r / 255.0;
-    const double green = color.g / 255.0;
-    const double blue = color.b / 255.0;
-    const double maximum = (std::max)(red, (std::max)(green, blue));
-    const double minimum = (std::min)(red, (std::min)(green, blue));
-    const double difference = maximum - minimum;
-    if (difference == 0.0) return 0.0;
-    double hue = maximum == red ? 60.0 * std::fmod((green - blue) / difference, 6.0) : maximum == green ? 60.0 * ((blue - red) / difference + 2.0) : 60.0 * ((red - green) / difference + 4.0);
-    if (hue < 0.0) hue += 360.0;
-    return hue;
-}
-
-inline bool Format2HueRangeContains(const Format2HueRange& range, double hue) {
-    if (range.minimum < range.maximum) return hue >= range.minimum && hue < range.maximum;
-    return hue >= range.minimum || hue < range.maximum;
-}
-
-inline int ResolveFormat2MidiPaletteValue(Midi_ControlSurface* surface, const Format2ColorProfile& profile, const rgba_color& sourceColor) {
-    const rgba_color color = surface->GetDeviceFeedbackColor(sourceColor, 255);
-    if (profile.match == Format2ColorMatch::HueRanges) {
-        const double maximum = (std::max)(color.r, (std::max)(color.g, color.b)) / 255.0;
-        const double minimum = (std::min)(color.r, (std::min)(color.g, color.b)) / 255.0;
-        const double saturation = maximum == 0.0 ? 0.0 : (maximum - minimum) / maximum;
-        if (maximum <= profile.minimumBrightness.value_or(0.0) || saturation <= profile.maximumNeutralSaturation.value_or(0.0)) return profile.defaultValue;
-        const double hue = GetFormat2ColorHue(color);
-        for (const Format2HueRange& range : profile.hueRanges) if (Format2HueRangeContains(range, hue)) return range.value;
-        return profile.defaultValue;
-    }
-
-    const std::uint32_t packed = ((std::uint32_t) color.r << 16) | ((std::uint32_t) color.g << 8) | (std::uint32_t) color.b;
-    if (profile.match == Format2ColorMatch::Exact) {
-        for (const Format2ColorProfileEntry& entry : profile.entries) if (entry.color == packed) return entry.value;
-        return profile.defaultValue;
-    }
-
-    int selectedValue = profile.defaultValue;
-    long long selectedDistance = (std::numeric_limits<long long>::max)();
-    for (const Format2ColorProfileEntry& entry : profile.entries) {
-        const rgba_color entryColor = UnpackFormat2Color(entry.color);
-        const long long redDifference = color.r - entryColor.r;
-        const long long greenDifference = color.g - entryColor.g;
-        const long long blueDifference = color.b - entryColor.b;
-        const long long distance = redDifference * redDifference + greenDifference * greenDifference + blueDifference * blueDifference;
-        if (distance < selectedDistance) {
-            selectedDistance = distance;
-            selectedValue = entry.value;
-        }
-    }
-    return selectedValue;
-}
 
 class Format2MidiPaletteFeedbackProcessor : public Midi_FeedbackProcessor
 {
@@ -708,7 +645,7 @@ public:
 
     virtual void ForceClear() override {
         this->lastColor_ = rgba_color();
-        this->Send(ResolveFormat2MidiPaletteValue(this->surface_, this->profile_, this->lastColor_));
+        this->Send(ResolveFormat2ColorProfileValue(this->profile_, this->surface_->GetDeviceFeedbackColor(this->lastColor_, 255)));
     }
 
     virtual void SetColorValue(const rgba_color& color) override {
@@ -718,8 +655,10 @@ public:
 
     virtual void ForceColorValue(const rgba_color& color) override {
         this->lastColor_ = color;
-        this->Send(ResolveFormat2MidiPaletteValue(this->surface_, this->profile_, color));
+        this->Send(ResolveFormat2ColorProfileValue(this->profile_, this->surface_->GetDeviceFeedbackColor(color, 255)));
     }
+
+    virtual void ForceUpdateTrackColors() override { this->ForceColorValue(this->surface_->GetTrackColorForChannel(this->widget_->GetChannelNumber())); }
 };
 
 class Format2MidiTrackColorFeedbackGroupProcessor : public Midi_FeedbackProcessor
@@ -740,7 +679,7 @@ private:
             const bool useTrackColor = this->group_.useTrackColorWhen == Format2TrackColorCondition::Always || sourcePresent;
             const rgba_color color = useTrackColor && source ? this->surface_->GetTrackColorForChannel(source->GetChannelNumber() - 1) : this->EmptyColor();
             if (this->group_.colorEncoding == Format2TrackColorEncoding::Palette && this->profile_) {
-                payload.push_back(ResolveFormat2MidiPaletteValue(this->surface_, *this->profile_, color));
+                payload.push_back(ResolveFormat2ColorProfileValue(*this->profile_, this->surface_->GetDeviceFeedbackColor(color, 255)));
                 continue;
             }
             const rgba_color deviceColor = this->surface_->GetDeviceFeedbackColor(color, 127);
@@ -934,17 +873,9 @@ private:
     string EncodeText(const char* inputText) const {
         char restrictedText[MEDBUF];
         const char* source = this->surface_->GetRestrictedLengthText(inputText, restrictedText, sizeof(restrictedText));
-        if (this->profile_.silenceAsEmpty && IsSameString(source, SILENCE_DB_STRING)) source = "";
-        string result;
         const size_t fixedFieldCount = this->payload_.empty() ? 0 : this->payload_.size() - 1;
         const size_t maximumPayloadText = fixedFieldCount < 253 ? 253 - fixedFieldCount : 0;
-        const size_t maximumLength = this->profile_.width ? (std::min)((size_t) *this->profile_.width, maximumPayloadText) : maximumPayloadText;
-        for (const unsigned char character : string(source)) {
-            if (result.size() >= maximumLength) break;
-            result.push_back(character <= 0x7F ? (char) character : '?');
-        }
-        if (this->profile_.padding == Format2TextPadding::Space) result.append(maximumLength - result.size(), ' ');
-        return result;
+        return EncodeFormat2TextProfile(this->profile_, source, maximumPayloadText);
     }
 
     vector<int> ResolvePayload(const PropertyList& properties, const char* inputText, int state) const {
@@ -1034,26 +965,8 @@ private:
     int lastEncodedValue_ = 0;
     bool hasLastValue_ = false;
 
-    int ProfileValue(double value) const {
-        const double input = this->profile_.inputUnit == Format2MeterInputUnit::Decibels ? VAL2DB(normalizedToVol(value)) : value;
-        if (this->profile_.mode == Format2MeterMode::Steps) {
-            int output = this->profile_.defaultValue.value_or(0);
-            for (const Format2MeterStep& step : this->profile_.steps) {
-                if (input < step.minimum) break;
-                output = step.output;
-            }
-            return output;
-        }
-        if (!this->profile_.inputRange || !this->profile_.outputRange) return 0;
-        const double minimum = (*this->profile_.inputRange)[0];
-        const double maximum = (*this->profile_.inputRange)[1];
-        const double normalized = std::clamp((input - minimum) / (maximum - minimum), 0.0, 1.0);
-        const double mapped = (*this->profile_.outputRange)[0] + normalized * ((*this->profile_.outputRange)[1] - (*this->profile_.outputRange)[0]);
-        return this->profile_.quantize == Format2Quantize::Round ? (int) std::round(mapped) : (int) std::floor(mapped);
-    }
-
     int Encode(double value) const {
-        const int profileValue = this->ProfileValue(value);
+        const int profileValue = EncodeFormat2MeterProfile(this->profile_, value);
         if (this->combine_ == Format2MidiValueCombine::Add) return this->valueBase_ + profileValue;
         if (this->combine_ == Format2MidiValueCombine::BitOr) return this->valueBase_ | profileValue;
         return profileValue;
@@ -1069,8 +982,7 @@ private:
     }
 
     int ClearValue() const {
-        if (this->profile_.mode == Format2MeterMode::Steps) return this->profile_.defaultValue.value_or(0);
-        return this->profile_.outputRange ? (*this->profile_.outputRange)[0] : 0;
+        return ClearFormat2MeterProfileValue(this->profile_);
     }
 
 public:
