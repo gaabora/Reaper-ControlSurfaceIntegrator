@@ -5,6 +5,8 @@ Widget Fader1 {
   Feedback Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }
 }
 
+
+
 OSKLayout {
   Row {
     Widget Fader1 Shape=Fader Height=7 ValueTarget=Fader1

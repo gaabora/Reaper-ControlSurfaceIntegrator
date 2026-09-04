@@ -33,4 +33,4 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 
 ## [ ] Executable golden coverage
 
-The Bun tests compare the complete generated Surface with expected output for `xtouch-text`, `icon-track-color`, and `scribble-strip-mode`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.
+The Bun tests compare the complete generated Surface with expected output for `xtouch-text`, `icon-track-color`, `scribble-strip-mode`, `mcu-character-displays`, `faderport-classic-split`, and the FaderPort Surface in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.

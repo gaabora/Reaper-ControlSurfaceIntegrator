@@ -15,9 +15,5 @@ TextProfile FaderPortScribble {
 
 Widget ScribbleLine1_1 {
   Channel=1
-  Feedback Text {
-    Encoding=MIDISysEx
-    TextProfile=FaderPortScribble
-    Payload=[ 0x00, 0x01, 0x06, 0x16, 0x12, 0x00, 0x00, TextPresentationCode, Text ]
-  }
+  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x16, 0x12, 0x00, 0x00, TextPresentationCode, Text ] }
 }

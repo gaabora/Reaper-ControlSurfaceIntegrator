@@ -124,17 +124,13 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Value { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] }");
     });
 
-    test("converts the FaderPort Classic split fader as one symmetric 10-bit value", () => {
-        const legacySurface = `Widget Fader
-  FaderportClassicFader14Bit b0 00 7f b0 20 7f
-  FB_FaderportClassicFader14Bit b0 00 7f b0 20 7f
-WidgetEnd
-`;
+    test("matches the FaderPort Classic split-fader golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("faderport-classic-split", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("faderport-classic-split", "expected", "Surface.txt");
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort Classic", "Surfaces/User/faderport-classic.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toContain("Input Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }");
-        expect(conversion.source).toContain("Feedback Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("rejects a FaderPort Classic split fader whose two parts have the same prefix", () => {
@@ -196,23 +192,13 @@ WidgetEnd
         expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx Payload=[ 0x00, 0x00, 0x66, 0x17, 0x30, 0x38, Text ] TextProfile=Display7 }");
     });
 
-    test("converts MCU time characters, mode lights, and assignment letters to universal feedback", () => {
-        const legacySurface = `Widget TimeDisplay
-  FB_MCUTimeDisplay
-WidgetEnd
-Widget AssignmentDisplay
-  FB_MCUAssignmentDisplay
-WidgetEnd
-`;
+    test("matches the MCU character-display golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("mcu-character-displays", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("mcu-character-displays", "expected", "Surface.txt");
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "MCU displays", "Surfaces/User/mcu-displays.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.match(/TextProfile MCUTimeCharacters \{/g)).toHaveLength(1);
-        expect(conversion.source).toContain("Feedback Text { Encoding=MIDICharacters Status=0xB0 StartData=0x49 Direction=Descending TextProfile=MCUTimeCharacters }");
-        expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0x90, 0x71, 0x7F ] Off=[ 0x90, 0x71, 0x00 ] Clear=[ 0x90, 0x71, 0x00 ] ActiveValues=[ 5 ] }");
-        expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0x90, 0x72, 0x7F ] Off=[ 0x90, 0x72, 0x00 ] Clear=[ 0x90, 0x72, 0x00 ] ActiveValues=[ 1, 2 ] }");
-        expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4B, 0x07 ] Off=[ 0xB0, 0x4B, 0x13 ] Clear=[ 0xB0, 0x4B, 0x20 ] }");
-        expect(conversion.source).toContain("Feedback State { Encoding=MIDIExact On=[ 0xB0, 0x4A, 0x0C ] Off=[ 0xB0, 0x4A, 0x05 ] Clear=[ 0xB0, 0x4A, 0x20 ] }");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("matches the X-Touch text and track-color golden Surface", async () => {
@@ -340,6 +326,15 @@ WidgetEnd
         expect(conversion.source).toContain("Widget ScribbleLine1_1 {\n  Channel=1\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x16, 0x12, 0x00, 0x00, TextPresentationCode, Text ] }");
         expect(conversion.source).toContain("Widget ScribbleLine4_16 {\n  Channel=16\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x16, 0x12, 0x0F, 0x03, TextPresentationCode, Text ] }");
         expect(conversion.source).toContain("Widget FP8Line2 {\n  Channel=4\n  Feedback Text { Encoding=MIDISysEx TextProfile=FaderPortScribble Payload=[ 0x00, 0x01, 0x06, 0x02, 0x12, 0x03, 0x01, TextPresentationCode, Text ] }");
+    });
+
+    test("matches the FaderPort scribble-text golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("text-feedback", "legacy", "FaderPortSurface.txt");
+        const expectedSurface = await readGoldenFixture("text-feedback", "expected", "FaderPortSurface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported FaderPort 16 Surface", "Surfaces/User/faderport16.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("matches the FaderPort scribble-strip mode golden Surface", async () => {
