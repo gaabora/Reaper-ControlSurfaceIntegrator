@@ -15,7 +15,6 @@ class Format2OscRuntimeLoader;
 
 class ControlSurface
 {
-    friend class SurfaceTemplateParser; // surface_parser.h — parses surface template files
     friend class Format2MidiRuntimeLoader;
     friend class Format2OscRuntimeLoader;
 

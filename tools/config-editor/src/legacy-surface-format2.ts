@@ -90,6 +90,7 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
         ],
     }],
     ["fb_intprocessor", { kind: "oscIntFeedback", targets: [{ direction: "Feedback", encoding: "OSCInt", primitive: "Value", protocol: "OSC" }] }],
+    ["fb_x32intprocessor", { kind: "oscIntFeedback", targets: [{ direction: "Feedback", encoding: "OSCInt", primitive: "Value", protocol: "OSC" }] }],
     ["fb_x32faderprocessor", { kind: "x32FaderFeedback", targets: [{ direction: "Feedback", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
     ["fb_x32rotarytoencoder", { kind: "x32RotaryAcknowledge", targets: [{ direction: "Input", encoding: "OSCInt", primitive: "Encoder", protocol: "OSC" }] }],
     ["fb_twostate", { kind: "state", targets: [{ direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" }] }],
@@ -460,6 +461,10 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
     const processor = (tokens[0] ?? "").toLowerCase();
     const conversion = LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor);
     if (!conversion) {
+        if (processor === "fb_x32processor") {
+            addDiagnostic(diagnostics, "error", "legacy.surface.x32-feedback.ambiguous", "FB_X32Processor sends numeric and palette-color feedback to the same OSC address. Choose the required typed Value, State, or Color feedback before import.", lineNumber, documentPath);
+            return undefined;
+        }
         addDiagnostic(diagnostics, "error", "legacy.surface.processor.unsupported", `Legacy Surface processor is not converted yet: ${tokens[0]}`, lineNumber, documentPath);
         return undefined;
     }
@@ -471,7 +476,13 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const colorAddress = JSON.stringify(`${tokens[1]}/Color`);
         return `Feedback Value { Encoding=OSCFloat Address=${address} }\n  Feedback Text { Encoding=OSCString Address=${address} }\n  Feedback Color { Encoding=OSCString Address=${colorAddress} Format=HexRGBA }`;
     }
-    if (conversion.kind === "oscIntFeedback" && tokens.length === 2) return `Feedback Value { Encoding=OSCInt Address=${JSON.stringify(tokens[1])} }`;
+    if (conversion.kind === "oscIntFeedback" && tokens.length === 2) {
+        if (processor === "fb_x32intprocessor" && tokens[1].includes("/-stat/selidx/")) {
+            addDiagnostic(diagnostics, "error", "legacy.surface.x32-int.address-rewrite.unsupported", "This FB_X32IntProcessor conditionally rewrites /-stat/selidx/<number> to /-stat/selidx. Format 2 cannot preserve that conditional address behavior yet.", lineNumber, documentPath);
+            return undefined;
+        }
+        return `Feedback Value { Encoding=OSCInt Address=${JSON.stringify(tokens[1])} }`;
+    }
     if (conversion.kind === "x32Fader" && tokens.length === 2) return `Input Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} ValueProfile=X32FaderCurve }`;
     if (conversion.kind === "x32FaderFeedback" && tokens.length === 2) return `Feedback Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} ValueProfile=X32FaderCurve EchoGuardMs=30 }`;
     if (conversion.kind === "x32Rotary" && tokens.length === 2) {

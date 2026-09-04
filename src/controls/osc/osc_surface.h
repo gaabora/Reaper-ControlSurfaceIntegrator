@@ -203,8 +203,6 @@ class OSC_ControlSurface : public ControlSurface
 {
 private:
     OSC_ControlSurfaceIO* const surfaceIO_;
-    void ProcessOSCWidget(int& lineNumber, ifstream& surfaceTemplateFile, const vector<string>& in_tokens);
-    void ProcessOSCWidgetFile(const string& filePath);
 
 public:
     OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, OSC_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides);

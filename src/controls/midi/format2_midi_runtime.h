@@ -12,7 +12,6 @@ struct Format2ScalarSyntax;
 struct Format2SurfacePrimitive;
 
 enum class Format2MidiRuntimeLoadResult {
-    NotFormat2,
     Loaded,
     Rejected,
 };

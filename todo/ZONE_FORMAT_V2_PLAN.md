@@ -1658,6 +1658,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
     - ✅ Implement OSC ValueProfile decoding and inverse feedback encoding, OSC Encoder Scale or decode-only ValueProfile input, and optional constant OSC acknowledgement output. Preserve the X32 fader curve and rotary direction without a device-named runtime branch.
     - ✅ Implement OSCFloat and OSCInt Press and Touch input with catalog-defined Match behavior, plus State feedback with explicit OffValue and OnValue defaults.
+    - ✅ Reject legacy Surface syntax at runtime and remove the shared MIDI/OSC legacy Surface parser from the build. Legacy conversion remains a Bun importer responsibility.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - ✅ Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
   - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.
@@ -1818,6 +1819,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Convert `AnyPress` to its real two-byte `MIDIPrefix` behavior, preserve an ordinary `Press` without an `Off` message, and convert `Fader7Bit` plus `FB_Fader7Bit` to universal MIDI7 Value primitives.
   - ✅ Convert generic OSC `Control` and `FB_Processor` without guessing from Widget names or zones. Preserve their number, text, and legacy HexRGBA color transports as separate typed primitives.
   - ✅ Convert legacy OSC `AnyPress`, `Touch`, and `FB_IntProcessor` to typed Press, Touch, and OSCInt Value primitives, and compare the complete converted Surface with an executable golden fixture.
+  - ✅ Convert ordinary `FB_X32IntProcessor` addresses to OSCInt Value feedback. Block its conditional `/-stat/selidx/<n>` address rewrite and the combined numeric/color `FB_X32Processor` with focused source diagnostics instead of guessing.
   - ✅ Convert MCU, MCUXT, and C4 upper and lower seven-character displays to one shared TextProfile and explicit MIDISysEx payloads without retaining device-specific runtime processor names.
   - ✅ Convert MCU time characters, time-mode lights, and assignment letters to universal MIDICharacters and MIDIExact State feedback with all device bytes in Surface metadata.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.

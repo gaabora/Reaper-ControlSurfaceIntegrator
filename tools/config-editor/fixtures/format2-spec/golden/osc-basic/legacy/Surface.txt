@@ -10,6 +10,10 @@ Widget IntegerValue
   FB_IntProcessor /integer
 WidgetEnd
 
+Widget X32IntegerValue
+  FB_X32IntProcessor /integer-x32
+WidgetEnd
+
 OSKLayout Version=1
   Row
     Widget Trigger

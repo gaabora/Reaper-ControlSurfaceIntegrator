@@ -12,7 +12,7 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `snippet`: converts a version 1 semantic snippet to a direct format 2 zone fragment.
 - `unresolved`: covers a non-standard encoder range, missing channel metadata, command-shaped MFT colors, conflicting per-zone display modes, and a file used as both a layer and an independent zone.
 - `osc-x32`: converts an OSCX32 Device, Page assignment, X32 fader curve, exact rotary delta profile and acknowledgement, and an OSC OSK layout. A focused check rejects an acknowledgement without its paired rotary input.
-- `osc-basic`: converts OSC `AnyPress`, `Touch`, and integer feedback to universal typed primitives while preserving every explicit address and the OSC OSK layout.
+- `osc-basic`: converts OSC `AnyPress`, `Touch`, `FB_IntProcessor`, and ordinary `FB_X32IntProcessor` feedback to universal typed primitives while preserving every explicit address and the OSC OSK layout. Focused checks reject conditional X32 selection-address rewriting and combined value/color feedback.
 - `links`: converts an order-dependent Broadcaster and Listener record to one explicit same-Page Link with only enabled share categories.
 - `magic-targets`: converts every current magic Main zone name to explicit Role, Target, and optional BankTarget metadata.
 - `gozones`: drops the deprecated loading manifest, converts recognized navigator metadata, removes ineffective standalone navigator lines, preserves magic-name precedence, and reports missing, unknown, unsupported, or conflicting entries.

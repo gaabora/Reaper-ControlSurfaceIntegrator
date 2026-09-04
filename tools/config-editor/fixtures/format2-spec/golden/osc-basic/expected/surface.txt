@@ -12,6 +12,10 @@ Widget IntegerValue {
   Feedback Value { Encoding=OSCInt Address="/integer" }
 }
 
+Widget X32IntegerValue {
+  Feedback Value { Encoding=OSCInt Address="/integer-x32" }
+}
+
 
 
 OSKLayout {

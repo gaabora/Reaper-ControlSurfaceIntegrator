@@ -480,6 +480,19 @@ WidgetEnd
         expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
+    test("blocks conditional X32 integer address rewriting", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget Select1\n  FB_X32IntProcessor /-stat/selidx/01\nWidgetEnd\n", "X32 selection", "Surfaces/User/x32-selection.txt");
+
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.x32-int.address-rewrite.unsupported", line: 2 }));
+        expect(conversion.source).not.toContain("Feedback Value");
+    });
+
+    test("explains ambiguous combined X32 value and color feedback", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget Mute1\n  FB_X32Processor /ch/01/mix/on\nWidgetEnd\n", "X32 feedback", "Surfaces/User/x32-feedback.txt");
+
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.x32-feedback.ambiguous", line: 2, message: expect.stringContaining("numeric and palette-color feedback") }));
+    });
+
     test("matches the X32 OSC golden Surface", async () => {
         const legacySurface = await readGoldenFixture("osc-x32", "legacy", "Surface.txt");
         const expectedSurface = await readGoldenFixture("osc-x32", "expected", "surface.txt");

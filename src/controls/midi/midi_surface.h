@@ -110,10 +110,6 @@ private:
 
     DWORD lastRun_ = 0;
 
-    void ProcessMidiWidget(int& lineNumber, ifstream& surfaceTemplateFile, const vector<string>& in_tokens);
-
-    void ProcessMIDIWidgetFile(const string& filePath, Midi_ControlSurface* surface);
-
     // special processing for MCU meters
     bool hasMCUMeters_ = false;
     int displayType_ = 0x14;

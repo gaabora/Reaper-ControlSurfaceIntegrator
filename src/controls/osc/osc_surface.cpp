@@ -1,6 +1,5 @@
 #include "../integrator.h"
 #include "format2_osc_runtime.h"
-#include "../surface_parser.h"
 #include "osc_widgets.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -186,14 +185,10 @@ void OSC_X32ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface* surface) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void OSC_ControlSurface::ProcessOSCWidgetFile(const string& filePath) { SurfaceTemplateParser::ParseOSCTemplate(filePath, this); }
-void OSC_ControlSurface::ProcessOSCWidget(int& lineNumber, ifstream& surfaceTemplateFile, const vector<string>& in_tokens) { SurfaceTemplateParser::ParseOSCWidget(lineNumber, surfaceTemplateFile, in_tokens, this); }
-
 OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, OSC_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides)
     : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset, settings, settingOverrides), surfaceIO_(surfaceIO)
 {
-    const Format2OscRuntimeLoadResult format2Result = Format2OscRuntimeLoader::Load(templateFilename, this);
-    if (format2Result == Format2OscRuntimeLoadResult::NotFormat2) this->ProcessOSCWidgetFile(templateFilename);
+    Format2OscRuntimeLoader::Load(templateFilename, this);
     this->InitHardwiredWidgets(this);
     this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
 }

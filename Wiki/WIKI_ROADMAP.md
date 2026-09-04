@@ -22,7 +22,9 @@ Explain `surface.txt`, widget definitions, feedback processors, and surface-leve
 Primary verification sources:
 
 - [Configuration-Format.md](Configuration-Format.md)
-- [../src/controls/surface_parser.cpp](../src/controls/surface_parser.cpp)
+- [../src/controls/format2_surface_document.cpp](../src/controls/format2_surface_document.cpp)
+- [../src/controls/midi/format2_midi_runtime.cpp](../src/controls/midi/format2_midi_runtime.cpp)
+- [../src/controls/osc/format2_osc_runtime.cpp](../src/controls/osc/format2_osc_runtime.cpp)
 - [../src/controls/control_surface.cpp](../src/controls/control_surface.cpp)
 - [../todo/SURFACE_TEMPLATE_EXTRACTION_PLAN.md](../todo/SURFACE_TEMPLATE_EXTRACTION_PLAN.md)
 

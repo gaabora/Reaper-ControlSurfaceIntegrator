@@ -205,8 +205,6 @@ void GetTokens(vector<string>& tokens, const string& line, char delimiter) {
         tokens.push_back(token);
 }
 
-// GetTokenLines moved to surface_parser.cpp (only used there)
-
 int strToHex(string& valueStr) { return strtol(valueStr.c_str(), NULL, 16); }
 
 // Class method implementations extracted to individual .cpp files:

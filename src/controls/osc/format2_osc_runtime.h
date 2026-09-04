@@ -7,7 +7,6 @@ struct Format2PropertySyntax;
 struct Format2SurfacePrimitive;
 
 enum class Format2OscRuntimeLoadResult {
-    NotFormat2,
     Loaded,
     Rejected,
 };
