@@ -1,5 +1,5 @@
 Widget Rotary1
-  EncoderPlain b0 00 7f
+  Encoder b0 00 7f
   FB_SCE24Encoder b0 00 7f
 WidgetEnd
 

@@ -289,20 +289,13 @@ WidgetEnd
         expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.widget.channel.unresolved", line: 2 }));
     });
 
-    test("converts legacy dynamic text and OLED button displays to universal SysEx fields", () => {
-        const legacySurface = `Widget Display1
-  FB_SCE24EncoderText 90 20 7f 0 15 2
-WidgetEnd
-Widget ButtonDisplay1
-  FB_SCE24OLEDButton 90 0d 7f 1 63 6
-WidgetEnd
-`;
-        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Dynamic displays", "Surfaces/User/dynamic-displays.txt");
+    test("matches the SCE24 dynamic-text golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("text-feedback", "legacy", "SCE24Surface.txt");
+        const expectedSurface = await readGoldenFixture("text-feedback", "expected", "SCE24Surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported SCE24 Surface", "Surfaces/User/sce24.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.match(/TextProfile DynamicText \{/g)).toHaveLength(1);
-        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=0 BottomMargin=15 Font=2 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x20, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }");
-        expect(conversion.source).toContain("Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=1 BottomMargin=63 Font=6 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x6D, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
     });
 
     test("converts FaderPort scribble rows to one universal text profile", () => {
@@ -417,37 +410,32 @@ WidgetEnd
         expect(conversion.source).not.toContain("Channel=");
     });
 
-    test("converts SCE24 encoder rings and explicit segment colors", () => {
-        const legacySurface = `Widget Rotary1 RotaryWidgetClass
-  Encoder b0 00 7f
-  FB_SCE24Encoder b0 00 7f
-WidgetEnd
-Widget RotaryPush1
-  Press 90 20 7f 90 20 00
-WidgetEnd
-`;
-        const conversion = convertLegacySurfaceToFormat2(legacySurface, "SCE24", "Surfaces/User/sce24.txt");
+    test("matches the SCE24 ring golden Surface and migrates its zone colors", async () => {
+        const legacySurface = await readGoldenFixture("sce24-ring", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("sce24-ring", "expected", "surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported SCE24 Surface", "Surfaces/User/sce24.txt");
         const zone = migrateLegacySce24RingColors("Zone Track\n  Rotary1 TrackVolume LEDRingColor=#0000ffff PushColor=#003f00ff\nZoneEnd\n", "Zones/Track.zon");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toContain("RingProfile SCE24Ring {");
-        expect(conversion.source).toContain("Payload=[ 0x00, 0x02, 0x38, 0x01, 0x00, SegmentMasks, SegmentRed7, SegmentGreen7, SegmentBlue7 ]");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
         expect(zone.diagnostics).toEqual([]);
         expect(zone.source).toContain("RingColors=[ #003F00, #003F00, #003F00, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF ]");
         expect(zone.source).not.toContain("LEDRingColor=");
         expect(zone.source).not.toContain("PushColor=");
     });
 
-    test("converts SCE24 LED buttons and their binary state colors", () => {
-        const conversion = convertLegacySurfaceToFormat2("Widget LEDButton1\n  Press 90 05 7f 90 05 00\n  FB_SCE24LEDButton 90 05 7f\nWidgetEnd\n", "SCE24", "Surfaces/User/sce24.txt");
-        const zone = migrateLegacySce24StateColors("Zone Home\n  LEDButton1 Shift OnColor=#2f0f0000 OffColor=#00000000\nZoneEnd\n", "Zones/Home.zon");
+    test("matches the SCE24 state-button golden Surface and zone colors", async () => {
+        const legacySurface = await readGoldenFixture("sce24-state", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("sce24-state", "expected", "Surface.txt");
+        const legacyZone = await readGoldenFixture("sce24-state", "legacy", "Home.zon");
+        const expectedZone = await readGoldenFixture("sce24-state", "expected", "Home.zon");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "SCE24", "Surfaces/User/sce24.txt");
+        const zone = migrateLegacySce24StateColors(legacyZone, "Zones/Home.zon");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toContain("Feedback State { Encoding=MIDISysEx Payload=[ 0x00, 0x02, 0x38, 0x01, 0x65, Red7, Green7, Blue7 ] }");
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
         expect(zone.diagnostics).toEqual([]);
-        expect(zone.source).toContain("LEDButton1 Shift StateColors=[ #000000, #2F0F00 ]");
-        expect(zone.source).not.toContain("OnColor=");
-        expect(zone.source).not.toContain("OffColor=");
+        expect(zone.source.trimEnd()).toBe(expectedZone.trimEnd());
     });
 
     test("moves a standalone SCE24 push color to its paired ring binding", () => {

@@ -17,6 +17,7 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `gozones`: drops the deprecated loading manifest, converts recognized navigator metadata, removes ineffective standalone navigator lines, preserves magic-name precedence, and reports missing, unknown, unsupported, or conflicting entries.
 - `mft-palette`: converts the complete legacy MFT palette and per-widget mode Companion, converts normal zone colors, and detects the raw-command branch only after resolving the selected Surface widget.
 - `sce24-ring`: converts SCE24 ring value and color output to a universal Ring profile and Configure block, expands range colors, and restores the declared push color in the first three physical segments.
+- `sce24-state`: converts SCE24 LED buttons and their Off/On colors to universal State feedback and an ordered `StateColors` list.
 - `xtouch-text`: splits legacy XTouch display behavior into normal Text feedback and one shared TrackColor FeedbackGroup with exact channels, slots, members, and hue-range color mapping.
 - `icon-track-color`: splits iCON display behavior into normal Text feedback and one shared RGB7 TrackColor FeedbackGroup with exact channels, slots, members, and blue correction.
 - `scribble-strip-mode`: moves one confirmed legacy FaderPort scribble mode into a universal Surface Value initial message.
@@ -33,4 +34,4 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 
 ## [ ] Executable golden coverage
 
-The Bun tests compare the complete generated Surface with expected output for `xtouch-text`, `icon-track-color`, `scribble-strip-mode`, `mcu-character-displays`, `faderport-classic-split`, and the FaderPort Surface in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.
+The Bun tests compare complete generated output for `xtouch-text`, `icon-track-color`, `scribble-strip-mode`, `mcu-character-displays`, `faderport-classic-split`, `sce24-ring`, `sce24-state`, and the FaderPort and SCE24 Surfaces in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.

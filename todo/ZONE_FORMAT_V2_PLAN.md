@@ -1819,6 +1819,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Convert X-Touch palette and iCON RGB7 shared track-color display packets to Surface FeedbackGroup blocks with explicit display channels and complete slot membership.
   - ✅ Compare complete generated Surface output with executable golden fixtures for X-Touch palette, iCON RGB7, and FaderPort scribble-strip mode conversion.
   - ✅ Compare complete generated Surface output with executable golden fixtures for MCU time and assignment displays, FaderPort Classic split values, and FaderPort scribble text.
+  - ✅ Compare complete generated output with executable golden fixtures for SCE24 ring, LED button state, and dynamic text conversion.
 - ✅ Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties.
   - ✅ Normalize legacy alignment names and convert `TextInvert=Yes|No` to Boolean `TextInvert=true|false` in import drafts without guessing invalid values.

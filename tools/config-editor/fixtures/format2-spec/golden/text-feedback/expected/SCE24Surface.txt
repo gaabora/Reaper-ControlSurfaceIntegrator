@@ -1,33 +1,15 @@
-@Meta { Version=2 Protocol=MIDI Channels=2 Name="Imported SCE24 Surface" }
+@Meta { Version=2 Protocol=MIDI Channels=1 Name="Imported SCE24 Surface" }
 
-TextProfile SCE24Text {
+TextProfile DynamicText {
   Encoding=ASCII7
   Padding=None
   ClearText=""
 }
 
 Widget Display1A1 {
-  Feedback Text {
-    Encoding=MIDISysEx
-    TextProfile=SCE24Text
-    TopMargin=0
-    BottomMargin=15
-    Font=2
-    BackgroundColor=#000000
-    TextColor=#000000
-    Payload=[ 0x00, 0x02, 0x38, 0x01, 0x20, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ]
-  }
+  Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=0 BottomMargin=15 Font=2 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x20, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }
 }
 
 Widget OLEDButtonDisplay11 {
-  Feedback Text {
-    Encoding=MIDISysEx
-    TextProfile=SCE24Text
-    TopMargin=0
-    BottomMargin=15
-    Font=2
-    BackgroundColor=#000000
-    TextColor=#000000
-    Payload=[ 0x00, 0x02, 0x38, 0x01, 0x6D, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ]
-  }
+  Feedback Text { Encoding=MIDISysEx TextProfile=DynamicText TopMargin=0 BottomMargin=15 Font=2 BackgroundColor=#000000 TextColor=#000000 Payload=[ 0x00, 0x02, 0x38, 0x01, 0x6D, TopMargin7, BottomMargin7, Font7, BackgroundRed7, BackgroundGreen7, BackgroundBlue7, TextRed7, TextGreen7, TextBlue7, Text ] }
 }
