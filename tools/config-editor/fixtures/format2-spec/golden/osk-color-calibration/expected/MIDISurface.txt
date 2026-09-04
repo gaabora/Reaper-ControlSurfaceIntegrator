@@ -18,6 +18,8 @@ Widget Touch {
   Feedback Color { Encoding=MIDIRGB Enable=[ 0x90, 0x4D, 0x7F ] Red=[ 0x91, 0x4D ] Green=[ 0x92, 0x4D ] Blue=[ 0x93, 0x4D ] }
 }
 
+
+
 OSKLayout {
   Row {
     Spacer Width=0.25

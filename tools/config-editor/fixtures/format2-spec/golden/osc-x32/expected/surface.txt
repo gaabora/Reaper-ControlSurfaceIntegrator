@@ -12,6 +12,17 @@ ValueProfile X32FaderCurve {
   Point Input=1.0 Output=10.0
 }
 
+ValueProfile X32RotaryDelta {
+  InputUnit=Integer
+  OutputUnit=Normalized
+  Direction=Decode
+  Interpolation=Linear
+  Point Input=0 Output=0
+  Point Input=63 Output=-0.04921875
+  Point Input=64 Output=0.05
+  Point Input=127 Output=0.09921875
+}
+
 Widget Fader1 {
   Channel=1
   Input Value { Encoding=OSCFloat Address="/ch/01/mix/fader" ValueProfile=X32FaderCurve }
@@ -23,10 +34,12 @@ Widget Pan1 {
   Input Encoder {
     Encoding=OSCFloat
     Address="/ch/01/mix/pan"
-    Scale=-0.00078125
+    ValueProfile=X32RotaryDelta
     Acknowledge { Encoding=OSCInt Address="/ch/01/mix/pan" Value=64 }
   }
 }
+
+
 
 OSKLayout {
   Row {

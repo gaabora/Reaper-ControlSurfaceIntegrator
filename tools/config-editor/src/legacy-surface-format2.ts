@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportScribbleMode" | "faderportTwoStateRgb" | "iconDisplay" | "iconTrackColorDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch" | "xTouchDisplay";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportScribbleMode" | "faderportTwoStateRgb" | "iconDisplay" | "iconTrackColorDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch" | "x32Fader" | "x32FaderFeedback" | "x32Rotary" | "x32RotaryAcknowledge" | "xTouchDisplay";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -89,11 +89,15 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
             { direction: "Feedback", encoding: "OSCString", primitive: "Color", protocol: "OSC" },
         ],
     }],
+    ["fb_x32faderprocessor", { kind: "x32FaderFeedback", targets: [{ direction: "Feedback", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
+    ["fb_x32rotarytoencoder", { kind: "x32RotaryAcknowledge", targets: [{ direction: "Input", encoding: "OSCInt", primitive: "Encoder", protocol: "OSC" }] }],
     ["fb_twostate", { kind: "state", targets: [{ direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" }] }],
     ["fb_xtouchdisplayupper", { kind: "xTouchDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_xtouchxtdisplayupper", { kind: "xTouchDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["press", { kind: "press", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Press", protocol: "MIDI" }] }],
     ["touch", { kind: "touch", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Touch", protocol: "MIDI" }] }],
+    ["x32fader", { kind: "x32Fader", targets: [{ direction: "Input", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
+    ["x32rotarytoencoder", { kind: "x32Rotary", targets: [{ direction: "Input", encoding: "OSCFloat", primitive: "Encoder", protocol: "OSC" }] }],
 ]);
 
 export function legacySurfaceProcessorTargets(processor: string): LegacySurfaceProcessorTarget[] | undefined {
@@ -175,6 +179,43 @@ function colorCalibration(blocks: Map<string, string[][]>): string[] {
     const entries = (blocks.get("ColorCalibration") ?? []).filter((tokens) => tokens[0]?.toLowerCase() !== "enabled");
     if (!entries.length) return [];
     return ["ColorCalibration {", ...entries.map((tokens) => `  ${tokens[0]}=${tokens[1]}`), "}", ""];
+}
+
+function x32ValueProfiles(widgets: SurfaceWidget[]): string[] {
+    const processors = new Set(widgets.flatMap((widget) => widget.body.map((line) => (line.tokens[0] ?? "").toLowerCase())));
+    const result: string[] = [];
+    if (processors.has("x32fader") || processors.has("fb_x32faderprocessor")) {
+        result.push(
+            "ValueProfile X32FaderCurve {",
+            "  InputUnit=Normalized",
+            "  OutputUnit=Decibels",
+            "  Direction=Both",
+            "  Interpolation=Linear",
+            "  Point Input=0.0 Output=-90.0",
+            "  Point Input=0.0625 Output=-60.0",
+            "  Point Input=0.25 Output=-30.0",
+            "  Point Input=0.5 Output=-10.0",
+            "  Point Input=1.0 Output=10.0",
+            "}",
+            "",
+        );
+    }
+    if (processors.has("x32rotarytoencoder")) {
+        result.push(
+            "ValueProfile X32RotaryDelta {",
+            "  InputUnit=Integer",
+            "  OutputUnit=Normalized",
+            "  Direction=Decode",
+            "  Interpolation=Linear",
+            "  Point Input=0 Output=0",
+            "  Point Input=63 Output=-0.04921875",
+            "  Point Input=64 Output=0.05",
+            "  Point Input=127 Output=0.09921875",
+            "}",
+            "",
+        );
+    }
+    return result;
 }
 
 function ringProfiles(widgets: SurfaceWidget[]): string[] {
@@ -428,6 +469,26 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const colorAddress = JSON.stringify(`${tokens[1]}/Color`);
         return `Feedback Value { Encoding=OSCFloat Address=${address} }\n  Feedback Text { Encoding=OSCString Address=${address} }\n  Feedback Color { Encoding=OSCString Address=${colorAddress} Format=HexRGBA }`;
     }
+    if (conversion.kind === "x32Fader" && tokens.length === 2) return `Input Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} ValueProfile=X32FaderCurve }`;
+    if (conversion.kind === "x32FaderFeedback" && tokens.length === 2) return `Feedback Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} ValueProfile=X32FaderCurve EchoGuardMs=30 }`;
+    if (conversion.kind === "x32Rotary" && tokens.length === 2) {
+        const acknowledge = widget.body.find((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_x32rotarytoencoder" && line.tokens.length === 2);
+        const acknowledgeLine = acknowledge ? `\n    Acknowledge { Encoding=OSCInt Address=${JSON.stringify(acknowledge.tokens[1])} Value=64 }` : "";
+        return `Input Encoder {\n    Encoding=OSCFloat\n    Address=${JSON.stringify(tokens[1])}\n    ValueProfile=X32RotaryDelta${acknowledgeLine}\n  }`;
+    }
+    if (conversion.kind === "x32RotaryAcknowledge" && tokens.length === 2) {
+        const rotaryInput = widget.body.find((line) => (line.tokens[0] ?? "").toLowerCase() === "x32rotarytoencoder" && line.tokens.length === 2);
+        if (!rotaryInput) {
+            addDiagnostic(diagnostics, "error", "legacy.surface.x32-rotary.input.missing", "FB_X32RotaryToEncoder requires one X32RotaryToEncoder input in the same Widget", lineNumber, documentPath);
+            return undefined;
+        }
+        const firstAcknowledge = widget.body.find((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_x32rotarytoencoder" && line.tokens.length === 2);
+        if (firstAcknowledge?.lineNumber !== lineNumber) {
+            addDiagnostic(diagnostics, "error", "legacy.surface.x32-rotary.acknowledge.duplicate", "A Widget can contain only one FB_X32RotaryToEncoder acknowledgement", lineNumber, documentPath);
+            return undefined;
+        }
+        return "";
+    }
     if (conversion.kind === "press" && tokens.length >= 4) {
         const off = tokens.length >= 7 ? ` Off=${midiList(tokens.slice(4, 7))}` : "";
         return `Input Press { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))}${off} }`;
@@ -616,6 +677,11 @@ function legacyWidgetChannel(widget: SurfaceWidget): number | undefined {
         const channel = suffix ? Number(suffix) : 0;
         if (Number.isInteger(channel) && channel > 0) return channel;
     }
+    if (widget.body.some((line) => ["x32fader", "fb_x32faderprocessor", "x32rotarytoencoder", "fb_x32rotarytoencoder"].includes((line.tokens[0] ?? "").toLowerCase()))) {
+        const suffix = widget.name.match(/(\d+)$/)?.[1];
+        const channel = suffix ? Number(suffix) : 0;
+        if (Number.isInteger(channel) && channel > 0) return channel;
+    }
     return undefined;
 }
 
@@ -753,7 +819,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
         const channel = legacyWidgetChannel(widget);

@@ -953,6 +953,8 @@ Acknowledge {
 
 Acknowledge is optional, sends one declared constant only after accepted input, and owns its output Address. It cannot reference Action state or normal feedback. This replaces the X32 rotary acknowledgement behavior.
 
+Legacy X32 rotary values are not signed OSC values. Values `1..63` decrease and `64..127` increase, while their original magnitude is retained. Migration therefore uses one decode-only ValueProfile with points at `0`, `63`, `64`, and `127`; it must not use Scale or add an X32-specific runtime branch.
+
 Feedback Value accepts `EchoGuardMs=0..10000` and `SuppressWhileTouched=true|false`, both defaulting to zero or false. EchoGuardMs suppresses output for that many milliseconds after the same Widget accepts Value input. SuppressWhileTouched requires Touch input on the same channel. These properties describe motor and bidirectional controls without a Motor primitive.
 
 Feedback Value also accepts optional `InitialValue`. Normal value encodings use a ValueProfile or the zero-through-one range. MIDISysEx Value uses constant bytes followed by terminal `Value7`; its InitialValue is a direct integer from 0 through 127. InitialValue is sent once when the Surface is initialized, even when no zone binding targets the Widget. It is static Surface configuration and cannot vary by zone.
@@ -1654,6 +1656,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
     - ✅ Add the TypeScript schema reader and use its representation lookup to validate declared legacy conversion targets.
     - [ ] Add the Lua reader when Lua begins consuming format 2 Surface primitives directly.
   - [ ] Implement the universal runtime decoders and feedback codecs and reject runtime registrations without catalog metadata.
+    - ✅ Implement OSC ValueProfile decoding and inverse feedback encoding, OSC Encoder Scale or decode-only ValueProfile input, and optional constant OSC acknowledgement output. Preserve the X32 fader curve and rotary direction without a device-named runtime branch.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - ✅ Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
   - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.
@@ -1661,8 +1664,8 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 - ✅ Implement Bar feedback with separate value and style outputs, plus the bounded MIDIPalette Companion message.
 - [ ] Verify that a new device which uses an existing protocol shape needs only a Surface file and no new C++ class.
 - [ ] Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them.
-- [ ] Parse and publish `OSKLayout` through common ControlSurface initialization so MIDI and OSC Surfaces use the same OSK path.
-  - ✅ Apply a typed format 2 MIDI OSK layout and ColorCalibration directly to `ControlSurface` without reparsing the Surface file. Keep the parent item open until OSC uses the same path.
+- ✅ Parse and publish `OSKLayout` through common ControlSurface initialization so MIDI and OSC Surfaces use the same OSK path.
+  - ✅ Apply typed format 2 MIDI and OSC OSK layouts plus ColorCalibration directly to `ControlSurface` without reparsing the Surface file.
 
 ### [ ] Shared parser and runtime model
 
@@ -1822,12 +1825,13 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Compare complete generated output with executable golden fixtures for SCE24 ring, LED button state, and dynamic text conversion.
   - ✅ Compare complete generated Surface output with executable golden fixtures for MFT palette, MCU display and meter initialization, and all Asparion feedback families.
   - ✅ Compare complete generated Surface output with executable golden fixtures for QCon master meters, both Icon display variants, FaderPort value bars, and both FaderPort peak-meter status ranges.
+  - ✅ Compare complete generated Surface output with executable golden fixtures for X32 fader and rotary conversion, MIDI and OSC OSK layouts, and ColorCalibration.
 - ✅ Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
 - [ ] Convert legacy TextAlign and TextInvert to typed Text properties.
   - ✅ Normalize legacy alignment names and convert `TextInvert=Yes|No` to Boolean `TextInvert=true|false` in import drafts without guessing invalid values.
   - ✅ Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue, remove the repeated imported zone lines, and report differing per-zone modes as unresolved.
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
-- [ ] Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.
+- ✅ Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.
 - ✅ Move the surface-channel count from product Device blocks to required Surface `@Meta Channels=N`. Derive legacy imports from the numbered widget families with a fallback of one, remove the field from I/O forms, and reject reuse of one Device with conflicting Surface channel counts.
   - ✅ Ensure inferred `Channels` is not smaller than an explicit Widget `Channel` extracted from trusted legacy processor metadata.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.

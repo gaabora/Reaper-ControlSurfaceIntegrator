@@ -11,7 +11,7 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `learn-fx`: converts FXWidgetLayout, FXPrologue, FXEpilogue, and supported hash directives, and drops FXRowLayout with notices.
 - `snippet`: converts a version 1 semantic snippet to a direct format 2 zone fragment.
 - `unresolved`: covers a non-standard encoder range, missing channel metadata, command-shaped MFT colors, conflicting per-zone display modes, and a file used as both a layer and an independent zone.
-- `osc-x32`: converts an OSCX32 Device, Page assignment, X32 fader curve, rotary delta scaling and acknowledgement, and an OSC OSK layout.
+- `osc-x32`: converts an OSCX32 Device, Page assignment, X32 fader curve, exact rotary delta profile and acknowledgement, and an OSC OSK layout. A focused check rejects an acknowledgement without its paired rotary input.
 - `links`: converts an order-dependent Broadcaster and Listener record to one explicit same-Page Link with only enabled share categories.
 - `magic-targets`: converts every current magic Main zone name to explicit Role, Target, and optional BankTarget metadata.
 - `gozones`: drops the deprecated loading manifest, converts recognized navigator metadata, removes ineffective standalone navigator lines, preserves magic-name precedence, and reports missing, unknown, unsupported, or conflicting entries.
@@ -39,4 +39,4 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 
 ## [ ] Executable golden coverage
 
-The Bun tests compare complete generated output for `xtouch-text`, `icon-track-color`, `icon-displays`, `scribble-strip-mode`, `mcu-character-displays`, `mcu-meter-display`, `faderport-classic-split`, `faderport-feedback`, `mft-palette`, `sce24-ring`, `sce24-state`, `asparion-feedback`, `qcon-meter`, and the FaderPort and SCE24 Surfaces in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.
+The Bun tests compare complete generated output for `xtouch-text`, `icon-track-color`, `icon-displays`, `scribble-strip-mode`, `mcu-character-displays`, `mcu-meter-display`, `faderport-classic-split`, `faderport-feedback`, `mft-palette`, `sce24-ring`, `sce24-state`, `asparion-feedback`, `qcon-meter`, `osc-x32`, the MIDI and OSC Surfaces in `osk-color-calibration`, and the FaderPort and SCE24 Surfaces in `text-feedback`. The remaining scenarios are normative examples until their related migration stages have executable comparisons. Every future registry entry must add its legacy input, expected output, context restrictions, and ambiguous branch here in the same change.

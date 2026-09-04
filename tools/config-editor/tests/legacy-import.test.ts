@@ -470,6 +470,42 @@ WidgetEnd
         expect(conversion.source).toContain('Feedback Color { Encoding=OSCString Address="/ControlA/Color" Format=HexRGBA }');
     });
 
+    test("matches the X32 OSC golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("osc-x32", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("osc-x32", "expected", "surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported X32 Surface", "Surfaces/User/x32.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(parseSurface(conversion.source, "Surfaces/User/x32.txt").diagnostics).toEqual([]);
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+    });
+
+    test("rejects an X32 rotary acknowledgement without its input", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget Pan1\n  FB_X32RotaryToEncoder /ch/01/mix/pan\nWidgetEnd\n", "Broken X32 Surface", "Surfaces/User/x32.txt");
+
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.x32-rotary.input.missing", line: 2 }));
+    });
+
+    test("matches the MIDI OSK and color-calibration golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("osk-color-calibration", "legacy", "MIDISurface.txt");
+        const expectedSurface = await readGoldenFixture("osk-color-calibration", "expected", "MIDISurface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported MIDI Surface", "Surfaces/User/midi-osk.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(parseSurface(conversion.source, "Surfaces/User/midi-osk.txt").diagnostics).toEqual([]);
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+    });
+
+    test("matches the OSC OSK golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("osk-color-calibration", "legacy", "OSCSurface.txt");
+        const expectedSurface = await readGoldenFixture("osk-color-calibration", "expected", "OSCSurface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported OSC Surface", "Surfaces/User/osc-osk.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(parseSurface(conversion.source, "Surfaces/User/osc-osk.txt").diagnostics).toEqual([]);
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+    });
+
     test("reports raw MIDI commands only when an RGB value targets palette feedback", async () => {
         const surfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
         const zonePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
