@@ -470,6 +470,16 @@ WidgetEnd
         expect(conversion.source).toContain('Feedback Color { Encoding=OSCString Address="/ControlA/Color" Format=HexRGBA }');
     });
 
+    test("matches the basic OSC control golden Surface", async () => {
+        const legacySurface = await readGoldenFixture("osc-basic", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("osc-basic", "expected", "surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported OSC controls", "Surfaces/User/osc-controls.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(parseSurface(conversion.source, "Surfaces/User/osc-controls.txt").diagnostics).toEqual([]);
+        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+    });
+
     test("matches the X32 OSC golden Surface", async () => {
         const legacySurface = await readGoldenFixture("osc-x32", "legacy", "Surface.txt");
         const expectedSurface = await readGoldenFixture("osc-x32", "expected", "surface.txt");

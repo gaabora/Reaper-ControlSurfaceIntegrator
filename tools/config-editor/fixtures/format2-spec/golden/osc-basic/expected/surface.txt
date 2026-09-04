@@ -1,0 +1,21 @@
+@Meta { Version=2 Protocol=OSC Channels=1 Name="Imported OSC controls" }
+
+Widget Trigger {
+  Input Press { Encoding=OSCFloat Address="/trigger" Match=Any }
+}
+
+Widget TouchControl {
+  Input Touch { Encoding=OSCFloat Address="/touch" Match=NonZero }
+}
+
+Widget IntegerValue {
+  Feedback Value { Encoding=OSCInt Address="/integer" }
+}
+
+
+
+OSKLayout {
+  Row {
+    Widget Trigger
+  }
+}

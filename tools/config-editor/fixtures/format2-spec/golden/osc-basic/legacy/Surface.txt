@@ -1,0 +1,17 @@
+Widget Trigger
+  AnyPress /trigger
+WidgetEnd
+
+Widget TouchControl
+  Touch /touch
+WidgetEnd
+
+Widget IntegerValue
+  FB_IntProcessor /integer
+WidgetEnd
+
+OSKLayout Version=1
+  Row
+    Widget Trigger
+  RowEnd
+OSKLayoutEnd

@@ -16,7 +16,7 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportScribbleMode" | "faderportTwoStateRgb" | "iconDisplay" | "iconTrackColorDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch" | "x32Fader" | "x32FaderFeedback" | "x32Rotary" | "x32RotaryAcknowledge" | "xTouchDisplay";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportScribbleMode" | "faderportTwoStateRgb" | "iconDisplay" | "iconTrackColorDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "oscIntFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch" | "x32Fader" | "x32FaderFeedback" | "x32Rotary" | "x32RotaryAcknowledge" | "xTouchDisplay";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -24,7 +24,7 @@ interface LegacySurfaceProcessorConversionDefinition {
 }
 
 const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProcessorConversionDefinition>([
-    ["anypress", { kind: "anyPress", targets: [{ direction: "Input", encoding: "MIDIPrefix", primitive: "Press", protocol: "MIDI" }] }],
+    ["anypress", { kind: "anyPress", targets: [{ direction: "Input", encoding: "MIDIPrefix", primitive: "Press", protocol: "MIDI" }, { direction: "Input", encoding: "OSCFloat", primitive: "Press", protocol: "OSC" }] }],
     ["control", { kind: "oscControl", targets: [{ direction: "Input", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
     ["encoder", { kind: "encoder", targets: [{ direction: "Input", encoding: "MIDI7", primitive: "Encoder", protocol: "MIDI" }] }],
     ["fader7bit", { kind: "fader7", targets: [{ direction: "Input", encoding: "MIDI7", primitive: "Value", protocol: "MIDI" }] }],
@@ -89,13 +89,14 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
             { direction: "Feedback", encoding: "OSCString", primitive: "Color", protocol: "OSC" },
         ],
     }],
+    ["fb_intprocessor", { kind: "oscIntFeedback", targets: [{ direction: "Feedback", encoding: "OSCInt", primitive: "Value", protocol: "OSC" }] }],
     ["fb_x32faderprocessor", { kind: "x32FaderFeedback", targets: [{ direction: "Feedback", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
     ["fb_x32rotarytoencoder", { kind: "x32RotaryAcknowledge", targets: [{ direction: "Input", encoding: "OSCInt", primitive: "Encoder", protocol: "OSC" }] }],
     ["fb_twostate", { kind: "state", targets: [{ direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" }] }],
     ["fb_xtouchdisplayupper", { kind: "xTouchDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["fb_xtouchxtdisplayupper", { kind: "xTouchDisplay", targets: [{ direction: "Feedback", encoding: "MIDISysEx", primitive: "Text", protocol: "MIDI" }] }],
     ["press", { kind: "press", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Press", protocol: "MIDI" }] }],
-    ["touch", { kind: "touch", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Touch", protocol: "MIDI" }] }],
+    ["touch", { kind: "touch", targets: [{ direction: "Input", encoding: "MIDIExact", primitive: "Touch", protocol: "MIDI" }, { direction: "Input", encoding: "OSCFloat", primitive: "Touch", protocol: "OSC" }] }],
     ["x32fader", { kind: "x32Fader", targets: [{ direction: "Input", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
     ["x32rotarytoencoder", { kind: "x32Rotary", targets: [{ direction: "Input", encoding: "OSCFloat", primitive: "Encoder", protocol: "OSC" }] }],
 ]);
@@ -462,6 +463,7 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         addDiagnostic(diagnostics, "error", "legacy.surface.processor.unsupported", `Legacy Surface processor is not converted yet: ${tokens[0]}`, lineNumber, documentPath);
         return undefined;
     }
+    if (conversion.kind === "anyPress" && tokens.length === 2 && tokens[1].startsWith("/")) return `Input Press { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} Match=Any }`;
     if (conversion.kind === "anyPress" && tokens[1] && tokens[2]) return `Input Press { Encoding=MIDIPrefix Message=${midiList(tokens.slice(1, 3))} }`;
     if (conversion.kind === "oscControl" && tokens[1]) return `Input Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} }`;
     if (conversion.kind === "oscFeedback" && tokens[1]) {
@@ -469,6 +471,7 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const colorAddress = JSON.stringify(`${tokens[1]}/Color`);
         return `Feedback Value { Encoding=OSCFloat Address=${address} }\n  Feedback Text { Encoding=OSCString Address=${address} }\n  Feedback Color { Encoding=OSCString Address=${colorAddress} Format=HexRGBA }`;
     }
+    if (conversion.kind === "oscIntFeedback" && tokens.length === 2) return `Feedback Value { Encoding=OSCInt Address=${JSON.stringify(tokens[1])} }`;
     if (conversion.kind === "x32Fader" && tokens.length === 2) return `Input Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} ValueProfile=X32FaderCurve }`;
     if (conversion.kind === "x32FaderFeedback" && tokens.length === 2) return `Feedback Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} ValueProfile=X32FaderCurve EchoGuardMs=30 }`;
     if (conversion.kind === "x32Rotary" && tokens.length === 2) {
@@ -493,6 +496,7 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         const off = tokens.length >= 7 ? ` Off=${midiList(tokens.slice(4, 7))}` : "";
         return `Input Press { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))}${off} }`;
     }
+    if (conversion.kind === "touch" && tokens.length === 2 && tokens[1].startsWith("/")) return `Input Touch { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} Match=NonZero }`;
     if (conversion.kind === "touch" && tokens.length >= 7) return `Input Touch { Encoding=MIDIExact On=${midiList(tokens.slice(1, 4))} Off=${midiList(tokens.slice(4, 7))} }`;
     if (conversion.kind === "fader7" && tokens[1] && tokens[2]) return `Input Value { Encoding=MIDI7 Message=${midiList(tokens.slice(1, 3))} }`;
     if (conversion.kind === "fader7Feedback" && tokens[1] && tokens[2]) return `Feedback Value { Encoding=MIDI7 Message=${midiList(tokens.slice(1, 3))} }`;
