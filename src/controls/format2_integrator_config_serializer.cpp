@@ -39,7 +39,17 @@ static bool AppendSerializedSettings(std::ostringstream& stream, const std::stri
     if (overrides.values.empty()) return true;
     stream << indent << "Settings {\n";
     for (const auto& setting : overrides.values) {
-        if (!AppendSerializedProperty(stream, indent + "  ", setting.first, setting.second, errorMessage)) return false;
+        std::string value = setting.second;
+        const Settings::Definition* definition = FindSettingDefinition(setting.first);
+        if (definition && definition->type == Settings::ValueType::Boolean) {
+            if (value == "1") value = "true";
+            else if (value == "0") value = "false";
+            else {
+                errorMessage = "Boolean setting " + setting.first + " must have the internal value 0 or 1";
+                return false;
+            }
+        }
+        if (!AppendSerializedProperty(stream, indent + "  ", setting.first, value, errorMessage)) return false;
     }
     stream << indent << "}\n";
     return true;
