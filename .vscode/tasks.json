@@ -76,8 +76,7 @@
         "cwd": "${workspaceFolder}/tools/config-editor"
       },
       "group": {
-        "kind": "test",
-        "isDefault": true
+        "kind": "build"
       },
       "problemMatcher": [],
       "presentation": {
@@ -99,7 +98,7 @@
       "options": {
         "cwd": "${workspaceFolder}/tools/config-editor"
       },
-      "group": "test",
+      "group": "build",
       "problemMatcher": [],
       "presentation": {
         "clear": true,
@@ -131,6 +130,81 @@
         "panel": "dedicated",
         "reveal": "always"
       }
+    },
+    {
+      "label": "Config Editor: Surface coverage",
+      "type": "process",
+      "group": "build",
+      "command": "bun",
+      "args": [
+        "run",
+        "surface-coverage"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/tools/config-editor"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "clear": true,
+        "echo": true,
+        "focus": false,
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Config Editor: Compile local executable",
+      "type": "process",
+      "group": "build",
+      "command": "bun",
+      "args": [
+        "run",
+        "compile:local"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/tools/config-editor"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "clear": true,
+        "echo": true,
+        "focus": false,
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Config Editor: Verify",
+      "group": "build",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Config Editor: Test",
+        "Config Editor: Surface coverage"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "type": "cmake",
+      "label": "C++: Test",
+      "command": "test",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Build plugin using CMake"
+      ],
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Build the plugin and run its CTest tests"
+    },
+    {
+      "label": "Verify: All",
+      "group": "build",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "C++: Test",
+        "Config Editor: Test",
+        "Config Editor: Surface coverage"
+      ],
+      "problemMatcher": []
     }
   ],
   "inputs": [

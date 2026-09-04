@@ -454,8 +454,8 @@ reaper_csurf_integrator/
 ├── control_surface_action_contexts.h       # Base action classes
 ├── control_surface_Reaper_actions.h        # REAPER-specific actions
 ├── control_surface_manager_actions.h       # Management actions
-├── control_surface_midi_widgets.h          # MIDI widget types
-├── control_surface_OSC_widgets.h           # OSC widget types
+├── controls/midi/format2_midi_runtime.cpp  # Typed MIDI Surface runtime
+├── controls/osc/format2_osc_runtime.cpp    # Typed OSC Surface runtime
 ├── control_surface_integrator_Reaper.h     # REAPER API wrapper
 ├── control_surface_integrator_ui.cpp       # UI dialogs
 ├── handy_functions.h                       # Utility functions

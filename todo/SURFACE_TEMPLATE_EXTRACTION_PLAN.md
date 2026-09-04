@@ -57,29 +57,28 @@ Behavior:
 
 ### 2. Surface initialization SysEx/messages
 
-Current issue:
+Current state:
 
-- MCU and MCUXT startup/reconnect initialization lives in hardcoded `InitializeMCU()` / `InitializeMCUXT()` paths in `Midi_ControlSurface`
+- ✅ MIDI startup and reconnect initialization uses the universal format 2 `Initialize` block
 
-Plan:
+Implemented behavior:
 
-- move initialization message sets into optional `Surface.txt` global blocks
-- use one generic runtime path to send initialization messages on startup and reconnect
+- initialization message sets live in optional Surface-level `Initialize` blocks
+- one generic runtime path sends the messages on startup and reconnect
 
-Recommended `Surface.txt` shape:
+Current Surface shape:
 
 ```txt
-InitMessages
-  F0 7E 00 06 01 F7
-  F0 00 00 66 14 00 F7
-  F0 00 00 66 14 21 01 F7
-InitMessagesEnd
+Initialize {
+  Message=[ 0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7 ]
+  Message=[ 0xF0, 0x00, 0x00, 0x66, 0x14, 0x00, 0xF7 ]
+}
 ```
 
 Behavior:
 
-- if `InitMessages` is absent, preserve existing behavior
-- if present, use the configured message set instead of device-specific init branches
+- if `Initialize` is absent, no device-specific initialization is sent
+- if present, the configured messages are sent without device-specific runtime branches
 
 ### 3. Display color override / palette control
 
@@ -143,10 +142,10 @@ These should be represented as optional, backward-compatible capabilities, not m
 
 The first extraction pass should **not** attempt to externalize:
 
-- MFT indexed palette lookup in `fb_generic.h`
+- Format 2 palette lookup, which now belongs to the shared Surface schema and runtime
 - `rgbToColor()` palette reduction for X-Touch / OSC X32
 - MCU meter curves already driven by `MeterMode`
-- device-family message framing in `fb_mcu.h`, `fb_icon.h`, `fb_qcon.h`, `fb_faderport.h`, or similar files
+- protocol message framing that is already implemented by universal format 2 codecs
 - a full declarative replacement for widget registration or message-generator construction
 
 Those areas are protocol-heavy and should stay in C++ unless there is a clear surface-template use case.
@@ -164,10 +163,10 @@ Those areas are protocol-heavy and should stay in C++ unless there is a clear su
 - replace `SCE24` name checks in the learn dialog with a capability lookup on the owning surface
 - preserve current default behavior for all surfaces that do not opt in
 
-### Phase 3. Init message extraction
+### ✅ Phase 3. Init message extraction
 
-- add generic support for `InitMessages`
-- route MIDI startup and reconnect initialization through the configured surface message set
+- ✅ add generic support for `Initialize`
+- ✅ route MIDI startup and reconnect initialization through the configured Surface message set
 - keep current MCU/MCUXT behavior as the fallback until all built-in templates are migrated
 
 ### Phase 4. Display color override generalization

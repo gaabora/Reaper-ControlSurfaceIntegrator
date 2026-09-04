@@ -1,5 +1,10 @@
 #include "integrator.h"
 
+void ControlSurface::ApplyInitialFeedbackValues() {
+    const PropertyList properties;
+    for (const std::pair<FeedbackProcessor*, double>& initialValue : this->initialFeedbackValues_) initialValue.first->ForceValue(properties, initialValue.second);
+}
+
 static float ClampPositiveScale(float value) {
     return value > 0.0f ? value : 1.0f;
 }

@@ -110,23 +110,9 @@ private:
 
     DWORD lastRun_ = 0;
 
-    // special processing for MCU meters
-    bool hasMCUMeters_ = false;
-    int displayType_ = 0x14;
     vector<vector<int>> format2InitializationMessages_;
 
-    void InitializeMCU();
-    void InitializeMCUXT();
     void InitializeFormat2Messages();
-
-    virtual void InitializeMeters() {
-        if (hasMCUMeters_) {
-            if (displayType_ == 0x14) InitializeMCU();
-            else InitializeMCUXT();
-        }
-    }
-
-    void SendSysexInitData(int line[], int numElem);
 
 public:
     Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, Midi_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides);
@@ -136,13 +122,6 @@ public:
     void ProcessMidiMessage(const MIDI_event_ex_t* evt);
     virtual void SendMidiSysExMessage(MIDI_event_ex_t* midiMessage) override;
     virtual void SendMidiMessage(int first, int second, int third) override;
-
-    virtual void SetHasMCUMeters(int displayType) {
-        hasMCUMeters_ = true;
-        displayType_ = displayType;
-    }
-
-    bool GetHasMCUMeters(void) { return hasMCUMeters_; }
 
     void SetFormat2InitializationMessages(const vector<vector<int>>& messages) { this->format2InitializationMessages_ = messages; }
 
@@ -154,8 +133,8 @@ public:
 
     void OnMidiIOReconnected() {
         this->InitializeFormat2Messages();
-        this->InitializeMeters();
         this->ForceClear();
+        this->ApplyInitialFeedbackValues();
         this->OnInitialization();
     }
 

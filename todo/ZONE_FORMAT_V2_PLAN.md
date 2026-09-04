@@ -1220,7 +1220,7 @@ The relevant implementations are [format2_integrator_config_parser.cpp](../src/c
 | SCE24 encoder | `Dot`, `BoostCut`, `Fill`, `Spread` | `Dot` |
 | Asparion encoder | `Dot`, `Fill` | `Dot` |
 
-Sources: [fb_generic.h](../src/controls/midi/fb_generic.h), [fb_sce24.h](../src/controls/midi/fb_sce24.h), and [fb_asparion.h](../src/controls/midi/fb_asparion.h).
+Sources: [surface_io_schema.conf](../Scripts/surface_io_schema.conf), [format2_midi_runtime.cpp](../src/controls/midi/format2_midi_runtime.cpp), and [fb_format2.h](../src/controls/midi/fb_format2.h).
 
 The initial reliable semantic action groups are:
 
@@ -1659,7 +1659,14 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
     - ✅ Implement OSC ValueProfile decoding and inverse feedback encoding, OSC Encoder Scale or decode-only ValueProfile input, and optional constant OSC acknowledgement output. Preserve the X32 fader curve and rotary direction without a device-named runtime branch.
     - ✅ Implement OSCFloat and OSCInt Press and Touch input with catalog-defined Match behavior, plus State feedback with explicit OffValue and OnValue defaults.
     - ✅ Reject legacy Surface syntax at runtime and remove the shared MIDI/OSC legacy Surface and OSK parsers from the build. Legacy conversion remains a Bun importer responsibility.
-    - ✅ Remove the unreferenced legacy OSC Widget processor layer after the format 2 runtime replaces its supported behavior. Keep the MIDI registry only while format 2 still uses it as a codec adapter.
+    - ✅ Remove the unreferenced legacy OSC Widget processor layer after the format 2 runtime replaces its supported behavior.
+    - ✅ Replace the remaining format 2 MIDI token adapter calls with direct typed Press, Touch, MIDI14 input, and MIDI14 feedback construction, then remove `MidiWidgetRegistry` from the build.
+    - ✅ Replace the legacy MIDI umbrella include with direct generic and format 2 codec dependencies, then remove the unreferenced device-specific MIDI processor headers from the build.
+    - ✅ Move the last required generic MIDI Press, Touch, Value, and profile-Encoder behavior into format 2 classes, then remove the legacy generic generator and feedback headers from the build.
+    - ✅ Remove the unreachable MCU and MCUXT initialization branches and the old meter-refresh flag. Use Surface `Initialize` and Meter `Refresh=Continuous` metadata only.
+    - ✅ Apply the shared ValueProfile codec to MIDI7, MIDI14, and MIDISplit input and feedback instead of accepting ValueProfile only in the parser and OSC runtime.
+    - ✅ Register Feedback Value `InitialValue` through the common Surface model, send it after protocol initialization, and restore it after MIDI reconnect.
+    - ✅ Apply OSC Widget Channel metadata and support Value feedback `SuppressWhileTouched` instead of rejecting the schema-valid primitive.
 - [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
 - ✅ Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
   - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.

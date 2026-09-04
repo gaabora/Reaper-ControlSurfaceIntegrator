@@ -1,6 +1,5 @@
 #include "../integrator.h"
-#include "midi_widgets.h"
-#include "widget_factory.h"
+#include "../../shared/sysex_builder.h"
 #include "format2_midi_runtime.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,11 +138,10 @@ bool Midi_ControlSurfaceIO::PollForDeviceReconnect() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, Midi_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides)
     : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset, settings, settingOverrides), surfaceIO_(surfaceIO) {
-    MidiWidgetRegistry::EnsureRegistered();
     Format2MidiRuntimeLoader::Load(surfaceFile, this);
     this->InitHardwiredWidgets(this);
     this->InitializeFormat2Messages();
-    this->InitializeMeters();
+    this->ApplyInitialFeedbackValues();
     this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
 }
 
@@ -196,77 +194,4 @@ void Midi_ControlSurface::SendMidiSysExMessage(MIDI_event_ex_t* midiMessage) {
 void Midi_ControlSurface::SendMidiMessage(int first, int second, int third) {
     surfaceIO_->SendMidiMessage(first, second, third);
     if (g_surfaceOutDisplay) LogToConsole("[DEBUG] %s %02x %02x %02x # Midi_ControlSurface::SendMidiMessage\n", ("OUT->" + name_).c_str(), first, second, third);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Midi_ControlSurface — MCU Init
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-static struct
-{
-    MIDI_event_ex_t evt;
-    char data[MEDBUF];
-} s_midiSysExData;
-
-void Midi_ControlSurface::SendSysexInitData(int line[], int numElem) {
-    memset(s_midiSysExData.data, 0, sizeof(s_midiSysExData.data));
-
-    s_midiSysExData.evt.frame_offset = 0;
-    s_midiSysExData.evt.size = 0;
-
-    for (int i = 0; i < numElem; ++i)
-        s_midiSysExData.evt.midi_message[s_midiSysExData.evt.size++] = line[i];
-
-    SendMidiSysExMessage(&s_midiSysExData.evt);
-}
-
-void Midi_ControlSurface::InitializeMCU() {
-    int line1[] = { 0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7 };
-    int line2[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x00, 0xF7 };
-    int line3[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x21, 0x01, 0xF7 };
-    int line4[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x00, 0x01, 0xF7 };
-    int line5[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x01, 0x01, 0xF7 };
-    int line6[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x02, 0x01, 0xF7 };
-    int line7[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x03, 0x01, 0xF7 };
-    int line8[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x04, 0x01, 0xF7 };
-    int line9[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x05, 0x01, 0xF7 };
-    int line10[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x06, 0x01, 0xF7 };
-    int line11[] = { 0xF0, 0x00, 0x00, 0x66, 0x14, 0x20, 0x07, 0x01, 0xF7 };
-
-    SendSysexInitData(line1, NUM_ELEM(line1));
-    SendSysexInitData(line2, NUM_ELEM(line2));
-    SendSysexInitData(line3, NUM_ELEM(line3));
-    SendSysexInitData(line4, NUM_ELEM(line4));
-    SendSysexInitData(line5, NUM_ELEM(line5));
-    SendSysexInitData(line6, NUM_ELEM(line6));
-    SendSysexInitData(line7, NUM_ELEM(line7));
-    SendSysexInitData(line8, NUM_ELEM(line8));
-    SendSysexInitData(line9, NUM_ELEM(line9));
-    SendSysexInitData(line10, NUM_ELEM(line10));
-    SendSysexInitData(line11, NUM_ELEM(line11));
-}
-
-void Midi_ControlSurface::InitializeMCUXT() {
-    int line1[] = { 0xF0, 0x7E, 0x00, 0x06, 0x01, 0xF7 };
-    int line2[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x00, 0xF7 };
-    int line3[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x21, 0x01, 0xF7 };
-    int line4[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x00, 0x01, 0xF7 };
-    int line5[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x01, 0x01, 0xF7 };
-    int line6[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x02, 0x01, 0xF7 };
-    int line7[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x03, 0x01, 0xF7 };
-    int line8[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x04, 0x01, 0xF7 };
-    int line9[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x05, 0x01, 0xF7 };
-    int line10[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x06, 0x01, 0xF7 };
-    int line11[] = { 0xF0, 0x00, 0x00, 0x66, 0x15, 0x20, 0x07, 0x01, 0xF7 };
-
-    SendSysexInitData(line1, NUM_ELEM(line1));
-    SendSysexInitData(line2, NUM_ELEM(line2));
-    SendSysexInitData(line3, NUM_ELEM(line3));
-    SendSysexInitData(line4, NUM_ELEM(line4));
-    SendSysexInitData(line5, NUM_ELEM(line5));
-    SendSysexInitData(line6, NUM_ELEM(line6));
-    SendSysexInitData(line7, NUM_ELEM(line7));
-    SendSysexInitData(line8, NUM_ELEM(line8));
-    SendSysexInitData(line9, NUM_ELEM(line9));
-    SendSysexInitData(line10, NUM_ELEM(line10));
-    SendSysexInitData(line11, NUM_ELEM(line11));
 }

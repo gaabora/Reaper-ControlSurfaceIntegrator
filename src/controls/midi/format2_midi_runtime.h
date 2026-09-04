@@ -27,7 +27,6 @@ private:
     static bool ReadValuePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExValuePayloadItem>& payload);
     static bool ReadTextPayload(const Format2PropertySyntax* property, vector<Format2MidiSysExTextPayloadItem>& payload);
     static bool ReadRingConfigurePayload(const Format2PropertySyntax* property, vector<Format2MidiSysExRingConfigureItem>& payload);
-    static vector<string> MakeTokens(const string& type, const vector<int>& firstMessage, const vector<int>& secondMessage = {});
     static bool IsSupported(const Format2SurfacePrimitive& primitive);
 
 public:

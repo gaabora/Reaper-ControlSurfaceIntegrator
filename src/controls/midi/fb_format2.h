@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../format2_surface_document.h"
+#include "../format2_value_profile.h"
 
 #include <algorithm>
 #include <array>
@@ -24,6 +25,47 @@ enum class Format2MidiRingStyleCombine {
     BitOr,
 };
 
+class Format2Midi14ValueFeedbackProcessor : public Midi_FeedbackProcessor
+{
+private:
+    int status_;
+    bool suppressWhileTouched_;
+    int echoGuardMs_;
+    int lastEncodedValue_ = -1;
+    std::optional<Format2ValueProfile> profile_;
+
+    int Encode(double value) const {
+        const double normalized = this->profile_ ? EncodeFormat2ValueProfile(*this->profile_, value) : value;
+        return (int) (std::clamp(normalized, 0.0, 1.0) * 16383.0);
+    }
+
+public:
+    Format2Midi14ValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, int status, bool suppressWhileTouched, int echoGuardMs, const Format2ValueProfile* profile) : Midi_FeedbackProcessor(csi, surface, widget), status_(status), suppressWhileTouched_(suppressWhileTouched), echoGuardMs_(echoGuardMs), profile_(profile ? std::optional<Format2ValueProfile>(*profile) : std::nullopt) {}
+    virtual ~Format2Midi14ValueFeedbackProcessor() {}
+    virtual const char* GetName() override { return "Format2Midi14ValueFeedbackProcessor"; }
+
+    virtual void ForceClear() override {
+        const PropertyList properties;
+        this->ForceValue(properties, 0.0);
+    }
+
+    virtual void SetValue(const PropertyList& properties, double value) override {
+        if (this->suppressWhileTouched_ && this->surface_->GetIsChannelTouched(this->widget_->GetChannelNumber())) return;
+        if (this->echoGuardMs_ > 0 && GetTickCount() - this->widget_->GetLastIncomingMessageTime() < (DWORD) this->echoGuardMs_) return;
+        const int encoded = this->Encode(value);
+        if (encoded == this->lastEncodedValue_) return;
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = encoded;
+        this->SendMidiMessage(this->status_, encoded & 0x7F, (encoded >> 7) & 0x7F);
+    }
+
+    virtual void ForceValue(const PropertyList& properties, double value) override {
+        this->lastDoubleValue_ = value;
+        this->lastEncodedValue_ = this->Encode(value);
+        this->ForceMidiMessage(this->status_, this->lastEncodedValue_ & 0x7F, (this->lastEncodedValue_ >> 7) & 0x7F);
+    }
+};
+
 class Format2MidiSplitValueFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:
@@ -34,9 +76,11 @@ private:
     int echoGuardMs_ = 0;
     bool suppressWhileTouched_ = false;
     int lastEncodedValue_ = -1;
+    std::optional<Format2ValueProfile> profile_;
 
     int Encode(double value) const {
-        return (int) (std::clamp(value, 0.0, 1.0) * this->maximumValue_);
+        const double normalized = this->profile_ ? EncodeFormat2ValueProfile(*this->profile_, value) : value;
+        return (int) (std::clamp(normalized, 0.0, 1.0) * this->maximumValue_);
     }
 
     void SendPart(const std::array<int, 2>& message, int value) {
@@ -56,8 +100,8 @@ private:
     }
 
 public:
-    Format2MidiSplitValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const std::array<int, 2>& msbMessage, const std::array<int, 2>& lsbMessage, int bits, Format2MidiSplitPart commitPart, int echoGuardMs, bool suppressWhileTouched)
-        : Midi_FeedbackProcessor(csi, surface, widget), msbMessage_(msbMessage), lsbMessage_(lsbMessage), commitPart_(commitPart), maximumValue_((1 << bits) - 1), echoGuardMs_(echoGuardMs), suppressWhileTouched_(suppressWhileTouched) {}
+    Format2MidiSplitValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const std::array<int, 2>& msbMessage, const std::array<int, 2>& lsbMessage, int bits, Format2MidiSplitPart commitPart, int echoGuardMs, bool suppressWhileTouched, const Format2ValueProfile* profile)
+        : Midi_FeedbackProcessor(csi, surface, widget), msbMessage_(msbMessage), lsbMessage_(lsbMessage), commitPart_(commitPart), maximumValue_((1 << bits) - 1), echoGuardMs_(echoGuardMs), suppressWhileTouched_(suppressWhileTouched), profile_(profile ? std::optional<Format2ValueProfile>(*profile) : std::nullopt) {}
     virtual ~Format2MidiSplitValueFeedbackProcessor() {}
     virtual const char* GetName() override { return "Format2MidiSplitValueFeedbackProcessor"; }
 
@@ -91,17 +135,19 @@ private:
     Format2MidiValueCombine combine_ = Format2MidiValueCombine::Replace;
     int echoGuardMs_ = 0;
     bool suppressWhileTouched_ = false;
+    std::optional<Format2ValueProfile> profile_;
 
     int Encode(double value) const {
-        const int normalized = (int) (std::clamp(value, 0.0, 1.0) * 127.0);
+        const double profileValue = this->profile_ ? EncodeFormat2ValueProfile(*this->profile_, value) : value;
+        const int normalized = (int) (std::clamp(profileValue, 0.0, 1.0) * 127.0);
         if (this->combine_ == Format2MidiValueCombine::Add) return std::clamp(this->valueBase_ + normalized, 0, 127);
         if (this->combine_ == Format2MidiValueCombine::BitOr) return this->valueBase_ | normalized;
         return normalized;
     }
 
 public:
-    Format2Midi7ValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& message, int valueBase, Format2MidiValueCombine combine, int echoGuardMs, bool suppressWhileTouched)
-        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), valueBase_(valueBase), combine_(combine), echoGuardMs_(echoGuardMs), suppressWhileTouched_(suppressWhileTouched) {}
+    Format2Midi7ValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<int>& message, int valueBase, Format2MidiValueCombine combine, int echoGuardMs, bool suppressWhileTouched, const Format2ValueProfile* profile)
+        : Midi_FeedbackProcessor(csi, surface, widget), message_(message), valueBase_(valueBase), combine_(combine), echoGuardMs_(echoGuardMs), suppressWhileTouched_(suppressWhileTouched), profile_(profile ? std::optional<Format2ValueProfile>(*profile) : std::nullopt) {}
     virtual ~Format2Midi7ValueFeedbackProcessor() {}
     virtual const char* GetName() override { return "Format2Midi7ValueFeedbackProcessor"; }
 
@@ -317,7 +363,6 @@ class Format2MidiSysExValueFeedbackProcessor : public Midi_FeedbackProcessor
 {
 private:
     vector<Format2MidiSysExValuePayloadItem> payload_;
-    std::optional<int> initialValue_;
     int lastValue_ = -1;
 
     void Send(int value) {
@@ -329,12 +374,11 @@ private:
     }
 
 public:
-    Format2MidiSysExValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExValuePayloadItem>& payload, const std::optional<int>& initialValue)
-        : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload), initialValue_(initialValue) {}
+    Format2MidiSysExValueFeedbackProcessor(CSurfIntegrator* const csi, Midi_ControlSurface* surface, Widget* widget, const vector<Format2MidiSysExValuePayloadItem>& payload) : Midi_FeedbackProcessor(csi, surface, widget), payload_(payload) {}
     virtual ~Format2MidiSysExValueFeedbackProcessor() {}
     virtual const char* GetName() override { return "Format2MidiSysExValueFeedbackProcessor"; }
 
-    virtual void ForceClear() override { this->ForceValue(PropertyList(), this->initialValue_.value_or(0)); }
+    virtual void ForceClear() override { this->ForceValue(PropertyList(), 0.0); }
 
     virtual void SetValue(const PropertyList& properties, double value) override {
         const int encoded = std::clamp((int) value, 0, 127);

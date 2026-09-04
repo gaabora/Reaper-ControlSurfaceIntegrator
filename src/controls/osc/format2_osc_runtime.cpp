@@ -1,5 +1,6 @@
 #include "../integrator.h"
 #include "../format2_surface_document.h"
+#include "../format2_value_profile.h"
 #include "../format2_value_validation.h"
 #include "format2_osc_runtime.h"
 #include "osc_surface.h"
@@ -14,51 +15,11 @@ static const Format2PropertySyntax* FindFormat2OscNodeProperty(const Format2Synt
     return nullptr;
 }
 
-static const Format2ValueProfile* FindFormat2OscValueProfile(const Format2SurfaceDocument& document, const Format2SurfacePrimitive& primitive) {
-    const Format2PropertySyntax* property = FindFormat2OscProperty(primitive, "ValueProfile");
-    if (!property || property->value.list) return nullptr;
-    for (const Format2ValueProfile& profile : document.valueProfiles) if (profile.id == property->value.scalar.text) return &profile;
-    return nullptr;
-}
-
 static std::optional<double> ReadFormat2OscFiniteProperty(const Format2SurfacePrimitive& primitive, const string& name) {
     const Format2PropertySyntax* property = FindFormat2OscProperty(primitive, name);
     double value = 0.0;
     if (!property || property->value.list || !ParseFormat2FiniteScalar(property->value.scalar, value)) return std::nullopt;
     return value;
-}
-
-static double InterpolateFormat2Value(double input, double firstInput, double firstOutput, double secondInput, double secondOutput) {
-    if (secondInput == firstInput) return firstOutput;
-    const double position = (input - firstInput) / (secondInput - firstInput);
-    return firstOutput + position * (secondOutput - firstOutput);
-}
-
-static double DecodeFormat2ValueProfile(const Format2ValueProfile& profile, double input) {
-    if (profile.points.empty()) return input;
-    double output = profile.points.front().output;
-    if (input >= profile.points.back().input) output = profile.points.back().output;
-    else if (input > profile.points.front().input) {
-        for (std::size_t pointIdx = 1; pointIdx < profile.points.size(); ++pointIdx) {
-            if (input > profile.points[pointIdx].input) continue;
-            output = profile.interpolation == Format2Interpolation::Step ? profile.points[pointIdx - 1].output : InterpolateFormat2Value(input, profile.points[pointIdx - 1].input, profile.points[pointIdx - 1].output, profile.points[pointIdx].input, profile.points[pointIdx].output);
-            break;
-        }
-    }
-    return profile.outputUnit == Format2ValueUnit::Decibels ? volToNormalized(DB2VAL(output)) : output;
-}
-
-static double EncodeFormat2ValueProfile(const Format2ValueProfile& profile, double input) {
-    if (profile.points.empty()) return input;
-    const double output = profile.outputUnit == Format2ValueUnit::Decibels ? VAL2DB(normalizedToVol(input)) : input;
-    const bool increasing = profile.points.back().output > profile.points.front().output;
-    if ((increasing && output <= profile.points.front().output) || (!increasing && output >= profile.points.front().output)) return profile.points.front().input;
-    if ((increasing && output >= profile.points.back().output) || (!increasing && output <= profile.points.back().output)) return profile.points.back().input;
-    for (std::size_t pointIdx = 1; pointIdx < profile.points.size(); ++pointIdx) {
-        if ((increasing && output > profile.points[pointIdx].output) || (!increasing && output < profile.points[pointIdx].output)) continue;
-        return InterpolateFormat2Value(output, profile.points[pointIdx - 1].output, profile.points[pointIdx - 1].input, profile.points[pointIdx].output, profile.points[pointIdx].input);
-    }
-    return profile.points.back().input;
 }
 
 class Format2OscValueMessageGenerator : public MessageGenerator
@@ -131,7 +92,7 @@ private:
 
 public:
     Format2OscEncoderMessageGenerator(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const Format2SurfaceDocument& document, const Format2SurfacePrimitive& primitive) : MessageGenerator(csi, widget), surface_(surface) {
-        const Format2ValueProfile* profile = FindFormat2OscValueProfile(document, primitive);
+        const Format2ValueProfile* profile = FindFormat2ValueProfile(document, primitive);
         if (profile) this->profile_ = *profile;
         const Format2PropertySyntax* scale = FindFormat2OscProperty(primitive, "Scale");
         if (scale && !scale->value.list) ParseFormat2FiniteScalar(scale->value.scalar, this->scale_);
@@ -159,12 +120,14 @@ private:
     string const address_;
     int const echoGuardMs_;
     bool const integer_;
+    bool const suppressWhileTouched_;
     std::optional<Format2ValueProfile> profile_;
 
 public:
-    Format2OscValueFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& address, int echoGuardMs, bool integer, const Format2ValueProfile* profile) : FeedbackProcessor(csi, widget), surface_(surface), address_(address), echoGuardMs_(echoGuardMs), integer_(integer), profile_(profile ? std::optional<Format2ValueProfile>(*profile) : std::nullopt) {}
+    Format2OscValueFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& address, int echoGuardMs, bool integer, bool suppressWhileTouched, const Format2ValueProfile* profile) : FeedbackProcessor(csi, widget), surface_(surface), address_(address), echoGuardMs_(echoGuardMs), integer_(integer), suppressWhileTouched_(suppressWhileTouched), profile_(profile ? std::optional<Format2ValueProfile>(*profile) : std::nullopt) {}
 
     virtual void ForceValue(const PropertyList& properties, double value) override {
+        if (this->suppressWhileTouched_ && this->surface_->GetIsChannelTouched(this->widget_->GetChannelNumber())) return;
         if (this->echoGuardMs_ > 0 && (GetTickCount() - this->widget_->GetLastIncomingMessageTime()) < (DWORD) this->echoGuardMs_) return;
         this->lastDoubleValue_ = value;
         const double output = this->profile_ ? EncodeFormat2ValueProfile(*this->profile_, value) : value;
@@ -270,8 +233,7 @@ bool Format2OscRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primiti
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)
-        && !FindProperty(primitive, "SuppressWhileTouched") && !FindProperty(primitive, "InitialValue")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && (primitive.encoding == Format2Encoding::OscFloat || primitive.encoding == Format2Encoding::OscInt)) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text" && primitive.encoding == Format2Encoding::OscString && !FindProperty(primitive, "TextProfile")) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Color" && primitive.encoding == Format2Encoding::OscString) {
         const Format2PropertySyntax* format = FindProperty(primitive, "Format");
@@ -321,23 +283,29 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
         surface->AddWidget(surface, definition.id.c_str());
         Widget* widget = surface->GetWidgetByName(definition.id);
         if (!widget) continue;
+        if (definition.channel) widget->SetChannelNumber(*definition.channel);
         for (const Format2SurfacePrimitive& primitive : definition.primitives) {
             const string address = ReadAddress(primitive);
             if (address.empty()) continue;
             if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press") {
-                surface->MessageGeneratorsByMessage_.insert(make_pair(address, make_unique<Format2OscPressMessageGenerator>(surface->csi_, widget, primitive)));
+                surface->MessageGeneratorsByMessage_.insert(std::make_pair(address, make_unique<Format2OscPressMessageGenerator>(surface->csi_, widget, primitive)));
                 widget->MarkOskPressInput();
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Touch") {
-                surface->MessageGeneratorsByMessage_.insert(make_pair(address, make_unique<Format2OscTouchMessageGenerator>(surface->csi_, widget, primitive)));
+                surface->MessageGeneratorsByMessage_.insert(std::make_pair(address, make_unique<Format2OscTouchMessageGenerator>(surface->csi_, widget, primitive)));
                 widget->MarkOskTouchInput();
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value") {
-                surface->MessageGeneratorsByMessage_.insert(make_pair(address, make_unique<Format2OscValueMessageGenerator>(surface->csi_, widget, FindFormat2OscValueProfile(parsed.surface, primitive))));
+                surface->MessageGeneratorsByMessage_.insert(std::make_pair(address, make_unique<Format2OscValueMessageGenerator>(surface->csi_, widget, FindFormat2ValueProfile(parsed.surface, primitive))));
                 widget->MarkOskAbsoluteInput();
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder") {
-                surface->MessageGeneratorsByMessage_.insert(make_pair(address, make_unique<Format2OscEncoderMessageGenerator>(surface->csi_, surface, widget, parsed.surface, primitive)));
+                surface->MessageGeneratorsByMessage_.insert(std::make_pair(address, make_unique<Format2OscEncoderMessageGenerator>(surface->csi_, surface, widget, parsed.surface, primitive)));
                 widget->MarkOskRelativeInput();
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value") {
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2OscValueFeedbackProcessor>(surface->csi_, surface, widget, address, ReadIntegerProperty(primitive, "EchoGuardMs", 0), primitive.encoding == Format2Encoding::OscInt, FindFormat2OscValueProfile(parsed.surface, primitive)));
+                const Format2PropertySyntax* suppressProperty = FindProperty(primitive, "SuppressWhileTouched");
+                const bool suppressWhileTouched = suppressProperty && !suppressProperty->value.list && suppressProperty->value.scalar.text == "true";
+                unique_ptr<Format2OscValueFeedbackProcessor> processor = make_unique<Format2OscValueFeedbackProcessor>(surface->csi_, surface, widget, address, ReadIntegerProperty(primitive, "EchoGuardMs", 0), primitive.encoding == Format2Encoding::OscInt, suppressWhileTouched, FindFormat2ValueProfile(parsed.surface, primitive));
+                const std::optional<double> initialValue = ReadFormat2OscFiniteProperty(primitive, "InitialValue");
+                if (initialValue) surface->AddInitialFeedbackValue(processor.get(), *initialValue);
+                widget->GetFeedbackProcessors().push_back(std::move(processor));
                 widget->MarkOskValueFeedback();
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State") {
                 const std::optional<double> offValue = ReadFormat2OscFiniteProperty(primitive, "OffValue");

@@ -1,10 +1,17 @@
 #include "../integrator.h"
 #include "../format2_surface_document.h"
+#include "../format2_value_profile.h"
 #include "../format2_value_validation.h"
+#include "../../shared/sysex_builder.h"
 #include "format2_midi_runtime.h"
+#include "format2_midi_generators.h"
+#include "fb_format2.h"
 #include "midi_surface.h"
-#include "midi_widgets.h"
-#include "widget_factory.h"
+
+static void RegisterFormat2MidiInitialValue(Midi_ControlSurface* surface, FeedbackProcessor* processor, const Format2PropertySyntax* property) {
+    double value = 0.0;
+    if (property && !property->value.list && ParseFormat2FiniteScalar(property->value.scalar, value)) surface->AddInitialFeedbackValue(processor, value);
+}
 
 const Format2PropertySyntax* Format2MidiRuntimeLoader::FindProperty(const Format2SurfacePrimitive& primitive, const string& name) {
     for (const Format2PropertySyntax& property : primitive.properties) if (property.name == name) return &property;
@@ -105,29 +112,22 @@ bool Format2MidiRuntimeLoader::ReadRingConfigurePayload(const Format2PropertySyn
     return true;
 }
 
-vector<string> Format2MidiRuntimeLoader::MakeTokens(const string& type, const vector<int>& firstMessage, const vector<int>& secondMessage) {
-    vector<string> tokens = { type };
-    for (int value : firstMessage) tokens.push_back(to_string(value));
-    for (int value : secondMessage) tokens.push_back(to_string(value));
-    return tokens;
-}
-
 bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primitive) {
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiExact) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiPrefix) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Touch" && primitive.encoding == Format2Encoding::MidiExact) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile")) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit && !FindProperty(primitive, "ValueProfile")) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiExact) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State" && primitive.encoding == Format2Encoding::MidiSysEx) {
         vector<Format2MidiSysExStatePayloadItem> payload;
         return ReadStatePayload(FindProperty(primitive, "Payload"), payload);
     }
-    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
-    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7 && !FindProperty(primitive, "ValueProfile") && !FindProperty(primitive, "InitialValue")) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit) return true;
+    if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7) return true;
     if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSysEx) {
         vector<Format2MidiSysExValuePayloadItem> payload;
         return ReadValuePayload(FindProperty(primitive, "Payload"), payload);
@@ -206,35 +206,45 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
         if (definition.channel) widget->SetChannelNumber(*definition.channel);
 
         for (const Format2SurfacePrimitive& primitive : definition.primitives) {
-            vector<string> tokens;
-            string widgetClass;
             if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiExact) {
                 vector<int> on;
                 vector<int> off;
                 if (!ReadBytes(FindProperty(primitive, "On"), on)) continue;
                 ReadBytes(FindProperty(primitive, "Off"), off);
-                tokens = MakeTokens("Press", on, off);
+                const string onKey = to_string(on[0] * 0x10000 + on[1] * 0x100 + on[2]);
+                surface->AddMessageGenerator(onKey, make_unique<Format2MidiExactPressMessageGenerator>(surface->csi_, widget, true));
+                if (off.size() == 3) {
+                    const string offKey = to_string(off[0] * 0x10000 + off[1] * 0x100 + off[2]);
+                    surface->AddMessageGenerator(offKey, make_unique<Format2MidiExactPressMessageGenerator>(surface->csi_, widget, false));
+                }
                 widget->MarkOskPressInput();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press" && primitive.encoding == Format2Encoding::MidiPrefix) {
                 vector<int> message;
                 if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.size() != 2) continue;
                 const string key = to_string(message[0] * 0x10000 + message[1] * 0x100);
-                surface->AddMessageGenerator(key, make_unique<AnyPress_Midi_MessageGenerator>(surface->csi_, widget));
+                surface->AddMessageGenerator(key, make_unique<Format2MidiPrefixPressMessageGenerator>(surface->csi_, widget));
                 widget->MarkOskPressInput();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Touch" && primitive.encoding == Format2Encoding::MidiExact) {
                 vector<int> on;
                 vector<int> off;
                 if (!ReadBytes(FindProperty(primitive, "On"), on) || !ReadBytes(FindProperty(primitive, "Off"), off)) continue;
-                tokens = MakeTokens("Touch", on, off);
+                const string onKey = to_string(on[0] * 0x10000 + on[1] * 0x100 + on[2]);
+                const string offKey = to_string(off[0] * 0x10000 + off[1] * 0x100 + off[2]);
+                surface->AddMessageGenerator(onKey, make_unique<Format2MidiExactTouchMessageGenerator>(surface->csi_, widget, true));
+                surface->AddMessageGenerator(offKey, make_unique<Format2MidiExactTouchMessageGenerator>(surface->csi_, widget, false));
                 widget->MarkOskTouchInput();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi14) {
                 const Format2PropertySyntax* status = FindProperty(primitive, "Status");
                 int statusByte = 0;
                 if (!status || status->value.list || !ReadByte(status->value.scalar, statusByte)) continue;
-                tokens = MakeTokens("Fader14Bit", { statusByte, 0, 0 });
+                const string key = to_string(statusByte * 0x10000);
+                surface->AddMessageGenerator(key, make_unique<Format2Midi14ValueMessageGenerator>(surface->csi_, widget, FindFormat2ValueProfile(parsed.surface, primitive)));
                 widget->MarkOskAbsoluteInput();
                 widget->MarkOskValueFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit) {
                 vector<int> msbMessage;
                 vector<int> lsbMessage;
@@ -243,7 +253,7 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 int bits = 0;
                 if (!ReadBytes(FindProperty(primitive, "MSBMessage"), msbMessage) || msbMessage.size() != 2 || !ReadBytes(FindProperty(primitive, "LSBMessage"), lsbMessage) || lsbMessage.size() != 2 || !bitsProperty || bitsProperty->value.list || !ReadByte(bitsProperty->value.scalar, bits) || bits < 8 || bits > 14 || !commitProperty || commitProperty->value.list) continue;
                 const Format2MidiSplitPart commitPart = commitProperty->value.scalar.text == "MSB" ? Format2MidiSplitPart::Msb : Format2MidiSplitPart::Lsb;
-                const shared_ptr<Format2MidiSplitValueState> state = make_shared<Format2MidiSplitValueState>(widget, bits, commitPart);
+                const shared_ptr<Format2MidiSplitValueState> state = make_shared<Format2MidiSplitValueState>(widget, bits, commitPart, FindFormat2ValueProfile(parsed.surface, primitive));
                 const string msbKey = to_string(msbMessage[0] * 0x10000 + msbMessage[1] * 0x100);
                 const string lsbKey = to_string(lsbMessage[0] * 0x10000 + lsbMessage[1] * 0x100);
                 surface->AddMessageGenerator(msbKey, make_unique<Format2MidiSplitValueMessageGenerator>(surface->csi_, widget, state, Format2MidiSplitPart::Msb));
@@ -255,7 +265,7 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 vector<int> message;
                 if (!ReadBytes(FindProperty(primitive, "Message"), message) || message.size() != 2) continue;
                 const string key = to_string(message[0] * 0x10000 + message[1] * 0x100);
-                surface->AddMessageGenerator(key, make_unique<Format2Midi7ValueMessageGenerator>(surface->csi_, widget));
+                surface->AddMessageGenerator(key, make_unique<Format2Midi7ValueMessageGenerator>(surface->csi_, widget, FindFormat2ValueProfile(parsed.surface, primitive)));
                 widget->MarkOskAbsoluteInput();
                 widget->MarkOskValueFeedback();
                 continue;
@@ -265,8 +275,9 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 const Format2PropertySyntax* profile = FindProperty(primitive, "Profile");
                 const string key = to_string(message[0] * 0x10000 + message[1] * 0x100);
                 if (profile && !profile->value.list) {
-                    widgetClass = profile->value.scalar.text;
-                    surface->AddMessageGenerator(key, make_unique<AcceleratedPreconfiguredEncoder_Midi_MessageGenerator>(surface->csi_, widget, widgetClass));
+                    const string widgetClass = profile->value.scalar.text;
+                    surface->AddMessageGenerator(key, make_unique<Format2MidiProfileEncoderMessageGenerator>(surface->csi_, widget, widgetClass));
+                    widget->SetOskWidgetClass(widgetClass);
                 } else {
                     const Format2PropertySyntax* mode = FindProperty(primitive, "Mode");
                     Format2MidiEncoderMode encoderMode = Format2MidiEncoderMode::SignedBit;
@@ -274,7 +285,6 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                     else if (mode && mode->value.scalar.text == "Relative7Bit") encoderMode = Format2MidiEncoderMode::Relative7Bit;
                     surface->AddMessageGenerator(key, make_unique<Format2Midi7EncoderMessageGenerator>(surface->csi_, widget, encoderMode));
                 }
-                widget->SetOskWidgetClass(widgetClass);
                 widget->MarkOskRelativeInput();
                 widget->MarkOskValueFeedback();
                 continue;
@@ -301,8 +311,15 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 const Format2PropertySyntax* status = FindProperty(primitive, "Status");
                 int statusByte = 0;
                 if (!status || status->value.list || !ReadByte(status->value.scalar, statusByte)) continue;
-                tokens = MakeTokens("FB_Fader14Bit", { statusByte, 0, 0 });
+                const Format2PropertySyntax* suppressWhileTouched = FindProperty(primitive, "SuppressWhileTouched");
+                const Format2PropertySyntax* echoGuard = FindProperty(primitive, "EchoGuardMs");
+                const bool suppress = suppressWhileTouched && !suppressWhileTouched->value.list && suppressWhileTouched->value.scalar.text == "true";
+                const int echoGuardMs = echoGuard && !echoGuard->value.list ? atoi(echoGuard->value.scalar.text.c_str()) : 0;
+                unique_ptr<Format2Midi14ValueFeedbackProcessor> processor = make_unique<Format2Midi14ValueFeedbackProcessor>(surface->csi_, surface, widget, statusByte, suppress, echoGuardMs, FindFormat2ValueProfile(parsed.surface, primitive));
+                RegisterFormat2MidiInitialValue(surface, processor.get(), FindProperty(primitive, "InitialValue"));
+                widget->GetFeedbackProcessors().push_back(std::move(processor));
                 widget->MarkOskValueFeedback();
+                continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSplit) {
                 vector<int> msbMessage;
                 vector<int> lsbMessage;
@@ -315,7 +332,9 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 const Format2MidiSplitPart commitPart = commitProperty->value.scalar.text == "MSB" ? Format2MidiSplitPart::Msb : Format2MidiSplitPart::Lsb;
                 const int echoGuardMs = echoGuard ? atoi(echoGuard->value.scalar.text.c_str()) : 0;
                 const bool suppress = suppressWhileTouched && suppressWhileTouched->value.scalar.text == "true";
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSplitValueFeedbackProcessor>(surface->csi_, surface, widget, std::array<int, 2>{ msbMessage[0], msbMessage[1] }, std::array<int, 2>{ lsbMessage[0], lsbMessage[1] }, bits, commitPart, echoGuardMs, suppress));
+                unique_ptr<Format2MidiSplitValueFeedbackProcessor> processor = make_unique<Format2MidiSplitValueFeedbackProcessor>(surface->csi_, surface, widget, std::array<int, 2>{ msbMessage[0], msbMessage[1] }, std::array<int, 2>{ lsbMessage[0], lsbMessage[1] }, bits, commitPart, echoGuardMs, suppress, FindFormat2ValueProfile(parsed.surface, primitive));
+                RegisterFormat2MidiInitialValue(surface, processor.get(), FindProperty(primitive, "InitialValue"));
+                widget->GetFeedbackProcessors().push_back(std::move(processor));
                 widget->MarkOskValueFeedback();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::Midi7) {
@@ -332,20 +351,19 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 else if (combine && combine->value.scalar.text == "BitOr") combineMode = Format2MidiValueCombine::BitOr;
                 const int echoGuardMs = echoGuard ? atoi(echoGuard->value.scalar.text.c_str()) : 0;
                 const bool suppress = suppressWhileTouched && suppressWhileTouched->value.scalar.text == "true";
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2Midi7ValueFeedbackProcessor>(surface->csi_, surface, widget, message, valueBaseByte, combineMode, echoGuardMs, suppress));
+                unique_ptr<Format2Midi7ValueFeedbackProcessor> processor = make_unique<Format2Midi7ValueFeedbackProcessor>(surface->csi_, surface, widget, message, valueBaseByte, combineMode, echoGuardMs, suppress, FindFormat2ValueProfile(parsed.surface, primitive));
+                RegisterFormat2MidiInitialValue(surface, processor.get(), FindProperty(primitive, "InitialValue"));
+                widget->GetFeedbackProcessors().push_back(std::move(processor));
                 widget->MarkOskValueFeedback();
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value" && primitive.encoding == Format2Encoding::MidiSysEx) {
                 vector<Format2MidiSysExValuePayloadItem> payload;
                 if (!ReadValuePayload(FindProperty(primitive, "Payload"), payload)) continue;
                 const Format2PropertySyntax* initialValue = FindProperty(primitive, "InitialValue");
-                const std::optional<int> initial = initialValue && !initialValue->value.list ? std::optional<int>((int) atof(initialValue->value.scalar.text.c_str())) : std::nullopt;
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2MidiSysExValueFeedbackProcessor>(surface->csi_, surface, widget, payload, initial));
+                unique_ptr<Format2MidiSysExValueFeedbackProcessor> processor = make_unique<Format2MidiSysExValueFeedbackProcessor>(surface->csi_, surface, widget, payload);
+                RegisterFormat2MidiInitialValue(surface, processor.get(), initialValue);
+                widget->GetFeedbackProcessors().push_back(std::move(processor));
                 widget->MarkOskValueFeedback();
-                if (initial) {
-                    const PropertyList properties;
-                    widget->GetFeedbackProcessors().back()->ForceValue(properties, *initial);
-                }
                 continue;
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Ring" && primitive.encoding == Format2Encoding::Midi7) {
                 vector<int> message;
@@ -501,34 +519,7 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
                 widget->MarkOskMeterFeedback();
                 widget->MarkOskValueFeedback();
                 continue;
-            } else continue;
-
-            MidiWidgetContext context;
-            context.csi = surface->csi_;
-            context.surface = surface;
-            context.widget = widget;
-            context.widgetClass = widgetClass;
-            context.tokens = tokens;
-            context.size = (int) tokens.size();
-            const Format2PropertySyntax* suppressWhileTouched = FindProperty(primitive, "SuppressWhileTouched");
-            context.suppressWhileTouched = suppressWhileTouched && !suppressWhileTouched->value.list && suppressWhileTouched->value.scalar.text == "true";
-            const Format2PropertySyntax* echoGuard = FindProperty(primitive, "EchoGuardMs");
-            context.echoGuardMs = echoGuard && !echoGuard->value.list ? atoi(echoGuard->value.scalar.text.c_str()) : 0;
-            if (context.size > 3) {
-                context.message1.midi_message[0] = atoi(tokens[1].c_str());
-                context.message1.midi_message[1] = atoi(tokens[2].c_str());
-                context.message1.midi_message[2] = atoi(tokens[3].c_str());
-                context.oneByteKey = to_string(context.message1.midi_message[0] * 0x10000);
-                context.twoByteKey = to_string(context.message1.midi_message[0] * 0x10000 + context.message1.midi_message[1] * 0x100);
-                context.threeByteKey = to_string(context.message1.midi_message[0] * 0x10000 + context.message1.midi_message[1] * 0x100 + context.message1.midi_message[2]);
             }
-            if (context.size > 6) {
-                context.message2.midi_message[0] = atoi(tokens[4].c_str());
-                context.message2.midi_message[1] = atoi(tokens[5].c_str());
-                context.message2.midi_message[2] = atoi(tokens[6].c_str());
-                context.threeByteKeyMsg2 = to_string(context.message2.midi_message[0] * 0x10000 + context.message2.midi_message[1] * 0x100 + context.message2.midi_message[2]);
-            }
-            if (!MidiWidgetRegistry::Dispatch(tokens[0], context)) LogToConsole("[ERROR] Unsupported format 2 MIDI runtime mapping in %s, line %d: %s\n", filePath.c_str(), primitive.location.line, tokens[0].c_str());
         }
     }
 

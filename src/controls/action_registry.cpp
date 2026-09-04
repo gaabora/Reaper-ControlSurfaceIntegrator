@@ -4,8 +4,6 @@
 // Kept separate from integrator.cpp to reduce per-TU compile cost.
 
 #include "integrator.h"
-#include "midi/midi_widgets.h"
-#include "midi/widget_factory.h"
 #include "../actions/reaper_actions.h"
 #include "../actions/manager_actions.h"
 

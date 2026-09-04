@@ -105,6 +105,7 @@ private:
     void SetModifier(void (ModifierManager::*setter)(bool, int), bool value);
 
     vector<FeedbackProcessor*> trackColorFeedbackProcessors_; // does not own pointers
+    vector<std::pair<FeedbackProcessor*, double>> initialFeedbackValues_; // does not own pointers
 
     vector<ChannelTouch> channelTouches_;
     vector<ChannelToggle> channelToggles_;
@@ -120,6 +121,7 @@ protected:
     vector<double> emptyAccelerationValues_;
 
     void ProcessValues(const vector<vector<string>>& lines);
+    void ApplyInitialFeedbackValues();
 
     CSurfIntegrator* const csi_;
     IPageContext* const page_;
@@ -201,10 +203,12 @@ public:
         MessageGeneratorsByMessage_.clear();
     }
 
-    // Used by widget-type handlers in widget_registrations.cpp to insert message generators.
+    // Used by protocol runtimes to insert message generators.
     void AddMessageGenerator(const string& key, unique_ptr<MessageGenerator> gen) {
-        MessageGeneratorsByMessage_.insert(make_pair(key, std::move(gen)));
+        MessageGeneratorsByMessage_.insert(std::make_pair(key, std::move(gen)));
     }
+
+    void AddInitialFeedbackValue(FeedbackProcessor* processor, double value) { this->initialFeedbackValues_.push_back(std::make_pair(processor, value)); }
 
     void Stop();
     void Play();
@@ -452,7 +456,7 @@ public:
 
     void AddWidget(ControlSurface* surface, const char* widgetName) {
         if (widgetsByName_.count(string(widgetName)) == 0) {
-            widgetsByName_.insert(make_pair(widgetName, make_unique<Widget>(csi_, surface, widgetName)));
+            widgetsByName_.insert(std::make_pair(widgetName, make_unique<Widget>(csi_, surface, widgetName)));
             if (widgetsByName_.count(widgetName) > 0)
                 widgets_.push_back(GetWidgetByName(widgetName));
         }

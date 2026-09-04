@@ -189,6 +189,7 @@ OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext*
 {
     Format2OscRuntimeLoader::Load(templateFilename, this);
     this->InitHardwiredWidgets(this);
+    this->ApplyInitialFeedbackValues();
     this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
 }
 

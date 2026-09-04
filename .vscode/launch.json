@@ -8,6 +8,7 @@
         "name": "(lldb) Launch",
         "type": "cppdbg",
         "request": "launch",
+        "preLaunchTask": "Build plugin using CMake",
         "program": "/Applications/REAPER.app",
         "args": [],
         "stopAtEntry": false,
@@ -20,6 +21,7 @@
         "name": "(Windows) Debug in REAPER",
         "type": "cppvsdbg",
         "request": "launch",
+        "preLaunchTask": "Build plugin using CMake",
         "program": "${env:REAPER_EXE_PATH}",
         "args": [
           "-cfgfile",

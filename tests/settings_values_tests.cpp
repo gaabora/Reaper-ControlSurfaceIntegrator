@@ -75,10 +75,10 @@ static void TestRangeAndRelationship() {
     relationshipOverrides.values["LongHoldDelayMs"] = "500";
     SettingsValues relationshipResult;
     std::vector<SettingValidationIssue> relationshipIssues;
-    Require(!defaults.TryApply(relationshipOverrides, "Surface", relationshipResult, relationshipIssues), "relationship rejection");
+    Require(!defaults.TryApply(relationshipOverrides, "Device", relationshipResult, relationshipIssues), "relationship rejection");
 }
 
-static void TestProductAndSurfacePrecedence() {
+static void TestProductAndDevicePrecedence() {
     SettingsValues defaults;
     SettingOverrides productOverrides;
     productOverrides.values["HoldDelayMs"] = "1200";
@@ -87,13 +87,13 @@ static void TestProductAndSurfacePrecedence() {
     std::vector<SettingValidationIssue> productIssues;
     Require(defaults.TryApply(productOverrides, "Product", productSettings, productIssues), "Product settings resolution");
 
-    SettingOverrides surfaceOverrides;
-    surfaceOverrides.values["HoldDelayMs"] = "800";
-    SettingsValues surfaceSettings;
-    std::vector<SettingValidationIssue> surfaceIssues;
-    Require(productSettings.TryApply(surfaceOverrides, "Surface", surfaceSettings, surfaceIssues), "Surface settings resolution");
-    Require(surfaceSettings.GetInteger("HoldDelayMs") == 800, "Surface override wins");
-    Require(surfaceSettings.GetInteger("LongHoldDelayMs") == 2400, "Surface inherits Product value");
+    SettingOverrides deviceOverrides;
+    deviceOverrides.values["HoldDelayMs"] = "800";
+    SettingsValues deviceSettings;
+    std::vector<SettingValidationIssue> deviceIssues;
+    Require(productSettings.TryApply(deviceOverrides, "Device", deviceSettings, deviceIssues), "Device settings resolution");
+    Require(deviceSettings.GetInteger("HoldDelayMs") == 800, "Device override wins");
+    Require(deviceSettings.GetInteger("LongHoldDelayMs") == 2400, "Device inherits Product value");
 }
 
 int main() {
@@ -102,7 +102,7 @@ int main() {
     TestAtomicInvalidOverride();
     TestInvalidBooleanOverride();
     TestRangeAndRelationship();
-    TestProductAndSurfacePrecedence();
+    TestProductAndDevicePrecedence();
     std::cout << "SettingsValues tests passed\n";
     return 0;
 }
