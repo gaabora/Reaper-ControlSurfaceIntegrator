@@ -56,7 +56,7 @@ async function validateCommand(args: string[]): Promise<number> {
 
     const documents: AnyDocument[] = [];
     for (const configPath of configPaths) documents.push(parseByPath(await readFile(configPath, "utf8"), configPath, knownActions, settingsSchema, actionTraits));
-    const diagnostics = documents.flatMap((document) => document.diagnostics).concat(validateDocumentSet(documents));
+    const diagnostics = documents.flatMap((document) => document.diagnostics).concat(validateDocumentSet(documents, { actionTraits, settingsSchema }));
     if (jsonOutput) console.log(JSON.stringify({ diagnostics, files: configPaths.length }, null, 2));
     else {
         for (const diagnostic of diagnostics) printDiagnostic(diagnostic);

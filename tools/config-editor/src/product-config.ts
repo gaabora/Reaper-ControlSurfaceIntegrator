@@ -3,6 +3,7 @@ import type { SettingDefinition, SettingsSchema } from "./settings-schema.ts";
 import { analysisText, isStableId, splitSourceLines } from "./text.ts";
 
 export interface ProductConfigRecord {
+    effectiveSettings?: Map<string, string>;
     id?: string;
     kind: "device" | "link" | "page" | "settings" | "surface-assignment" | "unknown";
     line: number;
@@ -279,6 +280,7 @@ export function parseProductConfig(source: string, documentPath?: string, settin
     }
     const blocks = parseProductBlocks(lexProductConfig(source, diagnostics, documentPath), lines, diagnostics, documentPath);
     const devices = new Map<string, ProductBlock>();
+    const deviceRecords = new Map<string, ProductConfigRecord>();
     const pages = new Map<string, ProductBlock>();
     let productOverrides: SettingOverrideSet = { overrides: new Map(), valid: true };
     let rootSettingsSeen = false;
@@ -291,11 +293,15 @@ export function parseProductConfig(source: string, documentPath?: string, settin
             continue;
         }
         if (block.name === "Device") {
-            records.push({ id: block.id, kind: "device", line: block.line, properties: propertyMap(block) });
+            const record: ProductConfigRecord = { id: block.id, kind: "device", line: block.line, properties: propertyMap(block) };
+            records.push(record);
             if (validateId("Device", block.id, block.line, diagnostics, documentPath)) {
                 const canonicalId = block.id!.toLowerCase();
                 if (devices.has(canonicalId)) addDiagnostic(diagnostics, "error", "product.device.duplicate", `Device ID is duplicated case-insensitively: ${block.id}`, block.line, documentPath);
-                else devices.set(canonicalId, block);
+                else {
+                    devices.set(canonicalId, block);
+                    deviceRecords.set(canonicalId, record);
+                }
             }
             requireProperties(block, ["Type"], diagnostics, documentPath);
             const type = block.properties.get("Type")?.value;
@@ -391,9 +397,10 @@ export function parseProductConfig(source: string, documentPath?: string, settin
     if (settingsSchema) {
         const compiledDefaults = new Map(settingsSchema.settings.map((definition) => [definition.name, String(definition.defaultValue)]));
         const productSettings = resolveSettings(compiledDefaults, productOverrides, "Product", settingsSchema, diagnostics, documentPath);
-        for (const block of devices.values()) {
+        for (const [deviceId, block] of devices) {
             const settings = block.children.find((child) => child.name === "Settings");
-            if (settings) resolveSettings(productSettings, readSettingBlock(settings, settingsSchema, diagnostics, documentPath), "Device", settingsSchema, diagnostics, documentPath);
+            const overrideSet: SettingOverrideSet = settings ? readSettingBlock(settings, settingsSchema, diagnostics, documentPath) : { overrides: new Map(), valid: true };
+            deviceRecords.get(deviceId)!.effectiveSettings = resolveSettings(productSettings, overrideSet, "Device", settingsSchema, diagnostics, documentPath);
         }
     }
     return { diagnostics, format: "product-config", lines, path: documentPath, semantic: { records }, source, version: "current" };

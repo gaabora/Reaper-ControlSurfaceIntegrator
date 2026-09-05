@@ -190,7 +190,7 @@ export class ConfigurationStore {
             files.push({ diagnostics: diagnosticsWithQuickFixes(document, this.knownActions, opened.writable), path: entry.path });
         }
         const documentsByPath = new Map<string, AnyDocument>(documents.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
-        const diagnostics = validateDocumentSet(documents).map((diagnostic) => {
+        const diagnostics = validateDocumentSet(documents, { actionTraits: this.actionTraits, settingsSchema: this.settingsSchema }).map((diagnostic) => {
             const document = diagnostic.path ? documentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
             return document ? diagnosticWithQuickFixes(document, diagnostic, this.knownActions, writableByPath.get(diagnostic.path!.toLowerCase()) ?? false) : diagnostic;
         });
@@ -224,7 +224,7 @@ export class ConfigurationStore {
         }
 
         const documents = changes.map((change) => parseByPath(change.source, change.path, this.knownActions, this.settingsSchema, this.actionTraits));
-        const diagnostics = documents.flatMap((document) => document.diagnostics).concat(validateDocumentSet(documents));
+        const diagnostics = documents.flatMap((document) => document.diagnostics).concat(validateDocumentSet(documents, { actionTraits: this.actionTraits, settingsSchema: this.settingsSchema }));
         if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", "Transaction contains configuration errors", diagnostics);
 
         const preparedChanges: PreparedChange[] = [];

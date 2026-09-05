@@ -93,6 +93,43 @@ describe("configuration formats", () => {
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.additive", line: 2, severity: "warning" }));
     });
 
+    test("resolves channel selectors and Device timing for complete format 2 validation", async () => {
+        const catalog = await loadActionCatalog(repositoryRoot);
+        const knownActions = actionNameSet(catalog);
+        const actionTraits = actionTraitsByName(catalog);
+        const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
+        const config = parseByPath("Settings {\n  DefaultButtonTrigger=Tap\n  DoublePressPolicy=Exclusive\n}\nDevice dev {\n  Type=MIDI\n  Input=0\n  Output=0\n  Settings {\n    DefaultButtonTrigger=Press\n    DoublePressPolicy=Additive\n  }\n}\nPage Home {\n  Surface main {\n    Device=dev\n    Template=testsurface\n    MainProfile=testprofile\n  }\n}\n", "/config/ReaControlSurface.conf", knownActions, settingsSchema, actionTraits);
+        const surface = parseByPath("@Meta { Version=2 Protocol=MIDI Channels=1 }\nWidget Play1 {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
+        const duplicateZone = parseByPath("@Meta { Version=2 Role=Home }\nPlay# Play\n(Press)+Play1 Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const duplicateDiagnostics = validateDocumentSet([config, surface, duplicateZone], { actionTraits, settingsSchema });
+        expect(duplicateDiagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.action.duplicate", severity: "error" }));
+        const policyZone = parseByPath("@Meta { Version=2 Role=Home }\n(Tap)+Play# GoHome\n(DoublePress)+Play# Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const policyDiagnostics = validateDocumentSet([config, surface, policyZone], { actionTraits, settingsSchema });
+        expect(policyDiagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.unreachable", line: 2, severity: "error" }));
+    });
+
+    test("treats format 2 modifier declarations as gesture sources", async () => {
+        const catalog = await loadActionCatalog(repositoryRoot);
+        const knownActions = actionNameSet(catalog);
+        const actionTraits = actionTraitsByName(catalog);
+        const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
+        const document = parseByPath("@Meta { Version=2 Role=Home }\nShiftButton Modifier Shift Mode=Latch\n(Press)+ShiftButton Play\n", "/config/Zones/User/test/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        expect(document.diagnostics).not.toContainEqual(expect.objectContaining({ code: "zone.action.unknown", line: 2 }));
+        expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.additive", line: 2, severity: "warning" }));
+    });
+
+    test("uses the effective modifier mode for a resolved source Widget", async () => {
+        const catalog = await loadActionCatalog(repositoryRoot);
+        const knownActions = actionNameSet(catalog);
+        const actionTraits = actionTraitsByName(catalog);
+        const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
+        const config = parseByPath("Device dev {\n  Type=MIDI\n  Input=0\n  Output=0\n}\nPage Home {\n  Surface main {\n    Device=dev\n    Template=testsurface\n    MainProfile=testprofile\n  }\n}\n", "/config/ReaControlSurface.conf", knownActions, settingsSchema, actionTraits);
+        const surface = parseByPath("@Meta { Version=2 Protocol=MIDI Channels=1 }\nWidget ShiftButton {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x46, 0x7F ] Off=[ 0x90, 0x46, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
+        const zone = parseByPath("@Meta { Version=2 Role=Home }\nShiftButton Modifier Shift Mode=Momentary\n(Hold)+ShiftButton Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const diagnostics = validateDocumentSet([config, surface, zone], { actionTraits, settingsSchema });
+        expect(diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.runtime.modifier-hold", line: 3, severity: "error" }));
+    });
+
     test("keeps a spaced property list in one token without joining positional step values", () => {
         expect(tokenizeLine("Rotary1 TrackPan RingColors=[ #003F00, #0000FF ] [ 0.5 ]")).toEqual(["Rotary1", "TrackPan", "RingColors=[ #003F00, #0000FF ]", "[", "0.5", "]"]);
         expect(tokenizeLine("Rotary1 TrackPan [0.5] RingColors=[#003F00,#0000FF]")).toEqual(["Rotary1", "TrackPan", "[", "0.5", "]", "RingColors=[ #003F00, #0000FF ]"]);
