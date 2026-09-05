@@ -77,6 +77,20 @@ static Format2DocumentMetadata GetFormat2EffectiveMetadata(const Format2Document
     return effective;
 }
 
+static ZoneRuntimeTarget GetFormat2ZoneRuntimeTarget(const Format2DocumentMetadata& metadata) {
+    if (!metadata.target) return ZoneRuntimeTarget::Global;
+    switch (*metadata.target) {
+        case Format2ZoneTarget::Tracks: return ZoneRuntimeTarget::Tracks;
+        case Format2ZoneTarget::SelectedTrack: return ZoneRuntimeTarget::SelectedTrack;
+        case Format2ZoneTarget::MasterTrack: return ZoneRuntimeTarget::MasterTrack;
+        case Format2ZoneTarget::FocusedFx: return ZoneRuntimeTarget::FocusedFx;
+        case Format2ZoneTarget::Vca: return ZoneRuntimeTarget::Vca;
+        case Format2ZoneTarget::Folder: return ZoneRuntimeTarget::Folder;
+        case Format2ZoneTarget::SelectedTracks: return ZoneRuntimeTarget::SelectedTracks;
+    }
+    return ZoneRuntimeTarget::Global;
+}
+
 static unique_ptr<Zone> CreateFormat2RelatedZone(ZoneManager* zoneManager, const Format2ZoneProfileLoadResult& loaded, const map<string, size_t>& activeMainSources, size_t sourceIndex,
     Zone* parentZone, bool isLayer, const Format2DocumentMetadata& parentMetadata);
 
@@ -108,7 +122,9 @@ static unique_ptr<Zone> CreateFormat2RelatedZone(ZoneManager* zoneManager, const
     const int slotIndex = isLayer && parentZone ? parentZone->GetSlotIndex() : 0;
     const string& runtimeName = document.parsed.zone.id;
     const string alias = metadata.alias ? *metadata.alias : runtimeName;
-    unique_ptr<Zone> zone = make_unique<Zone>(zoneManager->GetCSI(), zoneManager, navigator, slotIndex, runtimeName, alias, document.parsed.document.lexical.sourcePath, true, isLayer ? parentZone : nullptr);
+    unique_ptr<Zone> zone = make_unique<Zone>(zoneManager->GetCSI(), zoneManager, navigator, slotIndex, runtimeName, alias, document.parsed.document.lexical.sourcePath);
+    const bool deactivatesOnTrackLoss = isLayer && parentZone ? parentZone->DeactivatesOnTrackLoss() : metadata.target == Format2ZoneTarget::SelectedTrack;
+    zone->ConfigureFormat2Runtime(GetFormat2ZoneRuntimeTarget(effectiveMetadata), deactivatesOnTrackLoss, isLayer ? parentZone : nullptr);
     const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(zoneManager, zone.get(), document.parsed, isLayer ? &effectiveMetadata : nullptr);
     if (!runtimeResult.IsValid()) {
         for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
@@ -169,9 +185,11 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         const Format2LoadedZoneDocument& document = loaded.documents[sourceIndex];
         const Format2ZoneDocument& zoneDocument = document.parsed.zone;
         const Format2DocumentMetadata& metadata = document.parsed.document.metadata;
+        const Format2DocumentMetadata effectiveMetadata = GetFormat2EffectiveMetadata(metadata);
         const string runtimeName = activeZone.collection == Format2ZoneCollection::Fx && metadata.matchFx ? *metadata.matchFx : zoneDocument.id;
         const string alias = metadata.alias ? *metadata.alias : runtimeName;
-        unique_ptr<Zone> zone = make_unique<Zone>(this->csi_, this, GetFormat2ZoneBaseNavigator(this, metadata), 0, runtimeName, alias, document.parsed.document.lexical.sourcePath, true);
+        unique_ptr<Zone> zone = make_unique<Zone>(this->csi_, this, GetFormat2ZoneBaseNavigator(this, metadata), 0, runtimeName, alias, document.parsed.document.lexical.sourcePath);
+        zone->ConfigureFormat2Runtime(GetFormat2ZoneRuntimeTarget(effectiveMetadata), metadata.target == Format2ZoneTarget::SelectedTrack);
         const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(this, zone.get(), document.parsed);
         if (!runtimeResult.IsValid()) {
             loaded.sources[sourceIndex].valid = false;
@@ -578,6 +596,7 @@ void ZoneManager::CheckFocusedFXState() {
 
         if (zoneInfo_.find(fxName) != zoneInfo_.end()) {
             focusedFXZone_ = make_shared<Zone>(csi_, this, GetFocusedFXNavigator(), fxSlot, fxName, zoneInfo_[fxName].alias, zoneInfo_[fxName].filePath.c_str());
+            if (this->format2ZoneProfile_) focusedFXZone_->ConfigureFormat2Runtime(ZoneRuntimeTarget::FocusedFx);
             LoadZoneFile(focusedFXZone_.get(), "");
             focusedFXZone_->Activate();
         }
@@ -595,6 +614,7 @@ void ZoneManager::GoSelectedTrackFX() {
 
             if (zoneInfo_.find(fxName) != zoneInfo_.end()) {
                 shared_ptr<Zone> zone = make_shared<Zone>(csi_, this, GetSelectedTrackNavigator(), i, fxName, zoneInfo_[fxName].alias, zoneInfo_[fxName].filePath);
+                if (this->format2ZoneProfile_) zone->ConfigureFormat2Runtime(ZoneRuntimeTarget::SelectedTrack, true);
                 LoadZoneFile(zone.get(), "");
                 selectedTrackFXZones_.push_back(zone);
                 zone->Activate();
@@ -613,6 +633,7 @@ void ZoneManager::GoFXSlot(MediaTrack* track, Navigator* navigator, int fxSlot) 
     if (zoneInfo_.find(fxName) != zoneInfo_.end()) {
         ClearFXSlot();
         fxSlotZone_ = make_shared<Zone>(csi_, this, navigator, fxSlot, fxName, zoneInfo_[fxName].alias, zoneInfo_[fxName].filePath);
+        if (this->format2ZoneProfile_) fxSlotZone_->ConfigureFormat2Runtime(ZoneRuntimeTarget::Global);
         LoadZoneFile(fxSlotZone_.get(), "");
         fxSlotZone_->Activate();
     } else

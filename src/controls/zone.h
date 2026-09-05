@@ -3,6 +3,18 @@
 #include "preamble.h"
 #include "../actions/action_context.h"
 
+enum class ZoneRuntimeTarget {
+    Legacy,
+    Global,
+    Tracks,
+    SelectedTrack,
+    MasterTrack,
+    FocusedFx,
+    Vca,
+    Folder,
+    SelectedTracks,
+};
+
 class Zone
 {
 protected:
@@ -16,7 +28,9 @@ protected:
 
     bool isActive_ = false;
     bool usesExactEventFallback_ = false;
+    bool deactivatesOnTrackLoss_ = false;
     Zone* parentZone_ = nullptr;
+    ZoneRuntimeTarget runtimeTarget_ = ZoneRuntimeTarget::Legacy;
 
     // these do not own the widgets, ultimately the ControlSurface contains the list of widgets
     vector<Widget*> widgets_;
@@ -32,10 +46,11 @@ protected:
     void UpdateCurrentActionContextModifier(Widget* widget);
     bool UsesWidgetForCurrentEvent(Widget* widget);
     bool UsesWidgetForCurrentFeedback(Widget* widget);
+    bool MatchesRuntimeTarget(ZoneRuntimeTarget target, const char* legacyName) const;
 
 public:
-    Zone(CSurfIntegrator* const csi, ZoneManager* const zoneManager, Navigator* navigator, int slotIndex, const string& name, const string& alias, const string& sourceFilePath, bool usesExactEventFallback = false, Zone* parentZone = nullptr)
-        : csi_(csi), zoneManager_(zoneManager), navigator_(navigator), slotIndex_(slotIndex), name_(name), alias_(alias), sourceFilePath_(sourceFilePath), usesExactEventFallback_(usesExactEventFallback), parentZone_(parentZone) {}
+    Zone(CSurfIntegrator* const csi, ZoneManager* const zoneManager, Navigator* navigator, int slotIndex, const string& name, const string& alias, const string& sourceFilePath)
+        : csi_(csi), zoneManager_(zoneManager), navigator_(navigator), slotIndex_(slotIndex), name_(name), alias_(alias), sourceFilePath_(sourceFilePath) {}
 
     virtual ~Zone() {
         includedZones_.clear();
@@ -73,7 +88,16 @@ public:
     Navigator* GetNavigator() { return navigator_; }
     void SetNavigator(Navigator* navigator) { navigator_ = navigator; }
     void SetSlotIndex(int index) { slotIndex_ = index; }
+    void ConfigureFormat2Runtime(ZoneRuntimeTarget target, bool deactivatesOnTrackLoss = false, Zone* parentZone = nullptr) {
+        this->runtimeTarget_ = target;
+        this->deactivatesOnTrackLoss_ = deactivatesOnTrackLoss;
+        this->parentZone_ = parentZone;
+        this->usesExactEventFallback_ = true;
+    }
     bool GetIsActive() { return isActive_; }
+    ZoneRuntimeTarget GetRuntimeTarget() const { return this->runtimeTarget_; }
+    bool DeactivatesOnTrackLoss() const { return this->deactivatesOnTrackLoss_; }
+    bool UsesPageActivation() const { return this->runtimeTarget_ == ZoneRuntimeTarget::Vca || this->runtimeTarget_ == ZoneRuntimeTarget::Folder || this->runtimeTarget_ == ZoneRuntimeTarget::SelectedTracks; }
 
     void Toggle() {
         if (isActive_) Deactivate();
@@ -107,9 +131,26 @@ public:
     }
 
     void OnTrackDeselection() {
+        if (this->runtimeTarget_ == ZoneRuntimeTarget::Legacy) {
+            this->isActive_ = true;
+            for (auto& includedZone : this->includedZones_) includedZone->Activate();
+            return;
+        }
+        if (this->deactivatesOnTrackLoss_) {
+            this->Deactivate();
+            return;
+        }
         isActive_ = true;
-        for (auto& includedZone : includedZones_)
-            includedZone->Activate();
+        for (auto& includedZone : includedZones_) includedZone->OnTrackDeselection();
+        for (auto& zoneLayer : this->zoneLayers_) if (zoneLayer->GetIsActive()) zoneLayer->OnTrackDeselection();
+    }
+
+    void OnTrackSelection() {
+        for (auto& includedZone : this->includedZones_) {
+            if (includedZone->DeactivatesOnTrackLoss() && !includedZone->GetIsActive()) includedZone->Activate();
+            else if (includedZone->GetIsActive()) includedZone->OnTrackSelection();
+        }
+        for (auto& zoneLayer : this->zoneLayers_) if (zoneLayer->GetIsActive()) zoneLayer->OnTrackSelection();
     }
 
     void RequestUpdateWidget(Widget* widget) {

@@ -935,7 +935,7 @@ public:
 //!
 //! @feedback Toggle — 1.0 when the named zone is active, 0.0 when not.
 //!
-//! @params String param: zone name. Special names (Folder, VCA, TrackSend, TrackReceive, etc.) route via Page::GoZone for multi-surface propagation.
+//! @params String param: zone name. Format 2 routing comes from the target zone metadata. Legacy special names retain their old routing.
 //!
 //! @see GoHome, GoSubZone
 class GoZone : public ManagerPressOnlyAction
@@ -952,6 +952,10 @@ public:
 
     void Do(ActionContext* context, double value) override {
         const char* name = context->GetStringParam();
+        if (context->GetSurface()->GetZoneManager()->UsesFormat2ZoneProfile()) {
+            context->GetSurface()->GetZoneManager()->DeclareGoZone(name);
+            return;
+        }
         if (IsSameString(name, "Folder") || IsSameString(name, "VCA") || IsSameString(name, "TrackSend") || IsSameString(name, "TrackReceive") || IsSameString(name, "MasterTrackFXMenu") || IsSameString(name, "TrackFXMenu"))
             context->GetPage()->GoZone(name);
         else

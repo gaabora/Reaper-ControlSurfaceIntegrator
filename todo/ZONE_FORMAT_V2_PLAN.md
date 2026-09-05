@@ -1736,6 +1736,7 @@ The static codec audit intentionally excludes device names that do not select a 
   - ✅ Diagnose zero or several valid active Main zones with `Role=Home` in the profile resolver.
   - ✅ Stop typed runtime initialization before publishing or activating any Zone when the resolved Home role is missing, duplicated, or not runnable on the Surface.
 - ✅ Connect typed `IncludedZones`, `ZoneLayers`, and lifecycle dispatch. Build each relation from the retained parsed document, inherit the parent's effective target and bank context for every layer instance, route current-context input and feedback as layer, owner, then included zones, and map explicit lifecycle blocks to the existing internal runtime events.
+- ✅ Store the derived format 2 target on each runtime Zone and use it instead of the zone filename for track-collection activation, selected-track lifetime, Page-scope `GoZone`, idempotent navigation, and slot behavior. Keep old special-name branches only for legacy zones.
 - [ ] Replace the metadata preprocessor, binding parser, surface block readers, Learn FX line readers, and OSK line edits with the shared model where they overlap.
 
 Ready when runtime behavior consumes validated documents and no feature reparses the same zone with a different grammar.

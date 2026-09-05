@@ -34,9 +34,28 @@ inline void ZoneManager::GoZone(const char* zoneName) {
     for (auto& goZone : goZones_)
         if (IsSameString(zoneName, goZone->GetName()))
             goZone->Activate();
-    if (IsSameString(zoneName, "SelectedTrackFX"))
+    if (!this->format2ZoneProfile_ && IsSameString(zoneName, "SelectedTrackFX"))
         GoSelectedTrackFX();
     surface_->PublishOSKLabels();
+}
+
+inline void ZoneManager::GoFormat2Zone(const char* zoneName) {
+    for (auto& goZone : this->goZones_) {
+        if (!IsSameString(zoneName, goZone->GetName())) continue;
+        if (goZone->UsesPageActivation()) this->surface_->GetPage()->GoZone(zoneName);
+        else this->GoZone(zoneName);
+        return;
+    }
+}
+
+inline void ZoneManager::GoFormat2Home() {
+    for (auto& goZone : this->goZones_) {
+        if (goZone->GetIsActive() && goZone->UsesPageActivation()) {
+            this->surface_->GetPage()->GoHome();
+            return;
+        }
+    }
+    this->GoHome();
 }
 
 inline void ZoneManager::GoHome() {

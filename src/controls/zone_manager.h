@@ -59,6 +59,8 @@ private:
     int masterTrackFXMenuOffset_ = 0;
 
     void GoFXSlot(MediaTrack* track, Navigator* navigator, int fxSlot);
+    void GoFormat2Home();
+    void GoFormat2Zone(const char* zoneName);
     void GoSelectedTrackFX();
     enum class Format2InitializationState { NotUsed, Initialized, Failed };
     Format2InitializationState InitializeFormat2();
@@ -282,6 +284,7 @@ public:
 
     CSurfIntegrator* GetCSI() { return csi_; }
     ControlSurface* GetSurface() { return surface_; }
+    bool UsesFormat2ZoneProfile() const { return this->format2ZoneProfile_ != nullptr; }
 
     Zone* GetActiveZoneForWidget(Widget* widget) {
         if (!widget) return NULL;
@@ -440,6 +443,7 @@ public:
     void LoadLearnFocusedFXZone(MediaTrack* track, const char* fxName, int fxIndex) {
         if (zoneInfo_.find(fxName) != zoneInfo_.end()) {
             learnFocusedFXZone_ = make_shared<Zone>(csi_, this, GetNavigatorForTrack(track), fxIndex, fxName, zoneInfo_[fxName].alias, zoneInfo_[fxName].filePath);
+            if (this->format2ZoneProfile_) this->learnFocusedFXZone_->ConfigureFormat2Runtime(ZoneRuntimeTarget::FocusedFx);
             LoadZoneFile(learnFocusedFXZone_.get(), "");
             learnFocusedFXZone_->Activate();
         } else {
@@ -467,6 +471,7 @@ public:
             info.filePath = fxFullFilePath;
 
             learnFocusedFXZone_ = make_shared<Zone>(csi_, this, GetNavigatorForTrack(track), fxIndex, fxName, info.alias, info.filePath);
+            if (this->format2ZoneProfile_) this->learnFocusedFXZone_->ConfigureFormat2Runtime(ZoneRuntimeTarget::FocusedFx);
 
             if (learnFocusedFXZone_) {
                 InitBlankLearnFocusedFXZone(this, learnFocusedFXZone_.get(), track, fxIndex);
@@ -476,6 +481,10 @@ public:
     }
 
     void DeclareGoZone(const char* zoneName) {
+        if (this->format2ZoneProfile_) {
+            this->GoFormat2Zone(zoneName);
+            return;
+        }
         if (!GetIsBroadcaster() && !GetIsListener()) // No Broadcasters/Listeners relationships defined
             GoZone(zoneName);
         else
@@ -543,6 +552,10 @@ public:
     void GoHome(); // out-of-line definition after ControlSurface class
 
     void DeclareGoHome() {
+        if (this->format2ZoneProfile_) {
+            this->GoFormat2Home();
+            return;
+        }
         if (!GetIsBroadcaster() && !GetIsListener()) // No Broadcasters/Listeners relationships defined
             GoHome();
         else
@@ -553,6 +566,9 @@ public:
     void OnTrackSelection() {
         if (fxSlotZone_ != NULL)
             ClearFXSlot();
+        if (!this->format2ZoneProfile_) return;
+        if (this->homeZone_ && this->homeZone_->GetIsActive()) this->homeZone_->OnTrackSelection();
+        for (auto& goZone : this->goZones_) if (goZone->GetIsActive()) goZone->OnTrackSelection();
     }
 
     void OnTrackDeselection() {
@@ -561,9 +577,14 @@ public:
         selectedTrackFXZones_.clear();
 
         for (auto& goZone : goZones_) {
-            if (IsSameString(goZone->GetName(), "SelectedTrack") || IsSameString(goZone->GetName(), "SelectedTrackSend") || IsSameString(goZone->GetName(), "SelectedTrackReceive") || IsSameString(goZone->GetName(), "SelectedTrackFXMenu")) {
-                goZone->Deactivate();
+            if (this->format2ZoneProfile_) {
+                if (goZone->GetIsActive()) goZone->OnTrackDeselection();
+                continue;
             }
+            const bool legacySelectedTrackZone = !this->format2ZoneProfile_
+                && (IsSameString(goZone->GetName(), "SelectedTrack") || IsSameString(goZone->GetName(), "SelectedTrackSend")
+                    || IsSameString(goZone->GetName(), "SelectedTrackReceive") || IsSameString(goZone->GetName(), "SelectedTrackFXMenu"));
+            if (legacySelectedTrackZone) goZone->Deactivate();
         }
 
         homeZone_->OnTrackDeselection();

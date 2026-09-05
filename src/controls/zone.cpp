@@ -15,6 +15,7 @@ void Zone::InitSubZones(const vector<string>& subZones, const char* widgetSuffix
 }
 
 int Zone::GetSlotIndex() {
+    if (this->runtimeTarget_ != ZoneRuntimeTarget::Legacy) return this->slotIndex_;
     if (name_ == "TrackSend") return zoneManager_->GetTrackSendOffset();
     if (name_ == "TrackReceive") return zoneManager_->GetTrackReceiveOffset();
     if (name_ == "TrackFXMenu") return zoneManager_->GetTrackFXMenuOffset();
@@ -44,7 +45,18 @@ bool Zone::UsesWidgetForCurrentFeedback(Widget* widget) {
     return false;
 }
 
+bool Zone::MatchesRuntimeTarget(ZoneRuntimeTarget target, const char* legacyName) const {
+    return this->runtimeTarget_ == target || (this->runtimeTarget_ == ZoneRuntimeTarget::Legacy && IsSameString(this->name_.c_str(), legacyName));
+}
+
 void Zone::Activate() {
+    if (this->MatchesRuntimeTarget(ZoneRuntimeTarget::Vca, "VCA"))
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateVCAMode();
+    else if (this->MatchesRuntimeTarget(ZoneRuntimeTarget::Folder, "Folder"))
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateFolderMode();
+    else if (this->MatchesRuntimeTarget(ZoneRuntimeTarget::SelectedTracks, "SelectedTracks"))
+        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateSelectedTracksMode();
+
     UpdateCurrentActionContextModifiers();
     //TODO: fix WidgetN forme HomeZone stops working if subzone has Shift+WidgetN but no WidgetN / subsone requires redefining WidgetN if there are WidgetN+ModifierX
     for (auto& widget : widgets_) {
@@ -56,13 +68,6 @@ void Zone::Activate() {
     }
 
     isActive_ = true;
-
-    if (IsSameString(GetName(), "VCA"))
-        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateVCAMode();
-    else if (IsSameString(GetName(), "Folder"))
-        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateFolderMode();
-    else if (IsSameString(GetName(), "SelectedTracks"))
-        zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateSelectedTracksMode();
 
     zoneManager_->GetSurface()->SendOSCMessage(GetName());
 
@@ -94,11 +99,11 @@ void Zone::Deactivate() {
 
     isActive_ = false;
 
-    if (IsSameString(GetName(), "VCA"))
+    if (this->MatchesRuntimeTarget(ZoneRuntimeTarget::Vca, "VCA"))
         zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateVCAMode();
-    else if (IsSameString(GetName(), "Folder"))
+    else if (this->MatchesRuntimeTarget(ZoneRuntimeTarget::Folder, "Folder"))
         zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateFolderMode();
-    else if (IsSameString(GetName(), "SelectedTracks"))
+    else if (this->MatchesRuntimeTarget(ZoneRuntimeTarget::SelectedTracks, "SelectedTracks"))
         zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->DeactivateSelectedTracksMode();
 
     for (auto& includedZone : includedZones_)
