@@ -10,6 +10,7 @@ enum class Format2ZoneNavigationKind {
 
 enum class Format2ActionArgumentKind {
     Unspecified,
+    None,
     ZoneId,
     SignedInteger,
 };

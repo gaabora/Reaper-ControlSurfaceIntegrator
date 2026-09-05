@@ -7,6 +7,7 @@ std::optional<Format2ZoneNavigationKind> GetFormat2ActionZoneNavigationKind(cons
 }
 
 Format2ActionArgumentKind GetFormat2ActionArgumentKind(const std::string& actionName) {
+    if (actionName == "ToggleSelectedTrackFX" || actionName == "ClearLastTouchedFXParam" || actionName == "ClearFocusedFX" || actionName == "ClearSelectedTrackFX" || actionName == "ClearFXSlot") return Format2ActionArgumentKind::None;
     if (actionName == "GoZone" || actionName == "EnterZoneLayer") return Format2ActionArgumentKind::ZoneId;
     if (actionName == "Bank") return Format2ActionArgumentKind::SignedInteger;
     return Format2ActionArgumentKind::Unspecified;

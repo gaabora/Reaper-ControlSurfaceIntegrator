@@ -157,25 +157,6 @@ private:
             GoZone(zoneName);
     }
 
-    void ListenToClearFXZone(const char* zoneToClear) {
-        if (IsSameString("LastTouchedFXParam", zoneToClear))
-            for (auto& listener : listeners_)
-                listener->ClearLastTouchedFXParam();
-        else if (IsSameString("FocusedFX", zoneToClear))
-            for (auto& listener : listeners_)
-                listener->ClearFocusedFX();
-        else if (IsSameString("SelectedTrackFX", zoneToClear))
-            for (auto& listener : listeners_) {
-                if (listener->GetListensToSelectedTrackFX())
-                    listener->GoZone(zoneToClear);
-            }
-        else if (IsSameString("FXSlot", zoneToClear))
-            for (auto& listener : listeners_) {
-                if (listener->GetListensToFXMenu())
-                    listener->GoZone(zoneToClear);
-            }
-    }
-
     void ListenToGoHome() { if (listensToGoHome_) GoHome(); }
 
     void ListenToGoFXSlot(MediaTrack* track, Navigator* navigator, int fxSlot) { if (listensToFXMenu_) GoFXSlot(track, navigator, fxSlot); }
@@ -218,6 +199,18 @@ private:
         selectedTrackFXZones_.clear();
     }
 
+    void ToggleSelectedTrackFX() {
+        if (!this->selectedTrackFXZones_.empty()) {
+            this->ClearSelectedTrackFX();
+            return;
+        }
+        this->ClearLearnFocusedFXZone();
+        CloseFocusedFXDialog();
+        this->ClearFocusedFX();
+        this->ClearFXSlot();
+        this->GoSelectedTrackFX();
+    }
+
     void ClearFXSlot() {
         if (fxSlotZone_ != NULL) {
             fxSlotZone_->Deactivate();
@@ -228,9 +221,11 @@ private:
     }
 
     void ReactivateFXMenuZone() {
-        for (int i = 0; i < goZones_.size(); ++i)
-            if (goZones_[i]->GetIsActive() && (IsSameString(goZones_[i]->GetName(), "TrackFXMenu") || IsSameString(goZones_[i]->GetName(), "SelectedTrackFXMenu")))
-                goZones_[i]->Activate();
+        for (auto& goZone : this->goZones_) {
+            const bool format2FxMenu = goZone->UsesFormat2Runtime() && goZone->GetRuntimeBankTarget() == ZoneRuntimeBankTarget::Fx;
+            const bool legacyFxMenu = !goZone->UsesFormat2Runtime() && (IsSameString(goZone->GetName(), "TrackFXMenu") || IsSameString(goZone->GetName(), "SelectedTrackFXMenu"));
+            if (goZone->GetIsActive() && (format2FxMenu || legacyFxMenu)) goZone->Activate();
+        }
     }
 
 public:
@@ -269,6 +264,12 @@ public:
     bool GetListensToReceives() { return listensToReceives_; }
     bool GetListensToFXMenu() { return listensToFXMenu_; }
     bool GetListensToSelectedTrackFX() { return listensToSelectedTrackFX_; }
+    bool HasSelectedTrackFX() const { return !this->selectedTrackFXZones_.empty(); }
+    bool IsSelectedTrackFXControlActive() {
+        if (!this->GetIsBroadcaster() && !this->GetIsListener()) return this->HasSelectedTrackFX();
+        for (ZoneManager* listener : this->listeners_) if (listener->GetListensToSelectedTrackFX() && listener->HasSelectedTrackFX()) return true;
+        return false;
+    }
 
     int GetNumChannels();
 
@@ -501,20 +502,29 @@ public:
 
     void GoZone(const char* zoneName); // out-of-line definition after ControlSurface class
 
-    void DeclareClearFXZone(const char* zoneName) {
-        if (!GetIsBroadcaster() && !GetIsListener()) // No Broadcasters/Listeners relationships defined
-        {
-            if (IsSameString("LastTouchedFXParam", zoneName))
-                ClearLastTouchedFXParam();
-            else if (IsSameString("FocusedFX", zoneName))
-                ClearFocusedFX();
-            else if (IsSameString("SelectedTrackFX", zoneName))
-                ClearSelectedTrackFX();
-            else if (IsSameString("FXSlot", zoneName))
-                ClearFXSlot();
-        } else
-            for (auto& listener : listeners_)
-                listener->ListenToClearFXZone(zoneName);
+    void DeclareClearLastTouchedFXParam() {
+        if (!this->GetIsBroadcaster() && !this->GetIsListener()) this->ClearLastTouchedFXParam();
+        else for (ZoneManager* listener : this->listeners_) listener->ClearLastTouchedFXParam();
+    }
+
+    void DeclareClearFocusedFX() {
+        if (!this->GetIsBroadcaster() && !this->GetIsListener()) this->ClearFocusedFX();
+        else for (ZoneManager* listener : this->listeners_) listener->ClearFocusedFX();
+    }
+
+    void DeclareClearSelectedTrackFX() {
+        if (!this->GetIsBroadcaster() && !this->GetIsListener()) this->ClearSelectedTrackFX();
+        else for (ZoneManager* listener : this->listeners_) if (listener->GetListensToSelectedTrackFX()) listener->ClearSelectedTrackFX();
+    }
+
+    void DeclareClearFXSlot() {
+        if (this->usesLocalFXSlot_ || (!this->GetIsBroadcaster() && !this->GetIsListener())) this->ClearFXSlot();
+        else for (ZoneManager* listener : this->listeners_) if (listener->GetListensToFXMenu()) listener->ClearFXSlot();
+    }
+
+    void DeclareToggleSelectedTrackFX() {
+        if (!this->GetIsBroadcaster() && !this->GetIsListener()) this->ToggleSelectedTrackFX();
+        else for (ZoneManager* listener : this->listeners_) if (listener->GetListensToSelectedTrackFX()) listener->ToggleSelectedTrackFX();
     }
 
     void DeclareGoFXSlot(MediaTrack* track, Navigator* navigator, int fxSlot) {

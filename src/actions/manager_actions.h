@@ -963,6 +963,27 @@ public:
     }
 };
 
+//! @action ToggleSelectedTrackFX
+//!
+//! @brief Opens mapped FX zones for the selected track, or closes them when they are already open.
+//!
+//! @zone_usage  WidgetName ToggleSelectedTrackFX
+//!
+//! @feedback Toggle. 1.0 while at least one selected-track FX zone is active.
+class ToggleSelectedTrackFX : public ManagerPressOnlyAction
+{
+public:
+    ActionType GetType() const override { return ActionType::ToggleSelectedTrackFX; }
+
+    void RequestUpdate(ActionContext* context) override {
+        context->UpdateWidgetValue(context->GetSurface()->GetZoneManager()->IsSelectedTrackFXControlActive() ? 1.0 : 0.0);
+    }
+
+    void Do(ActionContext* context, double value) override {
+        context->GetSurface()->GetZoneManager()->DeclareToggleSelectedTrackFX();
+    }
+};
+
 //! @action ClearLastTouchedFXParam
 //!
 //! @brief Clears the last-touched FX parameter mapping zone.
@@ -976,7 +997,7 @@ public:
     ActionType GetType() const override { return ActionType::ClearLastTouchedFXParam; }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->GetZoneManager()->DeclareClearFXZone("LastTouchedFXParam");
+        context->GetSurface()->GetZoneManager()->DeclareClearLastTouchedFXParam();
     }
 };
 
@@ -993,7 +1014,7 @@ public:
     ActionType GetType() const override { return ActionType::ClearFocusedFX; }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->GetZoneManager()->DeclareClearFXZone("FocusedFX");
+        context->GetSurface()->GetZoneManager()->DeclareClearFocusedFX();
     }
 };
 
@@ -1010,7 +1031,7 @@ public:
     ActionType GetType() const override { return ActionType::ClearSelectedTrackFX; }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->GetZoneManager()->DeclareClearFXZone("SelectedTrackFX");
+        context->GetSurface()->GetZoneManager()->DeclareClearSelectedTrackFX();
     }
 };
 
@@ -1027,7 +1048,7 @@ public:
     ActionType GetType() const override { return ActionType::ClearFXSlot; }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->GetZoneManager()->DeclareClearFXZone("FXSlot");
+        context->GetSurface()->GetZoneManager()->DeclareClearFXSlot();
     }
 };
 

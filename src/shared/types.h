@@ -528,6 +528,7 @@ X(DisableFocusedFXMapping, "DisableFocusedFXMapping") \
 X(DisableLastTouchedFXParamMapping, "DisableLastTouchedFXParamMapping") \
 X(ToggleEnableLastTouchedFXParamMapping, "ToggleEnableLastTouchedFXParamMapping") \
 X(ToggleUseLocalFXSlot, "ToggleUseLocalFXSlot") \
+X(ToggleSelectedTrackFX, "ToggleSelectedTrackFX") \
 /* Navigation */ \
 X(Bank, "Bank") \
 X(GoHome, "GoHome") \

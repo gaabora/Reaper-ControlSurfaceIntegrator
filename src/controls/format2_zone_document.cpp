@@ -290,7 +290,12 @@ private:
     }
 
     void ValidateKnownActionArguments(const Format2ZoneAction& action) {
-        if (GetFormat2ActionArgumentKind(action.action) != Format2ActionArgumentKind::SignedInteger) return;
+        const Format2ActionArgumentKind argumentKind = GetFormat2ActionArgumentKind(action.action);
+        if (argumentKind == Format2ActionArgumentKind::None) {
+            if (!action.arguments.empty()) this->AddDiagnostic("format2.zone.action.argument", action.action + " does not accept positional parameters", action.arguments.front().location);
+            return;
+        }
+        if (argumentKind != Format2ActionArgumentKind::SignedInteger) return;
         if (action.arguments.size() != 1 || action.arguments[0].quoted) {
             this->AddDiagnostic("format2.zone.action.bank-amount", action.action + " requires one unquoted signed integer amount", action.actionLocation);
             return;
