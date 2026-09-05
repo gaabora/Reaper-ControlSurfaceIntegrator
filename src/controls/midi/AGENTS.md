@@ -13,7 +13,7 @@
 
 - Surface-template widget names and message syntax are public configuration contracts.
 - MIDI byte ranges, 7-bit/14-bit values, pitch bend, SysEx framing, and device display formats must remain protocol-correct.
-- Configured MIDI ports must recover from offline-to-online transitions without resetting unrelated surfaces.
+- Configured MIDI ports must report unavailable and failed-to-open input/output states separately and recover from offline-to-online transitions without resetting unrelated surfaces.
 - Add new protocol behavior through the canonical Surface I/O schema and the typed format 2 runtime. Do not add a string-token Widget registry or device-specific feedback class.
 - `format2_midi_runtime.*` owns typed format 2 MIDI Surface validation and runtime Widget construction. Keep MIDI I/O lifecycle code in `midi_surface.*` and do not pass format 2 source through the legacy Surface text parser.
 - Format 2 `MIDIRGB` feedback must use its declared Enable, Red, Green, and Blue messages through the generic codec. EncoderProfile lookup must use the referenced profile ID and must not assume `RotaryWidgetClass`.

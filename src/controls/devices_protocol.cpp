@@ -78,9 +78,14 @@ static void AppendDevicesProperty(string& body, const string& key, int value) {
     AppendDevicesProperty(body, key, to_string(value));
 }
 
+static Midi_ControlSurfaceIO* FindRuntimeMidiIo(const vector<unique_ptr<Midi_ControlSurfaceIO>>& runtimeIo, const string& name) {
+    for (const auto& io : runtimeIo) if (io->GetName() == name) return io.get();
+    return nullptr;
+}
+
 static bool HasRuntimeMidiIo(const vector<unique_ptr<Midi_ControlSurfaceIO>>& runtimeIo, const string& name) {
-    for (const auto& io : runtimeIo) if (io->GetName() == name) return true;
-    return false;
+    Midi_ControlSurfaceIO* io = FindRuntimeMidiIo(runtimeIo, name);
+    return io && io->IsOpen();
 }
 
 static bool HasRuntimeOscIo(const vector<unique_ptr<OSC_ControlSurfaceIO>>& runtimeIo, const string& name) {
@@ -478,11 +483,20 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         AppendDevicesProperty(body, prefix + "RefreshRate", io.refreshRate);
         AppendDevicesProperty(body, prefix + "MaxMessages", io.maxMessagesPerRun);
         AppendSettingOverrides(body, prefix, io.settingOverrides);
-        AppendDevicesProperty(body, prefix + "Active", HasRuntimeMidiIo(this->midiSurfacesIO_, io.name) ? 1 : 0);
+        Midi_ControlSurfaceIO* runtimeIo = FindRuntimeMidiIo(this->midiSurfacesIO_, io.name);
+        AppendDevicesProperty(body, prefix + "Active", runtimeIo && runtimeIo->IsOpen() ? 1 : 0);
+        AppendDevicesProperty(body, prefix + "InputOpen", runtimeIo && runtimeIo->IsInputOpen() ? 1 : 0);
+        AppendDevicesProperty(body, prefix + "OutputOpen", runtimeIo && runtimeIo->IsOutputOpen() ? 1 : 0);
         char inputDeviceName[512] = {};
         const bool resolvedInput = io.inputPort >= 0 && GetMIDIInputName(io.inputPort, inputDeviceName, sizeof(inputDeviceName));
         const bool resolvedOutput = io.outputPort >= 0 && GetMIDIOutputName(io.outputPort, deviceName, sizeof(deviceName));
-        AppendDevicesProperty(body, prefix + "RuntimeIssue", !resolvedInput ? "MIDI input port is unavailable" : (!resolvedOutput ? "MIDI output port is unavailable" : ""));
+        string runtimeIssue;
+        if (!resolvedInput) runtimeIssue = "MIDI input port is unavailable";
+        else if (!runtimeIo) runtimeIssue = "MIDI device did not initialize";
+        else if (!runtimeIo->IsInputOpen()) runtimeIssue = "MIDI input port is available but could not be opened";
+        else if (!resolvedOutput) runtimeIssue = "MIDI output port is unavailable";
+        else if (!runtimeIo->IsOutputOpen()) runtimeIssue = "MIDI output port is available but could not be opened";
+        AppendDevicesProperty(body, prefix + "RuntimeIssue", runtimeIssue);
     }
 
     AppendDevicesProperty(body, "OscCount", static_cast<int>(config.oscIo.size()));

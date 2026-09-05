@@ -240,7 +240,7 @@ end
 
 local function addIoDefinition(data, kind)
     if kind == "MIDI" then
-        data.midi[#data.midi + 1] = { active = false, inputName = "", inputPort = -1, maxMessages = 200, name = uniqueIoName(data, "MIDI"), outputName = "", outputPort = -1, refreshRate = 15, runtimeIssue = "", settingOverrides = {} }
+        data.midi[#data.midi + 1] = { active = false, inputName = "", inputOpen = false, inputPort = -1, maxMessages = 200, name = uniqueIoName(data, "MIDI"), outputName = "", outputOpen = false, outputPort = -1, refreshRate = 15, runtimeIssue = "", settingOverrides = {} }
         state.editIo = { creating = true, index = #data.midi, kind = "MIDI" }
     else
         data.osc[#data.osc + 1] = { active = false, address = "127.0.0.1", maxPackets = 200, name = uniqueIoName(data, "OSC"), receivePort = "8000", runtimeIssue = "", settingOverrides = {}, transmitPort = "9000", type = "OSC" }
@@ -746,8 +746,10 @@ local function mergeRuntimeStatus(draft, response)
             for sourceIdx, source in ipairs(sources) do
                 if source.name == target.name then
                     target.active = source.active
+                    target.inputOpen = source.inputOpen
                     target.runtimeIssue = source.runtimeIssue
                     target.inputName = source.inputName or target.inputName
+                    target.outputOpen = source.outputOpen
                     target.outputName = source.outputName or target.outputName
                     break
                 end

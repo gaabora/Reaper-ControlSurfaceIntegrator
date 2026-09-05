@@ -29,10 +29,7 @@ protected:
     }
 
 public:
-    Midi_ControlSurfaceIO(CSurfIntegrator* csi, const char* name, int channelCount, int inputPort, int outputPort, int surfaceRefreshRate, int maxMesssagesPerRun)
-        : csi_(csi), name_(name), channelCount_(channelCount), inputPort_(inputPort), outputPort_(outputPort),
-          midiInput_(GetMidiInputForPort(inputPort)), midiOutput_(GetMidiOutputForPort(outputPort)),
-          surfaceRefreshRate_(surfaceRefreshRate), maxMesssagesPerRun_(maxMesssagesPerRun) {}
+    Midi_ControlSurfaceIO(CSurfIntegrator* csi, const char* name, int channelCount, int inputPort, int outputPort, int surfaceRefreshRate, int maxMesssagesPerRun);
 
     ~Midi_ControlSurfaceIO() {
         if (midiInput_) ReleaseMidiInput(midiInput_);
@@ -44,6 +41,10 @@ public:
     const char* GetName() { return name_.c_str(); }
 
     const int GetChannelCount() { return channelCount_; }
+
+    bool IsInputOpen() const { return this->midiInput_ != nullptr; }
+    bool IsOutputOpen() const { return this->midiOutput_ != nullptr; }
+    bool IsOpen() const { return this->IsInputOpen() && this->IsOutputOpen(); }
 
     void HandleExternalInput(Midi_ControlSurface* surface);
     bool PollForDeviceReconnect();

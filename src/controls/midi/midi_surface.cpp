@@ -76,6 +76,19 @@ midi_Output* GetMidiOutputForPort(int outputPort) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi_ControlSurfaceIO
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+Midi_ControlSurfaceIO::Midi_ControlSurfaceIO(CSurfIntegrator* csi, const char* name, int channelCount, int inputPort, int outputPort, int surfaceRefreshRate, int maxMesssagesPerRun)
+    : csi_(csi), name_(name), channelCount_(channelCount), inputPort_(inputPort), outputPort_(outputPort), midiInput_(GetMidiInputForPort(inputPort)), midiOutput_(GetMidiOutputForPort(outputPort)), maxMesssagesPerRun_(maxMesssagesPerRun), surfaceRefreshRate_(surfaceRefreshRate) {
+    char inputName[MEDBUF] = {};
+    char outputName[MEDBUF] = {};
+    const bool inputAvailable = inputPort >= 0 && GetMIDIInputName(inputPort, inputName, sizeof(inputName));
+    const bool outputAvailable = outputPort >= 0 && GetMIDIOutputName(outputPort, outputName, sizeof(outputName));
+    if (!inputAvailable) LogToConsole("[ERROR] MIDI device %s input port %d is unavailable\n", this->name_.c_str(), inputPort);
+    else if (!this->midiInput_) LogToConsole("[ERROR] MIDI device %s could not open input port %d (%s)\n", this->name_.c_str(), inputPort, inputName);
+    if (!outputAvailable) LogToConsole("[ERROR] MIDI device %s output port %d is unavailable\n", this->name_.c_str(), outputPort);
+    else if (!this->midiOutput_) LogToConsole("[ERROR] MIDI device %s could not open output port %d (%s)\n", this->name_.c_str(), outputPort, outputName);
+    if (this->IsOpen() && g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] MIDI device %s opened input %d (%s) and output %d (%s)\n", this->name_.c_str(), inputPort, inputName, outputPort, outputName);
+}
+
 void Midi_ControlSurfaceIO::HandleExternalInput(Midi_ControlSurface* surface) {
     if (midiInput_) {
         midiInput_->SwapBufsPrecise(GetTickCount(), GetTickCount());
