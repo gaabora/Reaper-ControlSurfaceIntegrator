@@ -17,7 +17,7 @@
 - `logging_settings_ui.lua` Product-scope logging settings draft, Save, and Revert behavior.
 - `osd_templates.lua` canonical OSD template variable definitions, resolver functions, enumeration, validation, and expansion.
 - Shared Lua modules for data parsing, configuration editing, input, rendering, settings, and UI behavior directly under `Scripts/`.
-- `osk_zone_create.lua` small zone-scaffold dialog and its `ZoneCreate` request/status state.
+- `osk_zone_create.lua` small format 2 zone-creation dialog and its `ZoneCreate` request/status state.
 - Installation and linked-development assumptions for the Lua runtime.
 
 ## Local Contracts

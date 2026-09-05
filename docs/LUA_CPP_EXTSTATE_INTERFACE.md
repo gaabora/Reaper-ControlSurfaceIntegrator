@@ -130,13 +130,13 @@ Keys in `ReaCtrlSurf_OSK_CMD`:
 | `SurfaceEnabled` | `surface|0-or-1` |
 | `Open` | Any payload |
 | `ToggleAll` | Any payload |
-| `ZoneCreate` | `surface|scaffoldType|zoneName|alias|navigator` |
+| `ZoneCreate` | `surface|documentType|zoneName|alias|purpose|matchFx` |
 
 `Open` opens the OSK ReaScript without changing enabled surfaces when at least one current-Page surface is already enabled. When none is enabled, it enables every surface on the current Page, republishes their layout and state, and opens the script.
 
 `ToggleAll` disables and closes all current-Page OSK windows when at least one Surface is enabled. Otherwise it enables every current-Page Surface, republishes its data, and opens the OSK script. Closing the final Surface explicitly terminates the running ReaScript so a later request can recover from a failed instance.
 
-`ZoneCreate` supports `main`, `home`, `go`, `subzone`, `included`, `learn`, and `fx` scaffold types. C++ resolves the active surface profile and writes only below its user profile. Creating a Main zone from Vendor Main requires confirmation and a Main-only User copy first. Creating an FX zone writes directly to the configured User FX directory. The command creates one file and does not add it to a parent zone. `zoneName` is also the file stem and uses ASCII letters, digits, `_`, and `-`. The optional alias must not contain `|`, quotes, or line breaks. The optional navigator is empty or one of the navigator names offered by the OSK dialog.
+`ZoneCreate` writes one format 2 file below the active profile's User `Main` or `FX` directory. It does not copy the Vendor profile and does not add the new zone to another zone. `documentType` is `main` or `fx`. For a Main zone, `purpose` is one task offered by the OSK dialog and C++ converts it to valid `Role`, `Target`, and optional `BankTarget` metadata. For an FX zone, `matchFx` is required and becomes quoted `MatchFX` metadata. C++ validates the complete Vendor plus User profile before writing. It rejects a duplicate case-insensitive zone ID, a second Home role, and a duplicate FX plugin match. `zoneName` is also the file stem and uses ASCII letters, digits, `_`, and `-`. Optional display text must not contain `|`, quotes, or line breaks.
 
 `WidgetScroll` uses a non-negative acceleration index and an event count from `-8` to
 `8`, excluding zero. The sign is the direction. Lua rate-limits and coalesces wheel

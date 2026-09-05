@@ -1926,7 +1926,7 @@ Ready when old public CSI examples can be imported into format 2 without runtime
 - [ ] Remove duplicated ring-style lists from Learn FX data and remove repeated standard `RingStyle` properties where action metadata produces the same result.
 - [ ] Remove duplicate bundled zone IDs and verify User and Vendor layer behavior.
 - [ ] Add or complete OSK layouts for bundled hardware OSC templates where a desktop mirror is useful, starting with Behringer X32. Keep layouts optional for OSC tablet applications.
-- [ ] Update OSK zone creation to write only format 2.
+- ✅ Update OSK zone creation to write only format 2.
 - [ ] Remove format 1 support from runtime after the importer and bundled data are complete.
 - [ ] Update the Wiki and durable developer contracts.
 - [ ] Perform focused C++ build, Bun checks, legacy import checks, and manual REAPER verification after explicit approval.

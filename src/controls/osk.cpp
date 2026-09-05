@@ -1221,8 +1221,8 @@ void ControlSurface::HandleOSKConfigRevert(const string& widgetName) {
     PublishConfigStatus("OK", "Revert", this->name_, widgetName, "", "Reverted from disk");
 }
 
-void ControlSurface::HandleOSKZoneCreate(const string& scaffoldType, const string& zoneName, const string& alias, const string& navigator) {
-    const ZoneFileCreateResult result = ZoneFileCreator::Create(this->zoneManager_.get(), { scaffoldType, zoneName, alias, navigator });
+void ControlSurface::HandleOSKZoneCreate(const string& documentType, const string& zoneName, const string& alias, const string& purpose, const string& matchFx) {
+    const ZoneFileCreateResult result = ZoneFileCreator::Create(this->zoneManager_.get(), { documentType, zoneName, alias, purpose, matchFx });
     if (!result.success) {
         PublishZoneCreateStatus(this->name_, "ERR", result.path, result.message);
         return;

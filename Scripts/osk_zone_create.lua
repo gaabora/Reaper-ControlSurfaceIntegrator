@@ -5,33 +5,39 @@ local ui = require("ui_components")
 
 local M = {}
 
-local SCAFFOLD_TYPES = {
+local DOCUMENT_TYPES = {
     { label = "Main zone", value = "main" },
-    { label = "Home zone", value = "home" },
-    { label = "Go zone", value = "go" },
-    { label = "Subzone", value = "subzone" },
-    { label = "Included zone", value = "included" },
-    { label = "Learn zone", value = "learn" },
     { label = "FX zone", value = "fx" },
 }
 
-local NAVIGATORS = {
-    { label = "Default (Track)", value = "" },
-    { label = "Track", value = "TrackNavigator" },
-    { label = "Master track", value = "MasterTrackNavigator" },
-    { label = "Selected track", value = "SelectedTrackNavigator" },
-    { label = "Focused FX", value = "FocusedFXNavigator" },
-    { label = "VCA", value = "VCANavigator" },
-    { label = "Folder", value = "FolderNavigator" },
+local MAIN_PURPOSES = {
+    { label = "Channel tracks", value = "tracks" },
+    { label = "Home and global controls", value = "home" },
+    { label = "Selected track", value = "selected-track" },
+    { label = "Master track", value = "master-track" },
+    { label = "Focused FX", value = "focused-fx" },
+    { label = "Sends for channel tracks", value = "tracks-sends" },
+    { label = "Receives for channel tracks", value = "tracks-receives" },
+    { label = "FX for channel tracks", value = "tracks-fx" },
+    { label = "Selected-track sends", value = "selected-track-sends" },
+    { label = "Selected-track receives", value = "selected-track-receives" },
+    { label = "Selected-track FX", value = "selected-track-fx" },
+    { label = "Master-track FX", value = "master-track-fx" },
+    { label = "VCA tracks", value = "vca" },
+    { label = "Folder tracks", value = "folder" },
+    { label = "Selected-track collection", value = "selected-tracks" },
+    { label = "Reusable layer", value = "layer" },
+    { label = "Last-touched FX parameter", value = "last-touched-fx-param" },
 }
 
 local state = {
     alias = "",
+    documentType = "main",
     isOpen = false,
-    navigator = "",
+    matchFx = "",
     path = "",
     pending = false,
-    scaffoldType = "main",
+    purpose = "tracks",
     status = "",
     surfaceName = "",
     zoneName = "",
@@ -49,6 +55,11 @@ local function validationError()
     if #state.zoneName > 128 then return "Name is too long." end
     if #state.alias > 200 then return "Alias is too long." end
     if state.alias:find("[\r\n\"|]") then return "Alias cannot contain quotes, |, or line breaks." end
+    if state.documentType == "fx" then
+        if state.matchFx == "" then return "Enter the plugin name that this FX zone matches." end
+        if #state.matchFx > 300 then return "Plugin name is too long." end
+        if state.matchFx:find("[\r\n\"|]") then return "Plugin name cannot contain quotes, |, or line breaks." end
+    end
     return nil
 end
 
@@ -67,6 +78,7 @@ local function pollResponse()
     if outcome == "OK" then
         state.zoneName = ""
         state.alias = ""
+        state.matchFx = ""
     end
 end
 
@@ -77,7 +89,7 @@ local function sendRequest()
         return
     end
     reaper.DeleteExtState(data.EXT_SECTION, responseKey(), false)
-    local payload = table.concat({ state.surfaceName, state.scaffoldType, state.zoneName, state.alias, state.navigator }, "|")
+    local payload = table.concat({ state.surfaceName, state.documentType, state.zoneName, state.alias, state.purpose, state.matchFx }, "|")
     reaper.SetExtState(data.EXT_CMD_SECTION, "ZoneCreate", payload, false)
     state.path = ""
     state.pending = true
@@ -87,11 +99,12 @@ end
 function M.Open(surfaceName)
     if not surfaceName or surfaceName == "" then return end
     state.alias = ""
+    state.documentType = "main"
     state.isOpen = true
-    state.navigator = ""
+    state.matchFx = ""
     state.path = ""
     state.pending = false
-    state.scaffoldType = "main"
+    state.purpose = "tracks"
     state.status = ""
     state.surfaceName = surfaceName
     state.zoneName = ""
@@ -110,13 +123,17 @@ function M.Render(ctx, font)
     if font then imgui.PushFont(ctx, font) end
     local visible, open = imgui.Begin(ctx, "Create zone file @" .. state.surfaceName .. "###osk_zone_create", true, WINDOW_FLAGS)
     if visible then
-        imgui.TextWrapped(ctx, "Create one empty zone file in this surface profile. This does not add a link from another zone.")
+        imgui.TextWrapped(ctx, "Create one empty format 2 zone in the User profile. This does not add the zone to another zone.")
 
         local changed
-        changed, state.scaffoldType = ui.ComboEnum(ctx, "Type", state.scaffoldType, SCAFFOLD_TYPES)
+        changed, state.documentType = ui.ComboEnum(ctx, "Type", state.documentType, DOCUMENT_TYPES)
         changed, state.zoneName = imgui.InputText(ctx, "Name", state.zoneName)
         changed, state.alias = imgui.InputText(ctx, "Alias (optional)", state.alias)
-        changed, state.navigator = ui.ComboEnum(ctx, "Navigator", state.navigator, NAVIGATORS)
+        if state.documentType == "main" then
+            changed, state.purpose = ui.ComboEnum(ctx, "What it controls", state.purpose, MAIN_PURPOSES)
+        else
+            changed, state.matchFx = imgui.InputText(ctx, "Plugin name to match", state.matchFx)
+        end
 
         local errorMessage = validationError()
         if errorMessage and state.zoneName ~= "" then imgui.TextWrapped(ctx, errorMessage) end

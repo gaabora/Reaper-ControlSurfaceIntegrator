@@ -374,11 +374,11 @@ public:
         if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] DispatchOSKConfigRevert: surface '%s' not found\n", surfName.c_str());
     }
 
-    void DispatchOSKZoneCreate(const string& surfName, const string& scaffoldType, const string& zoneName, const string& alias, const string& navigator) {
+    void DispatchOSKZoneCreate(const string& surfName, const string& documentType, const string& zoneName, const string& alias, const string& purpose, const string& matchFx) {
         if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return;
         for (auto& surface : this->pages_[this->currentPageIndex_]->GetSurfaces()) {
             if (surfName == surface->GetName()) {
-                surface->HandleOSKZoneCreate(scaffoldType, zoneName, alias, navigator);
+                surface->HandleOSKZoneCreate(documentType, zoneName, alias, purpose, matchFx);
                 return;
             }
         }
@@ -536,14 +536,14 @@ public:
             ::DeleteExtState(ProductIdentity::ExtStateOskCommand, "ZoneCreate", false);
             vector<string> fields;
             size_t fieldStart = 0;
-            for (int fieldIndex = 0; fieldIndex < 4; ++fieldIndex) {
+            for (int fieldIndex = 0; fieldIndex < 5; ++fieldIndex) {
                 const size_t separator = payload.find('|', fieldStart);
                 if (separator == string::npos) break;
                 fields.push_back(payload.substr(fieldStart, separator - fieldStart));
                 fieldStart = separator + 1;
             }
-            if (fields.size() == 4) fields.push_back(payload.substr(fieldStart));
-            if (fields.size() == 5) this->DispatchOSKZoneCreate(fields[0], fields[1], fields[2], fields[3], fields[4]);
+            if (fields.size() == 5) fields.push_back(payload.substr(fieldStart));
+            if (fields.size() == 6) this->DispatchOSKZoneCreate(fields[0], fields[1], fields[2], fields[3], fields[4], fields[5]);
             else if (g_debugLevel >= DEBUG_LEVEL_DEBUG) LogToConsole("[DEBUG] Invalid ZoneCreate payload: '%s'\n", payload.c_str());
         }
     }

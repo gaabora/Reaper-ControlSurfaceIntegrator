@@ -1,5 +1,6 @@
 #include "zone_file_creator.h"
 
+#include "format2_zone_profile_loader.h"
 #include "zone_manager.h"
 
 #include <chrono>
@@ -36,28 +37,56 @@ bool ZoneFileCreator::IsSafeZoneName(const string& value) {
     return true;
 }
 
-bool ZoneFileCreator::IsSafeAlias(const string& value) {
-    if (value.size() > 200 || value.find_first_of("\r\n\"|") != string::npos) return false;
+bool ZoneFileCreator::IsSafeText(const string& value, size_t maximumLength) {
+    if (value.size() > maximumLength || value.find_first_of("\r\n\"|") != string::npos) return false;
     for (const unsigned char character : value) if (character < 32 && character != '\t') return false;
     return true;
 }
 
-bool ZoneFileCreator::IsSupportedNavigator(const string& value) {
-    return value.empty() || value == "TrackNavigator" || value == "MasterTrackNavigator" || value == "SelectedTrackNavigator" || value == "FocusedFXNavigator" || value == "VCANavigator" || value == "FolderNavigator";
-}
+bool ZoneFileCreator::ResolveMetadata(const ZoneFileCreateRequest& request, bool& isFx, string& metadata, string& errorMessage) {
+    isFx = request.documentType == "fx";
+    if (request.documentType != "main" && !isFx) {
+        errorMessage = "Type must be Main zone or FX zone";
+        return false;
+    }
+    if (isFx) {
+        if (request.matchFx.empty()) {
+            errorMessage = "FX zone requires a plugin name to match";
+            return false;
+        }
+        if (!ZoneFileCreator::IsSafeText(request.matchFx, 300)) {
+            errorMessage = "Plugin name must not contain quotes, |, line breaks, or control characters";
+            return false;
+        }
+        metadata = "MatchFX=\"" + request.matchFx + "\"";
+        return true;
+    }
 
-bool ZoneFileCreator::ResolveRelativeDirectory(const string& scaffoldType, filesystem::path& relativeDirectory, bool& isFx) {
-    isFx = false;
-    if (scaffoldType == "main") relativeDirectory.clear();
-    else if (scaffoldType == "home") relativeDirectory = "HomeZones";
-    else if (scaffoldType == "go") relativeDirectory = "GoZones";
-    else if (scaffoldType == "subzone") relativeDirectory = "SubZones";
-    else if (scaffoldType == "included") relativeDirectory = "IncludedZones";
-    else if (scaffoldType == "learn") relativeDirectory = "LearnZones";
-    else if (scaffoldType == "fx") {
-        relativeDirectory.clear();
-        isFx = true;
-    } else return false;
+    static const map<string, string> metadataByPurpose = {
+        {"home", "Role=Home"},
+        {"last-touched-fx-param", "Role=LastTouchedFXParam"},
+        {"layer", "Role=Layer"},
+        {"tracks", "Target=Tracks"},
+        {"selected-track", "Target=SelectedTrack"},
+        {"master-track", "Target=MasterTrack"},
+        {"focused-fx", "Target=FocusedFX"},
+        {"tracks-sends", "Target=Tracks BankTarget=Sends"},
+        {"tracks-receives", "Target=Tracks BankTarget=Receives"},
+        {"tracks-fx", "Target=Tracks BankTarget=FX"},
+        {"selected-track-sends", "Target=SelectedTrack BankTarget=Sends"},
+        {"selected-track-receives", "Target=SelectedTrack BankTarget=Receives"},
+        {"selected-track-fx", "Target=SelectedTrack BankTarget=FX"},
+        {"master-track-fx", "Target=MasterTrack BankTarget=FX"},
+        {"vca", "Target=VCA"},
+        {"folder", "Target=Folder"},
+        {"selected-tracks", "Target=SelectedTracks"},
+    };
+    const auto metadataEntry = metadataByPurpose.find(request.purpose);
+    if (metadataEntry == metadataByPurpose.end()) {
+        errorMessage = "Choose what the Main zone controls";
+        return false;
+    }
+    metadata = metadataEntry->second;
     return true;
 }
 
@@ -68,25 +97,58 @@ bool ZoneFileCreator::HasCaseInsensitiveFile(const filesystem::path& directory, 
     return false;
 }
 
-bool ZoneFileCreator::FindDuplicateZoneName(const filesystem::path& profileRoot, const string& zoneName, filesystem::path& duplicatePath) {
-    if (!filesystem::is_directory(profileRoot)) return false;
+bool ZoneFileCreator::FindCaseInsensitiveZoneId(const filesystem::path& collectionRoot, const string& zoneName, filesystem::path& duplicatePath) {
+    if (!filesystem::is_directory(collectionRoot)) return false;
     const string lowercaseZoneName = ZoneFileCreator::LowerAscii(zoneName);
-    for (const filesystem::directory_entry& entry : filesystem::recursive_directory_iterator(profileRoot, filesystem::directory_options::skip_permission_denied)) {
+    for (const filesystem::directory_entry& entry : filesystem::recursive_directory_iterator(collectionRoot, filesystem::directory_options::skip_permission_denied)) {
         if (!entry.is_regular_file() || ZoneFileCreator::LowerAscii(entry.path().extension().string()) != ".zon") continue;
-        ifstream inputFile(entry.path());
-        for (string line; getline(inputFile, line);) {
-            TrimLine(line);
-            if (line.rfind("Zone", 0) != 0) continue;
-            vector<string> tokens;
-            GetTokens(tokens, line);
-            if (tokens.size() >= 2 && tokens[0] == "Zone" && ZoneFileCreator::LowerAscii(tokens[1]) == lowercaseZoneName) {
-                duplicatePath = entry.path();
-                return true;
-            }
-            if (!tokens.empty() && tokens[0] == "Zone") break;
+        if (ZoneFileCreator::LowerAscii(entry.path().stem().string()) == lowercaseZoneName) {
+            duplicatePath = entry.path();
+            return true;
         }
     }
     return false;
+}
+
+bool ZoneFileCreator::ValidateCandidate(const string& profileId, const filesystem::path& targetPath, bool isFx, const string& source, string& errorMessage) {
+    const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
+    const vector<Format2ZoneProfileRoot> roots = {
+        {productPaths.MainZones(ZoneSource::Vendor, profileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::Vendor},
+        {productPaths.MainZones(ZoneSource::User, profileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::User},
+        {productPaths.FxZones(ZoneSource::Vendor, profileId), Format2ZoneCollection::Fx, Format2ZoneSourceLayer::Vendor},
+        {productPaths.FxZones(ZoneSource::User, profileId), Format2ZoneCollection::Fx, Format2ZoneSourceLayer::User},
+    };
+    Format2ZoneProfileLoadResult loaded = LoadFormat2ZoneProfile(profileId, roots);
+    if (!loaded.ContainsOnlyFormat2() || !loaded.IsValid()) {
+        errorMessage = "The active zone profile must be fully converted to format 2 before OSK can create a zone";
+        return false;
+    }
+
+    const Format2DocumentKind kind = isFx ? Format2DocumentKind::FxZone : Format2DocumentKind::MainZone;
+    Format2ZoneParseResult candidate = ParseFormat2ZoneDocumentSource(source, targetPath.string(), kind);
+    if (!candidate.IsValid()) {
+        errorMessage = candidate.document.lexical.diagnostics.empty() ? "Generated zone is invalid" : candidate.document.lexical.diagnostics.front().message;
+        return false;
+    }
+    if (isFx && candidate.document.metadata.matchFx) {
+        const string candidateMatch = ZoneFileCreator::LowerAscii(*candidate.document.metadata.matchFx);
+        for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
+            if (activeZone.collection != Format2ZoneCollection::Fx || !activeZone.available || !activeZone.activeSourceIndex) continue;
+            const Format2LoadedZoneDocument& document = loaded.documents[*activeZone.activeSourceIndex];
+            if (!document.parsed.document.metadata.matchFx) continue;
+            if (ZoneFileCreator::LowerAscii(*document.parsed.document.metadata.matchFx) == candidateMatch) {
+                errorMessage = "Another active FX zone already matches this plugin: " + document.parsed.document.lexical.sourcePath;
+                return false;
+            }
+        }
+    }
+    loaded.sources.push_back(MakeFormat2ZoneSource(isFx ? Format2ZoneCollection::Fx : Format2ZoneCollection::Main, Format2ZoneSourceLayer::User, candidate));
+    const Format2ZoneProfileResolveResult resolved = ResolveFormat2ZoneProfile(profileId, loaded.sources);
+    if (!resolved.IsValid()) {
+        errorMessage = resolved.diagnostics.front().message;
+        return false;
+    }
+    return true;
 }
 
 bool ZoneFileCreator::WriteCompletedTemporaryFile(const filesystem::path& targetPath, const string& source, string& errorMessage) {
@@ -136,21 +198,18 @@ ZoneFileCreateResult ZoneFileCreator::Create(ZoneManager* zoneManager, const Zon
         result.message = "Zone name must start with an ASCII letter or digit and contain only ASCII letters, digits, '_' or '-'";
         return result;
     }
-    if (!ZoneFileCreator::IsSafeAlias(request.alias)) {
-        result.message = "Alias must not contain quotes, line breaks, or control characters";
+    if (!ZoneFileCreator::IsSafeText(request.alias, 200)) {
+        result.message = "Alias must not contain quotes, |, line breaks, or control characters";
         return result;
     }
-    if (!ZoneFileCreator::IsSupportedNavigator(request.navigator)) {
-        result.message = "Unsupported zone navigator";
+    if (!zoneManager->UsesFormat2ZoneProfile()) {
+        result.message = "Convert this zone profile to format 2 before creating zones from OSK";
         return result;
     }
 
-    filesystem::path relativeDirectory;
     bool isFx = false;
-    if (!ZoneFileCreator::ResolveRelativeDirectory(request.scaffoldType, relativeDirectory, isFx)) {
-        result.message = "Unsupported zone scaffold type";
-        return result;
-    }
+    string metadata;
+    if (!ZoneFileCreator::ResolveMetadata(request, isFx, metadata, result.message)) return result;
 
     const string configuredBase = isFx ? zoneManager->GetFXZoneFolder() : zoneManager->GetZoneFolder();
     if (configuredBase.empty()) {
@@ -158,51 +217,38 @@ ZoneFileCreateResult ZoneFileCreator::Create(ZoneManager* zoneManager, const Zon
         return result;
     }
 
-    bool activatedUserProfile = false;
-    string editableBase;
-    string preparationError;
-    if (!zoneManager->PrepareZonePathForWrite(configuredBase, editableBase, activatedUserProfile, preparationError)) {
-        result.message = preparationError;
-        return result;
-    }
-
     try {
         const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
-        const std::optional<string> profileId = productPaths.UserZoneProfileIdForPath(editableBase);
+        const std::optional<string> userProfileId = productPaths.UserZoneProfileIdForPath(configuredBase);
+        const std::optional<string> vendorProfileId = productPaths.VendorZoneProfileIdForPath(configuredBase);
+        const std::optional<string> profileId = userProfileId ? userProfileId : vendorProfileId;
         if (!profileId) {
-            result.message = "Configured zone folder is not inside a user zone profile";
+            result.message = "Configured zone folder is not inside a known zone profile";
             return result;
         }
         const filesystem::path profileRoot = productPaths.ZoneProfileDirectory(ZoneSource::User, *profileId);
         const filesystem::path expectedBase = isFx ? productPaths.FxZones(ZoneSource::User, *profileId) : productPaths.MainZones(ZoneSource::User, *profileId);
-        if (filesystem::weakly_canonical(filesystem::absolute(editableBase)) != filesystem::weakly_canonical(filesystem::absolute(expectedBase))) {
-            result.message = "Configured zone folder does not match the selected scaffold destination";
-            return result;
-        }
 
         filesystem::path duplicatePath;
-        if (ZoneFileCreator::FindDuplicateZoneName(profileRoot, request.zoneName, duplicatePath)) {
-            result.message = "Zone name already exists in profile: " + duplicatePath.string();
+        const filesystem::path vendorCollection = isFx ? productPaths.FxZones(ZoneSource::Vendor, *profileId) : productPaths.MainZones(ZoneSource::Vendor, *profileId);
+        const filesystem::path userCollection = isFx ? productPaths.FxZones(ZoneSource::User, *profileId) : productPaths.MainZones(ZoneSource::User, *profileId);
+        if (ZoneFileCreator::FindCaseInsensitiveZoneId(userCollection, request.zoneName, duplicatePath) || ZoneFileCreator::FindCaseInsensitiveZoneId(vendorCollection, request.zoneName, duplicatePath)) {
+            result.message = "Zone ID already exists: " + duplicatePath.string();
             return result;
         }
 
-        const filesystem::path destinationDirectory = expectedBase / relativeDirectory;
+        const filesystem::path destinationDirectory = expectedBase;
         const filesystem::path targetPath = destinationDirectory / (request.zoneName + ".zon");
         if (!ZoneFileCreator::IsContainedPath(profileRoot, targetPath) || !ZoneFileCreator::IsContainedPath(destinationDirectory, targetPath)) {
             result.message = "Zone destination escapes the user profile";
             return result;
         }
+        string source = "@Meta { Version=2 " + metadata;
+        if (!request.alias.empty()) source += " Alias=\"" + request.alias + "\"";
+        source += " }\n";
+        if (!ZoneFileCreator::ValidateCandidate(*profileId, targetPath, isFx, source, result.message)) return result;
+
         filesystem::create_directories(destinationDirectory);
-        if (ZoneFileCreator::HasCaseInsensitiveFile(destinationDirectory, targetPath.filename().string())) {
-            result.message = "A zone file with this name already exists in the destination";
-            return result;
-        }
-
-        string source = "// @format zone 1\nZone \"" + request.zoneName + "\"";
-        if (!request.alias.empty()) source += " \"" + request.alias + "\"";
-        if (!request.navigator.empty()) source += " NavType=" + request.navigator;
-        source += "\nZoneEnd\n";
-
         string writeError;
         if (!ZoneFileCreator::WriteCompletedTemporaryFile(targetPath, source, writeError)) {
             result.message = writeError;
@@ -210,7 +256,7 @@ ZoneFileCreateResult ZoneFileCreator::Create(ZoneManager* zoneManager, const Zon
         }
         result.success = true;
         result.path = targetPath.string();
-        result.message = activatedUserProfile ? "Zone created and editable user profile activated" : "Zone created";
+        result.message = "Format 2 zone created";
         return result;
     } catch (const std::exception& error) {
         result.message = string("Unable to create zone: ") + error.what();
