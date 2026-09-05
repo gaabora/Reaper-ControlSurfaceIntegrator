@@ -23,6 +23,8 @@ private:
     Action* action_;
     Widget* const widget_;
     Zone* const zone_;
+    Navigator* const navigator_;
+    int slotIndexOverride_ = -1;
 
     int intParam_ = 0;
 
@@ -71,7 +73,7 @@ private:
 public:
     static int constexpr INHERIT_VALUE = -1;
     static double constexpr BUTTON_RELEASE_MESSAGE_VALUE = 0.0; //FIXME: review usage, possibly improve for better support
-    ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& params);
+    ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& params, Navigator* navigator = nullptr, int slotIndexOverride = -1);
 
     virtual ~ActionContext() {}
 
@@ -80,6 +82,7 @@ public:
     Action* GetAction() { return action_; }
     Widget* GetWidget() { return widget_; }
     Zone* GetZone() { return zone_; }
+    Navigator* GetNavigator() { return this->navigator_; }
     int GetSlotIndex();
     const char* GetName();
 

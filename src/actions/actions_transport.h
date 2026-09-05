@@ -320,7 +320,7 @@ public:
 
     virtual void Do(ActionContext* context, double value) override {
         int mode = context->GetIntParam();
-        if (context->GetZone()->GetNavigator()->GetType() == NavigatorType::MasterTrackNavigator) {
+        if (context->GetNavigator()->GetType() == NavigatorType::MasterTrackNavigator) {
             SetMediaTrackInfo_Value(GetMasterTrack(NULL), "I_AUTOMODE", mode);
         } else {
             const vector<MediaTrack*>& selectedTracks = context->GetSelectedTracks(true);

@@ -561,7 +561,7 @@ public:
 
     void Do(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack())
-            context->GetSurface()->GetZoneManager()->DeclareGoFXSlot(track, context->GetZone()->GetNavigator(), context->GetSlotIndex());
+            context->GetSurface()->GetZoneManager()->DeclareGoFXSlot(track, context->GetNavigator(), context->GetSlotIndex());
     }
 };
 

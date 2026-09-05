@@ -271,6 +271,11 @@ if(BUILD_TESTING)
   target_compile_features(ReaControlSurfaceSettingsTests PRIVATE cxx_std_17)
   target_include_directories(ReaControlSurfaceSettingsTests PRIVATE "${PROJECT_SOURCE_DIR}/src/shared" "${PRODUCT_GENERATED_DIRECTORY}")
   add_test(NAME ReaControlSurfaceSettingsValues COMMAND ReaControlSurfaceSettingsTests)
+
+  add_executable(ReaControlSurfaceFormat2ZoneProfileTests tests/format2_zone_profile_tests.cpp src/controls/format2_action_metadata.cpp src/controls/format2_document.cpp src/controls/format2_lexer.cpp src/controls/format2_syntax.cpp src/controls/format2_zone_document.cpp src/controls/format2_zone_profile.cpp src/controls/format2_zone_profile_loader.cpp)
+  target_compile_features(ReaControlSurfaceFormat2ZoneProfileTests PRIVATE cxx_std_17)
+  target_include_directories(ReaControlSurfaceFormat2ZoneProfileTests PRIVATE "${PROJECT_SOURCE_DIR}/src/controls")
+  add_test(NAME ReaControlSurfaceFormat2ZoneProfile COMMAND ReaControlSurfaceFormat2ZoneProfileTests)
 endif()
 
 # ------------------------------------------------------------------------------

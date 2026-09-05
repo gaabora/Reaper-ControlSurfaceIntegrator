@@ -6,6 +6,7 @@ export interface ActionCatalogEntry {
     category: string;
     enumName: string;
     feedback?: string;
+    feedbackShape?: string;
     name: string;
     notes?: string;
     params?: string;
@@ -15,6 +16,7 @@ export interface ActionCatalogEntry {
 interface ActionDocumentation {
     brief?: string;
     feedback?: string;
+    feedbackShape?: string;
     notes?: string;
     params?: string;
     usage?: string;
@@ -39,6 +41,7 @@ function parseDocumentationBlock(block: string): Map<string, ActionDocumentation
         result.set(actionName, {
             brief: tagValues.get("brief"),
             feedback: tagValues.get("feedback"),
+            feedbackShape: tagValues.get("feedback_shape"),
             notes: tagValues.get("notes"),
             params: tagValues.get("params"),
             usage: tagValues.get("zone_usage"),

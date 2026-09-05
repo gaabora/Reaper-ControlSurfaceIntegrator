@@ -32,6 +32,7 @@ struct SendReceiveTraits<SendDirection::Receive> {
 //! @zone_usage  Fader|    TrackSendVolume   or   Fader|    TrackReceiveVolume
 //!
 //! @feedback Continuous — sends normalized volume (0.0–1.0).
+//! @feedback_shape Level
 //!
 //! @notes Touch for automation. Template instantiated for Send and Receive directions.
 template <SendDirection Dir>
@@ -173,6 +174,7 @@ using TrackReceiveVolumeDB = TrackSendReceiveVolumeDB<SendDirection::Receive>;
 //! @zone_usage  Rotary|    TrackSendPan   or   Rotary|    TrackReceivePan
 //!
 //! @feedback Continuous — sends normalized pan (0.0=left, 0.5=center, 1.0=right).
+//! @feedback_shape Centered
 template <SendDirection Dir>
 class TrackSendReceivePan : public PanAction
 {

@@ -72,14 +72,14 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - never ever use Em dash `—` but use `-` instead
 - in C++ never create nameless namespace { ... } in the middle of code, use coresponding helper files
 - Before you change code or documentation, briefly describe the planned changes. Make changes only after approval.
-- do not build anything and run tests until asked, and no need to notify about that it in every response
+- do not build anything and run tests until asked, and do not notify that you not going to build or run tests but if needed just ask to allow build or run
 - no need for backward compatibility, app is not yet released
 - when writing md plans, mark incomplete items/stages/phases with `[ ]` so user can easily find them using global search
 - when implementing tasks from md todo/fixme/plan document, mark completed sections or steps with ✅ emoji, and when the entire doc is completed, make its main header start with "# ✅ COMPLETED: "
 - do not do staging-unstaging/commiting until asked, user manages git himself. never push changes
 - never hard-wrap text at a fixed line width
 - never delete in code todo/fixme comments until they were implemented/fixed
-- if summarizing a completed work iteration, also say very briefly what will be the next step/stage to complete and if something is required from user (like review unclear decisions in doc) then say what is expected to be done by user now
+- if summarizing a completed work iteration, also say very briefly what will be the next step/stage to complete and if something is required from user (like review unclear decisions in doc) then say what is expected to be done by user now and add short commit message in simple english without grammar
 - never delete files/folders but rather move them to ./.deleted/ folder in workspace root
 
 Read `DOX.md` before editing. This file is the repository-wide contract.
@@ -133,7 +133,7 @@ Read `DOX.md` before editing. This file is the repository-wide contract.
 
 - Configure and build with the repository CMake presets/settings appropriate to the platform.
 - On Windows, the existing local build can be checked with `cmake --build build --config Debug`.
-- There is no automated unit-test suite in the included source tree; runtime changes require focused manual verification in REAPER.
+- Run the focused CTest targets for settings resolution and format 2 zone-profile validation. Runtime behavior still requires focused manual verification in REAPER.
 - Documentation-only changes should at minimum check links, paths, and DOX index coverage.
 
 ## Child DOX Index

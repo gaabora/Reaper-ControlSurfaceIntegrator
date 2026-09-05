@@ -161,6 +161,11 @@ describe("configuration formats", () => {
         const names = actionNameSet(catalog);
         expect(names.has("Play")).toBeTrue();
         expect(names.has("Reaper")).toBeTrue();
+        expect(catalog.find((entry) => entry.name === "TrackVolume")?.feedbackShape).toBe("Level");
+        expect(catalog.find((entry) => entry.name === "TrackPan")?.feedbackShape).toBe("Centered");
+        expect(catalog.find((entry) => entry.name === "TrackPanWidth")?.feedbackShape).toBe("Spread");
+        expect(catalog.find((entry) => entry.name === "FXParam")?.feedbackShape).toBeUndefined();
+        expect(catalog.find((entry) => entry.name === "TrackPanAutoRight")?.feedbackShape).toBeUndefined();
         expect(names.size).toBe(catalog.length);
     });
 });

@@ -268,6 +268,9 @@ private:
 
     const Format2RingStyleEntry& ResolveStyleEntry(const PropertyList& properties) const {
         Format2RingStyle style = Format2RingStyle::Dot;
+        if (properties.GetFeedbackShape() == PropertyList::FeedbackShape::Level) style = Format2RingStyle::Fill;
+        else if (properties.GetFeedbackShape() == PropertyList::FeedbackShape::Centered) style = Format2RingStyle::BoostCut;
+        else if (properties.GetFeedbackShape() == PropertyList::FeedbackShape::Spread) style = Format2RingStyle::Spread;
         const char* value = properties.get_prop(PropertyType_RingStyle);
         if (value && IsSameString(value, "Fill")) style = Format2RingStyle::Fill;
         else if (value && IsSameString(value, "BoostCut")) style = Format2RingStyle::BoostCut;

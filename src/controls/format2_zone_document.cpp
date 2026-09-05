@@ -244,6 +244,7 @@ private:
             action.arguments.push_back({ token.text, token.kind == Format2TokenKind::QuotedString, token.location });
         }
         this->ValidatePropertyPlacementAndDuplicates(node, action.properties);
+        this->AddNavigationReference(action);
 
         if (action.action == "Modifier" || action.action == "PseudoModifier") {
             if (this->generatedBindings_) {
@@ -282,7 +283,18 @@ private:
             action.arguments.push_back({ token.text, token.kind == Format2TokenKind::QuotedString, token.location });
         }
         this->ValidatePropertyPlacementAndDuplicates(node, action.properties);
+        this->AddNavigationReference(action);
         return action;
+    }
+
+    void AddNavigationReference(const Format2ZoneAction& action) {
+        const std::optional<Format2ZoneNavigationKind> kind = GetFormat2ActionZoneNavigationKind(action.action);
+        if (!kind) return;
+        if (action.arguments.size() != 1 || action.arguments[0].quoted || !IsValidFormat2Identifier(action.arguments[0].text)) {
+            this->AddDiagnostic("format2.zone.navigation.argument", action.action + " requires one unquoted zone ID", action.actionLocation);
+            return;
+        }
+        this->result_.zone.navigationReferences.push_back({*kind, action.arguments[0].text, action.arguments[0].location});
     }
 
     void ValidatePropertyPlacementAndDuplicates(const Format2SyntaxNode& node, const std::vector<Format2PropertySyntax>& properties) {

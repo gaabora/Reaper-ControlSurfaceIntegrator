@@ -23,6 +23,10 @@ struct Format2ZoneSource {
     std::string id;
     std::string sourcePath;
     Format2SourceLocation location;
+    std::optional<Format2ZoneRole> role;
+    std::vector<Format2ZoneReference> includedZones;
+    std::vector<Format2ZoneReference> zoneLayers;
+    std::vector<Format2ZoneNavigationReference> navigationReferences;
     bool valid = false;
 };
 
@@ -37,6 +41,7 @@ struct Format2ActiveZoneSource {
 struct Format2ZoneProfileDiagnostic {
     std::string code;
     std::string message;
+    Format2SourceLocation location;
     std::vector<std::size_t> sourceIndices;
 };
 

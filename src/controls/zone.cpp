@@ -214,7 +214,7 @@ void Zone::UpdateCurrentActionContextModifier(Widget* widget) {
     }
 }
 
-ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params) {
+ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params, Navigator* navigator, int slotIndexOverride) {
     const auto& action = csi_->GetAction(actionName);
     if (!IsSameString(action->GetName(), actionName) && IsSameString(action->GetName(), "InvalidAction"))
         LogToConsole("[ERROR] @%s/{%s} [%s] InvalidAction: %s\n", widget->GetSurface()->GetName(), zone->GetName(), widget->GetName(), actionName);
@@ -222,7 +222,7 @@ ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, 
     if (action->IsModifier())
         widget->SetIsModifier();
 
-    actionContextDictionary_[widget][modifier].push_back(make_unique<ActionContext>(csi_, action, widget, zone, 0, params));
+    actionContextDictionary_[widget][modifier].push_back(make_unique<ActionContext>(csi_, action, widget, zone, 0, params, navigator, slotIndexOverride));
 
     return actionContextDictionary_[widget][modifier].back().get();
 }

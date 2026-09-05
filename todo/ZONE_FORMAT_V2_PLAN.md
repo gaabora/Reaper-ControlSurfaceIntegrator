@@ -1678,13 +1678,20 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
     - ✅ Apply the shared MeterProfile encoder to MIDI7 and OSCFloat or OSCInt Meter feedback, including OnChange and Continuous refresh.
     - ✅ Define and implement typed MIDISysEx Color, Ring, Bar, and Meter payloads through `Red7`, `Green7`, `Blue7`, `RingValue7`, `RingStyleCode7`, `BarValue7`, `BarStyleCode7`, and `MeterValue7`.
     - ✅ Implement OSC Ring with required `ValueAddress` and optional `StyleAddress`, sending RingValue and RingStyleCode as separate arguments without inferred address suffixes.
-- [ ] Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named C++ classes and into typed Surface metadata.
+- ✅ Move device message templates, value curves, display fields, color mappings, ring modes, meter mappings, and reusable SysEx data out of device-named MIDI and OSC Widget codecs and into typed Surface metadata. The active protocol runtimes now expose only universal primitive and encoding classes.
 - ✅ Implement Ring Configure packet generation and Surface-level TrackColor FeedbackGroup ownership from the declarative Surface model.
   - ✅ Implement generic Ring Configure packet generation from the declarative Surface model.
   - ✅ Implement Surface-level TrackColor FeedbackGroup ownership with palette mapping, explicit source channels, source-text presence tracking, and one shared SysEx packet.
 - ✅ Implement Bar feedback with separate value and style outputs, plus the bounded MIDIPalette Companion message.
 - [ ] Verify that a new device which uses an existing protocol shape needs only a Surface file and no new C++ class.
-- [ ] Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them.
+  - ✅ Complete a static audit of active MIDI and OSC message-generator and feedback-processor classes. No class name or primitive dispatch branch depends on a device model.
+  - ✅ Keep representative MIDI and OSC Surface fixtures composed only from the public primitive catalog, including typed SysEx and separate OSC Ring addresses.
+  - ✅ Build the universal MIDI and OSC runtime plus the representative fixture sources without adding a device-specific C++ class.
+  - [ ] Load the representative MIDI and OSC Surface fixtures in REAPER and exercise their input and feedback paths.
+
+The static codec audit intentionally excludes device names that do not select a Surface primitive encoding. `OSC_X32ControlSurfaceIO` owns the X32 connection heartbeat, not Widget value conversion. `MCUTimeDisplay` and the XTouch display-color actions are Action-layer migration work. The SCE24 name check is confined to the native Learn FX dialog and remains until OSK FX edit mode replaces that dialog. These names do not justify a device-specific MIDI or OSC Feedback class.
+
+- ✅ Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them. Remaining device-named actions are Phase 4 rename and migration work, not protocol codecs.
 - ✅ Parse and publish `OSKLayout` through common ControlSurface initialization so MIDI and OSC Surfaces use the same OSK path.
   - ✅ Apply typed format 2 MIDI and OSC OSK layouts plus ColorCalibration directly to `ControlSurface` without reparsing the Surface file.
 
@@ -1699,7 +1706,9 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
 - ✅ Build document-specific semantic parsers for Surface, Main zone, FX zone, Learn FX, and snippet bodies on the shared syntax tree.
 - ✅ Parse each zone, surface, Learn FX, and snippet source once through one typed-document entry point that preserves the shared syntax document, diagnostics, and source locations.
 - ✅ Compile each `#` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
+  - ✅ Give each runtime `ActionContext` its own effective Navigator and optional slot override, while legacy contexts inherit both values from their Zone.
 - ✅ Resolve Vendor and User Main/FX sources by case-insensitive zone ID into one deterministic per-zone active set before later role, reference, dependency, or runtime validation. A unique User source overrides only the matching Vendor source, an invalid User source blocks Vendor fallback, and same-layer duplicates leave that ID unavailable with source-linked diagnostics.
+  - ✅ Add one deterministic profile loader that reads each `.zon` once and retains aligned typed documents, source descriptors, and resolver indices for runtime consumption.
 - ✅ Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
   - ✅ Define unquoted case-insensitive `Page`, `Device`, and Page-local `Surface` identifiers with source spelling preserved for display.
   - ✅ Add a brace-format C++ source parser that uses the shared lexer, syntax tree, and delimiter validator and returns the existing `IntegratorConfig` model.
@@ -1712,11 +1721,18 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Pass the referenced Device settings through the existing runtime Surface construction model and resolve Page Surface I/O through its explicit `Device` ID.
   - ✅ Switch the Settings protocol and Lua settings UI from Page Surface selection to Device selection.
   - ✅ Switch the Bun product-config consumer from Surface settings to Device settings.
-- [ ] Expose ring feedback capabilities and resolved action feedback shapes through runtime and generated editor metadata.
+- ✅ Expose ring and bar feedback style resolution through runtime ActionContext metadata and publish the same confirmed action `FeedbackShape` through the generated editor action catalog. Explicit binding style still wins, while dynamic and unknown actions use the processor default.
 - [ ] Replace the native Learn FX dialog with OSK FX edit mode, one in-memory live-preview draft, and atomic User FX-zone save through the shared validated model.
 - [ ] Validate the complete active profile before runtime objects are created.
+  - ✅ Extend `Format2ZoneProfile` resolution with active Main references, structural cycle checks, `IncludedZones` versus `Role=Layer` rules, typed `GoZone` and `EnterZoneLayer` target checks, and focused source locations.
+  - ✅ Extract format 2 navigation references through shared action metadata instead of local action-name checks in the zone or profile parser.
+  - [ ] Run the completed profile resolver from `ZoneManager` before creating any runtime `Zone`.
 - [ ] Let an invalid non-required zone be skipped with focused diagnostics instead of disabling unrelated zones.
+  - ✅ Keep an invalid selected User override unavailable without falling back to Vendor or invalidating an otherwise independent profile in the resolver.
+  - [ ] Apply that resolved availability when runtime zones are constructed.
 - [ ] Treat an invalid or missing Home role as a profile-level initialization error.
+  - ✅ Diagnose zero or several valid active Main zones with `Role=Home` in the profile resolver.
+  - [ ] Stop runtime initialization for that profile before creating zones.
 - [ ] Replace the metadata preprocessor, binding parser, surface block readers, Learn FX line readers, and OSK line edits with the shared model where they overlap.
 
 Ready when runtime behavior consumes validated documents and no feature reparses the same zone with a different grammar.

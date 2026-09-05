@@ -8,6 +8,7 @@
 //! @zone_usage  Fader|    TrackVolume
 //!
 //! @feedback Continuous — sends normalized volume (0.0–1.0) to a motorized fader or knob.
+//! @feedback_shape Level
 //!
 //! @notes Supports touch for automation write. Inherits full get/set/touch from VolumeAction base.
 //!
@@ -41,7 +42,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsVolumeTouched(value != 0);
+        context->GetNavigator()->SetIsVolumeTouched(value != 0);
     }
 };
 
@@ -68,7 +69,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsVolumeTouched(value != 0);
+        context->GetNavigator()->SetIsVolumeTouched(value != 0);
     }
 };
 
@@ -106,7 +107,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsVolumeTouched(value != 0);
+        context->GetNavigator()->SetIsVolumeTouched(value != 0);
         if (MediaTrack* track = context->GetTrack())
             CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, DB2VAL(GetCurrentDBValue(context)), false), NULL);
     }
@@ -119,6 +120,7 @@ public:
 //! @zone_usage  Rotary|    TrackPan
 //!
 //! @feedback Continuous — sends normalized pan (0.0=left, 0.5=center, 1.0=right).
+//! @feedback_shape Centered
 //!
 //! @notes Skipped when pan mode is dual pan. Touch writes automation.
 //!
@@ -151,7 +153,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsPanTouched(value != 0);
+        context->GetNavigator()->SetIsPanTouched(value != 0);
         if (MediaTrack* track = context->GetTrack()) {
             if (GetPanMode(track) != DAW::PANMODE_DUAL)
                 CSurf_SetSurfacePan(track, CSurf_OnPanChange(track, normalizedToPan(GetCurrentNormalizedValue(context)), false), NULL);
@@ -186,7 +188,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsPanTouched(value != 0);
+        context->GetNavigator()->SetIsPanTouched(value != 0);
         if (MediaTrack* track = context->GetTrack()) {
             if (GetPanMode(track) != DAW::PANMODE_DUAL)
                 CSurf_SetSurfacePan(track, CSurf_OnPanChange(track, DAW::GetTrackPan(track), false), NULL);
@@ -201,6 +203,7 @@ public:
 //! @zone_usage  Rotary|    TrackPanWidth
 //!
 //! @feedback Continuous — sends normalized width (0.0–1.0).
+//! @feedback_shape Spread
 //!
 //! @see TrackPanWidthPercent
 class TrackPanWidth : public PanAction
@@ -230,7 +233,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsPanWidthTouched(value != 0);
+        context->GetNavigator()->SetIsPanWidthTouched(value != 0);
         if (MediaTrack* track = context->GetTrack())
             if (GetPanMode(track) != DAW::PANMODE_DUAL)
                 CSurf_OnWidthChange(track, normalizedToPan(GetCurrentNormalizedValue(context)), false);
@@ -264,7 +267,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsPanWidthTouched(value != 0);
+        context->GetNavigator()->SetIsPanWidthTouched(value != 0);
         if (MediaTrack* track = context->GetTrack()) {
             if (GetPanMode(track) != DAW::PANMODE_DUAL)
                 CSurf_OnWidthChange(track, GetMediaTrackInfo_Value(track, "D_WIDTH"), false);
@@ -279,6 +282,7 @@ public:
 //! @zone_usage  Rotary|    TrackPanL
 //!
 //! @feedback Continuous — sends normalized left pan (0.0–1.0).
+//! @feedback_shape Centered
 //!
 //! @see TrackPanR, TrackPanAutoLeft
 class TrackPanL : public PanAction
@@ -311,7 +315,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsPanLeftTouched(value != 0);
+        context->GetNavigator()->SetIsPanLeftTouched(value != 0);
     }
 };
 
@@ -345,7 +349,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsPanLeftTouched(value != 0);
+        context->GetNavigator()->SetIsPanLeftTouched(value != 0);
         if (MediaTrack* track = context->GetTrack()) {
             if (GetPanMode(track) == DAW::PANMODE_DUAL) {
                 double panL = GetMediaTrackInfo_Value(track, "D_DUALPANL");
@@ -362,6 +366,7 @@ public:
 //! @zone_usage  Rotary|    TrackPanR
 //!
 //! @feedback Continuous — sends normalized right pan (0.0–1.0).
+//! @feedback_shape Centered
 //!
 //! @see TrackPanL, TrackPanAutoRight
 class TrackPanR : public PanAction
@@ -394,7 +399,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsPanRightTouched(value != 0);
+        context->GetNavigator()->SetIsPanRightTouched(value != 0);
     }
 };
 
@@ -428,7 +433,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsPanRightTouched(value != 0);
+        context->GetNavigator()->SetIsPanRightTouched(value != 0);
         if (MediaTrack* track = context->GetTrack()) {
             if (GetPanMode(track) == DAW::PANMODE_DUAL) {
                 double panL = GetMediaTrackInfo_Value(track, "D_DUALPANR");
@@ -445,6 +450,7 @@ public:
 //! @zone_usage  Rotary|    TrackPanAutoLeft
 //!
 //! @feedback Continuous — sends normalized pan value. Automatically picks the correct parameter based on pan mode.
+//! @feedback_shape Centered
 //!
 //! @see TrackPanAutoRight, TrackPan, TrackPanL
 class TrackPanAutoLeft : public PanAction
@@ -485,9 +491,9 @@ public:
     virtual void Touch(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
             if (GetPanMode(track) == DAW::PANMODE_DUAL)
-                context->GetZone()->GetNavigator()->SetIsPanLeftTouched(value != 0);
+                context->GetNavigator()->SetIsPanLeftTouched(value != 0);
             else {
-                context->GetZone()->GetNavigator()->SetIsPanTouched(value != 0);
+                context->GetNavigator()->SetIsPanTouched(value != 0);
                 CSurf_SetSurfacePan(track, CSurf_OnPanChange(track, normalizedToPan(GetCurrentNormalizedValue(context)), false), NULL);
             }
         }
@@ -541,9 +547,9 @@ public:
     virtual void Touch(ActionContext* context, double value) override {
         if (MediaTrack* track = context->GetTrack()) {
             if (GetPanMode(track) == DAW::PANMODE_DUAL)
-                context->GetZone()->GetNavigator()->SetIsPanRightTouched(value != 0);
+                context->GetNavigator()->SetIsPanRightTouched(value != 0);
             else {
-                context->GetZone()->GetNavigator()->SetIsPanWidthTouched(value != 0);
+                context->GetNavigator()->SetIsPanWidthTouched(value != 0);
                 CSurf_OnWidthChange(track, normalizedToPan(GetCurrentNormalizedValue(context)), false);
             }
         }

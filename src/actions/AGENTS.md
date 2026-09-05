@@ -14,6 +14,7 @@
 
 - Action names are user-facing configuration keys used by zone files, Lua action search, and documentation.
 - New action types must be represented in `ACTION_TYPE_LIST`, registered by the integrator, and documented when user-visible.
+- Declare a confirmed normalized action shape with `GetFeedbackShape()` and the matching `//! @feedback_shape` value. Leave dynamic, raw-unit, text, state, color, and semantically unknown actions without a shape.
 - `Do`, `RequestUpdate`, `Touch`, and normalized-value behavior must agree for each action.
 - Stateless `Reaper` actions with explicit action-line colors must still provide inactive color feedback unless the mapping explicitly uses `Feedback=No` or `NoFeedback`.
 - Action feedback must use the owning `ActionContext` and widget contracts rather than bypassing them.

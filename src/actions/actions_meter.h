@@ -8,6 +8,7 @@
 //! @zone_usage  VUMeter|    TrackOutputMeter 0   (0=left, 1=right)
 //!
 //! @feedback Continuous — sends normalized peak level (0.0–1.0). Clears when track is not soloed and another track is.
+//! @feedback_shape Level
 //!
 //! @params Int param: channel index (0=left, 1=right).
 class TrackOutputMeter : public TrackMeterAction
@@ -30,6 +31,7 @@ public:
 //! @zone_usage  VUMeter|    TrackOutputMeterAverageLR
 //!
 //! @feedback Continuous — sends normalized average L+R peak level (0.0–1.0).
+//! @feedback_shape Level
 class TrackOutputMeterAverageLR : public TrackMeterAction
 {
 public:
@@ -61,7 +63,7 @@ public:
     }
 
     virtual void Touch(ActionContext* context, double value) override {
-        context->GetZone()->GetNavigator()->SetIsVolumeTouched(value != 0);
+        context->GetNavigator()->SetIsVolumeTouched(value != 0);
         if (MediaTrack* track = context->GetTrack())
             CSurf_SetSurfaceVolume(track, CSurf_OnVolumeChange(track, normalizedToVol(GetCurrentNormalizedValue(context)), false), NULL);
     }
@@ -74,6 +76,7 @@ public:
 //! @zone_usage  Fader|    TrackVolumeWithMeterAverageLR
 //!
 //! @feedback Continuous — normalized volume when stopped/paused, normalized average meter when playing.
+//! @feedback_shape Level
 //!
 //! @notes Also supports Do/Touch for setting track volume. Combines fader position display with metering.
 class TrackVolumeWithMeterAverageLR : public TrackVolumeWithMeterBase
@@ -105,6 +108,7 @@ public:
 //! @zone_usage  VUMeter|    TrackOutputMeterMaxPeakLR
 //!
 //! @feedback Continuous — sends normalized max(L,R) peak level (0.0–1.0).
+//! @feedback_shape Level
 class TrackOutputMeterMaxPeakLR : public TrackMeterAction
 {
 public:
@@ -126,6 +130,7 @@ public:
 //! @zone_usage  Fader|    TrackVolumeWithMeterMaxPeakLR
 //!
 //! @feedback Continuous — normalized volume when stopped/paused, normalized max peak when playing.
+//! @feedback_shape Level
 //!
 //! @notes Also supports Do/Touch for setting track volume. Combines fader position display with metering.
 class TrackVolumeWithMeterMaxPeakLR : public TrackVolumeWithMeterBase
@@ -157,6 +162,7 @@ public:
 //! @zone_usage  VUMeter|    FXGainReductionMeter
 //!
 //! @feedback Continuous — sends normalized gain reduction (0.0–1.0, derived from GainReduction_dB / -20.0).
+//! @feedback_shape Level
 //!
 //! @notes Requires the FX to support the "GainReduction_dB" named config parameter.
 class FXGainReductionMeter : public TrackMeterAction

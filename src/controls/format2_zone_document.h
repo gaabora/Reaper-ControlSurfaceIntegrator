@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "format2_action_metadata.h"
 #include "format2_document.h"
 
 enum class Format2ZoneSelectorKind {
@@ -57,6 +58,12 @@ struct Format2ZoneReference {
     Format2SourceLocation location;
 };
 
+struct Format2ZoneNavigationReference {
+    Format2ZoneNavigationKind kind = Format2ZoneNavigationKind::IndependentZone;
+    std::string id;
+    Format2SourceLocation location;
+};
+
 enum class Format2LifecycleEvent {
     SurfaceInitialization,
     TrackSelection,
@@ -82,6 +89,7 @@ struct Format2ZoneDocument {
     std::vector<Format2ZoneBinding> bindings;
     std::vector<Format2ZoneReference> includedZones;
     std::vector<Format2ZoneReference> zoneLayers;
+    std::vector<Format2ZoneNavigationReference> navigationReferences;
     std::vector<Format2LifecycleBlock> lifecycleBlocks;
 };
 

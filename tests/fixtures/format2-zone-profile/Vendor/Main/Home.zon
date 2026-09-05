@@ -1,0 +1,7 @@
+@Meta { Version=2 Role=Home }
+
+IncludedZones {
+  Channel
+}
+
+Play Play

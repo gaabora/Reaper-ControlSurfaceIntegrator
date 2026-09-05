@@ -45,7 +45,7 @@ public:
     void UpdateCurrentActionContextModifiers();
 
     const vector<unique_ptr<ActionContext>>& GetActionContexts(Widget* widget);
-    ActionContext* AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params);
+    ActionContext* AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params, Navigator* navigator = nullptr, int slotIndexOverride = -1);
     void ClearActionContexts(Widget* widget);
 
     void AddWidget(Widget* widget);

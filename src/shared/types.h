@@ -285,8 +285,19 @@ enum PropertyType {
 
 class PropertyList
 {
+public:
+    enum class FeedbackShape {
+        None,
+        Level,
+        Centered,
+        Spread,
+        Position,
+    };
+
+private:
     enum { MAX_PROP=24, RECLEN=10 };
     int nprops_;
+    FeedbackShape feedbackShape_ = FeedbackShape::None;
     PropertyType props_[MAX_PROP];
     char vals_[MAX_PROP][RECLEN]; // if last byte is nonzero, pointer, otherwise, string
 
@@ -308,6 +319,7 @@ public:
         for (int x = 0; x < nprops_; ++x)
             free(get_item_ptr(&vals_[x][0]));
         nprops_ = 0;
+        this->feedbackShape_ = FeedbackShape::None;
     }
 
     void set_prop(PropertyType prop, const char* val) {
@@ -356,6 +368,9 @@ public:
             }
         return NULL;
     }
+
+    FeedbackShape GetFeedbackShape() const { return this->feedbackShape_; }
+    void SetFeedbackShape(FeedbackShape feedbackShape) { this->feedbackShape_ = feedbackShape; }
 
     const char* enum_props(int x, PropertyType& type) const {
         if (x < 0 || x >= nprops_) return NULL;

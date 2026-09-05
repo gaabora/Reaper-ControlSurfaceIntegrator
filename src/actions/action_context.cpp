@@ -2,8 +2,8 @@
 
 ////////// ActionContext ////////
 
-ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& paramsAndProperties)
-    : csi_(csi), action_(action), widget_(widget), zone_(zone), paramIndex_(paramIndex) {
+ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& paramsAndProperties, Navigator* navigator, int slotIndexOverride)
+    : csi_(csi), action_(action), widget_(widget), zone_(zone), navigator_(navigator ? navigator : zone->GetNavigator()), slotIndexOverride_(slotIndexOverride), paramIndex_(paramIndex) {
     vector<string> params;
     for (int i = 0; i < (int) (paramsAndProperties).size(); ++i) {
         if ((paramsAndProperties)[i].find("=") == string::npos)
@@ -11,6 +11,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         sourceParams_.push_back((paramsAndProperties)[i]);
     }
     GetPropertiesFromTokens(0, (int) (paramsAndProperties).size(), paramsAndProperties, widgetProperties_);
+    this->widgetProperties_.SetFeedbackShape(this->action_->GetFeedbackShape());
 
     const char* feedback = widgetProperties_.get_prop(PropertyType_Feedback);
     if (feedback && IsSameString(feedback, "No"))
@@ -186,9 +187,9 @@ void ActionContext::ProcessActionTitle(string origName) {
 IPageContext* ActionContext::GetPage() { return widget_->GetSurface()->GetPage(); }
 TrackNavigationManager* ActionContext::GetTrackNavigationManager() { return GetPage()->GetTrackNavigationManager(); }
 ControlSurface* ActionContext::GetSurface() { return widget_->GetSurface(); }
-MediaTrack* ActionContext::GetTrack() { return zone_->GetNavigator()->GetTrack(); }
+MediaTrack* ActionContext::GetTrack() { return this->navigator_->GetTrack(); }
 vector<MediaTrack*> ActionContext::GetSelectedTracks(bool includeMaster) {
-    if (this->GetZone()->GetNavigator()->GetType() == NavigatorType::SelectedTrackNavigator) {
+    if (this->GetNavigator()->GetType() == NavigatorType::SelectedTrackNavigator) {
         return this->GetPage()->GetTrackNavigationManager()->GetSelectedTracks(includeMaster);
     } else {
         MediaTrack* track = this->GetTrack();
@@ -196,7 +197,7 @@ vector<MediaTrack*> ActionContext::GetSelectedTracks(bool includeMaster) {
     }
 }
 
-int ActionContext::GetSlotIndex() { return zone_->GetSlotIndex(); }
+int ActionContext::GetSlotIndex() { return this->slotIndexOverride_ >= 0 ? this->slotIndexOverride_ : this->zone_->GetSlotIndex(); }
 
 const char* ActionContext::GetName() { return zone_->GetAlias(); }
 void ActionContext::RequestUpdate() {
@@ -246,7 +247,7 @@ void ActionContext::UpdateJSFXWidgetSteppedValue(double value) {
 }
 
 void ActionContext::UpdateTrackColor() {
-    if (MediaTrack* track = zone_->GetNavigator()->GetTrack()) {
+    if (MediaTrack* track = this->GetTrack()) {
         rgba_color color = DAW::GetTrackColor(track);
         widget_->UpdateColorValue(color);
     }

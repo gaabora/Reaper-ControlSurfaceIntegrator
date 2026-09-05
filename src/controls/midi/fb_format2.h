@@ -458,6 +458,9 @@ private:
 
     const Format2RingStyleEntry& ResolveStyleEntry(const PropertyList& properties) const {
         Format2RingStyle style = Format2RingStyle::Dot;
+        if (properties.GetFeedbackShape() == PropertyList::FeedbackShape::Level) style = Format2RingStyle::Fill;
+        else if (properties.GetFeedbackShape() == PropertyList::FeedbackShape::Centered) style = Format2RingStyle::BoostCut;
+        else if (properties.GetFeedbackShape() == PropertyList::FeedbackShape::Spread) style = Format2RingStyle::Spread;
         const char* value = properties.get_prop(PropertyType_RingStyle);
         if (value && IsSameString(value, "Fill")) style = Format2RingStyle::Fill;
         else if (value && IsSameString(value, "BoostCut")) style = Format2RingStyle::BoostCut;
@@ -520,6 +523,10 @@ private:
 
     int ResolveStyleCode(const PropertyList& properties, bool clear) const {
         Format2BarStyle style = clear ? Format2BarStyle::Off : this->profile_.defaultStyle;
+        if (!clear && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Level) style = Format2BarStyle::Fill;
+        else if (!clear && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Centered) style = Format2BarStyle::Bipolar;
+        else if (!clear && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Spread) style = Format2BarStyle::Spread;
+        else if (!clear && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Position) style = Format2BarStyle::Normal;
         const char* value = properties.get_prop(PropertyType_BarStyle);
         if (!clear && value && IsSameString(value, "Normal")) style = Format2BarStyle::Normal;
         else if (!clear && value && IsSameString(value, "Bipolar")) style = Format2BarStyle::Bipolar;
@@ -709,6 +716,9 @@ private:
 
     static Format2RingStyle ResolveStyle(const PropertyList& properties) {
         const char* value = properties.get_prop(PropertyType_RingStyle);
+        if (!value && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Level) return Format2RingStyle::Fill;
+        if (!value && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Centered) return Format2RingStyle::BoostCut;
+        if (!value && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Spread) return Format2RingStyle::Spread;
         if (value && IsSameString(value, "Fill")) return Format2RingStyle::Fill;
         if (value && IsSameString(value, "BoostCut")) return Format2RingStyle::BoostCut;
         if (value && IsSameString(value, "Spread")) return Format2RingStyle::Spread;
@@ -988,6 +998,10 @@ private:
 
     Format2BarStyle ResolveStyle(const PropertyList& properties) const {
         const char* value = properties.get_prop(PropertyType_BarStyle);
+        if (!value && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Level) return Format2BarStyle::Fill;
+        if (!value && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Centered) return Format2BarStyle::Bipolar;
+        if (!value && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Spread) return Format2BarStyle::Spread;
+        if (!value && properties.GetFeedbackShape() == PropertyList::FeedbackShape::Position) return Format2BarStyle::Normal;
         if (value && IsSameString(value, "Normal")) return Format2BarStyle::Normal;
         if (value && IsSameString(value, "Bipolar")) return Format2BarStyle::Bipolar;
         if (value && IsSameString(value, "Fill")) return Format2BarStyle::Fill;

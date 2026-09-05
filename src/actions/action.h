@@ -19,6 +19,32 @@ public:
     virtual const char* GetName() const { return TypeToName(GetType()); }
     virtual ActionType GetType() const { return ActionType::Abstract; }
 
+    virtual PropertyList::FeedbackShape GetFeedbackShape() const {
+        switch (this->GetType()) {
+            case ActionType::TrackVolume:
+            case ActionType::TrackSendVolume:
+            case ActionType::TrackReceiveVolume:
+            case ActionType::TrackOutputMeter:
+            case ActionType::TrackOutputMeterAverageLR:
+            case ActionType::TrackOutputMeterMaxPeakLR:
+            case ActionType::TrackVolumeWithMeterAverageLR:
+            case ActionType::TrackVolumeWithMeterMaxPeakLR:
+            case ActionType::FXGainReductionMeter:
+                return PropertyList::FeedbackShape::Level;
+            case ActionType::TrackPan:
+            case ActionType::TrackPanL:
+            case ActionType::TrackPanR:
+            case ActionType::TrackPanAutoLeft:
+            case ActionType::TrackSendPan:
+            case ActionType::TrackReceivePan:
+                return PropertyList::FeedbackShape::Centered;
+            case ActionType::TrackPanWidth:
+                return PropertyList::FeedbackShape::Spread;
+            default:
+                return PropertyList::FeedbackShape::None;
+        }
+    }
+
     static const char* TypeToName(ActionType type) {
         switch (type) {
           #define X(enumName, strName) case ActionType::enumName: return strName;
