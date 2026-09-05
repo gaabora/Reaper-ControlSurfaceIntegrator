@@ -102,7 +102,7 @@ private:
     bool GetModifierState(bool (ModifierManager::*getter)());
     void ApplyToBroadcastModifierListeners(void (ModifierManager::*method)());
     void ApplyToBroadcastModifierListeners(void (ModifierManager::*method)(const char*), const char* argument);
-    void SetModifier(void (ModifierManager::*setter)(bool, int), bool value);
+    void SetModifier(void (ModifierManager::*setter)(bool, int, ModifierMode), bool value, ActionModifierMode mode);
 
     vector<FeedbackProcessor*> trackColorFeedbackProcessors_; // does not own pointers
     vector<std::pair<FeedbackProcessor*, double>> initialFeedbackValues_; // does not own pointers
@@ -226,16 +226,16 @@ public:
     bool GetScrub();
 
     void SetModifierValue(int value);
-    void SetShift(bool value);
-    void SetOption(bool value);
-    void SetControl(bool value);
-    void SetAlt(bool value);
-    void SetFlip(bool value);
-    void SetGlobal(bool value);
-    void SetMarker(bool value);
-    void SetNudge(bool value);
-    void SetZoom(bool value);
-    void SetScrub(bool value);
+    void SetShift(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetOption(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetControl(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetAlt(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetFlip(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetGlobal(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetMarker(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetNudge(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetZoom(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetScrub(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
 
     const vector<int>& GetModifiers();
     void ClearModifiers();

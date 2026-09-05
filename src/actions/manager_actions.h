@@ -1100,7 +1100,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetShift(value != 0);
+        context->GetSurface()->SetShift(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1121,7 +1121,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetOption(value != 0);
+        context->GetSurface()->SetOption(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1142,7 +1142,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetControl(value != 0);
+        context->GetSurface()->SetControl(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1163,7 +1163,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetAlt(value != 0);
+        context->GetSurface()->SetAlt(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1184,7 +1184,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetFlip(value != 0);
+        context->GetSurface()->SetFlip(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1205,7 +1205,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetGlobal(value != 0);
+        context->GetSurface()->SetGlobal(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1226,7 +1226,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetMarker(value != 0);
+        context->GetSurface()->SetMarker(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1247,7 +1247,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetNudge(value != 0);
+        context->GetSurface()->SetNudge(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1268,7 +1268,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetZoom(value != 0);
+        context->GetSurface()->SetZoom(value != 0, context->GetModifierMode());
     }
 };
 
@@ -1289,7 +1289,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetScrub(value != 0);
+        context->GetSurface()->SetScrub(value != 0, context->GetModifierMode());
     }
 };
 

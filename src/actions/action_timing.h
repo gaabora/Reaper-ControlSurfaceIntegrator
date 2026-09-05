@@ -9,6 +9,24 @@
 //
 #include "../controls/preamble.h"
 
+enum class ActionInputEvent {
+    Legacy,
+    Press,
+    Tap,
+    Release,
+    Hold,
+    LongHold,
+    DoublePress,
+    Modifier,
+};
+
+enum class ActionModifierMode {
+    Legacy,
+    Momentary,
+    Latch,
+    Hybrid,
+};
+
 struct ActionTiming {
     // Hold-delay: action is deferred until button is held for holdDelayMs.
     // Use INHERIT_VALUE (-1) to inherit the surface-level default.
@@ -29,4 +47,10 @@ struct ActionTiming {
     // Double-press detection: this context fires only on double-press.
     bool isDoublePress = false;
     DWORD doublePressStartTs = 0;
+    bool doublePressRecognized = false;
+
+    // Format 2 button event selection and delayed Tap state.
+    ActionInputEvent inputEvent = ActionInputEvent::Legacy;
+    bool tapPending = false;
+    DWORD tapReleaseTs = 0;
 };

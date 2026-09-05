@@ -39,6 +39,7 @@ private:
     bool needsReloadAfterRun_ = false;
 
     ActionTiming timing_; ///< Hold, repeat, and double-press timing state
+    ActionModifierMode modifierMode_ = ActionModifierMode::Legacy;
     BlinkState blink_; ///< LED/display blink state
     ActionColorState color_; ///< Color and track-color state
     ActionValueState value_; ///< Range, stepped-values, and acceleration state
@@ -126,14 +127,21 @@ public:
     void SetDoublePress() { timing_.isDoublePress = true; }
     bool IsDoublePress() { return timing_.isDoublePress; }
 
+    void SetInputEvent(ActionInputEvent inputEvent) { this->timing_.inputEvent = inputEvent; }
+    ActionInputEvent GetInputEvent() const { return this->timing_.inputEvent; }
+    void SetModifierMode(ActionModifierMode modifierMode) { this->modifierMode_ = modifierMode; }
+    ActionModifierMode GetModifierMode() const { return this->modifierMode_; }
+
     void SetHoldDelay(int value) { timing_.holdDelayMs = value; }
     int GetHoldDelay();
+    void SetHoldRepeatInterval(int value) { this->timing_.holdRepeatIntervalMs = value; }
 
     void SetAction(Action* action) {
         action_ = action;
         RequestUpdate();
     }
     void DoAction(double value);
+    void DoFormat2ButtonAction(double value);
     void PerformAction(double value);
     void DoRelativeAction(double value);
     void DoRelativeAction(int accelerationIndex, double value);

@@ -63,3 +63,22 @@ void ModifierManager::SetLatchModifier(bool value, Modifiers modifier, int latch
     }
     RecalculateModifiers();
 }
+
+void ModifierManager::SetModifier(bool value, Modifiers modifier, int latchTime, ModifierMode mode) {
+    if (mode == ModifierMode::Hybrid) {
+        this->SetLatchModifier(value, modifier, latchTime);
+        return;
+    }
+
+    ModifierState& state = this->modifiers_[modifier];
+    if (mode == ModifierMode::Momentary) {
+        state.isEngaged = value;
+        state.isLocked = false;
+        state.pressedTime = value ? GetTickCount() : 0;
+    } else if (value) {
+        state.isEngaged = !state.isEngaged;
+        state.isLocked = state.isEngaged;
+        state.pressedTime = 0;
+    }
+    this->RecalculateModifiers();
+}

@@ -522,6 +522,7 @@ Add Bun tests for parsing, normalization, validation, quick fixes, conversion, V
 - [ ] Define the explicit binding grammar, normalized binding types, declaration and binding overrides, modifier modes, action traits, and remaining generated cross-component metadata.
 - [ ] Implement the deterministic C++ gesture recognizer, scoped modifier state, configuration precedence, runtime validation, and persistent settings.
   - ✅ Implement the current Product and Surface setting behavior. Phase 3 moves the assignment-level scope to Device while preserving atomic scope validation, effective precedence, runtime timing application, atomic persistence, and reload without replacing valid runtime state on error.
+  - ✅ Connect format 2 Press, Tap, Release, Hold, LongHold, DoublePress, binding delay and repeat overrides, and standard Momentary, Latch, and Hybrid modifier modes to the current runtime timing path. The deterministic shared recognizer remains required.
 - [ ] Update Zone parsing, OSK live apply, ExtState settings commands, Lua settings UI, labels, tooltips, and serialization.
   - ✅ Implement structured settings Query, Apply, and Reload commands plus the schema-driven OSK settings window. Phase 3 changes its editable override scope from Surface to Device.
 - [ ] Update the Bun editor, complete-set validator, quick fixes, snippets, legacy converter, and Vendor configuration migration.

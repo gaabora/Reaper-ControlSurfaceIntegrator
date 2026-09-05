@@ -9,13 +9,39 @@ struct Format2PreparedActionContext {
     int surfaceChannelOffset = -1;
     std::string actionName;
     std::vector<std::string> parameters;
-    bool hold = false;
-    bool doublePress = false;
+    ActionInputEvent inputEvent = ActionInputEvent::Legacy;
+    ActionModifierMode modifierMode = ActionModifierMode::Legacy;
+    int eventDelayMs = 0;
+    int repeatIntervalMs = 0;
     bool invert = false;
     bool invertFeedback = false;
     bool increase = false;
     bool decrease = false;
 };
+
+static ActionModifierMode ResolveFormat2ModifierMode(ControlSurface* surface, Format2ModifierMode mode) {
+    if (mode == Format2ModifierMode::Momentary) return ActionModifierMode::Momentary;
+    if (mode == Format2ModifierMode::Latch) return ActionModifierMode::Latch;
+    if (mode == Format2ModifierMode::Hybrid) return ActionModifierMode::Hybrid;
+    const std::string& defaultMode = surface->GetSettings().GetString("DefaultModifierMode");
+    if (defaultMode == "Momentary") return ActionModifierMode::Momentary;
+    if (defaultMode == "Hybrid") return ActionModifierMode::Hybrid;
+    return ActionModifierMode::Latch;
+}
+
+static bool IsFormat2HoldEvent(const Format2ZoneBinding& binding) {
+    for (const Format2ZoneSelector& selector : binding.selectors) {
+        if (selector.kind == Format2ZoneSelectorKind::Input && (selector.name == "Hold" || selector.name == "LongHold")) return true;
+    }
+    return false;
+}
+
+static int GetFormat2IntegerProperty(const Format2ZoneAction& action, const char* propertyName, int fallback) {
+    for (const Format2PropertySyntax& property : action.properties) {
+        if (property.name == propertyName && !property.value.list && !property.value.scalar.quoted) return atoi(property.value.scalar.text.c_str());
+    }
+    return fallback;
+}
 
 static void AddFormat2RuntimeDiagnostic(Format2ZoneRuntimeResult& result, const std::string& code, const std::string& message, const Format2SourceLocation& location) {
     result.diagnostics.push_back({code, message, location});
@@ -35,7 +61,9 @@ static std::vector<std::string> MakeFormat2ActionParameters(const Format2ZoneAct
     std::vector<std::string> parameters;
     parameters.push_back(action.action);
     for (const Format2ScalarSyntax& argument : action.arguments) parameters.push_back(argument.text);
-    for (const Format2PropertySyntax& property : action.properties) parameters.push_back(property.name + "=" + SerializeFormat2PropertyValue(property.value));
+    for (const Format2PropertySyntax& property : action.properties) {
+        if (property.name != "DelayMs" && property.name != "RepeatIntervalMs") parameters.push_back(property.name + "=" + SerializeFormat2PropertyValue(property.value));
+    }
     return parameters;
 }
 
@@ -68,6 +96,7 @@ static Navigator* ResolveFormat2BindingNavigator(ZoneManager* zoneManager, Zone*
 }
 
 static bool PrepareFormat2Selectors(ZoneManager* zoneManager, const Format2ZoneBinding& binding, Format2PreparedActionContext& prepared, Format2ZoneRuntimeResult& result) {
+    prepared.inputEvent = zoneManager->GetSurface()->GetSettings().GetString("DefaultButtonTrigger") == "Tap" ? ActionInputEvent::Tap : ActionInputEvent::Press;
     std::vector<std::string> standardModifiers;
     for (const Format2ZoneSelector& selector : binding.selectors) {
         if (selector.kind == Format2ZoneSelectorKind::Context) {
@@ -77,9 +106,12 @@ static bool PrepareFormat2Selectors(ZoneManager* zoneManager, const Format2ZoneB
             else AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.pseudo-modifier", "PseudoModifier selectors are not part of the format 2 runtime yet: " + selector.name, selector.location);
             continue;
         }
-        if (selector.name == "Press") continue;
-        if (selector.name == "Hold") prepared.hold = true;
-        else if (selector.name == "DoublePress") prepared.doublePress = true;
+        if (selector.name == "Press") prepared.inputEvent = ActionInputEvent::Press;
+        else if (selector.name == "Tap") prepared.inputEvent = ActionInputEvent::Tap;
+        else if (selector.name == "Release") prepared.inputEvent = ActionInputEvent::Release;
+        else if (selector.name == "Hold") prepared.inputEvent = ActionInputEvent::Hold;
+        else if (selector.name == "LongHold") prepared.inputEvent = ActionInputEvent::LongHold;
+        else if (selector.name == "DoublePress") prepared.inputEvent = ActionInputEvent::DoublePress;
         else if (selector.name == "Increase") prepared.increase = true;
         else if (selector.name == "Decrease") prepared.decrease = true;
         else if (selector.name == "Invert") prepared.invert = true;
@@ -96,14 +128,11 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
     const Format2ZoneCompileResult compiled = CompileFormat2ZoneBindings(parsed.zone.bindings, zoneManager->GetNumChannels());
     result.diagnostics.insert(result.diagnostics.end(), compiled.diagnostics.begin(), compiled.diagnostics.end());
     std::vector<Format2PreparedActionContext> preparedContexts;
+    std::map<std::string, ActionModifierMode> modifierModesByWidget;
 
     for (const Format2ModifierDeclaration& declaration : parsed.zone.modifiers) {
         if (declaration.kind == Format2ModifierDeclarationKind::Pseudo) {
             AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.pseudo-modifier", "PseudoModifier declarations are not part of the format 2 runtime yet", declaration.location);
-            continue;
-        }
-        if (declaration.mode != Format2ModifierMode::Default) {
-            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.modifier-mode", "Per-modifier Mode is parsed but is not supported by the runtime yet", declaration.location);
             continue;
         }
         Widget* widget = zoneManager->GetSurface()->GetWidgetByName(declaration.widget.baseName);
@@ -116,6 +145,9 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.navigator = zone->GetNavigator();
         prepared.actionName = declaration.name;
         prepared.parameters = {declaration.name};
+        prepared.inputEvent = ActionInputEvent::Modifier;
+        prepared.modifierMode = ResolveFormat2ModifierMode(zoneManager->GetSurface(), declaration.mode);
+        modifierModesByWidget[declaration.widget.baseName] = prepared.modifierMode;
         preparedContexts.push_back(std::move(prepared));
     }
 
@@ -141,6 +173,11 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
 
     for (const Format2ActionContextSpec& spec : compiled.actionContexts) {
         const Format2ZoneBinding& binding = parsed.zone.bindings[spec.bindingIndex];
+        const auto modifierMode = modifierModesByWidget.find(binding.widget.baseName);
+        if (modifierMode != modifierModesByWidget.end() && modifierMode->second != ActionModifierMode::Latch && IsFormat2HoldEvent(binding)) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.modifier-hold", "Hold and LongHold cannot use a Momentary or Hybrid modifier source Widget", binding.location);
+            continue;
+        }
         Widget* widget = zoneManager->GetSurface()->GetWidgetByName(spec.widgetId);
         if (!widget) {
             AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.widget.missing", "Widget does not exist on the Surface: " + spec.widgetId, binding.widget.location);
@@ -157,6 +194,9 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.actionName = binding.action.action;
         prepared.parameters = MakeFormat2ActionParameters(binding.action);
         PrepareFormat2Selectors(zoneManager, binding, prepared, result);
+        if (prepared.inputEvent == ActionInputEvent::Hold) prepared.eventDelayMs = GetFormat2IntegerProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("HoldDelayMs"));
+        if (prepared.inputEvent == ActionInputEvent::LongHold) prepared.eventDelayMs = GetFormat2IntegerProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("LongHoldDelayMs"));
+        if (prepared.inputEvent == ActionInputEvent::Hold || prepared.inputEvent == ActionInputEvent::LongHold) prepared.repeatIntervalMs = GetFormat2IntegerProperty(binding.action, "RepeatIntervalMs", 0);
         if (!prepared.navigator) AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.navigator.missing", "No Navigator is available for Widget: " + spec.widgetId, binding.widget.location);
         preparedContexts.push_back(std::move(prepared));
     }
@@ -165,13 +205,16 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
     for (Format2PreparedActionContext& prepared : preparedContexts) {
         zone->AddWidget(prepared.widget);
         ActionContext* context = zone->AddActionContext(prepared.widget, prepared.modifier, zone, prepared.actionName.c_str(), prepared.parameters, prepared.navigator, prepared.surfaceChannelOffset);
+        context->SetInputEvent(prepared.inputEvent);
+        context->SetModifierMode(prepared.modifierMode);
         if (prepared.invert) context->SetIsValueInverted();
         if (prepared.invertFeedback) context->SetIsFeedbackInverted();
-        if (prepared.hold) {
-            context->SetHoldDelay(ActionContext::INHERIT_VALUE);
+        if (prepared.inputEvent == ActionInputEvent::Hold || prepared.inputEvent == ActionInputEvent::LongHold) {
+            context->SetHoldDelay(prepared.eventDelayMs);
+            context->SetHoldRepeatInterval(prepared.repeatIntervalMs);
             prepared.widget->SetHasHoldActions();
         }
-        if (prepared.doublePress) {
+        if (prepared.inputEvent == ActionInputEvent::DoublePress) {
             context->SetDoublePress();
             prepared.widget->SetHasDoublePressActions();
         }

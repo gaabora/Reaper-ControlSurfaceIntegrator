@@ -210,17 +210,18 @@ void ControlSurface::SetModifierValue(int value) {
         page_->GetModifierManager()->SetModifierValue(value);
 }
 
-void ControlSurface::SetModifier(void (ModifierManager::*setter)(bool, int), bool value) {
+void ControlSurface::SetModifier(void (ModifierManager::*setter)(bool, int, ModifierMode), bool value, ActionModifierMode mode) {
+    const ModifierMode resolvedMode = mode == ActionModifierMode::Momentary ? ModifierMode::Momentary : mode == ActionModifierMode::Latch ? ModifierMode::Latch : ModifierMode::Hybrid;
     if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
-        (modifierManager_.get()->*setter)(value, latchTime_);
+        (modifierManager_.get()->*setter)(value, latchTime_, resolvedMode);
 
         for (auto& listener : zoneManager_->GetListeners())
             if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
-                (listener->GetSurface()->GetModifierManager()->*setter)(value, latchTime_);
+                (listener->GetSurface()->GetModifierManager()->*setter)(value, latchTime_, resolvedMode);
     } else if (usesLocalModifiers_)
-        (modifierManager_.get()->*setter)(value, latchTime_);
+        (modifierManager_.get()->*setter)(value, latchTime_, resolvedMode);
     else
-        (page_->GetModifierManager()->*setter)(value, latchTime_);
+        (page_->GetModifierManager()->*setter)(value, latchTime_, resolvedMode);
 }
 
 void ControlSurface::ApplyToBroadcastModifierListeners(void (ModifierManager::*method)()) {
@@ -235,16 +236,16 @@ void ControlSurface::ApplyToBroadcastModifierListeners(void (ModifierManager::*m
             (listener->GetSurface()->GetModifierManager()->*method)(argument);
 }
 
-void ControlSurface::SetShift(bool value) { SetModifier(&ModifierManager::SetShift, value); }
-void ControlSurface::SetOption(bool value) { SetModifier(&ModifierManager::SetOption, value); }
-void ControlSurface::SetControl(bool value) { SetModifier(&ModifierManager::SetControl, value); }
-void ControlSurface::SetAlt(bool value) { SetModifier(&ModifierManager::SetAlt, value); }
-void ControlSurface::SetFlip(bool value) { SetModifier(&ModifierManager::SetFlip, value); }
-void ControlSurface::SetGlobal(bool value) { SetModifier(&ModifierManager::SetGlobal, value); }
-void ControlSurface::SetMarker(bool value) { SetModifier(&ModifierManager::SetMarker, value); }
-void ControlSurface::SetNudge(bool value) { SetModifier(&ModifierManager::SetNudge, value); }
-void ControlSurface::SetZoom(bool value) { SetModifier(&ModifierManager::SetZoom, value); }
-void ControlSurface::SetScrub(bool value) { SetModifier(&ModifierManager::SetScrub, value); }
+void ControlSurface::SetShift(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetShift, value, mode); }
+void ControlSurface::SetOption(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetOption, value, mode); }
+void ControlSurface::SetControl(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetControl, value, mode); }
+void ControlSurface::SetAlt(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetAlt, value, mode); }
+void ControlSurface::SetFlip(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetFlip, value, mode); }
+void ControlSurface::SetGlobal(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetGlobal, value, mode); }
+void ControlSurface::SetMarker(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetMarker, value, mode); }
+void ControlSurface::SetNudge(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetNudge, value, mode); }
+void ControlSurface::SetZoom(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetZoom, value, mode); }
+void ControlSurface::SetScrub(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetScrub, value, mode); }
 
 const vector<int>& ControlSurface::GetModifiers() {
     if (usesLocalModifiers_ || listensToModifiers_) return modifierManager_->GetModifiers();
