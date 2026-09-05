@@ -3,6 +3,7 @@
 //  zone_manager.h — ZoneManager class
 //
 #include "preamble.h"
+#include "format2_zone_profile_loader.h"
 #include "zone.h"
 #include "widget.h"
 
@@ -16,6 +17,8 @@ private:
     string zoneFolder_;
     string vendorFxZoneFolder_;
     string userFxZoneFolder_;
+    unique_ptr<Format2ZoneProfileLoadResult> format2ZoneProfile_;
+    map<string, size_t> format2DocumentIndexByPath_;
 
     vector<unique_ptr<ActionContext>> emptyContexts_;
 
@@ -57,6 +60,9 @@ private:
 
     void GoFXSlot(MediaTrack* track, Navigator* navigator, int fxSlot);
     void GoSelectedTrackFX();
+    enum class Format2InitializationState { NotUsed, Initialized, Failed };
+    Format2InitializationState InitializeFormat2();
+    void InitializeLegacy();
     void GetWidgetNameAndModifiers(const string& line, string& baseWidgetName, int& modifier, bool& isValueInverted, bool& isFeedbackInverted, bool& hasHoldModifier, bool& HasDoublePressPseudoModifier, bool& isDecrease, bool& isIncrease);
     void GetNavigatorsForZone(const char* zoneName, const char* navigatorName, vector<Navigator*>& navigators);
     void LoadZones(vector<unique_ptr<Zone>>& zones, vector<string>& zoneList);

@@ -1,4 +1,5 @@
 #include "integrator.h"
+#include "format2_zone_runtime.h"
 #include "zone_parser.h"
 
 extern void WidgetMoved(ZoneManager* zoneManager, Widget* widget, int modifier);
@@ -45,7 +46,139 @@ Navigator* ZoneManager::GetSelectedTrackNavigator() { return surface_->GetPage()
 Navigator* ZoneManager::GetFocusedFXNavigator() { return surface_->GetPage()->GetTrackNavigationManager()->GetFocusedFXNavigator(); }
 int ZoneManager::GetNumChannels() { return surface_->GetNumChannels(); }
 
+static void LogFormat2ZoneDiagnostic(const string& sourcePath, const Format2Diagnostic& diagnostic) {
+    LogToConsole("[ERROR] %s:%d:%d: %s: %s\n", GetRelativePath(sourcePath.c_str()).c_str(), diagnostic.location.line, diagnostic.location.column, diagnostic.code.c_str(), diagnostic.message.c_str());
+}
+
+static void LogFormat2ProfileDiagnostic(const vector<Format2ZoneSource>& sources, const Format2ZoneProfileDiagnostic& diagnostic) {
+    string sourcePath;
+    if (!diagnostic.sourceIndices.empty() && diagnostic.sourceIndices.front() < sources.size()) sourcePath = sources[diagnostic.sourceIndices.front()].sourcePath;
+    if (sourcePath.empty()) LogToConsole("[ERROR] %s: %s\n", diagnostic.code.c_str(), diagnostic.message.c_str());
+    else LogToConsole("[ERROR] %s:%d:%d: %s: %s\n", GetRelativePath(sourcePath.c_str()).c_str(), diagnostic.location.line, diagnostic.location.column, diagnostic.code.c_str(), diagnostic.message.c_str());
+}
+
+static string FoldFormat2RuntimeId(const string& value) {
+    string folded = value;
+    for (char& character : folded) if (character >= 'A' && character <= 'Z') character = static_cast<char>(character - 'A' + 'a');
+    return folded;
+}
+
+static Navigator* GetFormat2ZoneBaseNavigator(ZoneManager* zoneManager, const Format2DocumentMetadata& metadata) {
+    if (metadata.role == Format2ZoneRole::LastTouchedFxParam || metadata.target == Format2ZoneTarget::FocusedFx) return zoneManager->GetFocusedFXNavigator();
+    if (metadata.target == Format2ZoneTarget::MasterTrack) return zoneManager->GetMasterTrackNavigator();
+    return zoneManager->GetSelectedTrackNavigator();
+}
+
+ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
+    const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
+    const optional<string> userMainProfileId = productPaths.UserZoneProfileIdForPath(this->zoneFolder_);
+    const optional<string> vendorMainProfileId = productPaths.VendorZoneProfileIdForPath(this->zoneFolder_);
+    const optional<string> mainProfileId = userMainProfileId ? userMainProfileId : vendorMainProfileId;
+    vector<Format2ZoneProfileRoot> roots;
+    if (mainProfileId) {
+        roots.push_back({productPaths.MainZones(ZoneSource::Vendor, *mainProfileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::Vendor});
+        roots.push_back({productPaths.MainZones(ZoneSource::User, *mainProfileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::User});
+    } else {
+        roots.push_back({this->zoneFolder_, Format2ZoneCollection::Main, userMainProfileId ? Format2ZoneSourceLayer::User : Format2ZoneSourceLayer::Vendor});
+    }
+    roots.push_back({this->vendorFxZoneFolder_, Format2ZoneCollection::Fx, Format2ZoneSourceLayer::Vendor});
+    roots.push_back({this->userFxZoneFolder_, Format2ZoneCollection::Fx, Format2ZoneSourceLayer::User});
+
+    Format2ZoneProfileLoadResult loaded = LoadFormat2ZoneProfile(mainProfileId ? *mainProfileId : this->surface_->GetName(), roots);
+    if (!loaded.UsesFormat2()) return Format2InitializationState::NotUsed;
+    if (!loaded.ContainsOnlyFormat2()) {
+        LogToConsole("[ERROR] Zone profile '%s' mixes legacy and format 2 .zon files. Convert the complete profile before loading it.\n", loaded.profile.profileId.c_str());
+        for (const Format2LoadedZoneDocument& document : loaded.documents) if (document.parsed.document.metadata.version != 2) LogToConsole("[ERROR] Legacy Zone file in format 2 profile: %s\n", GetRelativePath(document.parsed.document.lexical.sourcePath.c_str()).c_str());
+        return Format2InitializationState::Failed;
+    }
+
+    for (const Format2LoadedZoneDocument& document : loaded.documents) for (const Format2Diagnostic& diagnostic : document.parsed.document.lexical.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
+    for (const Format2ZoneProfileDiagnostic& diagnostic : loaded.profile.diagnostics) LogFormat2ProfileDiagnostic(loaded.sources, diagnostic);
+    if (!loaded.IsValid()) return Format2InitializationState::Failed;
+
+    map<string, size_t> fxSourceByMatch;
+    for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
+        if (activeZone.collection != Format2ZoneCollection::Fx || !activeZone.available || !activeZone.activeSourceIndex) continue;
+        const size_t sourceIndex = *activeZone.activeSourceIndex;
+        const optional<string>& matchFx = loaded.documents[sourceIndex].parsed.document.metadata.matchFx;
+        if (!matchFx) continue;
+        const string canonicalMatch = FoldFormat2RuntimeId(*matchFx);
+        const auto existing = fxSourceByMatch.find(canonicalMatch);
+        if (existing == fxSourceByMatch.end()) {
+            fxSourceByMatch[canonicalMatch] = sourceIndex;
+            continue;
+        }
+        LogToConsole("[ERROR] FX zones '%s' and '%s' use the same MatchFX value '%s'. Both are unavailable.\n", GetRelativePath(loaded.sources[existing->second].sourcePath.c_str()).c_str(), GetRelativePath(loaded.sources[sourceIndex].sourcePath.c_str()).c_str(), matchFx->c_str());
+        loaded.sources[existing->second].valid = false;
+        loaded.sources[sourceIndex].valid = false;
+    }
+
+    map<size_t, unique_ptr<Zone>> preparedMainZones;
+    for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
+        if (!activeZone.available || !activeZone.activeSourceIndex) continue;
+        const size_t sourceIndex = *activeZone.activeSourceIndex;
+        const Format2LoadedZoneDocument& document = loaded.documents[sourceIndex];
+        const Format2ZoneDocument& zoneDocument = document.parsed.zone;
+        const Format2DocumentMetadata& metadata = document.parsed.document.metadata;
+        const string runtimeName = activeZone.collection == Format2ZoneCollection::Fx && metadata.matchFx ? *metadata.matchFx : zoneDocument.id;
+        const string alias = metadata.alias ? *metadata.alias : runtimeName;
+        unique_ptr<Zone> zone = make_unique<Zone>(this->csi_, this, GetFormat2ZoneBaseNavigator(this, metadata), 0, runtimeName, alias, document.parsed.document.lexical.sourcePath);
+        Format2ZoneRuntimeResult runtimeResult;
+        if (metadata.role == Format2ZoneRole::Layer || !zoneDocument.includedZones.empty() || !zoneDocument.zoneLayers.empty()) runtimeResult.diagnostics.push_back({"format2.zone.runtime.relations", "IncludedZones and ZoneLayers runtime composition is not connected yet", zoneDocument.includedZones.empty() ? (zoneDocument.zoneLayers.empty() ? loaded.sources[sourceIndex].location : zoneDocument.zoneLayers.front().location) : zoneDocument.includedZones.front().location});
+        if (!zoneDocument.lifecycleBlocks.empty()) runtimeResult.diagnostics.push_back({"format2.zone.runtime.lifecycle", "Zone lifecycle blocks are parsed but are not connected to runtime dispatch yet", zoneDocument.lifecycleBlocks.front().location});
+        if (runtimeResult.IsValid()) runtimeResult = LoadFormat2ZoneRuntimeBindings(this, zone.get(), document.parsed);
+        if (!runtimeResult.IsValid()) {
+            loaded.sources[sourceIndex].valid = false;
+            for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
+            continue;
+        }
+        if (activeZone.collection == Format2ZoneCollection::Main) preparedMainZones[sourceIndex] = std::move(zone);
+    }
+
+    loaded.profile = ResolveFormat2ZoneProfile(loaded.profile.profileId, loaded.sources);
+    for (const Format2ZoneProfileDiagnostic& diagnostic : loaded.profile.diagnostics) LogFormat2ProfileDiagnostic(loaded.sources, diagnostic);
+    if (!loaded.IsValid()) return Format2InitializationState::Failed;
+
+    this->format2DocumentIndexByPath_.clear();
+    for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
+        if (!activeZone.available || !activeZone.activeSourceIndex) continue;
+        const size_t sourceIndex = *activeZone.activeSourceIndex;
+        const Format2LoadedZoneDocument& document = loaded.documents[sourceIndex];
+        const Format2DocumentMetadata& metadata = document.parsed.document.metadata;
+        const string runtimeName = activeZone.collection == Format2ZoneCollection::Fx && metadata.matchFx ? *metadata.matchFx : document.parsed.zone.id;
+        ZoneInfo info;
+        info.filePath = document.parsed.document.lexical.sourcePath;
+        info.isFxZone = activeZone.collection == Format2ZoneCollection::Fx;
+        info.isUserZone = document.layer == Format2ZoneSourceLayer::User;
+        info.alias = metadata.alias ? *metadata.alias : runtimeName;
+        info.isLoaded = activeZone.collection == Format2ZoneCollection::Main;
+        info.isReferenced = metadata.role == Format2ZoneRole::Home;
+        this->AddZoneFilePath(runtimeName, info);
+        this->format2DocumentIndexByPath_[info.filePath] = sourceIndex;
+
+        if (activeZone.collection != Format2ZoneCollection::Main) continue;
+        auto prepared = preparedMainZones.find(sourceIndex);
+        if (prepared == preparedMainZones.end()) continue;
+        if (metadata.role == Format2ZoneRole::Home) this->homeZone_ = std::move(prepared->second);
+        else if (metadata.role == Format2ZoneRole::LastTouchedFxParam) this->lastTouchedFXParamZone_ = shared_ptr<Zone>(std::move(prepared->second));
+        else this->goZones_.push_back(std::move(prepared->second));
+    }
+    if (!this->homeZone_) {
+        LogToConsole("[ERROR] Format 2 Zone profile '%s' did not produce a runnable Home zone.\n", loaded.profile.profileId.c_str());
+        return Format2InitializationState::Failed;
+    }
+    this->format2ZoneProfile_ = make_unique<Format2ZoneProfileLoadResult>(std::move(loaded));
+    this->homeZone_->Activate();
+    return Format2InitializationState::Initialized;
+}
+
 void ZoneManager::Initialize() {
+    const Format2InitializationState state = this->InitializeFormat2();
+    if (state != Format2InitializationState::NotUsed) return;
+    this->InitializeLegacy();
+}
+
+void ZoneManager::InitializeLegacy() {
     PreProcessZones();
 
     if (zoneInfo_.find("Home") == zoneInfo_.end())
@@ -107,6 +240,8 @@ void ZoneManager::ReloadFromDisk() {
     this->goZones_.clear();
     this->zonesToBeDeleted_.clear();
     this->zoneInfo_.clear();
+    this->format2DocumentIndexByPath_.clear();
+    this->format2ZoneProfile_.reset();
     this->Initialize();
 }
 
@@ -319,6 +454,13 @@ void ZoneManager::LoadZoneFile(Zone* zone, const char* widgetSuffix) {
 }
 
 void ZoneManager::LoadZoneFile(Zone* zone, const char* filePath, const char* widgetSuffix) {
+    const auto format2Document = this->format2DocumentIndexByPath_.find(filePath);
+    if (this->format2ZoneProfile_ && format2Document != this->format2DocumentIndexByPath_.end() && format2Document->second < this->format2ZoneProfile_->documents.size()) {
+        const Format2LoadedZoneDocument& document = this->format2ZoneProfile_->documents[format2Document->second];
+        const Format2ZoneRuntimeResult result = LoadFormat2ZoneRuntimeBindings(this, zone, document.parsed);
+        for (const Format2Diagnostic& diagnostic : result.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
+        return;
+    }
     ZoneFileParser::ParseFile(this, zone, filePath, widgetSuffix);
 }
 

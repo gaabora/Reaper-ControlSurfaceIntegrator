@@ -43,3 +43,11 @@ Format2ZoneProfileLoadResult LoadFormat2ZoneProfile(const std::string& profileId
     result.profile = ResolveFormat2ZoneProfile(profileId, result.sources);
     return result;
 }
+
+bool Format2ZoneProfileLoadResult::UsesFormat2() const {
+    return std::any_of(this->documents.begin(), this->documents.end(), [](const Format2LoadedZoneDocument& document) { return document.parsed.document.metadata.version == 2; });
+}
+
+bool Format2ZoneProfileLoadResult::ContainsOnlyFormat2() const {
+    return !this->documents.empty() && std::all_of(this->documents.begin(), this->documents.end(), [](const Format2LoadedZoneDocument& document) { return document.parsed.document.metadata.version == 2; });
+}

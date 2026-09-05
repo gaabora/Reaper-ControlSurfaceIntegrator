@@ -1725,16 +1725,17 @@ The static codec audit intentionally excludes device names that do not select a 
   - ✅ Switch the Bun product-config consumer from Surface settings to Device settings.
 - ✅ Expose ring and bar feedback style resolution through runtime ActionContext metadata and publish the same confirmed action `FeedbackShape` through the generated editor action catalog. Explicit binding style still wins, while dynamic and unknown actions use the processor default.
 - [ ] Replace the native Learn FX dialog with OSK FX edit mode, one in-memory live-preview draft, and atomic User FX-zone save through the shared validated model.
-- [ ] Validate the complete active profile before runtime objects are created.
+- ✅ Validate the complete active profile before runtime objects are created.
   - ✅ Extend `Format2ZoneProfile` resolution with active Main references, structural cycle checks, `IncludedZones` versus `Role=Layer` rules, typed `GoZone` and `EnterZoneLayer` target checks, and focused source locations.
   - ✅ Extract format 2 navigation references through shared action metadata instead of local action-name checks in the zone or profile parser.
-  - [ ] Run the completed profile resolver from `ZoneManager` before creating any runtime `Zone`.
-- [ ] Let an invalid non-required zone be skipped with focused diagnostics instead of disabling unrelated zones.
+  - ✅ Run the completed profile resolver from `ZoneManager` before creating any runtime `Zone`, and reject profiles that mix legacy and format 2 Zone documents.
+- ✅ Let an invalid non-required zone be skipped with focused diagnostics instead of disabling unrelated zones.
   - ✅ Keep an invalid selected User override unavailable without falling back to Vendor or invalidating an otherwise independent profile in the resolver.
-  - [ ] Apply that resolved availability when runtime zones are constructed.
-- [ ] Treat an invalid or missing Home role as a profile-level initialization error.
+  - ✅ Re-run profile resolution after Surface-specific Widget, Action, Navigator, selector, and slot validation so an unavailable required target still blocks the profile while an independent optional zone is skipped.
+- ✅ Treat an invalid or missing Home role as a profile-level initialization error.
   - ✅ Diagnose zero or several valid active Main zones with `Role=Home` in the profile resolver.
-  - [ ] Stop runtime initialization for that profile before creating zones.
+  - ✅ Stop typed runtime initialization before publishing or activating any Zone when the resolved Home role is missing, duplicated, or not runnable on the Surface.
+- [ ] Connect typed `IncludedZones`, `ZoneLayers`, and lifecycle dispatch. Until connected, report a focused runtime diagnostic instead of silently ignoring these parsed structures.
 - [ ] Replace the metadata preprocessor, binding parser, surface block readers, Learn FX line readers, and OSK line edits with the shared model where they overlap.
 
 Ready when runtime behavior consumes validated documents and no feature reparses the same zone with a different grammar.

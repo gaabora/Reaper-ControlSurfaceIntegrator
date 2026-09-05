@@ -23,6 +23,8 @@ struct Format2ZoneProfileLoadResult {
     Format2ZoneProfileResolveResult profile;
 
     bool IsValid() const { return this->profile.IsValid(); }
+    bool UsesFormat2() const;
+    bool ContainsOnlyFormat2() const;
 };
 
 Format2ZoneProfileLoadResult LoadFormat2ZoneProfile(const std::string& profileId, const std::vector<Format2ZoneProfileRoot>& roots);
