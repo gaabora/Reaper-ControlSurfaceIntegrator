@@ -1707,6 +1707,8 @@ The static codec audit intentionally excludes device names that do not select a 
 - ✅ Parse each zone, surface, Learn FX, and snippet source once through one typed-document entry point that preserves the shared syntax document, diagnostics, and source locations.
 - ✅ Compile each `#` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
   - ✅ Give each runtime `ActionContext` its own effective Navigator and optional slot override, while legacy contexts inherit both values from their Zone.
+  - ✅ Add an atomic typed-binding runtime bridge that resolves channel Navigators, `BankTarget` slot indices, standard modifiers, supported input selectors, Widgets, Actions, and action parameters before adding any context to a Zone.
+  - [ ] Add runtime behavior for `Tap`, `Release`, `LongHold`, per-modifier `Mode`, and the separately planned `PseudoModifier` feature before accepting those parsed declarations at runtime.
 - ✅ Resolve Vendor and User Main/FX sources by case-insensitive zone ID into one deterministic per-zone active set before later role, reference, dependency, or runtime validation. A unique User source overrides only the matching Vendor source, an invalid User source blocks Vendor fallback, and same-layer duplicates leave that ID unavailable with source-linked diagnostics.
   - ✅ Add one deterministic profile loader that reads each `.zon` once and retains aligned typed documents, source descriptors, and resolver indices for runtime consumption.
 - ✅ Parse the new product `.conf` into `IntegratorConfig` and let every C++ consumer use that one semantic model.
