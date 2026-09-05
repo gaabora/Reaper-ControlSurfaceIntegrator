@@ -210,18 +210,19 @@ void ControlSurface::SetModifierValue(int value) {
         page_->GetModifierManager()->SetModifierValue(value);
 }
 
-void ControlSurface::SetModifier(void (ModifierManager::*setter)(bool, int, ModifierMode), bool value, ActionModifierMode mode) {
+void ControlSurface::SetModifier(void (ModifierManager::*setter)(bool, int, ModifierMode, ModifierEvent), bool value, ActionModifierMode mode, ActionInputEvent inputEvent) {
     const ModifierMode resolvedMode = mode == ActionModifierMode::Momentary ? ModifierMode::Momentary : mode == ActionModifierMode::Latch ? ModifierMode::Latch : ModifierMode::Hybrid;
+    const ModifierEvent resolvedEvent = inputEvent == ActionInputEvent::Press ? ModifierEvent::Press : inputEvent == ActionInputEvent::Tap ? ModifierEvent::Tap : inputEvent == ActionInputEvent::Release ? ModifierEvent::Release : ModifierEvent::Raw;
     if (zoneManager_->GetIsBroadcaster() && usesLocalModifiers_) {
-        (modifierManager_.get()->*setter)(value, latchTime_, resolvedMode);
+        (modifierManager_.get()->*setter)(value, latchTime_, resolvedMode, resolvedEvent);
 
         for (auto& listener : zoneManager_->GetListeners())
             if (listener->GetSurface()->GetListensToModifiers() && !listener->GetSurface()->GetUsesLocalModifiers() & listener->GetSurface()->GetName() != name_)
-                (listener->GetSurface()->GetModifierManager()->*setter)(value, latchTime_, resolvedMode);
+                (listener->GetSurface()->GetModifierManager()->*setter)(value, latchTime_, resolvedMode, resolvedEvent);
     } else if (usesLocalModifiers_)
-        (modifierManager_.get()->*setter)(value, latchTime_, resolvedMode);
+        (modifierManager_.get()->*setter)(value, latchTime_, resolvedMode, resolvedEvent);
     else
-        (page_->GetModifierManager()->*setter)(value, latchTime_, resolvedMode);
+        (page_->GetModifierManager()->*setter)(value, latchTime_, resolvedMode, resolvedEvent);
 }
 
 void ControlSurface::ApplyToBroadcastModifierListeners(void (ModifierManager::*method)()) {
@@ -236,16 +237,16 @@ void ControlSurface::ApplyToBroadcastModifierListeners(void (ModifierManager::*m
             (listener->GetSurface()->GetModifierManager()->*method)(argument);
 }
 
-void ControlSurface::SetShift(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetShift, value, mode); }
-void ControlSurface::SetOption(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetOption, value, mode); }
-void ControlSurface::SetControl(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetControl, value, mode); }
-void ControlSurface::SetAlt(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetAlt, value, mode); }
-void ControlSurface::SetFlip(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetFlip, value, mode); }
-void ControlSurface::SetGlobal(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetGlobal, value, mode); }
-void ControlSurface::SetMarker(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetMarker, value, mode); }
-void ControlSurface::SetNudge(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetNudge, value, mode); }
-void ControlSurface::SetZoom(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetZoom, value, mode); }
-void ControlSurface::SetScrub(bool value, ActionModifierMode mode) { SetModifier(&ModifierManager::SetScrub, value, mode); }
+void ControlSurface::SetShift(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetShift, value, mode, inputEvent); }
+void ControlSurface::SetOption(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetOption, value, mode, inputEvent); }
+void ControlSurface::SetControl(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetControl, value, mode, inputEvent); }
+void ControlSurface::SetAlt(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetAlt, value, mode, inputEvent); }
+void ControlSurface::SetFlip(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetFlip, value, mode, inputEvent); }
+void ControlSurface::SetGlobal(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetGlobal, value, mode, inputEvent); }
+void ControlSurface::SetMarker(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetMarker, value, mode, inputEvent); }
+void ControlSurface::SetNudge(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetNudge, value, mode, inputEvent); }
+void ControlSurface::SetZoom(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetZoom, value, mode, inputEvent); }
+void ControlSurface::SetScrub(bool value, ActionModifierMode mode, ActionInputEvent inputEvent) { SetModifier(&ModifierManager::SetScrub, value, mode, inputEvent); }
 
 const vector<int>& ControlSurface::GetModifiers() {
     if (usesLocalModifiers_ || listensToModifiers_) return modifierManager_->GetModifiers();

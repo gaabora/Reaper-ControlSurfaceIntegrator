@@ -2,6 +2,7 @@
 // zone.h — Zone, SubZone, ZoneInfo
 #include "preamble.h"
 #include "../actions/action_context.h"
+#include "../actions/button_gesture.h"
 
 enum class ZoneRuntimeTarget {
     Legacy,
@@ -20,6 +21,11 @@ enum class ZoneRuntimeBankTarget {
     Sends,
     Receives,
     Fx,
+};
+
+struct ZoneButtonGestureState {
+    ButtonGestureRecognizer recognizer;
+    vector<ActionContext*> contexts;
 };
 
 class Zone
@@ -46,6 +52,7 @@ protected:
     vector<unique_ptr<ActionContext>> emptyContexts_;
     map<Widget*, int> currentActionContextModifiers_;
     map<Widget*, map<int, vector<unique_ptr<ActionContext>>>> actionContextDictionary_;
+    map<Widget*, ZoneButtonGestureState> buttonGestureStates_;
 
     vector<unique_ptr<Zone>> includedZones_;
     vector<unique_ptr<Zone>> zoneLayers_;
@@ -55,6 +62,9 @@ protected:
     bool UsesWidgetForCurrentEvent(Widget* widget);
     bool UsesWidgetForCurrentFeedback(Widget* widget);
     bool MatchesRuntimeTarget(ZoneRuntimeTarget target, const char* legacyName) const;
+    bool HandleFormat2ButtonInput(Widget* widget, double value);
+    void DispatchFormat2ButtonEvents(Widget* widget, const vector<ButtonGestureDispatch>& dispatches);
+    void RunFormat2ButtonGestureTimers();
 
 public:
     Zone(CSurfIntegrator* const csi, ZoneManager* const zoneManager, Navigator* navigator, int slotIndex, const string& name, const string& alias, const string& sourceFilePath)

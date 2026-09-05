@@ -304,10 +304,7 @@ int ActionContext::GetHoldDelay() { return timing_.holdDelayMs == INHERIT_VALUE 
 
 // runs once button pressed/released
 void ActionContext::DoAction(double value) {
-    if (this->timing_.inputEvent != ActionInputEvent::Legacy) {
-        this->DoFormat2ButtonAction(value);
-        return;
-    }
+    if (this->timing_.inputEvent != ActionInputEvent::Legacy) return;
 
     int holdDelayMs = this->GetHoldDelay();
 
@@ -374,69 +371,16 @@ void ActionContext::DoAction(double value) {
     }
 }
 
-void ActionContext::DoFormat2ButtonAction(double value) {
-    const bool isRelease = value == ActionContext::BUTTON_RELEASE_MESSAGE_VALUE;
-    const DWORD nowTs = GetTickCount();
-    const bool hasDoublePress = this->GetWidget()->HasDoublePressActions();
-    const bool exclusiveDoublePress = this->GetSurface()->GetSettings().GetString("DoublePressPolicy") == "Exclusive";
-
-    if (isRelease) {
-        this->timing_.holdActive = false;
-        this->timing_.holdRepeatActive = false;
-
-        if (this->timing_.inputEvent == ActionInputEvent::Release) {
-            this->PerformAction(this->timing_.deferredValue);
-        } else if (this->timing_.inputEvent == ActionInputEvent::Tap && !this->GetWidget()->GetHoldFired()) {
-            if (hasDoublePress && exclusiveDoublePress && !this->timing_.doublePressRecognized) {
-                this->timing_.tapPending = true;
-                this->timing_.tapReleaseTs = nowTs;
-            } else if (!this->timing_.doublePressRecognized || !exclusiveDoublePress) {
-                this->PerformAction(this->timing_.deferredValue);
-            }
-        } else if (this->timing_.inputEvent == ActionInputEvent::Modifier) {
-            if (this->modifierMode_ == ActionModifierMode::Momentary || this->modifierMode_ == ActionModifierMode::Hybrid) {
-                this->PerformAction(value);
-            } else if (this->modifierMode_ == ActionModifierMode::Latch && !this->GetWidget()->GetHoldFired()) {
-                this->PerformAction(this->timing_.deferredValue);
-            }
-        }
-
-        this->timing_.doublePressRecognized = false;
-        return;
-    }
-
-    this->timing_.deferredValue = value;
-    if (this->timing_.inputEvent == ActionInputEvent::Tap || this->timing_.inputEvent == ActionInputEvent::Modifier) this->GetWidget()->ClearHoldFired();
-
-    if ((this->timing_.inputEvent == ActionInputEvent::Tap || this->timing_.inputEvent == ActionInputEvent::DoublePress) && hasDoublePress) {
-        if (this->timing_.doublePressStartTs != 0 && nowTs <= this->timing_.doublePressStartTs + this->GetSurface()->GetDoublePressTime()) {
-            this->timing_.doublePressStartTs = 0;
-            this->timing_.doublePressRecognized = true;
-            this->timing_.tapPending = false;
-            if (this->timing_.inputEvent == ActionInputEvent::DoublePress) this->PerformAction(value);
-        } else {
-            this->timing_.doublePressStartTs = nowTs;
-        }
-        return;
-    }
-
-    if (this->timing_.inputEvent == ActionInputEvent::Press) {
-        this->PerformAction(value);
-    } else if (this->timing_.inputEvent == ActionInputEvent::Hold || this->timing_.inputEvent == ActionInputEvent::LongHold) {
-        this->timing_.holdActive = true;
-        this->timing_.lastHoldStartTs = nowTs;
-    } else if (this->timing_.inputEvent == ActionInputEvent::Modifier && this->modifierMode_ != ActionModifierMode::Latch) {
-        this->PerformAction(value);
-    }
+void ActionContext::PerformRecognizedInputEvent(ActionInputEvent inputEvent, double value) {
+    this->recognizedInputEvent_ = inputEvent;
+    if (this->timing_.inputEvent == ActionInputEvent::Modifier && inputEvent == ActionInputEvent::Release) this->PerformAction(ActionContext::BUTTON_RELEASE_MESSAGE_VALUE);
+    else this->PerformAction(value);
+    this->recognizedInputEvent_ = ActionInputEvent::Legacy;
 }
 
 // runs in loop to support button hold/repeat actions
 void ActionContext::RunDeferredActions() {
-    if (this->timing_.inputEvent == ActionInputEvent::Tap && this->timing_.tapPending && GetTickCount() > this->timing_.tapReleaseTs + this->GetSurface()->GetDoublePressTime()) {
-        this->timing_.tapPending = false;
-        this->timing_.doublePressStartTs = 0;
-        this->PerformAction(this->timing_.deferredValue);
-    }
+    if (this->timing_.inputEvent != ActionInputEvent::Legacy) return;
 
     int holdDelayMs = GetHoldDelay();
 

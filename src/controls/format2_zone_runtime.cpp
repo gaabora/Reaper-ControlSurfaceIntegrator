@@ -13,6 +13,7 @@ struct Format2PreparedActionContext {
     ActionModifierMode modifierMode = ActionModifierMode::Legacy;
     int eventDelayMs = 0;
     int repeatIntervalMs = 0;
+    int modifierTapWindowMs = 0;
     bool invert = false;
     bool invertFeedback = false;
     bool increase = false;
@@ -96,7 +97,6 @@ static Navigator* ResolveFormat2BindingNavigator(ZoneManager* zoneManager, Zone*
 }
 
 static bool PrepareFormat2Selectors(ZoneManager* zoneManager, const Format2ZoneBinding& binding, Format2PreparedActionContext& prepared, Format2ZoneRuntimeResult& result) {
-    prepared.inputEvent = zoneManager->GetSurface()->GetSettings().GetString("DefaultButtonTrigger") == "Tap" ? ActionInputEvent::Tap : ActionInputEvent::Press;
     std::vector<std::string> standardModifiers;
     for (const Format2ZoneSelector& selector : binding.selectors) {
         if (selector.kind == Format2ZoneSelectorKind::Context) {
@@ -140,6 +140,10 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
             AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.widget.missing", "Modifier Widget does not exist on the Surface: " + declaration.widget.baseName, declaration.widget.location);
             continue;
         }
+        if (!widget->GetIsTwoState()) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.modifier-input", "A modifier declaration requires a Widget with press and release input", declaration.widget.location);
+            continue;
+        }
         Format2PreparedActionContext prepared;
         prepared.widget = widget;
         prepared.navigator = zone->GetNavigator();
@@ -147,6 +151,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.parameters = {declaration.name};
         prepared.inputEvent = ActionInputEvent::Modifier;
         prepared.modifierMode = ResolveFormat2ModifierMode(zoneManager->GetSurface(), declaration.mode);
+        prepared.modifierTapWindowMs = zoneManager->GetSurface()->GetSettings().GetInteger("ModifierTapWindowMs");
         modifierModesByWidget[declaration.widget.baseName] = prepared.modifierMode;
         preparedContexts.push_back(std::move(prepared));
     }
@@ -194,6 +199,11 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.actionName = binding.action.action;
         prepared.parameters = MakeFormat2ActionParameters(binding.action);
         PrepareFormat2Selectors(zoneManager, binding, prepared, result);
+        if (prepared.inputEvent == ActionInputEvent::Legacy && !prepared.increase && !prepared.decrease && widget->GetIsTwoState()) prepared.inputEvent = zoneManager->GetSurface()->GetSettings().GetString("DefaultButtonTrigger") == "Tap" ? ActionInputEvent::Tap : ActionInputEvent::Press;
+        if (prepared.inputEvent != ActionInputEvent::Legacy && !widget->GetIsTwoState()) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.button-input", "A button event requires a Widget with press and release input: " + spec.widgetId, binding.widget.location);
+            continue;
+        }
         if (prepared.inputEvent == ActionInputEvent::Hold) prepared.eventDelayMs = GetFormat2IntegerProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("HoldDelayMs"));
         if (prepared.inputEvent == ActionInputEvent::LongHold) prepared.eventDelayMs = GetFormat2IntegerProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("LongHoldDelayMs"));
         if (prepared.inputEvent == ActionInputEvent::Hold || prepared.inputEvent == ActionInputEvent::LongHold) prepared.repeatIntervalMs = GetFormat2IntegerProperty(binding.action, "RepeatIntervalMs", 0);
@@ -207,16 +217,15 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         ActionContext* context = zone->AddActionContext(prepared.widget, prepared.modifier, zone, prepared.actionName.c_str(), prepared.parameters, prepared.navigator, prepared.surfaceChannelOffset);
         context->SetInputEvent(prepared.inputEvent);
         context->SetModifierMode(prepared.modifierMode);
+        context->SetModifierTapWindow(prepared.modifierTapWindowMs);
         if (prepared.invert) context->SetIsValueInverted();
         if (prepared.invertFeedback) context->SetIsFeedbackInverted();
         if (prepared.inputEvent == ActionInputEvent::Hold || prepared.inputEvent == ActionInputEvent::LongHold) {
             context->SetHoldDelay(prepared.eventDelayMs);
             context->SetHoldRepeatInterval(prepared.repeatIntervalMs);
-            prepared.widget->SetHasHoldActions();
         }
         if (prepared.inputEvent == ActionInputEvent::DoublePress) {
             context->SetDoublePress();
-            prepared.widget->SetHasDoublePressActions();
         }
         if (prepared.increase) context->SetRange({0.0, 2.0});
         else if (prepared.decrease) context->SetRange({-2.0, 1.0});

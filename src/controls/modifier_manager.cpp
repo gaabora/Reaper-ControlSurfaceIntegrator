@@ -64,21 +64,29 @@ void ModifierManager::SetLatchModifier(bool value, Modifiers modifier, int latch
     RecalculateModifiers();
 }
 
-void ModifierManager::SetModifier(bool value, Modifiers modifier, int latchTime, ModifierMode mode) {
-    if (mode == ModifierMode::Hybrid) {
+void ModifierManager::SetModifier(bool value, Modifiers modifier, int latchTime, ModifierMode mode, ModifierEvent inputEvent) {
+    if (inputEvent == ModifierEvent::Raw) {
         this->SetLatchModifier(value, modifier, latchTime);
         return;
     }
 
     ModifierState& state = this->modifiers_[modifier];
     if (mode == ModifierMode::Momentary) {
-        state.isEngaged = value;
+        state.isEngaged = inputEvent == ModifierEvent::Press;
         state.isLocked = false;
-        state.pressedTime = value ? GetTickCount() : 0;
-    } else if (value) {
+        state.pressedTime = state.isEngaged ? GetTickCount() : 0;
+    } else if (mode == ModifierMode::Latch && inputEvent == ModifierEvent::Tap) {
         state.isEngaged = !state.isEngaged;
         state.isLocked = state.isEngaged;
         state.pressedTime = 0;
+    } else if (mode == ModifierMode::Hybrid && inputEvent == ModifierEvent::Press) {
+        if (!state.isLocked) state.isEngaged = true;
+    } else if (mode == ModifierMode::Hybrid && inputEvent == ModifierEvent::Tap) {
+        state.isLocked = !state.isLocked;
+        state.isEngaged = state.isLocked;
+    } else if (mode == ModifierMode::Hybrid && inputEvent == ModifierEvent::Release) {
+        state.isLocked = false;
+        state.isEngaged = false;
     }
     this->RecalculateModifiers();
 }

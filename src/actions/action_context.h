@@ -40,6 +40,8 @@ private:
 
     ActionTiming timing_; ///< Hold, repeat, and double-press timing state
     ActionModifierMode modifierMode_ = ActionModifierMode::Legacy;
+    ActionInputEvent recognizedInputEvent_ = ActionInputEvent::Legacy;
+    int modifierTapWindowMs_ = 0;
     BlinkState blink_; ///< LED/display blink state
     ActionColorState color_; ///< Color and track-color state
     ActionValueState value_; ///< Range, stepped-values, and acceleration state
@@ -131,17 +133,21 @@ public:
     ActionInputEvent GetInputEvent() const { return this->timing_.inputEvent; }
     void SetModifierMode(ActionModifierMode modifierMode) { this->modifierMode_ = modifierMode; }
     ActionModifierMode GetModifierMode() const { return this->modifierMode_; }
+    ActionInputEvent GetRecognizedInputEvent() const { return this->recognizedInputEvent_; }
+    void SetModifierTapWindow(int value) { this->modifierTapWindowMs_ = value; }
+    int GetModifierTapWindow() const { return this->modifierTapWindowMs_; }
 
     void SetHoldDelay(int value) { timing_.holdDelayMs = value; }
     int GetHoldDelay();
     void SetHoldRepeatInterval(int value) { this->timing_.holdRepeatIntervalMs = value; }
+    int GetHoldRepeatInterval() const { return this->timing_.holdRepeatIntervalMs; }
 
     void SetAction(Action* action) {
         action_ = action;
         RequestUpdate();
     }
     void DoAction(double value);
-    void DoFormat2ButtonAction(double value);
+    void PerformRecognizedInputEvent(ActionInputEvent inputEvent, double value);
     void PerformAction(double value);
     void DoRelativeAction(double value);
     void DoRelativeAction(int accelerationIndex, double value);

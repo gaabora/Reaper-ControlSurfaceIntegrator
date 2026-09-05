@@ -68,6 +68,7 @@ bool Zone::MatchesRuntimeTarget(ZoneRuntimeTarget target, const char* legacyName
 }
 
 void Zone::Activate() {
+    this->buttonGestureStates_.clear();
     if (this->MatchesRuntimeTarget(ZoneRuntimeTarget::Vca, "VCA"))
         zoneManager_->GetSurface()->GetPage()->GetTrackNavigationManager()->ActivateVCAMode();
     else if (this->MatchesRuntimeTarget(ZoneRuntimeTarget::Folder, "Folder"))
@@ -105,6 +106,7 @@ void Zone::Activate() {
 
 void Zone::Deactivate() {
     if (!isActive_) return;
+    this->buttonGestureStates_.clear();
     for (auto& widget : widgets_) {
         for (auto& actionContext : GetActionContexts(widget)) {
             actionContext->UpdateWidgetValue(0.0);
@@ -136,6 +138,10 @@ void Zone::Deactivate() {
 
 void Zone::RequestUpdate() {
     if (!isActive_) return;
+    if (this->usesExactEventFallback_) {
+        this->RunFormat2ButtonGestureTimers();
+        if (!this->isActive_) return;
+    }
 
     for (auto& subZone : subZones_)
         subZone->RequestUpdate();
@@ -188,6 +194,11 @@ void Zone::DoAction(Widget* widget, bool& isUsed, double value) {
 
     if (isUsed) return;
 
+    if (this->usesExactEventFallback_ && this->HandleFormat2ButtonInput(widget, value)) {
+        isUsed = true;
+        return;
+    }
+
     if (this->UsesWidgetForCurrentEvent(widget)) {
         isUsed = true;
 
@@ -196,6 +207,57 @@ void Zone::DoAction(Widget* widget, bool& isUsed, double value) {
     } else {
         for (auto& includedZone : includedZones_)
             includedZone->DoAction(widget, isUsed, value);
+    }
+}
+
+static bool HasFormat2ButtonEvent(const vector<unique_ptr<ActionContext>>& contexts) {
+    for (const unique_ptr<ActionContext>& context : contexts) if (context->GetInputEvent() != ActionInputEvent::Legacy) return true;
+    return false;
+}
+
+bool Zone::HandleFormat2ButtonInput(Widget* widget, double value) {
+    auto stateEntry = this->buttonGestureStates_.find(widget);
+    if (stateEntry == this->buttonGestureStates_.end() || !stateEntry->second.recognizer.HasActiveState()) {
+        const vector<unique_ptr<ActionContext>>& currentContexts = this->GetActionContexts(widget);
+        if (!HasFormat2ButtonEvent(currentContexts)) return false;
+
+        ZoneButtonGestureState state;
+        vector<ButtonGestureBinding> gestureBindings;
+        for (const unique_ptr<ActionContext>& context : currentContexts) {
+            state.contexts.push_back(context.get());
+            gestureBindings.push_back({context->GetInputEvent(), context->GetModifierMode(), context->GetHoldDelay(), context->GetHoldRepeatInterval(), context->GetModifierTapWindow()});
+        }
+        state.recognizer.Configure(gestureBindings, this->zoneManager_->GetSurface()->GetDoublePressTime(), this->zoneManager_->GetSurface()->GetSettings().GetString("DoublePressPolicy") == "Exclusive");
+        this->buttonGestureStates_[widget] = std::move(state);
+        stateEntry = this->buttonGestureStates_.find(widget);
+    }
+
+    const vector<ButtonGestureDispatch> dispatches = stateEntry->second.recognizer.ProcessInput(value, GetTickCount());
+    this->DispatchFormat2ButtonEvents(widget, dispatches);
+    stateEntry = this->buttonGestureStates_.find(widget);
+    if (stateEntry != this->buttonGestureStates_.end() && !stateEntry->second.recognizer.HasActiveState()) this->buttonGestureStates_.erase(stateEntry);
+    return true;
+}
+
+void Zone::DispatchFormat2ButtonEvents(Widget* widget, const vector<ButtonGestureDispatch>& dispatches) {
+    const auto stateEntry = this->buttonGestureStates_.find(widget);
+    if (stateEntry == this->buttonGestureStates_.end()) return;
+    const vector<ActionContext*> contexts = stateEntry->second.contexts;
+    for (const ButtonGestureDispatch& dispatch : dispatches) {
+        if (dispatch.bindingIndex < contexts.size()) contexts[dispatch.bindingIndex]->PerformRecognizedInputEvent(dispatch.inputEvent, dispatch.value);
+    }
+}
+
+void Zone::RunFormat2ButtonGestureTimers() {
+    vector<Widget*> activeWidgets;
+    for (const auto& stateEntry : this->buttonGestureStates_) activeWidgets.push_back(stateEntry.first);
+    for (Widget* widget : activeWidgets) {
+        auto stateEntry = this->buttonGestureStates_.find(widget);
+        if (stateEntry == this->buttonGestureStates_.end()) continue;
+        const vector<ButtonGestureDispatch> dispatches = stateEntry->second.recognizer.Poll(GetTickCount());
+        this->DispatchFormat2ButtonEvents(widget, dispatches);
+        stateEntry = this->buttonGestureStates_.find(widget);
+        if (stateEntry != this->buttonGestureStates_.end() && !stateEntry->second.recognizer.HasActiveState()) this->buttonGestureStates_.erase(stateEntry);
     }
 }
 
@@ -314,6 +376,7 @@ ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, 
 
 void Zone::ClearActionContexts(Widget* widget) {
     if (!widget) return;
+    this->buttonGestureStates_.erase(widget);
     actionContextDictionary_.erase(widget);
     currentActionContextModifiers_.erase(widget);
 }

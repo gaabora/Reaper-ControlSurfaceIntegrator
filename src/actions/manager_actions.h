@@ -1100,7 +1100,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetShift(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetShift(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1121,7 +1121,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetOption(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetOption(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1142,7 +1142,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetControl(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetControl(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1163,7 +1163,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetAlt(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetAlt(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1184,7 +1184,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetFlip(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetFlip(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1205,7 +1205,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetGlobal(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetGlobal(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1226,7 +1226,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetMarker(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetMarker(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1247,7 +1247,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetNudge(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetNudge(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1268,7 +1268,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetZoom(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetZoom(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 
@@ -1289,7 +1289,7 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        context->GetSurface()->SetScrub(value != 0, context->GetModifierMode());
+        context->GetSurface()->SetScrub(value != 0, context->GetModifierMode(), context->GetRecognizedInputEvent());
     }
 };
 

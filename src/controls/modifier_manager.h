@@ -10,6 +10,13 @@ enum class ModifierMode {
     Hybrid,
 };
 
+enum class ModifierEvent {
+    Raw,
+    Press,
+    Tap,
+    Release,
+};
+
 class ModifierManager
 {
 private:
@@ -94,7 +101,7 @@ private:
     }
 
     void SetLatchModifier(bool value, Modifiers modifier, int latchTime);
-    void SetModifier(bool value, Modifiers modifier, int latchTime, ModifierMode mode);
+    void SetModifier(bool value, Modifiers modifier, int latchTime, ModifierMode mode, ModifierEvent inputEvent);
 
 public:
     ModifierManager(CSurfIntegrator* const csi, IPageContext* page = nullptr, ControlSurface* surface = NULL)
@@ -173,40 +180,40 @@ public:
         if (value & maskFromModifier(Scrub)) modifiers_[Scrub].isEngaged = true;
     }
 
-    void SetShift(bool value, int latchTime, ModifierMode mode) { SetModifier(value, Shift, latchTime, mode); }
+    void SetShift(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) { SetModifier(value, Shift, latchTime, mode, inputEvent); }
 
-    void SetOption(bool value, int latchTime, ModifierMode mode) { SetModifier(value, Option, latchTime, mode); }
-    void SetControl(bool value, int latchTime, ModifierMode mode) { SetModifier(value, Control, latchTime, mode); }
-    void SetAlt(bool value, int latchTime, ModifierMode mode) { SetModifier(value, Alt, latchTime, mode); }
-    void SetFlip(bool value, int latchTime, ModifierMode mode) { SetModifier(value, Flip, latchTime, mode); }
-    void SetGlobal(bool value, int latchTime, ModifierMode mode) { SetModifier(value, Global, latchTime, mode); }
+    void SetOption(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) { SetModifier(value, Option, latchTime, mode, inputEvent); }
+    void SetControl(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) { SetModifier(value, Control, latchTime, mode, inputEvent); }
+    void SetAlt(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) { SetModifier(value, Alt, latchTime, mode, inputEvent); }
+    void SetFlip(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) { SetModifier(value, Flip, latchTime, mode, inputEvent); }
+    void SetGlobal(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) { SetModifier(value, Global, latchTime, mode, inputEvent); }
     
-    void SetMarker(bool value, int latchTime, ModifierMode mode) {
+    void SetMarker(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) {
         modifiers_[Nudge].isEngaged = false;
         modifiers_[Zoom].isEngaged = false;
         modifiers_[Scrub].isEngaged = false;
-        SetModifier(value, Marker, latchTime, mode);
+        SetModifier(value, Marker, latchTime, mode, inputEvent);
     }
 
-    void SetNudge(bool value, int latchTime, ModifierMode mode) {
+    void SetNudge(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) {
         modifiers_[Marker].isEngaged = false;
         modifiers_[Zoom].isEngaged = false;
         modifiers_[Scrub].isEngaged = false;
-        SetModifier(value, Nudge, latchTime, mode);
+        SetModifier(value, Nudge, latchTime, mode, inputEvent);
     }
 
-    void SetZoom(bool value, int latchTime, ModifierMode mode) {
+    void SetZoom(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) {
         modifiers_[Marker].isEngaged = false;
         modifiers_[Nudge].isEngaged = false;
         modifiers_[Scrub].isEngaged = false;
-        SetModifier(value, Zoom, latchTime, mode);
+        SetModifier(value, Zoom, latchTime, mode, inputEvent);
     }
 
-    void SetScrub(bool value, int latchTime, ModifierMode mode) {
+    void SetScrub(bool value, int latchTime, ModifierMode mode, ModifierEvent inputEvent) {
         modifiers_[Marker].isEngaged = false;
         modifiers_[Nudge].isEngaged = false;
         modifiers_[Zoom].isEngaged = false;
-        SetModifier(value, Scrub, latchTime, mode);
+        SetModifier(value, Scrub, latchTime, mode, inputEvent);
     }
 
     void ClearModifiers() {

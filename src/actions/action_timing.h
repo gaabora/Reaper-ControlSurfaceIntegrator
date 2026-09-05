@@ -47,10 +47,7 @@ struct ActionTiming {
     // Double-press detection: this context fires only on double-press.
     bool isDoublePress = false;
     DWORD doublePressStartTs = 0;
-    bool doublePressRecognized = false;
 
-    // Format 2 button event selection and delayed Tap state.
+    // Format 2 button event selection. One Zone-level recognizer owns its timing state.
     ActionInputEvent inputEvent = ActionInputEvent::Legacy;
-    bool tapPending = false;
-    DWORD tapReleaseTs = 0;
 };

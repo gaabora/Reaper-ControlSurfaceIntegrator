@@ -3,6 +3,7 @@
 //  control_surface.h — ControlSurface base class
 //
 #include "preamble.h"
+#include "../actions/action_timing.h"
 #include "page_interface.h"
 #include "zone_manager.h"
 #include "modifier_manager.h"
@@ -102,7 +103,7 @@ private:
     bool GetModifierState(bool (ModifierManager::*getter)());
     void ApplyToBroadcastModifierListeners(void (ModifierManager::*method)());
     void ApplyToBroadcastModifierListeners(void (ModifierManager::*method)(const char*), const char* argument);
-    void SetModifier(void (ModifierManager::*setter)(bool, int, ModifierMode), bool value, ActionModifierMode mode);
+    void SetModifier(void (ModifierManager::*setter)(bool, int, ModifierMode, ModifierEvent), bool value, ActionModifierMode mode, ActionInputEvent inputEvent);
 
     vector<FeedbackProcessor*> trackColorFeedbackProcessors_; // does not own pointers
     vector<std::pair<FeedbackProcessor*, double>> initialFeedbackValues_; // does not own pointers
@@ -226,16 +227,16 @@ public:
     bool GetScrub();
 
     void SetModifierValue(int value);
-    void SetShift(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetOption(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetControl(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetAlt(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetFlip(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetGlobal(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetMarker(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetNudge(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetZoom(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
-    void SetScrub(bool value, ActionModifierMode mode = ActionModifierMode::Legacy);
+    void SetShift(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetOption(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetControl(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetAlt(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetFlip(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetGlobal(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetMarker(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetNudge(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetZoom(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
+    void SetScrub(bool value, ActionModifierMode mode = ActionModifierMode::Legacy, ActionInputEvent inputEvent = ActionInputEvent::Legacy);
 
     const vector<int>& GetModifiers();
     void ClearModifiers();

@@ -143,9 +143,9 @@ static unique_ptr<Zone> CreateFormat2RelatedZone(ZoneManager* zoneManager, const
 
 ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
-    const optional<string> userMainProfileId = productPaths.UserZoneProfileIdForPath(this->zoneFolder_);
-    const optional<string> vendorMainProfileId = productPaths.VendorZoneProfileIdForPath(this->zoneFolder_);
-    const optional<string> mainProfileId = userMainProfileId ? userMainProfileId : vendorMainProfileId;
+    const std::optional<string> userMainProfileId = productPaths.UserZoneProfileIdForPath(this->zoneFolder_);
+    const std::optional<string> vendorMainProfileId = productPaths.VendorZoneProfileIdForPath(this->zoneFolder_);
+    const std::optional<string> mainProfileId = userMainProfileId ? userMainProfileId : vendorMainProfileId;
     vector<Format2ZoneProfileRoot> roots;
     if (mainProfileId) {
         roots.push_back({productPaths.MainZones(ZoneSource::Vendor, *mainProfileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::Vendor});
@@ -172,7 +172,7 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
         if (activeZone.collection != Format2ZoneCollection::Fx || !activeZone.available || !activeZone.activeSourceIndex) continue;
         const size_t sourceIndex = *activeZone.activeSourceIndex;
-        const optional<string>& matchFx = loaded.documents[sourceIndex].parsed.document.metadata.matchFx;
+        const std::optional<string>& matchFx = loaded.documents[sourceIndex].parsed.document.metadata.matchFx;
         if (!matchFx) continue;
         const string canonicalMatch = FoldFormat2RuntimeId(*matchFx);
         const auto existing = fxSourceByMatch.find(canonicalMatch);
