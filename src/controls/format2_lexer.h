@@ -33,11 +33,22 @@ struct Format2Token {
     std::size_t length = 0;
 };
 
+enum class Format2DiagnosticSeverity {
+    Error,
+    Warning,
+};
+
 struct Format2Diagnostic {
     std::string code;
     std::string message;
     Format2SourceLocation location;
+    Format2DiagnosticSeverity severity = Format2DiagnosticSeverity::Error;
 };
+
+inline bool HasFormat2DiagnosticErrors(const std::vector<Format2Diagnostic>& diagnostics) {
+    for (const Format2Diagnostic& diagnostic : diagnostics) if (diagnostic.severity == Format2DiagnosticSeverity::Error) return true;
+    return false;
+}
 
 struct Format2LexResult {
     std::string sourcePath;

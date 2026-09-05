@@ -17,7 +17,7 @@ struct Format2ZoneCompileResult {
     std::vector<Format2ActionContextSpec> actionContexts;
     std::vector<Format2Diagnostic> diagnostics;
 
-    bool IsValid() const { return this->diagnostics.empty(); }
+    bool IsValid() const { return !HasFormat2DiagnosticErrors(this->diagnostics); }
 };
 
 Format2ZoneCompileResult CompileFormat2ZoneBindings(const std::vector<Format2ZoneBinding>& bindings, int surfaceChannelCount);

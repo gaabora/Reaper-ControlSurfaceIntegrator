@@ -21,7 +21,7 @@
 
 - Preserve original line text, line endings, comments, whitespace, unsupported properties, and unknown lines.
 - Unknown data produces a warning and remains serializable. Syntax or unsafe identifiers produce errors.
-- The product `.conf` uses unversioned brace blocks. Format 2 Surface files use `@Meta { Version=2 ... }`; current Zone files still use `// @format zone 1` until their format 2 migration is implemented.
+- The product `.conf` uses unversioned brace blocks. Format 2 Surface and Zone files use `@Meta { Version=2 ... }`. Keep legacy Zone parsing only for source files that do not start with a significant `@Meta` line.
 - Treat only `//` as a comment in current Surface and Zone files. Report a leading single `/` or unsupported `#` line as an error with a quick fix. Keep the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn FX directives as metadata.
 - Functional snippets use semantic bindings and must not store fixed hardware widget names.
 - Functional snippet `Role`, `Input`, and `Feedback` requirements use the same capability rules as runtime OSK metadata. Formal layout metadata overrides inferred surface metadata when present.
@@ -44,6 +44,8 @@
 - Show field errors directly below their related path controls with semantic `danger` styling. Show other operation messages as dismissible notifications outside the workflow header. Route structured validation details into All found and keep notifications short instead of printing diagnostic JSON. Remove success notifications after five seconds, and keep info, warning, and danger notifications until the user closes them. Use `primary`, `secondary`, `success`, `warning`, `danger`, and `info` for visual state names, and keep operation reports inside their workflow instead of a global status footer.
 - Read action names from `src/shared/types.h` `ACTION_TYPE_LIST`. Do not add a manual action-name list.
 - Read optional `//! @feedback_shape` values with the other action documentation metadata. Do not infer a shape from an action name.
+- Read context-changing and modifier action names from their lists in `src/controls/format2_action_metadata.h`. Include both traits in the generated action catalog and reject a listed name that is absent from `ACTION_TYPE_LIST`.
+- Use the filename stem as a format 2 Zone ID, preserve the source losslessly, and apply User overrides to one matching Main or FX Zone ID instead of replacing a complete Main profile.
 - Read setting metadata from `Scripts/settings_schema.conf`. Embed the parsed schema in standalone builds and do not add a separate TypeScript setting list. Read user-selected values from the product `.conf`, not from the schema.
 - Read format 2 Surface primitive and representation metadata from `Scripts/surface_io_schema.conf`. Keep the public legacy Surface processor coverage report tied to explicit converter targets from that catalog. Count processors only inside valid legacy Widget blocks, report malformed block boundaries separately, show processors waiting for an approved runtime as planned, and treat every other unclassified processor as incomplete migration work.
 - Parse Product values from the root `Settings` block and Device values from nested `Device Settings` blocks. Validate both scopes atomically with the shared schema and inherited cross-setting constraints.

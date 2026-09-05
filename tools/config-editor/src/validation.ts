@@ -22,16 +22,16 @@ function zoneLayerLocation(documentPath?: string): ZoneLayerLocation | undefined
     return { collection: match[3] as "FX" | "Main", profileId: match[2], source: match[1] as "User" | "Vendor" };
 }
 
-function isFxLayerOverride(existing: AnyDocument, incoming: AnyDocument): boolean {
+function isZoneLayerOverride(existing: AnyDocument, incoming: AnyDocument): boolean {
     const existingLocation = zoneLayerLocation(existing.path);
     const incomingLocation = zoneLayerLocation(incoming.path);
     const existingName = (existing.semantic as ZoneSemantic).name;
     const incomingName = (incoming.semantic as ZoneSemantic).name;
-    return existingName === incomingName && existingLocation?.collection === "FX" && incomingLocation?.collection === "FX" && existingLocation.profileId === incomingLocation.profileId && existingLocation.source !== incomingLocation.source;
+    return existingName?.toLowerCase() === incomingName?.toLowerCase() && existingLocation?.collection === incomingLocation?.collection && existingLocation?.profileId.toLowerCase() === incomingLocation?.profileId.toLowerCase() && existingLocation?.source !== incomingLocation?.source;
 }
 
 function zoneHeaderLine(document: AnyDocument): number | undefined {
-    return document.lines.find((line) => line.kind === "header")?.lineNumber;
+    return document.lines.find((line) => line.kind === "header")?.lineNumber ?? document.lines.find((line) => line.kind === "format")?.lineNumber;
 }
 
 function zoneScope(document: AnyDocument): string {
@@ -39,7 +39,7 @@ function zoneScope(document: AnyDocument): string {
 }
 
 function zoneKey(document: AnyDocument, zoneName: string): string {
-    return `${zoneScope(document)}\0${zoneName.toLowerCase()}`;
+    return `${zoneScope(document)}\0${zoneLayerLocation(document.path)?.collection.toLowerCase() ?? "main"}\0${zoneName.toLowerCase()}`;
 }
 
 function addDuplicateZoneDiagnostic(diagnostics: Diagnostic[], document: AnyDocument, existing: AnyDocument, zoneName: string): void {
@@ -54,11 +54,6 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
     const diagnostics: Diagnostic[] = [];
     const zonesByKey = new Map<string, AnyDocument>();
     const fxZonesByLayer = new Map<string, AnyDocument>();
-    const userMainProfiles = new Set<string>();
-    for (const document of documents) {
-        const location = zoneLayerLocation(document.path);
-        if (location?.collection === "Main" && location.source === "User") userMainProfiles.add(location.profileId.toLowerCase());
-    }
     const activeSurfaces = new Map<string, { document: AnyDocument; user: boolean }>();
     for (const document of documents) {
         if (document.format !== "surface" || !document.path) continue;
@@ -99,7 +94,6 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
         if (!semantic.name) continue;
         const lowercaseName = semantic.name.toLowerCase();
         const location = zoneLayerLocation(document.path);
-        if (location?.collection === "Main" && location.source === "Vendor" && userMainProfiles.has(location.profileId.toLowerCase())) continue;
         if (location?.collection === "FX") {
             const layerKey = `${location.profileId.toLowerCase()}\0${location.source}\0${lowercaseName}`;
             const existingLayerZone = fxZonesByLayer.get(layerKey);
@@ -111,7 +105,7 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
         }
         const key = zoneKey(document, semantic.name);
         const existing = zonesByKey.get(key);
-        if (existing && isFxLayerOverride(existing, document)) {
+        if (existing && isZoneLayerOverride(existing, document)) {
             if (location?.source === "User") zonesByKey.set(key, document);
         } else if (existing) addDuplicateZoneDiagnostic(diagnostics, document, existing, semantic.name);
         else zonesByKey.set(key, document);
@@ -146,7 +140,7 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
         states.set(key, "visiting");
         stack.push(key);
         const semantic = document.semantic as ZoneSemantic;
-        for (const reference of semantic.dependencyReferences) if (reference.type === "IncludedZones" || reference.type === "SubZones") visitZone(zoneKey(document, reference.name), { document, reference });
+        for (const reference of semantic.dependencyReferences) if (reference.type === "IncludedZones" || reference.type === "SubZones" || reference.type === "ZoneLayers") visitZone(zoneKey(document, reference.name), { document, reference });
         stack.pop();
         states.set(key, "done");
     };

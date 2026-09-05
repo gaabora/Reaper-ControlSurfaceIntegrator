@@ -7,6 +7,11 @@ struct Format2GestureBinding {
     ButtonGestureBinding gesture;
     std::string actionName;
     Format2SourceLocation location;
+    std::string actionIdentity;
+    bool delaySpecified = false;
+    bool repeatSpecified = false;
+    int runCount = 1;
+    bool changesModifier = false;
 };
 
 // Call once per resolved physical Widget and normalized modifier context.

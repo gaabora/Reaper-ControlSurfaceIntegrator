@@ -4,6 +4,8 @@ import path from "node:path";
 export interface ActionCatalogEntry {
     brief?: string;
     category: string;
+    changesContext?: boolean;
+    changesModifier?: boolean;
     enumName: string;
     feedback?: string;
     feedbackShape?: string;
@@ -11,6 +13,16 @@ export interface ActionCatalogEntry {
     notes?: string;
     params?: string;
     usage?: string;
+}
+
+async function loadActionNameList(repositoryRoot: string, listName: string): Promise<Set<string>> {
+    const metadataPath = path.join(repositoryRoot, "src", "controls", "format2_action_metadata.h");
+    const source = await readFile(metadataPath, "utf8");
+    const marker = `#define ${listName}(X)`;
+    const start = source.indexOf(marker);
+    const end = source.indexOf("\n\n", start);
+    if (start < 0 || end < 0) throw new Error(`Cannot find ${listName} in ${metadataPath}`);
+    return new Set([...source.slice(start, end).matchAll(/X\("([^"]+)"\)/g)].map((match) => match[1]));
 }
 
 interface ActionDocumentation {
@@ -70,6 +82,8 @@ export async function loadActionCatalog(repositoryRoot: string): Promise<ActionC
     if (start < 0 || end < 0) throw new Error(`Cannot find ACTION_TYPE_LIST in ${typesPath}`);
 
     const documentation = await loadActionDocumentation(path.join(repositoryRoot, "src", "actions"));
+    const contextChangingActions = await loadActionNameList(repositoryRoot, "FORMAT2_CONTEXT_CHANGING_ACTION_LIST");
+    const modifierActions = await loadActionNameList(repositoryRoot, "FORMAT2_MODIFIER_ACTION_LIST");
     const catalog: ActionCatalogEntry[] = [];
     let category = "Uncategorized";
     for (const line of source.slice(start, end).split(/\r?\n/)) {
@@ -79,9 +93,11 @@ export async function loadActionCatalog(repositoryRoot: string): Promise<ActionC
         if (!actionMatch) continue;
         const enumName = actionMatch[1].trim();
         const name = actionMatch[2];
-        catalog.push({ category, enumName, name, ...documentation.get(name) });
+        catalog.push({ category, changesContext: contextChangingActions.has(name) || undefined, changesModifier: modifierActions.has(name) || undefined, enumName, name, ...documentation.get(name) });
     }
     if (!catalog.length) throw new Error(`ACTION_TYPE_LIST contains no actions in ${typesPath}`);
+    for (const actionName of contextChangingActions) if (!catalog.some((entry) => entry.name === actionName)) throw new Error(`Context-changing action is missing from ACTION_TYPE_LIST: ${actionName}`);
+    for (const actionName of modifierActions) if (!catalog.some((entry) => entry.name === actionName)) throw new Error(`Modifier action is missing from ACTION_TYPE_LIST: ${actionName}`);
     return catalog;
 }
 

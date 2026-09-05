@@ -2,6 +2,10 @@
 #include "format2_zone_compiler.h"
 #include "format2_zone_runtime.h"
 #include "format2_gesture_validation.h"
+#include "format2_value_validation.h"
+#include "../shared/settings_values.h"
+
+#include <limits>
 
 struct Format2PreparedActionContext {
     Widget* widget = nullptr;
@@ -38,15 +42,39 @@ static bool IsFormat2HoldEvent(const Format2ZoneBinding& binding) {
     return false;
 }
 
-static int GetFormat2IntegerProperty(const Format2ZoneAction& action, const char* propertyName, int fallback) {
+static const Format2PropertySyntax* FindFormat2Property(const Format2ZoneAction& action, const char* propertyName) {
     for (const Format2PropertySyntax& property : action.properties) {
-        if (property.name == propertyName && !property.value.list && !property.value.scalar.quoted) return atoi(property.value.scalar.text.c_str());
+        if (property.name == propertyName) return &property;
     }
-    return fallback;
+    return nullptr;
 }
 
 static void AddFormat2RuntimeDiagnostic(Format2ZoneRuntimeResult& result, const std::string& code, const std::string& message, const Format2SourceLocation& location) {
     result.diagnostics.push_back({code, message, location});
+}
+
+static bool ReadFormat2IntegerProperty(const Format2ZoneAction& action, const char* propertyName, int fallback, int minimum, int maximum, int& value, Format2ZoneRuntimeResult& result) {
+    const Format2PropertySyntax* property = FindFormat2Property(action, propertyName);
+    value = fallback;
+    if (!property) return true;
+    if (property->value.list || !ParseFormat2IntegerScalar(property->value.scalar, value)) {
+        AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.integer-property", std::string(propertyName) + " must be one complete unquoted integer", property->value.location);
+        return false;
+    }
+    if (value < minimum || value > maximum) {
+        AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.integer-property-range", std::string(propertyName) + " must be from " + std::to_string(minimum) + " through " + std::to_string(maximum), property->value.location);
+        return false;
+    }
+    return true;
+}
+
+static bool ReadFormat2TimingProperty(const Format2ZoneAction& action, const char* propertyName, int fallback, const char* settingName, int& value, Format2ZoneRuntimeResult& result) {
+    const Settings::Definition* definition = FindSettingDefinition(settingName);
+    if (!definition) {
+        AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.timing-setting", std::string("Missing timing setting definition: ") + settingName, action.actionLocation);
+        return false;
+    }
+    return ReadFormat2IntegerProperty(action, propertyName, fallback, definition->minValue, definition->maxValue, value, result);
 }
 
 static std::string SerializeFormat2PropertyValue(const Format2ValueSyntax& value) {
@@ -67,6 +95,21 @@ static std::vector<std::string> MakeFormat2ActionParameters(const Format2ZoneAct
         if (property.name != "DelayMs" && property.name != "RepeatIntervalMs") parameters.push_back(property.name + "=" + SerializeFormat2PropertyValue(property.value));
     }
     return parameters;
+}
+
+static bool HasFormat2Property(const Format2ZoneAction& action, const char* propertyName) {
+    for (const Format2PropertySyntax& property : action.properties) if (property.name == propertyName) return true;
+    return false;
+}
+
+static std::string MakeFormat2ActionIdentity(const Format2ZoneAction& action) {
+    std::string identity = action.action;
+    for (const Format2ScalarSyntax& argument : action.arguments) identity += std::string(1, '\x1f') + (argument.quoted ? "Q" : "B") + argument.text;
+    std::vector<std::string> properties;
+    for (const Format2PropertySyntax& property : action.properties) properties.push_back(property.name + "=" + SerializeFormat2PropertyValue(property.value));
+    std::sort(properties.begin(), properties.end());
+    for (const std::string& property : properties) identity += std::string(1, '\x1f') + "P" + property;
+    return identity;
 }
 
 static const char* GetFormat2LifecycleWidgetName(Format2LifecycleEvent event) {
@@ -155,6 +198,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.modifierMode = ResolveFormat2ModifierMode(zoneManager->GetSurface(), declaration.mode);
         prepared.modifierTapWindowMs = zoneManager->GetSurface()->GetSettings().GetInteger("ModifierTapWindowMs");
         modifierModesByWidget[declaration.widget.baseName] = prepared.modifierMode;
+        gestureGroups[{widget, 0}].push_back({{prepared.inputEvent, prepared.modifierMode, 0, 0, prepared.modifierTapWindowMs}, prepared.actionName, declaration.location, "Modifier:" + prepared.actionName, false, false, 1, true});
         preparedContexts.push_back(std::move(prepared));
     }
 
@@ -206,11 +250,16 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
             AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.button-input", "A button event requires a Widget with press and release input: " + spec.widgetId, binding.widget.location);
             continue;
         }
-        if (prepared.inputEvent == ActionInputEvent::Hold) prepared.eventDelayMs = GetFormat2IntegerProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("HoldDelayMs"));
-        if (prepared.inputEvent == ActionInputEvent::LongHold) prepared.eventDelayMs = GetFormat2IntegerProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("LongHoldDelayMs"));
-        if (prepared.inputEvent == ActionInputEvent::Hold || prepared.inputEvent == ActionInputEvent::LongHold) prepared.repeatIntervalMs = GetFormat2IntegerProperty(binding.action, "RepeatIntervalMs", 0);
-        if (prepared.inputEvent != ActionInputEvent::Legacy) {
-            gestureGroups[{widget, prepared.modifier}].push_back({{prepared.inputEvent, prepared.modifierMode, prepared.eventDelayMs, prepared.repeatIntervalMs, prepared.modifierTapWindowMs}, prepared.actionName, binding.location});
+        bool integerPropertiesValid = true;
+        if (prepared.inputEvent == ActionInputEvent::Hold) integerPropertiesValid = ReadFormat2TimingProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("HoldDelayMs"), "HoldDelayMs", prepared.eventDelayMs, result) && integerPropertiesValid;
+        else if (prepared.inputEvent == ActionInputEvent::LongHold) integerPropertiesValid = ReadFormat2TimingProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("LongHoldDelayMs"), "LongHoldDelayMs", prepared.eventDelayMs, result) && integerPropertiesValid;
+        else if (HasFormat2Property(binding.action, "DelayMs")) integerPropertiesValid = ReadFormat2IntegerProperty(binding.action, "DelayMs", 0, (std::numeric_limits<int>::min)(), (std::numeric_limits<int>::max)(), prepared.eventDelayMs, result) && integerPropertiesValid;
+        if (prepared.inputEvent == ActionInputEvent::Hold || prepared.inputEvent == ActionInputEvent::LongHold) integerPropertiesValid = ReadFormat2TimingProperty(binding.action, "RepeatIntervalMs", 0, "HoldRepeatIntervalMs", prepared.repeatIntervalMs, result) && integerPropertiesValid;
+        else if (HasFormat2Property(binding.action, "RepeatIntervalMs")) integerPropertiesValid = ReadFormat2IntegerProperty(binding.action, "RepeatIntervalMs", 0, (std::numeric_limits<int>::min)(), (std::numeric_limits<int>::max)(), prepared.repeatIntervalMs, result) && integerPropertiesValid;
+        int runCount = 1;
+        integerPropertiesValid = ReadFormat2IntegerProperty(binding.action, "RunCount", 1, 1, (std::numeric_limits<int>::max)(), runCount, result) && integerPropertiesValid;
+        if (prepared.inputEvent != ActionInputEvent::Legacy && integerPropertiesValid) {
+            gestureGroups[{widget, prepared.modifier}].push_back({{prepared.inputEvent, prepared.modifierMode, prepared.eventDelayMs, prepared.repeatIntervalMs, prepared.modifierTapWindowMs}, prepared.actionName, binding.location, MakeFormat2ActionIdentity(binding.action), HasFormat2Property(binding.action, "DelayMs"), HasFormat2Property(binding.action, "RepeatIntervalMs"), runCount, Format2ActionChangesModifier(prepared.actionName)});
         }
         if (!prepared.navigator) AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.navigator.missing", "No Navigator is available for Widget: " + spec.widgetId, binding.widget.location);
         preparedContexts.push_back(std::move(prepared));

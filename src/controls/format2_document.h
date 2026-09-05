@@ -71,7 +71,7 @@ struct Format2DocumentParseResult {
     std::vector<Format2SyntaxNode> body;
     std::size_t bodyTokenIndex = 0;
 
-    bool IsValid() const { return this->lexical.diagnostics.empty(); }
+    bool IsValid() const { return !HasFormat2DiagnosticErrors(this->lexical.diagnostics); }
 };
 
 Format2DocumentParseResult ParseFormat2DocumentSource(const std::string& source, const std::string& sourcePath, Format2DocumentKind kind);

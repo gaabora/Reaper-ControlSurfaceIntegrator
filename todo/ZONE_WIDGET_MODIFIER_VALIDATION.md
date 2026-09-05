@@ -532,5 +532,8 @@ Add Bun tests for parsing, normalization, validation, quick fixes, conversion, V
 - [ ] Add C++, Bun, and Lua tests for parsing, timing, state transitions, overrides, conversion, and invalid combinations.
   - ✅ Add focused C++ value-resolution tests, Bun Product and Surface setting tests, and Lua settings protocol self-checks. Update their scope fixtures to Product and Device with the format 2 product `.conf`.
   - ✅ Add standalone `ReaControlSurfaceButtonGesture` and `ReaControlSurfaceGestureValidation` CTest targets for recognizer timing, reset, missing release recovery, modifier dispatches, clock wrap, and resolved context-changing event conflicts.
-  - [ ] Run both gesture CTest targets and add integration coverage for captured Zone contexts, modifier state, and cross-component diagnostics.
+  - ✅ Run both gesture CTest targets successfully.
+  - ✅ Add C++ severity, non-blocking additive gesture warnings, strict duplicate and `NoAction` groups, timing-property placement, context/modifier repetition and `RunCount` checks, plus shared context and modifier action traits for the Bun action catalog.
+  - ✅ Parse format 2 binding timing and `RunCount` values as complete integers, and validate timing overrides against the canonical settings-schema ranges before runtime mutation.
+  - [ ] Add integration coverage for captured Zone contexts, modifier state, and cross-component diagnostics.
 - [ ] Audit all Vendor surfaces and zones, then perform focused manual MIDI, OSC, motor-fader, touch, and multi-surface verification.

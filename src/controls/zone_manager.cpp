@@ -47,7 +47,8 @@ Navigator* ZoneManager::GetFocusedFXNavigator() { return surface_->GetPage()->Ge
 int ZoneManager::GetNumChannels() { return surface_->GetNumChannels(); }
 
 static void LogFormat2ZoneDiagnostic(const string& sourcePath, const Format2Diagnostic& diagnostic) {
-    LogToConsole("[ERROR] %s:%d:%d: %s: %s\n", GetRelativePath(sourcePath.c_str()).c_str(), diagnostic.location.line, diagnostic.location.column, diagnostic.code.c_str(), diagnostic.message.c_str());
+    const char* level = diagnostic.severity == Format2DiagnosticSeverity::Warning ? "WARNING" : "ERROR";
+    LogToConsole("[%s] %s:%d:%d: %s: %s\n", level, GetRelativePath(sourcePath.c_str()).c_str(), diagnostic.location.line, diagnostic.location.column, diagnostic.code.c_str(), diagnostic.message.c_str());
 }
 
 static void LogFormat2ProfileDiagnostic(const vector<Format2ZoneSource>& sources, const Format2ZoneProfileDiagnostic& diagnostic) {
@@ -133,10 +134,8 @@ static unique_ptr<Zone> CreateFormat2RelatedZone(ZoneManager* zoneManager, const
     const bool deactivatesOnTrackLoss = isLayer && parentZone ? parentZone->DeactivatesOnTrackLoss() : metadata.target == Format2ZoneTarget::SelectedTrack;
     zone->ConfigureFormat2Runtime(GetFormat2ZoneRuntimeTarget(effectiveMetadata), GetFormat2ZoneRuntimeBankTarget(effectiveMetadata), deactivatesOnTrackLoss, isLayer ? parentZone : nullptr);
     const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(zoneManager, zone.get(), document.parsed, isLayer ? &effectiveMetadata : nullptr);
-    if (!runtimeResult.IsValid()) {
-        for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
-        return nullptr;
-    }
+    for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
+    if (!runtimeResult.IsValid()) return nullptr;
     if (!AddFormat2ZoneRelations(zoneManager, zone.get(), sourceIndex, loaded, activeMainSources, effectiveMetadata)) return nullptr;
     return zone;
 }
@@ -198,9 +197,9 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         unique_ptr<Zone> zone = make_unique<Zone>(this->csi_, this, GetFormat2ZoneBaseNavigator(this, metadata), 0, runtimeName, alias, document.parsed.document.lexical.sourcePath);
         zone->ConfigureFormat2Runtime(GetFormat2ZoneRuntimeTarget(effectiveMetadata), GetFormat2ZoneRuntimeBankTarget(effectiveMetadata), metadata.target == Format2ZoneTarget::SelectedTrack);
         const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(this, zone.get(), document.parsed);
+        for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
         if (!runtimeResult.IsValid()) {
             loaded.sources[sourceIndex].valid = false;
-            for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
             continue;
         }
         if (activeZone.collection == Format2ZoneCollection::Main) preparedMainZones[sourceIndex] = std::move(zone);

@@ -54,6 +54,35 @@ describe("configuration formats", () => {
         expect(serializeDocument(parseByPath(source, "Home.zon"))).toBe(source);
     });
 
+    test("parses format 2 Zone metadata, selectors, bindings, and references without changing source", () => {
+        const source = "// keep this comment\n@Meta { Version=2 Role=Home Alias=\"Home controls\" }\n\nIncludedZones { Channel }\n[Shift]+(Hold)+Play GoZone Mixer DelayMs=1000\n";
+        const document = parseByPath(source, "/config/Zones/User/test/Main/Home.zon", new Set(["GoZone"]));
+        const semantic = document.semantic as { alias?: string; bindings: Array<{ action: string; modifiers: string[]; widget: string }>; dependencies: string[]; name?: string; role?: string };
+        expect(serializeDocument(document)).toBe(source);
+        expect(document.version).toBe("2");
+        expect(semantic).toMatchObject({ alias: "Home controls", dependencies: ["Channel", "Mixer"], name: "Home", role: "Home" });
+        expect(semantic.bindings[0]).toMatchObject({ action: "GoZone", modifiers: ["Shift"], widget: "Play" });
+        expect(document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    });
+
+    test("reports format 2 Zone metadata, layer, selector, and wildcard errors", async () => {
+        const fixtureRoot = path.join(editorRoot, "fixtures", "format2-spec", "invalid");
+        const expectedCodes = new Map([
+            ["main-layer-target.zon", "format2.metadata.role-target"],
+            ["main-zone-body.zon", "format2.zone.binding.event"],
+            ["fx-main-metadata.zon", "format2.zone.fx.metadata"],
+        ]);
+        for (const [filename, code] of expectedCodes) {
+            const fixturePath = path.join(fixtureRoot, filename);
+            const document = parseByPath(await readFile(fixturePath, "utf8"), fixturePath, new Set(["GoZone", "TrackPan"]));
+            expect(document.diagnostics).toContainEqual(expect.objectContaining({ code, severity: "error" }));
+        }
+        const wildcardPath = path.join(fixtureRoot, "main-zone-body.zon");
+        const wildcard = parseByPath(await readFile(wildcardPath, "utf8"), wildcardPath, new Set(["GoZone", "TrackPan"]));
+        expect(wildcard.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.widget.selector", severity: "error" }));
+        expect(wildcard.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.layer.included", severity: "error" }));
+    });
+
     test("keeps a spaced property list in one token without joining positional step values", () => {
         expect(tokenizeLine("Rotary1 TrackPan RingColors=[ #003F00, #0000FF ] [ 0.5 ]")).toEqual(["Rotary1", "TrackPan", "RingColors=[ #003F00, #0000FF ]", "[", "0.5", "]"]);
         expect(tokenizeLine("Rotary1 TrackPan [0.5] RingColors=[#003F00,#0000FF]")).toEqual(["Rotary1", "TrackPan", "[", "0.5", "]", "RingColors=[ #003F00, #0000FF ]"]);
@@ -132,12 +161,14 @@ describe("configuration formats", () => {
         expect(diagnostics.some((diagnostic) => diagnostic.code === "zones.dependency.missing" && diagnostic.path === vendor.path)).toBeFalse();
     });
 
-    test("User Main selects the whole Main layer", () => {
+    test("User Main overrides only the matching Vendor Zone ID", () => {
         const vendor = parseByPath("// @format zone 1\nZone Home\n  Play GoZone MissingVendorDependency\nZoneEnd\n", "/config/Zones/Vendor/faderportv2/Main/Home.zon");
         const user = parseByPath("// @format zone 1\nZone Home\n  Play Play\nZoneEnd\n", "/config/Zones/User/faderportv2/Main/Home.zon");
-        const diagnostics = validateDocumentSet([vendor, user]);
+        const otherVendor = parseByPath("// @format zone 1\nZone Track\n  Play GoZone MissingTrackDependency\nZoneEnd\n", "/config/Zones/Vendor/faderportv2/Main/Track.zon");
+        const diagnostics = validateDocumentSet([vendor, user, otherVendor]);
         expect(diagnostics.some((diagnostic) => diagnostic.code === "zones.name.duplicate")).toBeFalse();
         expect(diagnostics.some((diagnostic) => diagnostic.code === "zones.dependency.missing" && diagnostic.path === vendor.path)).toBeFalse();
+        expect(diagnostics.some((diagnostic) => diagnostic.code === "zones.dependency.missing" && diagnostic.path === otherVendor.path)).toBeTrue();
     });
 
     test("same-layer FX zone names remain duplicates", () => {
@@ -166,6 +197,10 @@ describe("configuration formats", () => {
         expect(catalog.find((entry) => entry.name === "TrackPanWidth")?.feedbackShape).toBe("Spread");
         expect(catalog.find((entry) => entry.name === "FXParam")?.feedbackShape).toBeUndefined();
         expect(catalog.find((entry) => entry.name === "TrackPanAutoRight")?.feedbackShape).toBeUndefined();
+        expect(catalog.find((entry) => entry.name === "GoZone")?.changesContext).toBeTrue();
+        expect(catalog.find((entry) => entry.name === "Play")?.changesContext).toBeUndefined();
+        expect(catalog.find((entry) => entry.name === "Shift")?.changesModifier).toBeTrue();
+        expect(catalog.find((entry) => entry.name === "Play")?.changesModifier).toBeUndefined();
         expect(names.size).toBe(catalog.length);
     });
 });

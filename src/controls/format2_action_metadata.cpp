@@ -18,5 +18,15 @@ bool IsFormat2ZoneLayerOnlyAction(const std::string& actionName) {
 }
 
 bool Format2ActionChangesContext(const std::string& actionName) {
-    return actionName == "NextPage" || actionName == "GoPage" || actionName == "GoHome" || actionName == "AllSurfacesGoHome" || actionName == "GoZone" || actionName == "EnterZoneLayer" || actionName == "ExitZoneLayer" || actionName == "GoFXSlot" || actionName == "ToggleSelectedTrackFX" || actionName == "ClearLastTouchedFXParam" || actionName == "ClearFocusedFX" || actionName == "ClearSelectedTrackFX" || actionName == "ClearFXSlot";
+#define X(contextActionName) if (actionName == contextActionName) return true;
+    FORMAT2_CONTEXT_CHANGING_ACTION_LIST(X)
+#undef X
+    return false;
+}
+
+bool Format2ActionChangesModifier(const std::string& actionName) {
+#define X(modifierActionName) if (actionName == modifierActionName) return true;
+    FORMAT2_MODIFIER_ACTION_LIST(X)
+#undef X
+    return false;
 }
