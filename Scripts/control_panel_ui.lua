@@ -33,6 +33,7 @@ local function newState()
             size = settingsStore.ReadPair(identity.extState.controlPanel, "WindowSize"),
         },
         lastStatus = "",
+        lastStatusIsError = false,
         open = true,
         restoreScroll = true,
         scrollByPage = {},
@@ -119,16 +120,19 @@ local function renderFooter(ctx, state)
     ui.DirtyActionButton(ctx, pages.NeedsConfigurationCreation() and "Create configuration" or "Save changes", dirty and not busy, function()
         local accepted, saveError = pages.SaveAll()
         state.lastStatus = accepted and "Saving changes..." or tostring(saveError or "Cannot save changes")
+        state.lastStatusIsError = not accepted
     end)
     imgui.SameLine(ctx)
     ui.Disabled(ctx, not dirty or busy, function()
         if imgui.Button(ctx, "Revert") then
             local reverted, revertError = pages.RevertAll()
             state.lastStatus = reverted and "Draft reverted" or tostring(revertError or "Cannot revert changes")
+            state.lastStatusIsError = not reverted
         end
     end)
     imgui.SameLine(ctx)
-    local status = busy and "Working..." or (dirty and "Unsaved changes" or (state.lastStatus ~= "" and state.lastStatus or pages.GetStatus()))
+    local errorStatus = pages.HasError() and pages.GetStatus() or (state.lastStatusIsError and state.lastStatus or "")
+    local status = busy and "Working..." or (errorStatus ~= "" and errorStatus or (dirty and "Unsaved changes" or (state.lastStatus ~= "" and state.lastStatus or pages.GetStatus())))
     imgui.TextDisabled(ctx, status ~= "" and status or "No unsaved changes")
 end
 
@@ -144,21 +148,25 @@ local function renderClosePopup(ctx, state)
     if imgui.Button(ctx, "Save", 100, 0) then
         local accepted, saveError = pages.SaveAll()
         if accepted then
+            state.lastStatusIsError = false
             state.closeAfterSave = pages.IsBusy()
             if not state.closeAfterSave and not pages.HasAnyDirty() then state.open = false end
             imgui.CloseCurrentPopup(ctx)
         else
             state.lastStatus = tostring(saveError or "Cannot save changes")
+            state.lastStatusIsError = true
         end
     end
     imgui.SameLine(ctx)
     if imgui.Button(ctx, "Don't Save", 100, 0) then
         local reverted, revertError = pages.RevertAll()
         if reverted then
+            state.lastStatusIsError = false
             state.open = false
             imgui.CloseCurrentPopup(ctx)
         else
             state.lastStatus = tostring(revertError or "Cannot discard changes")
+            state.lastStatusIsError = true
         end
     end
     imgui.SameLine(ctx)
@@ -186,11 +194,15 @@ end
 function module.Render(state)
     pollLifecycleRequests(state)
     pages.Update()
-    if state.lastStatus == "Saving changes..." and not pages.IsBusy() then state.lastStatus = pages.GetStatus() end
+    if state.lastStatus == "Saving changes..." and not pages.IsBusy() then
+        state.lastStatus = pages.GetStatus()
+        state.lastStatusIsError = pages.HasError() or pages.HasAnyDirty()
+    end
     if state.closeAfterSave and not pages.IsBusy() then
         if pages.HasAnyDirty() then
             state.closeAfterSave = false
             state.lastStatus = pages.GetStatus()
+            state.lastStatusIsError = true
         else
             state.open = false
         end

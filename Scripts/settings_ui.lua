@@ -29,7 +29,7 @@ local state = {
 }
 
 local SCOPE_ITEMS = {
-    { label = "Product", value = "Product" },
+    { label = "Global", value = "Product" },
     { label = "Device", value = "Device" },
 }
 local SETTING_LABELS = {
@@ -229,11 +229,11 @@ local function renderSetting(ctx, definition)
         changed, value = ui.DragInteger(ctx, controlId, value or definition.defaultValue, definition.min, definition.max, step, { format = format })
     end
     if changed then
-        state.draftExplicit[settingName] = true
         state.draftValues[settingName] = value
+        state.draftExplicit[settingName] = value ~= state.inheritedValues[settingName]
     end
-    local tooltip = state.scope == "Device" and (state.draftExplicit[settingName] and "Device value. Right-click to use the Product value." or "Using the Product value.") or (state.draftExplicit[settingName] and "Product value. Right-click to reset to the default." or "Using the default value.")
-    local resetLabel = state.draftExplicit[settingName] and (state.scope == "Device" and "Use Product value" or "Reset to default") or nil
+    local tooltip = state.scope == "Device" and (state.draftExplicit[settingName] and "Device value. Right-click to use the Global value." or "Using the Global value.") or (state.draftExplicit[settingName] and "Global value. Right-click to reset to the default." or "Using the default value.")
+    local resetLabel = state.draftExplicit[settingName] and (state.scope == "Device" and "Use Global value" or "Reset to default") or nil
     ui.ValueSourceActions(ctx, tooltip, resetLabel, function()
         state.draftExplicit[settingName] = false
         state.draftValues[settingName] = state.inheritedValues[settingName]

@@ -146,10 +146,10 @@ local function renderDefinition(ctx, definition)
         value = checked and "1" or "0"
     end
     if changed then
-        state.draftExplicit[settingName] = true
         state.draftValues[settingName] = value
+        state.draftExplicit[settingName] = value ~= state.inheritedValues[settingName]
     end
-    local sourceText = state.draftExplicit[settingName] and "Product value. Right-click to reset to the default." or "Using the default value."
+    local sourceText = state.draftExplicit[settingName] and "Global value. Right-click to reset to the default." or "Using the default value."
     local description = descriptions[settingName] and descriptions[settingName] .. "\n\n" or ""
     local resetLabel = state.draftExplicit[settingName] and "Reset to default" or nil
     ui.ValueSourceActions(ctx, description .. sourceText, resetLabel, function()

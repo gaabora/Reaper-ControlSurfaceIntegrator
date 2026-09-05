@@ -1,3 +1,5 @@
+local schema = require("settings_schema").Load()
+
 local module = {}
 
 local function copy(value, seen)
@@ -28,7 +30,14 @@ local function appendSettings(lines, indent, settings)
     if #names == 0 then return true end
     lines[#lines + 1] = indent .. "Settings {"
     for nameIdx, name in ipairs(names) do
-        local value = bareValue(settings[name])
+        local value = tostring(settings[name] or "")
+        local definition = schema.settingsByName[name]
+        if definition and definition.type == "boolean" then
+            if value == "1" then value = "true"
+            elseif value == "0" then value = "false"
+            elseif value ~= "true" and value ~= "false" then return false end
+        end
+        value = bareValue(value)
         if not value then return false end
         lines[#lines + 1] = indent .. "  " .. name .. "=" .. value
     end
@@ -58,7 +67,7 @@ end
 
 function module.Serialize(data)
     local lines = {}
-    if not appendSettings(lines, "", data.productSettingOverrides) then return nil, "Product settings contain unsupported values" end
+    if not appendSettings(lines, "", data.productSettingOverrides) then return nil, "Global settings contain unsupported values" end
     if #lines > 0 then lines[#lines + 1] = "" end
     for midiIdx, device in ipairs(data.midi or {}) do
         if not validId(device.name) then return nil, "MIDI Device ID must use letters, digits, and _ and start with a letter" end
@@ -132,6 +141,13 @@ end
 function module.Signature(data)
     local source = module.Serialize(data)
     return source or ""
+end
+
+function module.RunSelfChecks()
+    local source, serializationError = module.Serialize({ midi = {}, osc = {}, pages = {}, productSettingOverrides = { ShowLogInReaperConsole = "0", WriteLogFile = "1" } })
+    assert(source, serializationError)
+    assert(source:find("ShowLogInReaperConsole=false", 1, true), "false Boolean setting serialization")
+    assert(source:find("WriteLogFile=true", 1, true), "true Boolean setting serialization")
 end
 
 return module

@@ -154,6 +154,10 @@ function module.HasAnyDirty()
     return devices.IsDirty() or general.IsDirty() or appearance.IsDirty() or logging.IsDirty()
 end
 
+function module.HasError()
+    return devices.HasError() or general.HasError() or appearance.HasError() or logging.HasError()
+end
+
 function module.ValidateAll()
     if devices.IsDirty() or devices.NeedsConfigurationCreation() then
         local devicesValid, devicesError = devices.Validate()
@@ -232,6 +236,10 @@ function module.Shutdown()
 end
 
 function module.GetStatus()
+    if devices.HasError() then return devices.GetStatus() end
+    if general.HasError() then return general.GetStatus() end
+    if appearance.HasError() then return appearance.GetStatus() end
+    if logging.HasError() then return logging.GetStatus() end
     if state.status ~= "" then return state.status end
     local generalStatus = general.GetStatus()
     if generalStatus ~= "" then return generalStatus end

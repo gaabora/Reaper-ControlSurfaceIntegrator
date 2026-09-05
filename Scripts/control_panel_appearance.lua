@@ -283,6 +283,10 @@ function module.IsBusy()
     return false
 end
 
+function module.HasError()
+    return state.error ~= ""
+end
+
 function module.GetStatus()
     if state.error ~= "" then return state.error end
     return state.message

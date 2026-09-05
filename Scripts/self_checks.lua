@@ -12,6 +12,7 @@ local CHECK_MODULES = {
     "action_line",
     "settings_schema",
     "settings_protocol",
+    "devices_model",
     "layout_parser",
     "label_replacements",
 }
