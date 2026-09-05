@@ -1,6 +1,8 @@
 // osk.cpp — ControlSurface OSK (On-Screen Keyboard) member implementations.
 
 #include "integrator.h"
+#include "format2_action_metadata.h"
+#include "format2_gesture_validation.h"
 #include "format2_surface_document.h"
 #include "zone_file_creator.h"
 
@@ -247,6 +249,64 @@ static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData,
         bindings.push_back(binding);
     }
     return true;
+}
+
+static string OskConfigActionIdentity(const OskConfigBinding& binding) {
+    string identity;
+    for (const string& token : binding.actionTokens) {
+        if (!identity.empty()) identity += "\x1f";
+        identity += token;
+    }
+    return identity;
+}
+
+static vector<Format2Diagnostic> ValidateOskConfigGestures(Widget* widget, const vector<OskConfigBinding>& bindings, const SettingsValues& settings, int doublePressWindowMs) {
+    map<int, vector<Format2GestureBinding>> gestureGroups;
+    vector<Format2Diagnostic> diagnostics;
+    for (size_t bindingIdx = 0; bindingIdx < bindings.size(); ++bindingIdx) {
+        const OskConfigBinding& binding = bindings[bindingIdx];
+        Format2SourceLocation location;
+        location.line = static_cast<int>(bindingIdx + 1);
+        if (binding.hasHold && binding.hasDoublePress) {
+            diagnostics.push_back({"format2.zone.binding.button-event", "A binding cannot contain both Hold and DoublePress", location});
+            continue;
+        }
+        ActionInputEvent inputEvent = ActionInputEvent::Legacy;
+        if (binding.hasHold) inputEvent = ActionInputEvent::Hold;
+        else if (binding.hasDoublePress) inputEvent = ActionInputEvent::DoublePress;
+        else if (!binding.isIncrease && !binding.isDecrease && widget->GetIsTwoState()) inputEvent = settings.GetString("DefaultButtonTrigger") == "Tap" ? ActionInputEvent::Tap : ActionInputEvent::Press;
+        if (inputEvent == ActionInputEvent::Legacy) continue;
+        Format2GestureBinding gestureBinding;
+        gestureBinding.gesture.inputEvent = inputEvent;
+        if (inputEvent == ActionInputEvent::Hold) gestureBinding.gesture.delayMs = settings.GetInteger("HoldDelayMs");
+        gestureBinding.actionName = binding.actionTokens[0];
+        gestureBinding.location = location;
+        gestureBinding.actionIdentity = OskConfigActionIdentity(binding);
+        gestureBinding.changesModifier = Format2ActionChangesModifier(gestureBinding.actionName);
+        gestureGroups[binding.modifierValue].push_back(std::move(gestureBinding));
+    }
+    const bool exclusiveDoublePress = settings.GetString("DoublePressPolicy") == "Exclusive";
+    for (const auto& gestureGroup : gestureGroups) {
+        const vector<Format2Diagnostic> groupDiagnostics = ValidateFormat2GestureBindings(gestureGroup.second, doublePressWindowMs, exclusiveDoublePress);
+        diagnostics.insert(diagnostics.end(), groupDiagnostics.begin(), groupDiagnostics.end());
+    }
+    return diagnostics;
+}
+
+static string FormatOskConfigDiagnostics(const vector<Format2Diagnostic>& diagnostics, Format2DiagnosticSeverity severity) {
+    const Format2Diagnostic* first = nullptr;
+    int count = 0;
+    for (const Format2Diagnostic& diagnostic : diagnostics) {
+        if (diagnostic.severity != severity) continue;
+        if (!first) first = &diagnostic;
+        count++;
+    }
+    if (!first) return "";
+    string message = first->message;
+    ReplaceAllWith(message, "line ", "binding ");
+    string result = first->code + " at binding " + to_string(first->location.line) + ": " + message;
+    if (count > 1) result += " (and " + to_string(count - 1) + " more)";
+    return result;
 }
 
 static vector<OskConfigBinding> CaptureConfigBindings(Zone* zone, Widget* widget) {
@@ -968,6 +1028,13 @@ void ControlSurface::HandleOSKConfigApplyLive(const string& widgetName, const st
         PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), errorMessage);
         return;
     }
+    const vector<Format2Diagnostic> gestureDiagnostics = ValidateOskConfigGestures(widget, parsedBindings, this->settings_, this->doublePressTime_);
+    const string gestureError = FormatOskConfigDiagnostics(gestureDiagnostics, Format2DiagnosticSeverity::Error);
+    if (!gestureError.empty()) {
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), gestureError);
+        return;
+    }
+    const string gestureWarning = FormatOskConfigDiagnostics(gestureDiagnostics, Format2DiagnosticSeverity::Warning);
 
     const vector<OskConfigBinding> previousBindings = CaptureConfigBindings(activeZone, widget);
     try {
@@ -987,7 +1054,7 @@ void ControlSurface::HandleOSKConfigApplyLive(const string& widgetName, const st
     this->PublishOSKLabels();
     this->PublishOSKState();
     this->PublishOSKLabelMap();
-    PublishConfigStatus("OK", "ApplyLive", this->name_, widgetName, activeZone->GetName(), "Apply live completed");
+    PublishConfigStatus(gestureWarning.empty() ? "OK" : "WARN", "ApplyLive", this->name_, widgetName, activeZone->GetName(), gestureWarning.empty() ? "Apply live completed" : gestureWarning);
 }
 
 void ControlSurface::HandleOSKConfigSave(const string& widgetName) {

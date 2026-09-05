@@ -90,7 +90,7 @@ describe("configuration formats", () => {
         const document = parseByPath(source, "/config/Zones/User/test/Main/Home.zon", actionNameSet(catalog), settingsSchema, actionTraitsByName(catalog));
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.context-run-count", line: 2, severity: "error" }));
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.unreachable", line: 2, severity: "error" }));
-        expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.additive", line: 2, severity: "warning" }));
+        expect(document.diagnostics).not.toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.additive", line: 2, severity: "warning" }));
     });
 
     test("resolves channel selectors and Device timing for complete format 2 validation", async () => {

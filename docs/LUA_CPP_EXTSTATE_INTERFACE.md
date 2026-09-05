@@ -83,8 +83,7 @@ Configuration status format:
 outcome|operation|surface|widget|zone|message
 ```
 
-`outcome` is `OK` or `ERR`. Operations are `Query`, `ApplyLive`, `Save`, and
-`Revert`.
+`outcome` is `OK`, `WARN`, or `ERR`. `WARN` means that Apply Live succeeded but shared gesture validation found non-blocking behavior such as additive button events. Operations are `Query`, `ApplyLive`, `Save`, and `Revert`.
 
 Layout cell metadata uses comma-separated `key=value` pairs after the widget name.
 String values may be quoted with `"` when they contain delimiters. Inside quoted

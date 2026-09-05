@@ -13,6 +13,10 @@ function M.SetLocalStatus(state, outcome, operation, message)
     state.status = table.concat({ outcome or "", operation or "", message or "" }, " | ")
 end
 
+local function isSuccessfulOutcome(outcome)
+    return outcome == "OK" or outcome == "WARN"
+end
+
 function M.ParseConfigStatus(rawStatus)
     local outcome, operation, surfaceName, widgetName, zoneName, message =
         tostring(rawStatus or ""):match("^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|(.*)$")
@@ -143,7 +147,7 @@ function M.PollConfigResponses(state, data, model)
     if rawStatus ~= nil then
         local status = M.ParseConfigStatus(rawStatus)
         if status and status.surfaceName == state.surfaceName and status.widgetName == state.widgetName then
-            M.SetLocalStatus(state, status.outcome, status.operation, status.message)
+            if status.outcome == "WARN" or status.operation ~= "Query" or not state.status:match("^WARN%s*|") then M.SetLocalStatus(state, status.outcome, status.operation, status.message) end
 
             local manualOperation = state.pendingOperation
             local completedSerialized = state.pendingSerialized
@@ -152,7 +156,7 @@ function M.PollConfigResponses(state, data, model)
             if previewStatus then
                 state.previewApplyPending = false
                 state.previewPendingSerialized = nil
-                if status.outcome == "OK" then
+                if isSuccessfulOutcome(status.outcome) then
                     state.hasLiveChanges = true
                     model.UpdateDirtyState(state)
                     sendQueuedPreviewApply(state, data)
@@ -163,7 +167,7 @@ function M.PollConfigResponses(state, data, model)
                 state.pendingOperation = nil
                 state.pendingSerialized = nil
 
-                if status.outcome == "OK" then
+                if isSuccessfulOutcome(status.outcome) then
                     if status.operation == "ApplyLive" then
                         state.hasLiveChanges = true
                         model.UpdateDirtyState(state)

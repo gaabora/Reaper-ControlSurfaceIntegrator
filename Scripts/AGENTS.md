@@ -50,6 +50,7 @@
 - Do not silently persist settings that are intended to remain session-only.
 - Track unapplied editor changes separately from live unsaved changes, and request C++ revert when an editor with live changes closes.
 - Keep the binding editor's structured columns, pseudo-modifiers, generated titles, and color controls backed by the same serialized raw action line used by `ConfigApplyLive`.
+- Treat an OSK configuration `WARN` status as a successful Apply Live result, keep its concise shared-gesture diagnostic visible after the automatic Query, and continue queued preview or Save behavior.
 - Keep config color-picker swatches compact: empty saved/recent slots use checker/transparent swatches, left-click uses a stored color, and right-clicking a saved slot overwrites it with the current picker color.
 - Keep config color live preview separate from toolbar Apply Live: preview uses `ConfigApplyLive`, coalesces in-flight color changes to the latest serialized binding state, and does not request a follow-up `ConfigQuery`.
 - Keep OSK Inactive LED Boost display-only: apply it only to inactive state/action colors for OSK button widgets that do not have a fixed layout color; fixed layout colors are read-only in the config table, render active at full layout color and inactive at HSV/value -50, and must never alter serialized action-line colors, CSI state payloads, OSD, faders, or rotaries.

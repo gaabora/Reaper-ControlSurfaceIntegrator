@@ -155,9 +155,9 @@ function M.RenderToolbar(ctx, state, deps)
     elseif state.previewApplyPending then
         imgui.SameLine(ctx)
         imgui.TextDisabled(ctx, "Preview...")
-    elseif state.status:match("^ERR%s*|") then
+    elseif state.status:match("^ERR%s*|") or state.status:match("^WARN%s*|") then
         imgui.SameLine(ctx)
-        imgui.Text(ctx, state.status)
+        imgui.TextWrapped(ctx, state.status)
     end
 
     imgui.TableSetColumnIndex(ctx, 1)
