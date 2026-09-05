@@ -1,6 +1,7 @@
 import { copyFile, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
+import type { ActionTraits } from "./action-catalog.ts";
 import type { AnyDocument } from "./formats.ts";
 import { parseByPath } from "./formats.ts";
 import type { Diagnostic } from "./model.ts";
@@ -118,7 +119,7 @@ function emptyReport(currentOperationId?: string): OperationReport {
 }
 
 export class ConfigurationStore {
-    constructor(private readonly guard: ProductRootGuard, private readonly knownActions: Set<string>, private readonly hooks: ConfigurationStoreHooks = {}, private readonly settingsSchema?: SettingsSchema) {}
+    constructor(private readonly guard: ProductRootGuard, private readonly knownActions: Set<string>, private readonly hooks: ConfigurationStoreHooks = {}, private readonly settingsSchema?: SettingsSchema, private readonly actionTraits: ReadonlyMap<string, ActionTraits> = new Map()) {}
 
     getRoot(): string {
         return this.guard.getRoot();
@@ -137,7 +138,7 @@ export class ConfigurationStore {
         const absolutePath = await this.guard.resolveExisting(relativePath);
         const data = await readFile(absolutePath);
         const source = data.toString("utf8");
-        const document = parseByPath(source, relativePath, this.knownActions, this.settingsSchema);
+        const document = parseByPath(source, relativePath, this.knownActions, this.settingsSchema, this.actionTraits);
         return { document: documentView(document, this.knownActions, info.writable), hash: sha256(data), path: relativePath, source, writable: info.writable };
     }
 
@@ -156,13 +157,13 @@ export class ConfigurationStore {
 
     validateSource(relativePath: string, source: string): DocumentView {
         const info = this.guard.getPathInfo(relativePath);
-        return documentView(parseByPath(source, relativePath, this.knownActions, this.settingsSchema), this.knownActions, info.writable);
+        return documentView(parseByPath(source, relativePath, this.knownActions, this.settingsSchema, this.actionTraits), this.knownActions, info.writable);
     }
 
     applyQuickFix(relativePath: string, source: string, request: QuickFixRequest): { document: DocumentView; source: string } {
         const info = this.guard.getPathInfo(relativePath);
         if (!info.writable) throw new EditorOperationError("quick-fix.read-only", `Cannot apply a quick fix to a read-only file: ${relativePath}`);
-        const result = applyRegisteredQuickFix(source, relativePath, this.knownActions, request);
+        const result = applyRegisteredQuickFix(source, relativePath, this.knownActions, request, this.settingsSchema, this.actionTraits);
         return { document: documentView(result.document, this.knownActions, true), source: result.source };
     }
 
@@ -183,7 +184,7 @@ export class ConfigurationStore {
         for (const entry of entries) {
             const opened = await this.openDocument(entry.path);
             const source = sources.get(entry.path.toLowerCase()) ?? opened.source;
-            const document = parseByPath(source, entry.path, this.knownActions, this.settingsSchema);
+            const document = parseByPath(source, entry.path, this.knownActions, this.settingsSchema, this.actionTraits);
             documents.push(document);
             writableByPath.set(entry.path.toLowerCase(), opened.writable);
             files.push({ diagnostics: diagnosticsWithQuickFixes(document, this.knownActions, opened.writable), path: entry.path });
@@ -222,7 +223,7 @@ export class ConfigurationStore {
             if (!info.writable) throw new EditorOperationError("path.read-only", `Configuration is read-only: ${change.path}`);
         }
 
-        const documents = changes.map((change) => parseByPath(change.source, change.path, this.knownActions, this.settingsSchema));
+        const documents = changes.map((change) => parseByPath(change.source, change.path, this.knownActions, this.settingsSchema, this.actionTraits));
         const diagnostics = documents.flatMap((document) => document.diagnostics).concat(validateDocumentSet(documents));
         if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", "Transaction contains configuration errors", diagnostics);
 
@@ -378,7 +379,7 @@ export class ConfigurationStore {
         const info = this.guard.getPathInfo(change.path);
         if (!info.writable) throw new EditorOperationError("path.read-only", `Configuration is read-only: ${change.path}`);
         if (validate) {
-            const document = parseByPath(change.source, change.path, this.knownActions, this.settingsSchema);
+            const document = parseByPath(change.source, change.path, this.knownActions, this.settingsSchema, this.actionTraits);
             if (document.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", `Configuration contains errors: ${change.path}`, document.diagnostics);
         }
         const targetPath = await this.guard.resolveForWrite(change.path);
@@ -408,7 +409,7 @@ export class ConfigurationStore {
             }
             const newHash = sha256(Buffer.from(change.source, "utf8"));
             if (sha256(await readFile(stagedPath)) !== newHash) throw new EditorOperationError("save.verify", `Temporary file verification failed: ${change.path}`);
-            const stagedDocument = parseByPath((await readFile(stagedPath)).toString("utf8"), change.path, this.knownActions, this.settingsSchema);
+            const stagedDocument = parseByPath((await readFile(stagedPath)).toString("utf8"), change.path, this.knownActions, this.settingsSchema, this.actionTraits);
             if (stagedDocument.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("save.validate", `Temporary file validation failed: ${change.path}`, stagedDocument.diagnostics);
             return { ...change, existed, newHash, stagedPath, targetPath };
         } catch (error) {

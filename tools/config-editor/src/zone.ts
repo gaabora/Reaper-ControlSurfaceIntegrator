@@ -1,9 +1,13 @@
 import path from "node:path";
+import type { ActionTraits } from "./action-catalog.ts";
+import { validateFormat2ZoneGestures } from "./format2-zone-gesture.ts";
 import { addDiagnostic, type Diagnostic, type LosslessDocument } from "./model.ts";
+import type { SettingsSchema } from "./settings-schema.ts";
 import { analysisText, initializeLine, parseFormatMarker, parseProperties, propertyValue, splitSourceLines, tokenizeLine } from "./text.ts";
 
 export interface ZoneBinding {
     action: string;
+    inputSelectors: string[];
     line: number;
     modifiers: string[];
     params: string[];
@@ -98,7 +102,7 @@ function parseFormat2BindingExpression(expression: string): { inputSelectors: st
     }
 }
 
-function parseFormat2Zone(source: string, documentPath?: string, knownActions?: Set<string>): LosslessDocument<ZoneSemantic> {
+function parseFormat2Zone(source: string, documentPath?: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema, actionTraits: ReadonlyMap<string, ActionTraits> = new Map()): LosslessDocument<ZoneSemantic> {
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
     const semantic: ZoneSemantic = { bindings: [], dependencies: [], dependencyReferences: [], includedZones: [], subZones: [] };
@@ -110,6 +114,8 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
     let lifecycleDepth = 0;
     const metadata = new Map<string, { line: number; value: string }>();
     const buttonEvents = new Set(["Press", "Tap", "Release", "Hold", "LongHold", "DoublePress"]);
+    const directionEvents = new Set(["Increase", "Decrease"]);
+    const inputTransforms = new Set(["Invert", "InvertFB"]);
     const standardModifiers = new Set(["Shift", "Option", "Control", "Alt", "Flip", "Marker", "Nudge", "Scrub", "Zoom", "Global", "Touch", "Toggle"]);
 
     const addMetadata = (text: string, lineNumber: number): void => {
@@ -209,11 +215,17 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         const actionTokens = actionLineTokens.slice(1);
         const properties = parseProperties(actionTokens);
         const params = actionTokens.filter((token) => !token.includes("="));
-        semantic.bindings.push({ action, line: line.lineNumber, modifiers: expression.modifiers, params, properties, widget: expression.widget });
+        semantic.bindings.push({ action, inputSelectors: expression.inputSelectors, line: line.lineNumber, modifiers: expression.modifiers, params, properties, widget: expression.widget });
         line.kind = "entry";
+        for (const propertyName of ["DelayMs", "RepeatIntervalMs", "RunCount"]) if (new RegExp(`(?:^|\\s)${propertyName}\\s*=\\s*"`).test(text)) addDiagnostic(diagnostics, "error", "format2.zone.gesture.integer-property", `${propertyName} must be one complete unquoted integer`, line.lineNumber, documentPath);
         if (!/^[A-Za-z][A-Za-z0-9_-]*#?$/.test(expression.widget)) addDiagnostic(diagnostics, "error", "format2.zone.widget.selector", `Widget selector must be an exact ID or one terminal # channel family: ${expression.widget}`, line.lineNumber, documentPath);
         const selectedButtonEvents = expression.inputSelectors.filter((selector) => buttonEvents.has(selector));
         if (selectedButtonEvents.length > 1) addDiagnostic(diagnostics, "error", "format2.zone.binding.event", "A binding cannot select more than one button event", line.lineNumber, documentPath);
+        const selectedDirections = expression.inputSelectors.filter((selector) => directionEvents.has(selector));
+        if (selectedDirections.length > 1) addDiagnostic(diagnostics, "error", "format2.zone.binding.direction", "A binding cannot contain both Increase and Decrease", line.lineNumber, documentPath);
+        if (selectedButtonEvents.length && selectedDirections.length) addDiagnostic(diagnostics, "error", "format2.zone.binding.event-direction", "A button event cannot be combined with a relative direction", line.lineNumber, documentPath);
+        if (new Set(expression.inputSelectors).size !== expression.inputSelectors.length) addDiagnostic(diagnostics, "error", "format2.zone.binding.selector.duplicate", "A binding selector is repeated", line.lineNumber, documentPath);
+        for (const selector of expression.inputSelectors) if (!buttonEvents.has(selector) && !directionEvents.has(selector) && !inputTransforms.has(selector)) addDiagnostic(diagnostics, "error", "format2.zone.binding.input", `Unknown input selector: ${selector}`, line.lineNumber, documentPath);
         for (const modifier of expression.modifiers) if (!standardModifiers.has(modifier)) addDiagnostic(diagnostics, "error", "format2.zone.binding.modifier", `Unknown modifier selector: ${modifier}`, line.lineNumber, documentPath);
         if (knownActions && !knownActions.has(action)) addDiagnostic(diagnostics, "warning", "zone.action.unknown", `Unknown runtime action: ${action}`, line.lineNumber, documentPath);
         if ((action === "GoZone" || action === "EnterZoneLayer") && params[0]) {
@@ -235,13 +247,14 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
     if (semantic.role && semantic.target) addDiagnostic(diagnostics, "error", "format2.metadata.role-target", "Role and Target cannot be used together", metadata.get("Target")?.line, documentPath);
     if (matchFx && (semantic.role || semantic.target)) addDiagnostic(diagnostics, "error", "format2.zone.fx.metadata", "An FX zone cannot declare Main zone Role or Target metadata", metadata.get("Role")?.line ?? metadata.get("Target")?.line, documentPath);
     if (semantic.role === "Layer" && semantic.includedZones.length) addDiagnostic(diagnostics, "error", "format2.zone.layer.included", "A Zone Layer cannot declare IncludedZones", semantic.dependencyReferences.find((reference) => reference.type === "IncludedZones")?.line, documentPath);
+    validateFormat2ZoneGestures(semantic.bindings, actionTraits, diagnostics, settingsSchema, documentPath);
     semantic.dependencies = [...new Set(semantic.dependencies)];
     return { diagnostics, format: "zone", lines, path: documentPath, semantic, source, version: "2" };
 }
 
-export function parseZone(source: string, documentPath?: string, knownActions?: Set<string>): LosslessDocument<ZoneSemantic> {
+export function parseZone(source: string, documentPath?: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema, actionTraits?: ReadonlyMap<string, ActionTraits>): LosslessDocument<ZoneSemantic> {
     const firstConfigurationLine = splitSourceLines(source).map(analysisText).find((text) => text && !text.startsWith("//"));
-    if (firstConfigurationLine?.replace(/^\uFEFF/, "").startsWith("@Meta")) return parseFormat2Zone(source, documentPath, knownActions);
+    if (firstConfigurationLine?.replace(/^\uFEFF/, "").startsWith("@Meta")) return parseFormat2Zone(source, documentPath, knownActions, settingsSchema, actionTraits);
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
     const semantic: ZoneSemantic = { bindings: [], dependencies: [], dependencyReferences: [], includedZones: [], subZones: [] };
@@ -333,7 +346,7 @@ export function parseZone(source: string, documentPath?: string, knownActions?: 
         const actionTokens = line.tokens.slice(2);
         const properties = parseProperties(actionTokens);
         const params = actionTokens.filter((token) => !token.includes("="));
-        semantic.bindings.push({ action, line: line.lineNumber, modifiers: widgetExpression.modifiers, params, properties, widget: widgetExpression.widget });
+        semantic.bindings.push({ action, inputSelectors: [], line: line.lineNumber, modifiers: widgetExpression.modifiers, params, properties, widget: widgetExpression.widget });
         line.kind = "entry";
         if (!widgetExpression.widget) addDiagnostic(diagnostics, "error", "zone.binding.widget", "Binding requires a widget", line.lineNumber, documentPath);
         if (knownActions && !knownActions.has(action)) addDiagnostic(diagnostics, "warning", "zone.action.unknown", `Unknown runtime action: ${action}`, line.lineNumber, documentPath);

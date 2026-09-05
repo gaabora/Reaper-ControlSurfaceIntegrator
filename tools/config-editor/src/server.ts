@@ -1,7 +1,7 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
-import { actionNameSet } from "./action-catalog.ts";
+import { actionNameSet, actionTraitsByName } from "./action-catalog.ts";
 import { ConfigurationDraftStore } from "./draft-store.ts";
 import type { EditorSettingsStore } from "./editor-settings.ts";
 import type { SettingsSchema } from "./settings-schema.ts";
@@ -252,6 +252,7 @@ function errorResponse(error: unknown): Response {
 export function startEditorServer(options: EditorServerOptions): RunningEditorServer {
     const token = randomBytes(32).toString("hex");
     const knownActions = actionNameSet(options.actions);
+    const actionTraits = actionTraitsByName(options.actions);
     let legacySelection: LegacySourceSelection | undefined;
     let legacySource: LegacyCsiSource | undefined;
     let draftStore: ConfigurationDraftStore | undefined;
@@ -272,7 +273,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             if (requestUrl.pathname === "/api/select-data-path" && request.method === "POST") {
                 const body = await requestBody(request);
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);
-                store = new ConfigurationStore(guard, knownActions, {}, options.settingsSchema);
+                store = new ConfigurationStore(guard, knownActions, {}, options.settingsSchema, actionTraits);
                 draftStore = new ConfigurationDraftStore(options.identity.productId, store.getRoot());
                 try {
                     await options.settings?.writeLastDataPath(store.getReaperDataPath());

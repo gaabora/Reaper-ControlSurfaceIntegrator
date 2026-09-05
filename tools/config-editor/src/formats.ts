@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { ActionTraits } from "./action-catalog.ts";
 import { addDiagnostic, type LosslessDocument } from "./model.ts";
 import { parseProductConfig } from "./product-config.ts";
 import type { SettingsSchema } from "./settings-schema.ts";
@@ -18,9 +19,9 @@ function addCommonSyntaxDiagnostics(document: AnyDocument): AnyDocument {
     return document;
 }
 
-export function parseByPath(source: string, filePath: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema): AnyDocument {
+export function parseByPath(source: string, filePath: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema, actionTraits?: ReadonlyMap<string, ActionTraits>): AnyDocument {
     const extension = path.extname(filePath).toLowerCase();
-    if (extension === ".zon") return addCommonSyntaxDiagnostics(parseZone(source, filePath, knownActions));
+    if (extension === ".zon") return addCommonSyntaxDiagnostics(parseZone(source, filePath, knownActions, settingsSchema, actionTraits));
     if (extension === ".snippet") return addCommonSyntaxDiagnostics(parseSnippet(source, filePath, knownActions));
     if (extension === ".txt") return addCommonSyntaxDiagnostics(parseSurface(source, filePath));
     if (extension === ".conf") return addCommonSyntaxDiagnostics(parseProductConfig(source, filePath, settingsSchema));

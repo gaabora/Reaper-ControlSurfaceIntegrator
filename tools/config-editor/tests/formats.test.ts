@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { actionNameSet, loadActionCatalog } from "../src/action-catalog.ts";
+import { actionNameSet, actionTraitsByName, loadActionCatalog } from "../src/action-catalog.ts";
 import { parseByPath } from "../src/formats.ts";
 import { serializeDocument } from "../src/model.ts";
 import { parseProductIdentity } from "../src/product-identity.ts";
@@ -81,6 +81,16 @@ describe("configuration formats", () => {
         const wildcard = parseByPath(await readFile(wildcardPath, "utf8"), wildcardPath, new Set(["GoZone", "TrackPan"]));
         expect(wildcard.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.widget.selector", severity: "error" }));
         expect(wildcard.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.layer.included", severity: "error" }));
+    });
+
+    test("uses shared action traits for format 2 gesture diagnostics", async () => {
+        const catalog = await loadActionCatalog(repositoryRoot);
+        const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
+        const source = "@Meta { Version=2 Role=Home }\n(Press)+Play GoHome RunCount=2\n(Hold)+Play Play DelayMs=1000\n";
+        const document = parseByPath(source, "/config/Zones/User/test/Main/Home.zon", actionNameSet(catalog), settingsSchema, actionTraitsByName(catalog));
+        expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.context-run-count", line: 2, severity: "error" }));
+        expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.unreachable", line: 2, severity: "error" }));
+        expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.additive", line: 2, severity: "warning" }));
     });
 
     test("keeps a spaced property list in one token without joining positional step values", () => {

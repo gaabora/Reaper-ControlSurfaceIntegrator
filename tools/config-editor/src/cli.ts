@@ -3,7 +3,7 @@
 import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { actionNameSet, loadActionCatalog, writeActionCatalog } from "./action-catalog.ts";
+import { actionNameSet, actionTraitsByName, loadActionCatalog, writeActionCatalog } from "./action-catalog.ts";
 import { isSupportedConfigPath, parseByPath, type AnyDocument } from "./formats.ts";
 import { analyzeLegacySurfaceCoverage } from "./legacy-surface-coverage.ts";
 import type { Diagnostic } from "./model.ts";
@@ -49,12 +49,13 @@ async function validateCommand(args: string[]): Promise<number> {
     if (!inputs.length) throw new Error("validate requires at least one file or directory");
     const catalog = await loadActionCatalog(repositoryRoot);
     const knownActions = actionNameSet(catalog);
+    const actionTraits = actionTraitsByName(catalog);
     const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
     const configPaths = [...new Set((await Promise.all(inputs.map((input) => collectConfigPaths(input)))).flat())].sort();
     if (!configPaths.length) throw new Error("No supported .conf, .txt, .zon, or .snippet files were found");
 
     const documents: AnyDocument[] = [];
-    for (const configPath of configPaths) documents.push(parseByPath(await readFile(configPath, "utf8"), configPath, knownActions, settingsSchema));
+    for (const configPath of configPaths) documents.push(parseByPath(await readFile(configPath, "utf8"), configPath, knownActions, settingsSchema, actionTraits));
     const diagnostics = documents.flatMap((document) => document.diagnostics).concat(validateDocumentSet(documents));
     if (jsonOutput) console.log(JSON.stringify({ diagnostics, files: configPaths.length }, null, 2));
     else {

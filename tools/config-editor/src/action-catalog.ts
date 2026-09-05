@@ -15,6 +15,11 @@ export interface ActionCatalogEntry {
     usage?: string;
 }
 
+export interface ActionTraits {
+    changesContext: boolean;
+    changesModifier: boolean;
+}
+
 async function loadActionNameList(repositoryRoot: string, listName: string): Promise<Set<string>> {
     const metadataPath = path.join(repositoryRoot, "src", "controls", "format2_action_metadata.h");
     const source = await readFile(metadataPath, "utf8");
@@ -103,6 +108,10 @@ export async function loadActionCatalog(repositoryRoot: string): Promise<ActionC
 
 export function actionNameSet(catalog: ActionCatalogEntry[]): Set<string> {
     return new Set(catalog.map((entry) => entry.name));
+}
+
+export function actionTraitsByName(catalog: ActionCatalogEntry[]): Map<string, ActionTraits> {
+    return new Map(catalog.map((entry) => [entry.name, { changesContext: entry.changesContext === true, changesModifier: entry.changesModifier === true }]));
 }
 
 export async function writeActionCatalog(outputPath: string, catalog: ActionCatalogEntry[]): Promise<void> {

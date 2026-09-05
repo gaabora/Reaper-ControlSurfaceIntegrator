@@ -1,5 +1,7 @@
+import type { ActionTraits } from "./action-catalog.ts";
 import { parseByPath, type AnyDocument } from "./formats.ts";
 import { serializeDocument, type Diagnostic, type DiagnosticQuickFix } from "./model.ts";
+import type { SettingsSchema } from "./settings-schema.ts";
 import { suggestSimilarStrings } from "./string-distance.ts";
 import { convertHashCommentLine, convertSingleSlashCommentLine } from "./text.ts";
 import type { ZoneSemantic } from "./zone.ts";
@@ -148,8 +150,8 @@ export function diagnosticWithQuickFixes(document: AnyDocument, diagnostic: Diag
     return fixes.length ? { ...diagnostic, fixes } : diagnostic;
 }
 
-export function applyQuickFix(source: string, relativePath: string, knownActions: Set<string>, request: QuickFixRequest): { document: AnyDocument; source: string } {
-    const document = parseByPath(source, relativePath, knownActions);
+export function applyQuickFix(source: string, relativePath: string, knownActions: Set<string>, request: QuickFixRequest, settingsSchema?: SettingsSchema, actionTraits?: ReadonlyMap<string, ActionTraits>): { document: AnyDocument; source: string } {
+    const document = parseByPath(source, relativePath, knownActions, settingsSchema, actionTraits);
     const requestedDefinition = QUICK_FIX_DEFINITIONS.find((candidate) => candidate.id === request.fix.id);
     if (!requestedDefinition) throw new QuickFixError("quick-fix.unknown", `Unknown quick fix: ${request.fix.id}`);
     const documentDiagnostic = document.diagnostics.find((candidate) => candidate.code === request.diagnostic.code && candidate.line === request.diagnostic.line && candidate.message === request.diagnostic.message);
@@ -159,5 +161,5 @@ export function applyQuickFix(source: string, relativePath: string, knownActions
     const selectedFix = availableFixes.find((fix) => fix.id === request.fix.id && dataMatches(fix.data, request.fix.data));
     if (!selectedFix) throw new QuickFixError("quick-fix.unavailable", "The selected quick fix is not available for this diagnostic");
     const fixedSource = requestedDefinition.apply({ diagnostic, document, knownActions }, selectedFix);
-    return { document: parseByPath(fixedSource, relativePath, knownActions), source: fixedSource };
+    return { document: parseByPath(fixedSource, relativePath, knownActions, settingsSchema, actionTraits), source: fixedSource };
 }
