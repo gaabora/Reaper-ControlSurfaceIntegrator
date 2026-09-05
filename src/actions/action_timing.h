@@ -8,24 +8,7 @@
 //  ActionContext since they need to call back into PerformAction() and GetSurface().
 //
 #include "../controls/preamble.h"
-
-enum class ActionInputEvent {
-    Legacy,
-    Press,
-    Tap,
-    Release,
-    Hold,
-    LongHold,
-    DoublePress,
-    Modifier,
-};
-
-enum class ActionModifierMode {
-    Legacy,
-    Momentary,
-    Latch,
-    Hybrid,
-};
+#include "action_input_event.h"
 
 struct ActionTiming {
     // Hold-delay: action is deferred until button is held for holdDelayMs.

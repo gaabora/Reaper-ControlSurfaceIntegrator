@@ -18,3 +18,4 @@ enum class Format2ActionArgumentKind {
 std::optional<Format2ZoneNavigationKind> GetFormat2ActionZoneNavigationKind(const std::string& actionName);
 Format2ActionArgumentKind GetFormat2ActionArgumentKind(const std::string& actionName);
 bool IsFormat2ZoneLayerOnlyAction(const std::string& actionName);
+bool Format2ActionChangesContext(const std::string& actionName);

@@ -26,6 +26,7 @@
 - Put an action in the narrowest existing category header.
 - Reuse `action_base.h` and `action_helpers.h` patterns before adding another abstraction.
 - Preserve release handling, modifier behavior, soft takeover, and feedback semantics when refactoring.
+- Keep `button_gesture.*` independent from REAPER/WDL headers. Use explicit unsigned 32-bit timestamps and elapsed-time comparisons; verify event sequences through the standalone button-gesture CTest target.
 
 ## Verification
 

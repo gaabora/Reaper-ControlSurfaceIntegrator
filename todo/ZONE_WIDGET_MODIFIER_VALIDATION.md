@@ -263,6 +263,8 @@ The timing schema includes:
 - `ModifierTapWindowMs=100`, range 50 to 5000, for Hybrid modifier behavior.
 - `HoldRepeatIntervalMs=100`, range 25 to 5000.
 
+The DoublePress window starts on the first press and excludes its end timestamp. At that timestamp, an Exclusive pending Tap is due and a new press starts a new gesture. Polling a repeat after a delay emits one repeat, without replaying missed intervals. Repeat intervals use elapsed unsigned 32-bit time so a clock wrap does not stop or advance repetition.
+
 `HoldRepeatIntervalMs` defines the default interval only. It does not enable repetition for every Hold action. A binding must explicitly request repetition. A positive binding `RepeatIntervalMs` both requests repetition and overrides the configured default interval.
 
 Binding overrides use generic event properties:
@@ -529,4 +531,6 @@ Add Bun tests for parsing, normalization, validation, quick fixes, conversion, V
   - ✅ Validate the current Product settings and Surface overrides in the Bun parser and CLI from the shared schema. Phase 4 changes this validation to Product and Device scopes.
 - [ ] Add C++, Bun, and Lua tests for parsing, timing, state transitions, overrides, conversion, and invalid combinations.
   - ✅ Add focused C++ value-resolution tests, Bun Product and Surface setting tests, and Lua settings protocol self-checks. Update their scope fixtures to Product and Device with the format 2 product `.conf`.
+  - ✅ Add standalone `ReaControlSurfaceButtonGesture` and `ReaControlSurfaceGestureValidation` CTest targets for recognizer timing, reset, missing release recovery, modifier dispatches, clock wrap, and resolved context-changing event conflicts.
+  - [ ] Run both gesture CTest targets and add integration coverage for captured Zone contexts, modifier state, and cross-component diagnostics.
 - [ ] Audit all Vendor surfaces and zones, then perform focused manual MIDI, OSC, motor-fader, touch, and multi-surface verification.

@@ -16,3 +16,7 @@ Format2ActionArgumentKind GetFormat2ActionArgumentKind(const std::string& action
 bool IsFormat2ZoneLayerOnlyAction(const std::string& actionName) {
     return actionName == "ExitZoneLayer";
 }
+
+bool Format2ActionChangesContext(const std::string& actionName) {
+    return actionName == "NextPage" || actionName == "GoPage" || actionName == "GoHome" || actionName == "AllSurfacesGoHome" || actionName == "GoZone" || actionName == "EnterZoneLayer" || actionName == "ExitZoneLayer" || actionName == "GoFXSlot" || actionName == "ToggleSelectedTrackFX" || actionName == "ClearLastTouchedFXParam" || actionName == "ClearFocusedFX" || actionName == "ClearSelectedTrackFX" || actionName == "ClearFXSlot";
+}

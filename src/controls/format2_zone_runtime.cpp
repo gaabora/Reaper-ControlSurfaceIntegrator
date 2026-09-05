@@ -1,6 +1,7 @@
 #include "integrator.h"
 #include "format2_zone_compiler.h"
 #include "format2_zone_runtime.h"
+#include "format2_gesture_validation.h"
 
 struct Format2PreparedActionContext {
     Widget* widget = nullptr;
@@ -129,6 +130,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
     result.diagnostics.insert(result.diagnostics.end(), compiled.diagnostics.begin(), compiled.diagnostics.end());
     std::vector<Format2PreparedActionContext> preparedContexts;
     std::map<std::string, ActionModifierMode> modifierModesByWidget;
+    std::map<std::pair<Widget*, int>, std::vector<Format2GestureBinding>> gestureGroups;
 
     for (const Format2ModifierDeclaration& declaration : parsed.zone.modifiers) {
         if (declaration.kind == Format2ModifierDeclarationKind::Pseudo) {
@@ -207,10 +209,17 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         if (prepared.inputEvent == ActionInputEvent::Hold) prepared.eventDelayMs = GetFormat2IntegerProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("HoldDelayMs"));
         if (prepared.inputEvent == ActionInputEvent::LongHold) prepared.eventDelayMs = GetFormat2IntegerProperty(binding.action, "DelayMs", zoneManager->GetSurface()->GetSettings().GetInteger("LongHoldDelayMs"));
         if (prepared.inputEvent == ActionInputEvent::Hold || prepared.inputEvent == ActionInputEvent::LongHold) prepared.repeatIntervalMs = GetFormat2IntegerProperty(binding.action, "RepeatIntervalMs", 0);
+        if (prepared.inputEvent != ActionInputEvent::Legacy) {
+            gestureGroups[{widget, prepared.modifier}].push_back({{prepared.inputEvent, prepared.modifierMode, prepared.eventDelayMs, prepared.repeatIntervalMs, prepared.modifierTapWindowMs}, prepared.actionName, binding.location});
+        }
         if (!prepared.navigator) AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.navigator.missing", "No Navigator is available for Widget: " + spec.widgetId, binding.widget.location);
         preparedContexts.push_back(std::move(prepared));
     }
 
+    for (const auto& group : gestureGroups) {
+        const auto diagnostics = ValidateFormat2GestureBindings(group.second, zoneManager->GetSurface()->GetDoublePressTime(), zoneManager->GetSurface()->GetSettings().GetString("DoublePressPolicy") == "Exclusive");
+        result.diagnostics.insert(result.diagnostics.end(), diagnostics.begin(), diagnostics.end());
+    }
     if (!result.IsValid()) return result;
     for (Format2PreparedActionContext& prepared : preparedContexts) {
         zone->AddWidget(prepared.widget);
