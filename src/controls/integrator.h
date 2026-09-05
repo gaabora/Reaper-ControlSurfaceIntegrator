@@ -649,6 +649,15 @@ public:
                     pages_[currentPageIndex_]->AdjustBank(zoneName, amount);
     }
 
+    void AdjustFormat2Bank(IPageContext* sendingPage, ZoneRuntimeTarget target, ZoneRuntimeBankTarget bankTarget, int amount) {
+        if (!sendingPage->GetTrackNavigationManager()->GetSynchPages())
+            sendingPage->AdjustFormat2Bank(target, bankTarget, amount);
+        else
+            for (int pageIdx = 0; pageIdx < this->pages_.size(); ++pageIdx)
+                if (this->pages_[pageIdx]->GetTrackNavigationManager()->GetSynchPages())
+                    this->pages_[pageIdx]->AdjustFormat2Bank(target, bankTarget, amount);
+    }
+
     void NextPage() {
         if (pages_.size() > currentPageIndex_ && pages_[currentPageIndex_]) {
             pages_[currentPageIndex_]->LeavePage();

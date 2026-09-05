@@ -1447,6 +1447,15 @@ The public values derive these internal behaviors:
 - `Target=SelectedTrack` or `MasterTrack` with a child `BankTarget` keeps one track target and maps `#` to consecutive items in that bank.
 - Link routing is derived from `Target` and `BankTarget`, then filtered by the Page link configuration. It is not zone metadata.
 
+Format 2 banking uses the active zone context:
+
+```text
+Previous Bank -8
+Next Bank 8
+```
+
+`Bank` accepts one signed integer amount. It moves the normal collection selected by `Target`, or the child collection selected by `BankTarget`. It does not accept a legacy navigator or magic zone name. A binding that must move a different collection belongs in a zone or included zone with that target context. The importer removes a matching legacy bank name and reports a conflict when the old action requests a different collection from the converted zone metadata.
+
 The runtime stores navigator, track set, lifetime, activation scope, link category, bank offset, and zero-based REAPER indexes in its typed model. These fields are not part of the file syntax.
 
 Action metadata declares whether an action needs a track, send, receive, or FX. Validation reports a direct error when that requirement does not fit the zone's `Target` and `BankTarget`.
@@ -1706,8 +1715,10 @@ The static codec audit intentionally excludes device names that do not select a 
 - ✅ Build document-specific semantic parsers for Surface, Main zone, FX zone, Learn FX, and snippet bodies on the shared syntax tree.
 - ✅ Parse each zone, surface, Learn FX, and snippet source once through one typed-document entry point that preserves the shared syntax document, diagnostics, and source locations.
 - ✅ Compile each `#` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
-  - ✅ Give each runtime `ActionContext` its own effective Navigator and optional slot override, while legacy contexts inherit both values from their Zone.
+  - ✅ Give each runtime `ActionContext` its own effective Navigator and format 2 channel offset, while legacy contexts inherit their Navigator and slot from their Zone.
   - ✅ Add an atomic typed-binding runtime bridge that resolves channel Navigators, `BankTarget` slot indices, standard modifiers, supported input selectors, Widgets, Actions, and action parameters before adding any context to a Zone.
+  - ✅ Store typed runtime targets and bank targets on format 2 zones, resolve banked slots dynamically after every bank change, and make `Bank Amount` use the active typed context while keeping string bank names in legacy only.
+  - ✅ Derive Page-scope and selected-track Link routing for format 2 `GoZone` from the target zone's typed `Target` and `BankTarget`; keep magic target-name routing in legacy only.
   - [ ] Add runtime behavior for `Tap`, `Release`, `LongHold`, per-modifier `Mode`, and the separately planned `PseudoModifier` feature before accepting those parsed declarations at runtime.
 - ✅ Resolve Vendor and User Main/FX sources by case-insensitive zone ID into one deterministic per-zone active set before later role, reference, dependency, or runtime validation. A unique User source overrides only the matching Vendor source, an invalid User source blocks Vendor fallback, and same-layer duplicates leave that ID unavailable with source-linked diagnostics.
   - ✅ Add one deterministic profile loader that reads each `.zon` once and retains aligned typed documents, source descriptors, and resolver indices for runtime consumption.
@@ -1879,6 +1890,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Ensure inferred `Channels` is not smaller than an explicit Widget `Channel` extracted from trusted legacy processor metadata.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
+  - [ ] Convert legacy `Bank Target Amount` to `Bank Amount` when the target matches the converted zone context. Report a migration conflict when it does not match, so the user can move that binding to an included zone with the required context.
 - [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
 - [ ] Convert Learn FX pseudo-zones into `LearnFX.fxzon`, derive supported entry defaults, report ambiguous display/default targets, and do not convert `FXRowLayout`.
 - [ ] Convert brace-based `IncludedZones`, convert `SubZones` to the reusable `ZoneLayers` relation, and mark every referenced file with `Role=Layer`.

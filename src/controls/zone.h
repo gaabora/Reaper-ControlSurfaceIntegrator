@@ -15,6 +15,13 @@ enum class ZoneRuntimeTarget {
     SelectedTracks,
 };
 
+enum class ZoneRuntimeBankTarget {
+    None,
+    Sends,
+    Receives,
+    Fx,
+};
+
 class Zone
 {
 protected:
@@ -31,6 +38,7 @@ protected:
     bool deactivatesOnTrackLoss_ = false;
     Zone* parentZone_ = nullptr;
     ZoneRuntimeTarget runtimeTarget_ = ZoneRuntimeTarget::Legacy;
+    ZoneRuntimeBankTarget runtimeBankTarget_ = ZoneRuntimeBankTarget::None;
 
     // these do not own the widgets, ultimately the ControlSurface contains the list of widgets
     vector<Widget*> widgets_;
@@ -61,12 +69,13 @@ public:
 
     void InitSubZones(const vector<string>& subZones, const char* widgetSuffix);
     int GetSlotIndex();
+    int GetSlotIndexForChannel(int format2ChannelOffset);
     void SetXTouchDisplayColors(const char* colors);
     void RestoreXTouchDisplayColors();
     void UpdateCurrentActionContextModifiers();
 
     const vector<unique_ptr<ActionContext>>& GetActionContexts(Widget* widget);
-    ActionContext* AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params, Navigator* navigator = nullptr, int slotIndexOverride = -1);
+    ActionContext* AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params, Navigator* navigator = nullptr, int format2ChannelOffset = -1);
     void ClearActionContexts(Widget* widget);
 
     void AddWidget(Widget* widget);
@@ -88,16 +97,24 @@ public:
     Navigator* GetNavigator() { return navigator_; }
     void SetNavigator(Navigator* navigator) { navigator_ = navigator; }
     void SetSlotIndex(int index) { slotIndex_ = index; }
-    void ConfigureFormat2Runtime(ZoneRuntimeTarget target, bool deactivatesOnTrackLoss = false, Zone* parentZone = nullptr) {
+    void ConfigureFormat2Runtime(ZoneRuntimeTarget target, ZoneRuntimeBankTarget bankTarget = ZoneRuntimeBankTarget::None, bool deactivatesOnTrackLoss = false, Zone* parentZone = nullptr) {
         this->runtimeTarget_ = target;
+        this->runtimeBankTarget_ = bankTarget;
         this->deactivatesOnTrackLoss_ = deactivatesOnTrackLoss;
         this->parentZone_ = parentZone;
         this->usesExactEventFallback_ = true;
     }
     bool GetIsActive() { return isActive_; }
+    bool UsesFormat2Runtime() const { return this->runtimeTarget_ != ZoneRuntimeTarget::Legacy; }
     ZoneRuntimeTarget GetRuntimeTarget() const { return this->runtimeTarget_; }
+    ZoneRuntimeBankTarget GetRuntimeBankTarget() const { return this->runtimeBankTarget_; }
     bool DeactivatesOnTrackLoss() const { return this->deactivatesOnTrackLoss_; }
-    bool UsesPageActivation() const { return this->runtimeTarget_ == ZoneRuntimeTarget::Vca || this->runtimeTarget_ == ZoneRuntimeTarget::Folder || this->runtimeTarget_ == ZoneRuntimeTarget::SelectedTracks; }
+    bool UsesPageActivation() const {
+        return this->runtimeTarget_ == ZoneRuntimeTarget::Vca || this->runtimeTarget_ == ZoneRuntimeTarget::Folder || this->runtimeTarget_ == ZoneRuntimeTarget::SelectedTracks
+            || (this->runtimeTarget_ == ZoneRuntimeTarget::Tracks && this->runtimeBankTarget_ != ZoneRuntimeBankTarget::None)
+            || (this->runtimeTarget_ == ZoneRuntimeTarget::MasterTrack && this->runtimeBankTarget_ == ZoneRuntimeBankTarget::Fx);
+    }
+    bool UsesSelectedTrackLink() const { return this->runtimeTarget_ == ZoneRuntimeTarget::SelectedTrack && this->runtimeBankTarget_ != ZoneRuntimeBankTarget::None; }
 
     void Toggle() {
         if (isActive_) Deactivate();

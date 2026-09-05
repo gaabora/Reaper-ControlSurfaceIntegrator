@@ -245,6 +245,7 @@ private:
         }
         this->ValidatePropertyPlacementAndDuplicates(node, action.properties);
         this->AddNavigationReference(action);
+        this->ValidateKnownActionArguments(action);
 
         if (action.action == "Modifier" || action.action == "PseudoModifier") {
             if (this->generatedBindings_) {
@@ -284,7 +285,21 @@ private:
         }
         this->ValidatePropertyPlacementAndDuplicates(node, action.properties);
         this->AddNavigationReference(action);
+        this->ValidateKnownActionArguments(action);
         return action;
+    }
+
+    void ValidateKnownActionArguments(const Format2ZoneAction& action) {
+        if (GetFormat2ActionArgumentKind(action.action) != Format2ActionArgumentKind::SignedInteger) return;
+        if (action.arguments.size() != 1 || action.arguments[0].quoted) {
+            this->AddDiagnostic("format2.zone.action.bank-amount", action.action + " requires one unquoted signed integer amount", action.actionLocation);
+            return;
+        }
+        const std::string& value = action.arguments[0].text;
+        std::size_t digitIdx = !value.empty() && value[0] == '-' ? 1 : 0;
+        bool valid = digitIdx < value.size();
+        for (; valid && digitIdx < value.size(); digitIdx++) valid = value[digitIdx] >= '0' && value[digitIdx] <= '9';
+        if (!valid) this->AddDiagnostic("format2.zone.action.bank-amount", action.action + " requires one signed integer amount", action.arguments[0].location);
     }
 
     void AddNavigationReference(const Format2ZoneAction& action) {

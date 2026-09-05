@@ -2,8 +2,8 @@
 
 ////////// ActionContext ////////
 
-ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& paramsAndProperties, Navigator* navigator, int slotIndexOverride)
-    : csi_(csi), action_(action), widget_(widget), zone_(zone), navigator_(navigator ? navigator : zone->GetNavigator()), slotIndexOverride_(slotIndexOverride), paramIndex_(paramIndex) {
+ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& paramsAndProperties, Navigator* navigator, int format2ChannelOffset)
+    : csi_(csi), action_(action), widget_(widget), zone_(zone), navigator_(navigator ? navigator : zone->GetNavigator()), format2ChannelOffset_(format2ChannelOffset), paramIndex_(paramIndex) {
     vector<string> params;
     for (int i = 0; i < (int) (paramsAndProperties).size(); ++i) {
         if ((paramsAndProperties)[i].find("=") == string::npos)
@@ -197,7 +197,7 @@ vector<MediaTrack*> ActionContext::GetSelectedTracks(bool includeMaster) {
     }
 }
 
-int ActionContext::GetSlotIndex() { return this->slotIndexOverride_ >= 0 ? this->slotIndexOverride_ : this->zone_->GetSlotIndex(); }
+int ActionContext::GetSlotIndex() { return this->zone_->GetSlotIndexForChannel(this->format2ChannelOffset_); }
 
 const char* ActionContext::GetName() { return zone_->GetAlias(); }
 void ActionContext::RequestUpdate() {

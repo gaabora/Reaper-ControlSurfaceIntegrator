@@ -42,8 +42,15 @@ inline void ZoneManager::GoZone(const char* zoneName) {
 inline void ZoneManager::GoFormat2Zone(const char* zoneName) {
     for (auto& goZone : this->goZones_) {
         if (!IsSameString(zoneName, goZone->GetName())) continue;
-        if (goZone->UsesPageActivation()) this->surface_->GetPage()->GoZone(zoneName);
-        else this->GoZone(zoneName);
+        if (goZone->UsesPageActivation()) {
+            this->surface_->GetPage()->GoZone(zoneName);
+            return;
+        }
+        if (goZone->UsesSelectedTrackLink() && (this->GetIsBroadcaster() || this->GetIsListener())) {
+            for (ZoneManager* listener : this->listeners_) if (listener->AcceptsFormat2ZoneLink(goZone->GetRuntimeBankTarget())) listener->GoZone(zoneName);
+            return;
+        }
+        this->GoZone(zoneName);
         return;
     }
 }
@@ -142,6 +149,18 @@ public:
         else 
             for (auto& surface : surfaces_)
                 surface->GetZoneManager()->AdjustBank(zoneName, amount);
+    }
+
+    void AdjustFormat2Bank(ZoneRuntimeTarget target, ZoneRuntimeBankTarget bankTarget, int amount) override {
+        if (bankTarget == ZoneRuntimeBankTarget::None) {
+            if (target == ZoneRuntimeTarget::Tracks) this->trackNavigationManager_->AdjustTrackBank(amount);
+            else if (target == ZoneRuntimeTarget::Vca) this->trackNavigationManager_->AdjustVCABank(amount);
+            else if (target == ZoneRuntimeTarget::Folder) this->trackNavigationManager_->AdjustFolderBank(amount);
+            else if (target == ZoneRuntimeTarget::SelectedTracks) this->trackNavigationManager_->AdjustSelectedTracksBank(amount);
+            else if (target == ZoneRuntimeTarget::SelectedTrack) this->trackNavigationManager_->AdjustSelectedTrackBank(amount);
+            return;
+        }
+        for (auto& surface : this->surfaces_) surface->GetZoneManager()->AdjustFormat2Bank(target, bankTarget, amount);
     }
 
     TrackNavigationManager* GetTrackNavigationManager() override { return trackNavigationManager_.get(); }

@@ -31,6 +31,7 @@ public:
     virtual void GoHome() = 0;
     virtual void GoZone(const char* name) = 0;
     virtual void AdjustBank(const char* zoneName, int amount) = 0;
+    virtual void AdjustFormat2Bank(ZoneRuntimeTarget target, ZoneRuntimeBankTarget bankTarget, int amount) = 0;
 
     // Transport coordination (broadcast to all surfaces on the page)
     virtual void SignalStop() = 0;

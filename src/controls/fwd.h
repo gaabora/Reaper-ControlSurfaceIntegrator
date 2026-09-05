@@ -21,3 +21,6 @@ class ModifierManager;
 class MessageGenerator;
 class Midi_MessageGenerator;
 class OSC_ControlSurfaceIO;
+
+enum class ZoneRuntimeTarget;
+enum class ZoneRuntimeBankTarget;

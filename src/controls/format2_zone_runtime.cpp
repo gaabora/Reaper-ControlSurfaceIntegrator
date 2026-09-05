@@ -6,7 +6,7 @@ struct Format2PreparedActionContext {
     Widget* widget = nullptr;
     Navigator* navigator = nullptr;
     int modifier = 0;
-    int slotIndexOverride = -1;
+    int surfaceChannelOffset = -1;
     std::string actionName;
     std::vector<std::string> parameters;
     bool hold = false;
@@ -65,29 +65,6 @@ static Navigator* ResolveFormat2BindingNavigator(ZoneManager* zoneManager, Zone*
         return zoneManager->GetSurface()->GetPage()->GetTrackNavigationManager()->GetNavigatorForChannel(channel);
     }
     return zone->GetNavigator();
-}
-
-static int ResolveFormat2BankOffset(ZoneManager* zoneManager, const Format2DocumentMetadata& metadata) {
-    if (!metadata.target || !metadata.bankTarget) return -1;
-    if (*metadata.target == Format2ZoneTarget::Tracks) {
-        if (*metadata.bankTarget == Format2BankTarget::Sends) return zoneManager->GetTrackSendOffset();
-        if (*metadata.bankTarget == Format2BankTarget::Receives) return zoneManager->GetTrackReceiveOffset();
-        return zoneManager->GetTrackFXMenuOffset();
-    }
-    if (*metadata.target == Format2ZoneTarget::SelectedTrack) {
-        if (*metadata.bankTarget == Format2BankTarget::Sends) return zoneManager->GetSelectedTrackSendOffset();
-        if (*metadata.bankTarget == Format2BankTarget::Receives) return zoneManager->GetSelectedTrackReceiveOffset();
-        return zoneManager->GetSelectedTrackFXMenuOffset();
-    }
-    if (*metadata.target == Format2ZoneTarget::MasterTrack && *metadata.bankTarget == Format2BankTarget::Fx) return zoneManager->GetMasterTrackFXMenuOffset();
-    return -1;
-}
-
-static int ResolveFormat2SlotIndex(ZoneManager* zoneManager, const Format2DocumentMetadata& metadata, const std::optional<int>& surfaceChannelOffset) {
-    const int bankOffset = ResolveFormat2BankOffset(zoneManager, metadata);
-    if (bankOffset < 0) return -1;
-    if (surfaceChannelOffset && (metadata.target == Format2ZoneTarget::SelectedTrack || metadata.target == Format2ZoneTarget::MasterTrack)) return bankOffset + *surfaceChannelOffset;
-    return bankOffset;
 }
 
 static bool PrepareFormat2Selectors(ZoneManager* zoneManager, const Format2ZoneBinding& binding, Format2PreparedActionContext& prepared, Format2ZoneRuntimeResult& result) {
@@ -176,7 +153,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         Format2PreparedActionContext prepared;
         prepared.widget = widget;
         prepared.navigator = ResolveFormat2BindingNavigator(zoneManager, zone, runtimeMetadata, spec.surfaceChannelOffset);
-        prepared.slotIndexOverride = ResolveFormat2SlotIndex(zoneManager, runtimeMetadata, spec.surfaceChannelOffset);
+        prepared.surfaceChannelOffset = spec.surfaceChannelOffset ? *spec.surfaceChannelOffset : -1;
         prepared.actionName = binding.action.action;
         prepared.parameters = MakeFormat2ActionParameters(binding.action);
         PrepareFormat2Selectors(zoneManager, binding, prepared, result);
@@ -187,7 +164,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
     if (!result.IsValid()) return result;
     for (Format2PreparedActionContext& prepared : preparedContexts) {
         zone->AddWidget(prepared.widget);
-        ActionContext* context = zone->AddActionContext(prepared.widget, prepared.modifier, zone, prepared.actionName.c_str(), prepared.parameters, prepared.navigator, prepared.slotIndexOverride);
+        ActionContext* context = zone->AddActionContext(prepared.widget, prepared.modifier, zone, prepared.actionName.c_str(), prepared.parameters, prepared.navigator, prepared.surfaceChannelOffset);
         if (prepared.invert) context->SetIsValueInverted();
         if (prepared.invertFeedback) context->SetIsFeedbackInverted();
         if (prepared.hold) {

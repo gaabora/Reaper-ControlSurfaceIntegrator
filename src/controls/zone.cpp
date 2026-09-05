@@ -24,8 +24,26 @@ int Zone::GetSlotIndex() {
     if (name_ == "SelectedTrackReceive") return slotIndex_ + zoneManager_->GetSelectedTrackReceiveOffset();
     if (name_ == "SelectedTrackFXMenu") return slotIndex_ + zoneManager_->GetSelectedTrackFXMenuOffset();
     if (name_ == "MasterTrackFXMenu") return slotIndex_ + zoneManager_->GetMasterTrackFXMenuOffset();
-    else
-        return slotIndex_;
+    return slotIndex_;
+}
+
+int Zone::GetSlotIndexForChannel(int format2ChannelOffset) {
+    if (this->runtimeTarget_ == ZoneRuntimeTarget::Legacy || this->runtimeBankTarget_ == ZoneRuntimeBankTarget::None) return this->GetSlotIndex();
+    int bankOffset = 0;
+    if (this->runtimeTarget_ == ZoneRuntimeTarget::Tracks) {
+        if (this->runtimeBankTarget_ == ZoneRuntimeBankTarget::Sends) bankOffset = this->zoneManager_->GetTrackSendOffset();
+        else if (this->runtimeBankTarget_ == ZoneRuntimeBankTarget::Receives) bankOffset = this->zoneManager_->GetTrackReceiveOffset();
+        else bankOffset = this->zoneManager_->GetTrackFXMenuOffset();
+        return bankOffset;
+    }
+    if (this->runtimeTarget_ == ZoneRuntimeTarget::SelectedTrack) {
+        if (this->runtimeBankTarget_ == ZoneRuntimeBankTarget::Sends) bankOffset = this->zoneManager_->GetSelectedTrackSendOffset();
+        else if (this->runtimeBankTarget_ == ZoneRuntimeBankTarget::Receives) bankOffset = this->zoneManager_->GetSelectedTrackReceiveOffset();
+        else bankOffset = this->zoneManager_->GetSelectedTrackFXMenuOffset();
+    } else if (this->runtimeTarget_ == ZoneRuntimeTarget::MasterTrack && this->runtimeBankTarget_ == ZoneRuntimeBankTarget::Fx) {
+        bankOffset = this->zoneManager_->GetMasterTrackFXMenuOffset();
+    }
+    return bankOffset + (format2ChannelOffset >= 0 ? format2ChannelOffset : 0);
 }
 
 void Zone::AddWidget(Widget* widget) {
@@ -281,7 +299,7 @@ void Zone::UpdateCurrentActionContextModifier(Widget* widget) {
     }
 }
 
-ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params, Navigator* navigator, int slotIndexOverride) {
+ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, const char* actionName, vector<string>& params, Navigator* navigator, int format2ChannelOffset) {
     const auto& action = csi_->GetAction(actionName);
     if (!IsSameString(action->GetName(), actionName) && IsSameString(action->GetName(), "InvalidAction"))
         LogToConsole("[ERROR] @%s/{%s} [%s] InvalidAction: %s\n", widget->GetSurface()->GetName(), zone->GetName(), widget->GetName(), actionName);
@@ -289,7 +307,7 @@ ActionContext* Zone::AddActionContext(Widget* widget, int modifier, Zone* zone, 
     if (action->IsModifier())
         widget->SetIsModifier();
 
-    actionContextDictionary_[widget][modifier].push_back(make_unique<ActionContext>(csi_, action, widget, zone, 0, params, navigator, slotIndexOverride));
+    actionContextDictionary_[widget][modifier].push_back(make_unique<ActionContext>(csi_, action, widget, zone, 0, params, navigator, format2ChannelOffset));
 
     return actionContextDictionary_[widget][modifier].back().get();
 }

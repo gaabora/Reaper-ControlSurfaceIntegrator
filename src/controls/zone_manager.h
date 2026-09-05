@@ -125,6 +125,13 @@ private:
         return listensToGoHome_ || listensToSends_ || listensToReceives_ || listensToFXMenu_ || listensToSelectedTrackFX_;
     }
 
+    bool AcceptsFormat2ZoneLink(ZoneRuntimeBankTarget bankTarget) const {
+        if (bankTarget == ZoneRuntimeBankTarget::Sends) return this->listensToSends_;
+        if (bankTarget == ZoneRuntimeBankTarget::Receives) return this->listensToReceives_;
+        if (bankTarget == ZoneRuntimeBankTarget::Fx) return this->listensToFXMenu_;
+        return false;
+    }
+
     void ListenToGoZone(const char* zoneName) {
         if (IsSameString("SelectedTrackSend", zoneName))
             for (auto& listener : listeners_) {
@@ -653,6 +660,16 @@ public:
             AdjustBank(selectedTrackFXMenuOffset_, amount);
         else if (IsSameString(zoneName, "MasterTrackFXMenu"))
             AdjustBank(masterTrackFXMenuOffset_, amount);
+    }
+
+    void AdjustFormat2Bank(ZoneRuntimeTarget target, ZoneRuntimeBankTarget bankTarget, int amount) {
+        if (target == ZoneRuntimeTarget::Tracks && bankTarget == ZoneRuntimeBankTarget::Sends) this->AdjustBank(this->trackSendOffset_, amount);
+        else if (target == ZoneRuntimeTarget::Tracks && bankTarget == ZoneRuntimeBankTarget::Receives) this->AdjustBank(this->trackReceiveOffset_, amount);
+        else if (target == ZoneRuntimeTarget::Tracks && bankTarget == ZoneRuntimeBankTarget::Fx) this->AdjustBank(this->trackFXMenuOffset_, amount);
+        else if (target == ZoneRuntimeTarget::SelectedTrack && bankTarget == ZoneRuntimeBankTarget::Sends) this->AdjustBank(this->selectedTrackSendOffset_, amount);
+        else if (target == ZoneRuntimeTarget::SelectedTrack && bankTarget == ZoneRuntimeBankTarget::Receives) this->AdjustBank(this->selectedTrackReceiveOffset_, amount);
+        else if (target == ZoneRuntimeTarget::SelectedTrack && bankTarget == ZoneRuntimeBankTarget::Fx) this->AdjustBank(this->selectedTrackFXMenuOffset_, amount);
+        else if (target == ZoneRuntimeTarget::MasterTrack && bankTarget == ZoneRuntimeBankTarget::Fx) this->AdjustBank(this->masterTrackFXMenuOffset_, amount);
     }
 
     void AddZoneFilePath(const string& name, ZoneInfo& zoneInfo) {

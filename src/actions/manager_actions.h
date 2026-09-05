@@ -1035,11 +1035,11 @@ public:
 //!
 //! @brief Adjusts the track bank offset (scrolls channels left/right on the surface).
 //!
-//! @zone_usage  WidgetName    Bank "TrackNavigator" 8   or   WidgetName    Bank "TrackNavigator" -1
+//! @zone_usage  Legacy: WidgetName Bank "TrackNavigator" 8. Format 2: WidgetName Bank 8, using the current zone Target and BankTarget.
 //!
 //! @feedback None (clears color only).
 //!
-//! @params String param: navigator name. Int param: bank step size (positive=right, negative=left). Supports Increase/Decrease pseudo-modifiers.
+//! @params Legacy uses a navigator name and step size. Format 2 accepts only a step size and derives the bank from zone metadata. Positive moves right and negative moves left.
 class Bank : public Action
 {
 public:
@@ -1050,10 +1050,13 @@ public:
     }
 
     void Do(ActionContext* context, double value) override {
-        if (value < 0 && context->GetRangeMinimum() < 0)
-            context->GetCSI()->AdjustBank(context->GetPage(), context->GetStringParam(), context->GetIntParam());
-        else if (value > 0 && context->GetRangeMinimum() >= 0)
-            context->GetCSI()->AdjustBank(context->GetPage(), context->GetStringParam(), context->GetIntParam());
+        const bool shouldAdjust = (value < 0 && context->GetRangeMinimum() < 0) || (value > 0 && context->GetRangeMinimum() >= 0);
+        if (!shouldAdjust) return;
+        if (context->GetZone()->UsesFormat2Runtime()) {
+            context->GetCSI()->AdjustFormat2Bank(context->GetPage(), context->GetZone()->GetRuntimeTarget(), context->GetZone()->GetRuntimeBankTarget(), context->GetIntParam());
+            return;
+        }
+        context->GetCSI()->AdjustBank(context->GetPage(), context->GetStringParam(), context->GetIntParam());
     }
 };
 
