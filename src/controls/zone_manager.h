@@ -286,13 +286,11 @@ public:
     Zone* GetActiveZoneForWidget(Widget* widget) {
         if (!widget) return NULL;
 
-        auto findInZone = [&](Zone* z) -> Zone* {
+        function<Zone*(Zone*)> findInZone = [&](Zone* zone) -> Zone* {
             map<int, const vector<unique_ptr<ActionContext>>*> out;
-            if (z->GetAllModifierContexts(widget, out)) return z;
-            for (auto& inc : z->GetIncludedZones()) {
-                out.clear();
-                if (inc->GetAllModifierContexts(widget, out)) return inc.get();
-            }
+            for (auto& zoneLayer : zone->GetZoneLayers()) if (zoneLayer->GetIsActive()) if (Zone* owner = findInZone(zoneLayer.get())) return owner;
+            if (zone->GetAllModifierContexts(widget, out)) return zone;
+            for (auto& includedZone : zone->GetIncludedZones()) if (includedZone->GetIsActive()) if (Zone* owner = findInZone(includedZone.get())) return owner;
             return NULL;
         };
 
@@ -320,10 +318,10 @@ public:
     // Collect all (modifier → &contexts) for widget from the first active zone that defines it.
     // Used by PublishOSKLabelMap() to enumerate all possible bindings per widget for tooltip display.
     void CollectAllModifierContextsForWidget(Widget* widget, map<int, const vector<unique_ptr<ActionContext>>*>& out) {
-        auto tryZone = [&](Zone* z) -> bool {
-            if (z->GetAllModifierContexts(widget, out)) return true;
-            for (auto& inc : z->GetIncludedZones())
-                if (inc->GetAllModifierContexts(widget, out)) return true;
+        function<bool(Zone*)> tryZone = [&](Zone* zone) -> bool {
+            for (auto& zoneLayer : zone->GetZoneLayers()) if (zoneLayer->GetIsActive() && tryZone(zoneLayer.get())) return true;
+            if (zone->GetAllModifierContexts(widget, out)) return true;
+            for (auto& includedZone : zone->GetIncludedZones()) if (includedZone->GetIsActive() && tryZone(includedZone.get())) return true;
             return false;
         };
         for (auto& goZone : goZones_)
@@ -332,29 +330,34 @@ public:
     }
 
     const vector<unique_ptr<ActionContext>>& GetCurrentActionContextsForWidget(Widget* widget) {
+        function<const vector<unique_ptr<ActionContext>>*(Zone*)> findContexts = [&](Zone* zone) -> const vector<unique_ptr<ActionContext>>* {
+            for (auto& zoneLayer : zone->GetZoneLayers()) {
+                if (!zoneLayer->GetIsActive()) continue;
+                const vector<unique_ptr<ActionContext>>* contexts = findContexts(zoneLayer.get());
+                if (contexts) return contexts;
+            }
+            const auto& contexts = zone->GetActionContexts(widget);
+            if (!contexts.empty()) return &contexts;
+            for (auto& includedZone : zone->GetIncludedZones()) {
+                if (!includedZone->GetIsActive()) continue;
+                const vector<unique_ptr<ActionContext>>* includedContexts = findContexts(includedZone.get());
+                if (includedContexts) return includedContexts;
+            }
+            return nullptr;
+        };
+
         // Check active goZones first
         for (auto& goZone : goZones_) {
             if (goZone->GetIsActive()) {
-                const auto& contexts = goZone->GetActionContexts(widget);
-                if (!contexts.empty()) return contexts;
-
-                // Also check included zones
-                for (auto& inclZone : goZone->GetIncludedZones()) {
-                    const auto& inclContexts = inclZone->GetActionContexts(widget);
-                    if (!inclContexts.empty()) return inclContexts;
-                }
+                const vector<unique_ptr<ActionContext>>* contexts = findContexts(goZone.get());
+                if (contexts) return *contexts;
             }
         }
 
         // Fall back to home zone
         if (homeZone_) {
-            const auto& contexts = homeZone_->GetActionContexts(widget);
-            if (!contexts.empty()) return contexts;
-
-            for (auto& inclZone : homeZone_->GetIncludedZones()) {
-                const auto& inclContexts = inclZone->GetActionContexts(widget);
-                if (!inclContexts.empty()) return inclContexts;
-            }
+            const vector<unique_ptr<ActionContext>>* contexts = findContexts(homeZone_.get());
+            if (contexts) return *contexts;
         }
 
         return emptyContexts_;

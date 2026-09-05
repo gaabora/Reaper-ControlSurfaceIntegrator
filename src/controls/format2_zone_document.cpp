@@ -392,7 +392,15 @@ private:
     }
 
     void ValidateZoneRules() {
-        if (this->kind_ != Format2DocumentKind::MainZone || !this->result_.document.metadata.role || *this->result_.document.metadata.role != Format2ZoneRole::Layer) return;
+        const bool isLayer = this->kind_ == Format2DocumentKind::MainZone && this->result_.document.metadata.role == Format2ZoneRole::Layer;
+        auto validateAction = [&](const Format2ZoneAction& action) {
+            if (!IsFormat2ZoneLayerOnlyAction(action.action)) return;
+            if (!isLayer) this->AddDiagnostic("format2.zone.action.layer-only", action.action + " is valid only in a Main zone with Role=Layer", action.actionLocation);
+            if (!action.arguments.empty()) this->AddDiagnostic("format2.zone.action.argument", action.action + " does not accept positional parameters", action.arguments.front().location);
+        };
+        for (const Format2ZoneBinding& binding : this->result_.zone.bindings) validateAction(binding.action);
+        for (const Format2LifecycleBlock& lifecycleBlock : this->result_.zone.lifecycleBlocks) for (const Format2ZoneAction& action : lifecycleBlock.actions) validateAction(action);
+        if (!isLayer) return;
         if (!this->result_.zone.includedZones.empty()) this->AddDiagnostic("format2.zone.layer.included", "A Role=Layer zone cannot declare IncludedZones", this->result_.zone.includedZones.front().location);
     }
 };

@@ -19,6 +19,11 @@ static bool HasDiagnostic(const Format2ZoneProfileResolveResult& result, const s
     return false;
 }
 
+static bool HasParseDiagnostic(const Format2ZoneParseResult& result, const std::string& code) {
+    for (const Format2Diagnostic& diagnostic : result.document.lexical.diagnostics) if (diagnostic.code == code) return true;
+    return false;
+}
+
 static void TestValidProfile() {
     std::vector<Format2ZoneSource> sources;
     sources.push_back(ParseSource("@Meta { Version=2 Role=Home }\n\nIncludedZones {\n  Track\n}\nZoneLayers {\n  Pan\n}\nPlay Play\n", "Home.zon"));
@@ -89,6 +94,14 @@ static void TestDeclaredLayerNavigation() {
     Require(ResolveFormat2ZoneProfile("test", sources).IsValid(), "declared layer navigation");
 }
 
+static void TestLayerOnlyAction() {
+    const Format2ZoneParseResult normalZone = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nButtonA ExitZoneLayer\n", "Home.zon", Format2DocumentKind::MainZone);
+    Require(HasParseDiagnostic(normalZone, "format2.zone.action.layer-only"), "ExitZoneLayer normal-zone rejection");
+
+    const Format2ZoneParseResult layer = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Layer }\nButtonA ExitZoneLayer\n", "Pan.zon", Format2DocumentKind::MainZone);
+    Require(layer.IsValid(), "ExitZoneLayer layer acceptance");
+}
+
 static void TestProfileLoader() {
     const std::filesystem::path fixtureRoot = std::filesystem::path(__FILE__).parent_path() / "fixtures" / "format2-zone-profile";
     const std::vector<Format2ZoneProfileRoot> roots {
@@ -110,6 +123,7 @@ int main() {
     TestMissingNavigationTarget();
     TestNavigationRoleRules();
     TestDeclaredLayerNavigation();
+    TestLayerOnlyAction();
     TestProfileLoader();
     std::cout << "Format2ZoneProfile tests passed\n";
     return 0;

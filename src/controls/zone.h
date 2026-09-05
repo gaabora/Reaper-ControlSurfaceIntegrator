@@ -15,6 +15,8 @@ protected:
     string const sourceFilePath_;
 
     bool isActive_ = false;
+    bool usesExactEventFallback_ = false;
+    Zone* parentZone_ = nullptr;
 
     // these do not own the widgets, ultimately the ControlSurface contains the list of widgets
     vector<Widget*> widgets_;
@@ -24,16 +26,20 @@ protected:
     map<Widget*, map<int, vector<unique_ptr<ActionContext>>>> actionContextDictionary_;
 
     vector<unique_ptr<Zone>> includedZones_;
+    vector<unique_ptr<Zone>> zoneLayers_;
     vector<unique_ptr<Zone>> subZones_;
 
     void UpdateCurrentActionContextModifier(Widget* widget);
+    bool UsesWidgetForCurrentEvent(Widget* widget);
+    bool UsesWidgetForCurrentFeedback(Widget* widget);
 
 public:
-    Zone(CSurfIntegrator* const csi, ZoneManager* const zoneManager, Navigator* navigator, int slotIndex, const string& name, const string& alias, const string& sourceFilePath)
-        : csi_(csi), zoneManager_(zoneManager), navigator_(navigator), slotIndex_(slotIndex), name_(name), alias_(alias), sourceFilePath_(sourceFilePath) {}
+    Zone(CSurfIntegrator* const csi, ZoneManager* const zoneManager, Navigator* navigator, int slotIndex, const string& name, const string& alias, const string& sourceFilePath, bool usesExactEventFallback = false, Zone* parentZone = nullptr)
+        : csi_(csi), zoneManager_(zoneManager), navigator_(navigator), slotIndex_(slotIndex), name_(name), alias_(alias), sourceFilePath_(sourceFilePath), usesExactEventFallback_(usesExactEventFallback), parentZone_(parentZone) {}
 
     virtual ~Zone() {
         includedZones_.clear();
+        zoneLayers_.clear();
         subZones_.clear();
         actionContextDictionary_.clear();
     }
@@ -60,6 +66,9 @@ public:
 
     const char* GetSourceFilePath() { return sourceFilePath_.c_str(); }
     vector<unique_ptr<Zone>>& GetIncludedZones() { return includedZones_; }
+    vector<unique_ptr<Zone>>& GetZoneLayers() { return zoneLayers_; }
+    void AddIncludedZone(unique_ptr<Zone> zone) { this->includedZones_.push_back(std::move(zone)); }
+    void AddZoneLayer(unique_ptr<Zone> zone) { this->zoneLayers_.push_back(std::move(zone)); }
 
     Navigator* GetNavigator() { return navigator_; }
     void SetNavigator(Navigator* navigator) { navigator_ = navigator; }
@@ -118,6 +127,21 @@ public:
             } else
                 subZone->Deactivate();
         }
+    }
+
+    void EnterZoneLayer(const char* zoneLayerName) {
+        for (auto& zoneLayer : this->zoneLayers_) {
+            if (IsSameString(zoneLayer->GetName(), zoneLayerName)) {
+                if (!zoneLayer->GetIsActive()) zoneLayer->Activate();
+            }
+            else zoneLayer->Deactivate();
+        }
+    }
+
+    void ExitZoneLayer() {
+        if (!this->parentZone_) return;
+        this->Deactivate();
+        this->parentZone_->UpdateCurrentActionContextModifiers();
     }
 };
 

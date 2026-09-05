@@ -32,6 +32,18 @@ void Zone::AddWidget(Widget* widget) {
         widgets_.push_back(widget);
 }
 
+bool Zone::UsesWidgetForCurrentEvent(Widget* widget) {
+    if (find(this->widgets_.begin(), this->widgets_.end(), widget) == this->widgets_.end()) return false;
+    return !this->usesExactEventFallback_ || !this->GetActionContexts(widget).empty();
+}
+
+bool Zone::UsesWidgetForCurrentFeedback(Widget* widget) {
+    if (!this->UsesWidgetForCurrentEvent(widget)) return false;
+    if (!this->usesExactEventFallback_) return true;
+    for (auto& actionContext : this->GetActionContexts(widget)) if (actionContext->GetProvideFeedback() && !actionContext->IsDoublePress()) return true;
+    return false;
+}
+
 void Zone::Activate() {
     UpdateCurrentActionContextModifiers();
     //TODO: fix WidgetN forme HomeZone stops working if subzone has Shift+WidgetN but no WidgetN / subsone requires redefining WidgetN if there are WidgetN+ModifierX
@@ -40,7 +52,7 @@ void Zone::Activate() {
             for (auto& actionContext : GetActionContexts(widget))
                 actionContext->DoAction(1.0);
 
-        widget->Configure(GetActionContexts(widget));
+        if (!this->usesExactEventFallback_ || this->UsesWidgetForCurrentEvent(widget)) widget->Configure(GetActionContexts(widget));
     }
 
     isActive_ = true;
@@ -57,8 +69,15 @@ void Zone::Activate() {
     for (auto& subZone : subZones_)
         subZone->Deactivate();
 
+    for (auto& zoneLayer : this->zoneLayers_)
+        zoneLayer->Deactivate();
+
     for (auto& includedZone : includedZones_)
         includedZone->Activate();
+
+    if (this->usesExactEventFallback_) {
+        for (auto& widget : this->widgets_) if (this->UsesWidgetForCurrentEvent(widget)) widget->Configure(this->GetActionContexts(widget));
+    }
 }
 
 void Zone::Deactivate() {
@@ -85,6 +104,9 @@ void Zone::Deactivate() {
     for (auto& includedZone : includedZones_)
         includedZone->Deactivate();
 
+    for (auto& zoneLayer : this->zoneLayers_)
+        zoneLayer->Deactivate();
+
     for (auto& subZone : subZones_)
         subZone->Deactivate();
 }
@@ -94,6 +116,22 @@ void Zone::RequestUpdate() {
 
     for (auto& subZone : subZones_)
         subZone->RequestUpdate();
+
+    for (auto& zoneLayer : this->zoneLayers_)
+        zoneLayer->RequestUpdate();
+
+    if (this->usesExactEventFallback_) {
+        for (auto widget : this->widgets_) {
+            if (!widget->GetHasBeenUsedByUpdate() && this->UsesWidgetForCurrentFeedback(widget)) {
+                widget->SetHasBeenUsedByUpdate();
+                this->RequestUpdateWidget(widget);
+            }
+        }
+
+        for (auto& includedZone : this->includedZones_)
+            includedZone->RequestUpdate();
+        return;
+    }
 
     for (auto& includedZone : includedZones_)
         includedZone->RequestUpdate();
@@ -122,9 +160,12 @@ void Zone::DoAction(Widget* widget, bool& isUsed, double value) {
     for (auto& subZone : subZones_)
         subZone->DoAction(widget, isUsed, value);
 
+    for (auto& zoneLayer : this->zoneLayers_)
+        zoneLayer->DoAction(widget, isUsed, value);
+
     if (isUsed) return;
 
-    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end()) {
+    if (this->UsesWidgetForCurrentEvent(widget)) {
         isUsed = true;
 
         for (auto& actionContext : GetActionContexts(widget))
@@ -141,9 +182,12 @@ void Zone::DoRelativeAction(Widget* widget, bool& isUsed, double delta) {
     for (auto& subZone : subZones_)
         subZone->DoRelativeAction(widget, isUsed, delta);
 
+    for (auto& zoneLayer : this->zoneLayers_)
+        zoneLayer->DoRelativeAction(widget, isUsed, delta);
+
     if (isUsed) return;
 
-    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end()) {
+    if (this->UsesWidgetForCurrentEvent(widget)) {
         isUsed = true;
 
         for (auto& actionContext : GetActionContexts(widget))
@@ -160,9 +204,12 @@ void Zone::DoRelativeAction(Widget* widget, bool& isUsed, int accelerationIndex,
     for (auto& subZone : subZones_)
         subZone->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
 
+    for (auto& zoneLayer : this->zoneLayers_)
+        zoneLayer->DoRelativeAction(widget, isUsed, accelerationIndex, delta);
+
     if (isUsed) return;
 
-    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end()) {
+    if (this->UsesWidgetForCurrentEvent(widget)) {
         isUsed = true;
 
         for (auto& actionContext : GetActionContexts(widget))
@@ -179,9 +226,12 @@ void Zone::DoTouch(Widget* widget, const char* widgetName, bool& isUsed, double 
     for (auto& subZone : subZones_)
         subZone->DoTouch(widget, widgetName, isUsed, value);
 
+    for (auto& zoneLayer : this->zoneLayers_)
+        zoneLayer->DoTouch(widget, widgetName, isUsed, value);
+
     if (isUsed) return;
 
-    if (find(widgets_.begin(), widgets_.end(), widget) != widgets_.end()) {
+    if (this->UsesWidgetForCurrentEvent(widget)) {
         isUsed = true;
 
         for (auto& actionContext : GetActionContexts(widget))
@@ -193,9 +243,21 @@ void Zone::DoTouch(Widget* widget, const char* widgetName, bool& isUsed, double 
 }
 
 void Zone::UpdateCurrentActionContextModifiers() {
+    if (this->usesExactEventFallback_) {
+        for (auto& includedZone : this->includedZones_) if (includedZone->GetIsActive()) includedZone->UpdateCurrentActionContextModifiers();
+        for (auto& widget : this->widgets_) {
+            this->UpdateCurrentActionContextModifier(widget);
+            const auto& contexts = this->GetActionContexts(widget, this->currentActionContextModifiers_[widget]);
+            if (!contexts.empty()) widget->Configure(contexts);
+        }
+        for (auto& zoneLayer : this->zoneLayers_) if (zoneLayer->GetIsActive()) zoneLayer->UpdateCurrentActionContextModifiers();
+        return;
+    }
+
     for (auto& widget : widgets_) {
         UpdateCurrentActionContextModifier(widget);
-        widget->Configure(GetActionContexts(widget, currentActionContextModifiers_[widget]));
+        const auto& contexts = GetActionContexts(widget, currentActionContextModifiers_[widget]);
+        widget->Configure(contexts);
     }
 
     for (auto& includedZone : includedZones_)

@@ -535,6 +535,8 @@ X(AllSurfacesGoHome, "AllSurfacesGoHome") \
 X(GoZone, "GoZone") \
 X(GoSubZone, "GoSubZone") \
 X(LeaveSubZone, "LeaveSubZone") \
+X(EnterZoneLayer, "EnterZoneLayer") \
+X(ExitZoneLayer, "ExitZoneLayer") \
 X(GoPage, "GoPage") \
  X(GoNextPage, "NextPage") \
 X(PageNameDisplay, "PageNameDisplay") \

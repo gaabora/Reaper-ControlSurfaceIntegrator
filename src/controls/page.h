@@ -15,6 +15,10 @@ inline void ZoneManager::GoZone(const char* zoneName) {
     for (int i = 0; i < goZones_.size(); ++i) {
         if (IsSameString(zoneName, goZones_[i]->GetName())) {
             if (goZones_[i]->GetIsActive()) {
+                if (this->format2ZoneProfile_) {
+                    this->surface_->PublishOSKLabels();
+                    return;
+                }
                 for (int j = i; j < goZones_.size(); ++j)
                     if (IsSameString(zoneName, goZones_[j]->GetName()))
                         goZones_[j]->Deactivate();

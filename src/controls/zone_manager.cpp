@@ -69,6 +69,55 @@ static Navigator* GetFormat2ZoneBaseNavigator(ZoneManager* zoneManager, const Fo
     return zoneManager->GetSelectedTrackNavigator();
 }
 
+static Format2DocumentMetadata GetFormat2EffectiveMetadata(const Format2DocumentMetadata& metadata) {
+    Format2DocumentMetadata effective = metadata;
+    if (metadata.role == Format2ZoneRole::Home) effective.target = Format2ZoneTarget::SelectedTrack;
+    else if (metadata.role == Format2ZoneRole::LastTouchedFxParam) effective.target = Format2ZoneTarget::FocusedFx;
+    effective.role.reset();
+    return effective;
+}
+
+static unique_ptr<Zone> CreateFormat2RelatedZone(ZoneManager* zoneManager, const Format2ZoneProfileLoadResult& loaded, const map<string, size_t>& activeMainSources, size_t sourceIndex,
+    Zone* parentZone, bool isLayer, const Format2DocumentMetadata& parentMetadata);
+
+static bool AddFormat2ZoneRelations(ZoneManager* zoneManager, Zone* zone, size_t sourceIndex, const Format2ZoneProfileLoadResult& loaded, const map<string, size_t>& activeMainSources, const Format2DocumentMetadata& effectiveMetadata) {
+    const Format2ZoneDocument& zoneDocument = loaded.documents[sourceIndex].parsed.zone;
+    for (const Format2ZoneReference& reference : zoneDocument.includedZones) {
+        const auto target = activeMainSources.find(FoldFormat2RuntimeId(reference.id));
+        if (target == activeMainSources.end()) return false;
+        unique_ptr<Zone> includedZone = CreateFormat2RelatedZone(zoneManager, loaded, activeMainSources, target->second, nullptr, false, effectiveMetadata);
+        if (!includedZone) return false;
+        zone->AddIncludedZone(std::move(includedZone));
+    }
+    for (const Format2ZoneReference& reference : zoneDocument.zoneLayers) {
+        const auto target = activeMainSources.find(FoldFormat2RuntimeId(reference.id));
+        if (target == activeMainSources.end()) return false;
+        unique_ptr<Zone> zoneLayer = CreateFormat2RelatedZone(zoneManager, loaded, activeMainSources, target->second, zone, true, effectiveMetadata);
+        if (!zoneLayer) return false;
+        zone->AddZoneLayer(std::move(zoneLayer));
+    }
+    return true;
+}
+
+static unique_ptr<Zone> CreateFormat2RelatedZone(ZoneManager* zoneManager, const Format2ZoneProfileLoadResult& loaded, const map<string, size_t>& activeMainSources, size_t sourceIndex,
+    Zone* parentZone, bool isLayer, const Format2DocumentMetadata& parentMetadata) {
+    const Format2LoadedZoneDocument& document = loaded.documents[sourceIndex];
+    const Format2DocumentMetadata& metadata = document.parsed.document.metadata;
+    const Format2DocumentMetadata effectiveMetadata = isLayer ? parentMetadata : GetFormat2EffectiveMetadata(metadata);
+    Navigator* navigator = isLayer && parentZone ? parentZone->GetNavigator() : GetFormat2ZoneBaseNavigator(zoneManager, metadata);
+    const int slotIndex = isLayer && parentZone ? parentZone->GetSlotIndex() : 0;
+    const string& runtimeName = document.parsed.zone.id;
+    const string alias = metadata.alias ? *metadata.alias : runtimeName;
+    unique_ptr<Zone> zone = make_unique<Zone>(zoneManager->GetCSI(), zoneManager, navigator, slotIndex, runtimeName, alias, document.parsed.document.lexical.sourcePath, true, isLayer ? parentZone : nullptr);
+    const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(zoneManager, zone.get(), document.parsed, isLayer ? &effectiveMetadata : nullptr);
+    if (!runtimeResult.IsValid()) {
+        for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
+        return nullptr;
+    }
+    if (!AddFormat2ZoneRelations(zoneManager, zone.get(), sourceIndex, loaded, activeMainSources, effectiveMetadata)) return nullptr;
+    return zone;
+}
+
 ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
     const optional<string> userMainProfileId = productPaths.UserZoneProfileIdForPath(this->zoneFolder_);
@@ -122,11 +171,8 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         const Format2DocumentMetadata& metadata = document.parsed.document.metadata;
         const string runtimeName = activeZone.collection == Format2ZoneCollection::Fx && metadata.matchFx ? *metadata.matchFx : zoneDocument.id;
         const string alias = metadata.alias ? *metadata.alias : runtimeName;
-        unique_ptr<Zone> zone = make_unique<Zone>(this->csi_, this, GetFormat2ZoneBaseNavigator(this, metadata), 0, runtimeName, alias, document.parsed.document.lexical.sourcePath);
-        Format2ZoneRuntimeResult runtimeResult;
-        if (metadata.role == Format2ZoneRole::Layer || !zoneDocument.includedZones.empty() || !zoneDocument.zoneLayers.empty()) runtimeResult.diagnostics.push_back({"format2.zone.runtime.relations", "IncludedZones and ZoneLayers runtime composition is not connected yet", zoneDocument.includedZones.empty() ? (zoneDocument.zoneLayers.empty() ? loaded.sources[sourceIndex].location : zoneDocument.zoneLayers.front().location) : zoneDocument.includedZones.front().location});
-        if (!zoneDocument.lifecycleBlocks.empty()) runtimeResult.diagnostics.push_back({"format2.zone.runtime.lifecycle", "Zone lifecycle blocks are parsed but are not connected to runtime dispatch yet", zoneDocument.lifecycleBlocks.front().location});
-        if (runtimeResult.IsValid()) runtimeResult = LoadFormat2ZoneRuntimeBindings(this, zone.get(), document.parsed);
+        unique_ptr<Zone> zone = make_unique<Zone>(this->csi_, this, GetFormat2ZoneBaseNavigator(this, metadata), 0, runtimeName, alias, document.parsed.document.lexical.sourcePath, true);
+        const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(this, zone.get(), document.parsed);
         if (!runtimeResult.IsValid()) {
             loaded.sources[sourceIndex].valid = false;
             for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
@@ -138,6 +184,19 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     loaded.profile = ResolveFormat2ZoneProfile(loaded.profile.profileId, loaded.sources);
     for (const Format2ZoneProfileDiagnostic& diagnostic : loaded.profile.diagnostics) LogFormat2ProfileDiagnostic(loaded.sources, diagnostic);
     if (!loaded.IsValid()) return Format2InitializationState::Failed;
+
+    map<string, size_t> activeMainSources;
+    for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
+        if (activeZone.collection == Format2ZoneCollection::Main && activeZone.available && activeZone.activeSourceIndex) activeMainSources[activeZone.canonicalId] = *activeZone.activeSourceIndex;
+    }
+    for (auto& prepared : preparedMainZones) {
+        const Format2DocumentMetadata& metadata = loaded.documents[prepared.first].parsed.document.metadata;
+        if (metadata.role == Format2ZoneRole::Layer) continue;
+        if (!AddFormat2ZoneRelations(this, prepared.second.get(), prepared.first, loaded, activeMainSources, GetFormat2EffectiveMetadata(metadata))) {
+            LogToConsole("[ERROR] Failed to create runtime relations for format 2 Zone '%s'.\n", loaded.documents[prepared.first].parsed.zone.id.c_str());
+            return Format2InitializationState::Failed;
+        }
+    }
 
     this->format2DocumentIndexByPath_.clear();
     for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
@@ -161,6 +220,7 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         if (prepared == preparedMainZones.end()) continue;
         if (metadata.role == Format2ZoneRole::Home) this->homeZone_ = std::move(prepared->second);
         else if (metadata.role == Format2ZoneRole::LastTouchedFxParam) this->lastTouchedFXParamZone_ = shared_ptr<Zone>(std::move(prepared->second));
+        else if (metadata.role == Format2ZoneRole::Layer) continue;
         else this->goZones_.push_back(std::move(prepared->second));
     }
     if (!this->homeZone_) {

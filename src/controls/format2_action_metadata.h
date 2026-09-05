@@ -9,3 +9,4 @@ enum class Format2ZoneNavigationKind {
 };
 
 std::optional<Format2ZoneNavigationKind> GetFormat2ActionZoneNavigationKind(const std::string& actionName);
+bool IsFormat2ZoneLayerOnlyAction(const std::string& actionName);

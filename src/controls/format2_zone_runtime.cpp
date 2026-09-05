@@ -39,6 +39,22 @@ static std::vector<std::string> MakeFormat2ActionParameters(const Format2ZoneAct
     return parameters;
 }
 
+static const char* GetFormat2LifecycleWidgetName(Format2LifecycleEvent event) {
+    switch (event) {
+        case Format2LifecycleEvent::SurfaceInitialization: return "OnInitialization";
+        case Format2LifecycleEvent::TrackSelection: return "OnTrackSelection";
+        case Format2LifecycleEvent::PageEnter: return "OnPageEnter";
+        case Format2LifecycleEvent::PageExit: return "OnPageLeave";
+        case Format2LifecycleEvent::PlaybackStart: return "OnPlayStart";
+        case Format2LifecycleEvent::PlaybackStop: return "OnPlayStop";
+        case Format2LifecycleEvent::RecordStart: return "OnRecordStart";
+        case Format2LifecycleEvent::RecordStop: return "OnRecordStop";
+        case Format2LifecycleEvent::ZoneActivation: return "OnZoneActivation";
+        case Format2LifecycleEvent::ZoneDeactivation: return "OnZoneDeactivation";
+    }
+    return "";
+}
+
 static Navigator* ResolveFormat2BindingNavigator(ZoneManager* zoneManager, Zone* zone, const Format2DocumentMetadata& metadata, const std::optional<int>& surfaceChannelOffset) {
     if (metadata.role == Format2ZoneRole::Layer) return zone->GetNavigator();
     if (metadata.role == Format2ZoneRole::LastTouchedFxParam || metadata.target == Format2ZoneTarget::FocusedFx) return zoneManager->GetFocusedFXNavigator();
@@ -97,8 +113,9 @@ static bool PrepareFormat2Selectors(ZoneManager* zoneManager, const Format2ZoneB
     return result.IsValid();
 }
 
-Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager, Zone* zone, const Format2ZoneParseResult& parsed) {
+Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager, Zone* zone, const Format2ZoneParseResult& parsed, const Format2DocumentMetadata* inheritedMetadata) {
     Format2ZoneRuntimeResult result;
+    const Format2DocumentMetadata& runtimeMetadata = inheritedMetadata ? *inheritedMetadata : parsed.document.metadata;
     const Format2ZoneCompileResult compiled = CompileFormat2ZoneBindings(parsed.zone.bindings, zoneManager->GetNumChannels());
     result.diagnostics.insert(result.diagnostics.end(), compiled.diagnostics.begin(), compiled.diagnostics.end());
     std::vector<Format2PreparedActionContext> preparedContexts;
@@ -125,6 +142,26 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         preparedContexts.push_back(std::move(prepared));
     }
 
+    for (const Format2LifecycleBlock& block : parsed.zone.lifecycleBlocks) {
+        Widget* widget = zoneManager->GetSurface()->GetWidgetByName(GetFormat2LifecycleWidgetName(block.event));
+        if (!widget) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.lifecycle-widget", "The internal lifecycle Widget is not available on the Surface", block.location);
+            continue;
+        }
+        for (const Format2ZoneAction& action : block.actions) {
+            if (Action::NameToType(action.action) == ActionType::Invalid) {
+                AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.action.unknown", "Unknown runtime action: " + action.action, action.actionLocation);
+                continue;
+            }
+            Format2PreparedActionContext prepared;
+            prepared.widget = widget;
+            prepared.navigator = zone->GetNavigator();
+            prepared.actionName = action.action;
+            prepared.parameters = MakeFormat2ActionParameters(action);
+            preparedContexts.push_back(std::move(prepared));
+        }
+    }
+
     for (const Format2ActionContextSpec& spec : compiled.actionContexts) {
         const Format2ZoneBinding& binding = parsed.zone.bindings[spec.bindingIndex];
         Widget* widget = zoneManager->GetSurface()->GetWidgetByName(spec.widgetId);
@@ -138,8 +175,8 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         }
         Format2PreparedActionContext prepared;
         prepared.widget = widget;
-        prepared.navigator = ResolveFormat2BindingNavigator(zoneManager, zone, parsed.document.metadata, spec.surfaceChannelOffset);
-        prepared.slotIndexOverride = ResolveFormat2SlotIndex(zoneManager, parsed.document.metadata, spec.surfaceChannelOffset);
+        prepared.navigator = ResolveFormat2BindingNavigator(zoneManager, zone, runtimeMetadata, spec.surfaceChannelOffset);
+        prepared.slotIndexOverride = ResolveFormat2SlotIndex(zoneManager, runtimeMetadata, spec.surfaceChannelOffset);
         prepared.actionName = binding.action.action;
         prepared.parameters = MakeFormat2ActionParameters(binding.action);
         PrepareFormat2Selectors(zoneManager, binding, prepared, result);

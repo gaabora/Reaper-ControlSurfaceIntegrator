@@ -541,6 +541,48 @@ public:
     }
 };
 
+//! @action EnterZoneLayer
+//!
+//! @brief Activates one declared format 2 zone layer and deactivates its active sibling.
+//!
+//! @zone_usage  WidgetName    EnterZoneLayer "ZoneLayerName"
+//!
+//! @feedback None.
+class EnterZoneLayer : public ManagerPressOnlyAction
+{
+public:
+    ActionType GetType() const override { return ActionType::EnterZoneLayer; }
+
+    void RequestUpdate(ActionContext* context) override {
+        context->UpdateWidgetValue(0.0);
+    }
+
+    void Do(ActionContext* context, double value) override {
+        context->GetZone()->EnterZoneLayer(context->GetStringParam());
+    }
+};
+
+//! @action ExitZoneLayer
+//!
+//! @brief Deactivates the current format 2 zone layer and returns input priority to its parent.
+//!
+//! @zone_usage  WidgetName    ExitZoneLayer
+//!
+//! @feedback None.
+class ExitZoneLayer : public ManagerPressOnlyAction
+{
+public:
+    ActionType GetType() const override { return ActionType::ExitZoneLayer; }
+
+    void RequestUpdate(ActionContext* context) override {
+        context->UpdateWidgetValue(0.0);
+    }
+
+    void Do(ActionContext* context, double value) override {
+        context->GetZone()->ExitZoneLayer();
+    }
+};
+
 //! @action GoFXSlot
 //!
 //! @brief Opens the FX zone for a specific FX slot on the current track.
@@ -887,7 +929,7 @@ public:
 
 //! @action GoZone
 //!
-//! @brief Activates a named top-level goZone, deactivating other goZones. Acts as a toggle: if already active, deactivates it.
+//! @brief Activates a named top-level zone and deactivates other top-level zones. Repeating it keeps a format 2 zone active; legacy zones retain their old toggle behavior.
 //!
 //! @zone_usage  WidgetName    GoZone "MasterTrack"   or   GoZone "SelectedTrackFX"
 //!
