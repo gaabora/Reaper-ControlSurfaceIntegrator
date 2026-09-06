@@ -141,7 +141,7 @@ public:
 
     virtual void RequestUpdate() override {
         const DWORD now = GetTickCount();
-        const DWORD threshold = (DWORD) (1000 / max(surfaceIO_->surfaceRefreshRate_, 1));
+        const DWORD threshold = (DWORD) (1000 / (std::max)(this->surfaceIO_->surfaceRefreshRate_, 1));
         if ((now - lastRun_) < threshold) return;
         lastRun_ = now;
         surfaceIO_->Run();

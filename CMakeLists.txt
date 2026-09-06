@@ -194,6 +194,7 @@ endif()
 add_library(${PROJECT_NAME} SHARED
   ${WDL_PATH}/win32_utf8.c
 )
+target_compile_definitions(${PROJECT_NAME} PRIVATE WDL_NO_DEFINE_MINMAX)
 
 add_subdirectory(src)
 if(NOT WIN32)
