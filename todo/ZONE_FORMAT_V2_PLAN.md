@@ -1716,7 +1716,7 @@ The static codec audit intentionally excludes device names that do not select a 
 - ✅ Parse each zone, surface, Learn FX, and snippet source once through one typed-document entry point that preserves the shared syntax document, diagnostics, and source locations.
 - ✅ Compile each `#` binding into channel-specific action-context specifications that reference the original binding by index, while each channel-neutral binding produces one specification and the containing typed zone is never cloned.
   - ✅ Give each runtime `ActionContext` its own effective Navigator and format 2 channel offset, while legacy contexts inherit their Navigator and slot from their Zone.
-  - ✅ Add an atomic typed-binding runtime bridge that resolves channel Navigators, `BankTarget` slot indices, standard modifiers, supported input selectors, Widgets, Actions, and action parameters before adding any context to a Zone.
+  - ✅ Add an atomic typed-binding runtime bridge that resolves channel Navigators, `BankTarget` slot indices, standard modifiers, supported input selectors, Widgets, Actions, positional parameters, and named `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` state before adding any context to a Zone.
   - ✅ Store typed runtime targets and bank targets on format 2 zones, resolve banked slots dynamically after every bank change, and make `Bank Amount` use the active typed context while keeping string bank names in legacy only.
   - ✅ Derive Page-scope and selected-track Link routing for format 2 `GoZone` from the target zone's typed `Target` and `BankTarget`; keep magic target-name routing in legacy only.
   - ✅ Add the explicit `ToggleSelectedTrackFX` runtime action, route it through the configured SelectedTrackFX Link category, call typed FX clear methods without string commands, and identify format 2 FX-menu reactivation through `BankTarget=FX`.
@@ -1778,6 +1778,8 @@ Ready when runtime behavior consumes validated documents and no feature reparses
 ## [ ] Phase 4: Bun editor and migration
 
 Migration is a required part of every format 2 decision, not a later best-effort cleanup. A Phase 2 decision is ready for implementation only when this plan also states its legacy input, format 2 output, ambiguity behavior, and fixture requirement. Future syntax or action renames must add or update a row in the conversion matrix below.
+
+The current priority is the first end-to-end migration test with FaderPortV2 and then XTouchMiniMC: convert one complete Surface plus its selected Main and FX zones, validate only format 2 output, and load that output through the format 2 C++ runtime. Learn FX UI, rare public processors, and final documentation follow after this path works in REAPER.
 
 Public legacy Surface conversion has one completion gate:
 

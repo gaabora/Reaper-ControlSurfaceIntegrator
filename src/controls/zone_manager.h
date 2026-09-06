@@ -19,7 +19,7 @@ private:
     string vendorFxZoneFolder_;
     string userFxZoneFolder_;
     unique_ptr<Format2ZoneProfileLoadResult> format2ZoneProfile_;
-    optional<Format2LearnFxSurfaceResolveResult> format2LearnFxSurface_;
+    std::optional<Format2LearnFxSurfaceResolveResult> format2LearnFxSurface_;
     map<string, size_t> format2DocumentIndexByPath_;
 
     vector<unique_ptr<ActionContext>> emptyContexts_;

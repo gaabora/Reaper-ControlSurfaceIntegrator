@@ -168,7 +168,7 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     for (const Format2ZoneProfileDiagnostic& diagnostic : loaded.profile.diagnostics) LogFormat2ProfileDiagnostic(loaded.sources, diagnostic);
     if (!loaded.IsValid()) return Format2InitializationState::Failed;
 
-    optional<Format2LearnFxSurfaceResolveResult> learnFxSurface;
+    std::optional<Format2LearnFxSurfaceResolveResult> learnFxSurface;
     if (loaded.learnFx) {
         const Format2SurfaceParseResult* surface = this->surface_->GetFormat2Surface();
         if (!surface) {

@@ -118,7 +118,7 @@ export function surfaceWidgetSlots(surface: AnyDocument, patternSlots: boolean):
     for (const widget of widgets) {
         const match = widget.name.match(/^(.*\D)(\d+)$/);
         if (!match) continue;
-        const familyName = `${match[1]}|`;
+        const familyName = `${match[1]}#`;
         const family = families.get(normalizedWidgetName(familyName)) ?? [];
         family.push(widget);
         families.set(normalizedWidgetName(familyName), family);
@@ -130,7 +130,7 @@ export function surfaceWidgetSlots(surface: AnyDocument, patternSlots: boolean):
             return widgetRole(widget, widgetCapabilities(widget, metadata), metadata);
         }));
         const familyRole = roles.size === 1 ? [...roles][0] ?? "unknown" : "unknown";
-        return { capabilities, name: `${family[0].name.replace(/\d+$/, "")}|`, role: familyRole };
+        return { capabilities, name: `${family[0].name.replace(/\d+$/, "")}#`, role: familyRole };
     });
 }
 

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
 import { convertLegacySurfaceToFormat2 } from "../src/legacy-surface-format2.ts";
+import { convertLegacyZoneToFormat2 } from "../src/legacy-zone-format2.ts";
 import { migrateLegacySce24RingColors } from "../src/legacy-sce24-ring.ts";
 import { migrateLegacySce24StateColors } from "../src/legacy-sce24-state.ts";
 import { ProductRootGuard } from "../src/paths.ts";
@@ -101,6 +102,30 @@ WidgetEnd
     test("converts legacy comments and Learn directives at the start of a physical line", () => {
         const source = "\uFEFF/ disabled surface line\r\n  /OnZoneActivation NoAction\r\n# disabled hash line\r\n#WidgetType Fader\r\n# OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n";
         expect(migrateLegacyCommentSyntax(source)).toBe("\uFEFF// disabled surface line\r\n  //OnZoneActivation NoAction\r\n// disabled hash line\r\n#WidgetType Fader\r\n// OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n");
+    });
+
+    test("matches the structural legacy Zone golden files", async () => {
+        for (const filename of ["Channel.zon", "Home.zon", "Pan.zon"]) {
+            const legacyZone = migrateLegacyCommentSyntax(await readGoldenFixture("zone-structure", "legacy", filename));
+            const expectedZone = await readGoldenFixture("zone-structure", "expected", filename);
+            const conversion = convertLegacyZoneToFormat2(legacyZone, { isLayer: filename === "Pan.zon", profile: "Main", targetPath: `Zones/User/test/Main/${filename}` });
+            expect(conversion.diagnostics).toEqual([]);
+            expect(conversion.source.trimEnd()).toBe(expectedZone.trimEnd());
+        }
+    });
+
+    test("matches the legacy Zone action and value golden file", async () => {
+        const legacyZone = await readGoldenFixture("actions-and-values", "legacy", "Actions.zon");
+        const expectedZone = await readGoldenFixture("actions-and-values", "expected", "Actions.zon");
+        const conversion = convertLegacyZoneToFormat2(legacyZone, { profile: "Main", targetPath: "Zones/User/test/Main/Track.zon" });
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source.trimEnd()).toBe(expectedZone.trimEnd());
+    });
+
+    test("converts implicit legacy holds and keeps quoted values", () => {
+        const conversion = convertLegacyZoneToFormat2("Zone Home\n  Play Reaper 40044 HoldDelay=500 HoldRepeatInterval=100 OSD=\"Repeat action\"\nZoneEnd\n", { profile: "Main", targetPath: "Zones/User/test/Main/Home.zon" });
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain('(Hold)+Play Reaper 40044 DelayMs=500 RepeatIntervalMs=100 OSD="Repeat action"');
     });
 
     test("preserves prefix presses, press-only buttons, and seven-bit values", () => {
@@ -558,7 +583,7 @@ WidgetEnd
         const source = await LegacyCsiSource.create(legacyRoot);
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
         expect(preview.valid).toBeTrue();
-        expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source).toStartWith("// @format zone 1\n// disabled binding\n");
+        expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source).toStartWith("@Meta { Version=2 Role=Home }\n\n// disabled binding\n");
         expect(await readFile(sourcePath, "utf8")).toBe(legacySource);
     });
 
@@ -634,9 +659,9 @@ WidgetEnd
             "Zones/User/faderportv2/Main/HomeZones/Home.zon",
             "Zones/User/faderportv2/FX/ReaEQ.zon",
         ]);
-        expect(preview.items.every((item) => item.kind === "surface" ? item.source.startsWith("@Meta { Version=2 Protocol=MIDI") : item.source.startsWith("// @format zone 1\n"))).toBeTrue();
+        expect(preview.items.every((item) => item.source.startsWith("@Meta { Version=2"))).toBeTrue();
         expect(preview.items.some((item) => item.sourcePath.endsWith("GoZones.zon"))).toBeFalse();
-        expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.source).toContain("Zone Transport NavType=TrackNavigator\n");
+        expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.source).toStartWith("@Meta { Version=2 Target=Tracks }");
         expect(preview.dependencies).toContainEqual({ from: "Zones/HomeZones/Home.zon", matches: ["Zones/GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
     });
 
@@ -672,8 +697,8 @@ WidgetEnd
         expect(importedSurface).toStartWith("@Meta { Version=2 Protocol=MIDI");
         expect(importedSurface).toContain("Widget Play {");
         expect(importedSurface).toContain("OSKLayout {");
-        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8")).toStartWith("// @format zone 1\n");
-        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "ReaEQ.zon"), "utf8")).toStartWith("// @format zone 1\n");
+        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8")).toStartWith("@Meta { Version=2 Role=Home }");
+        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "ReaEQ.zon"), "utf8")).toStartWith('@Meta { Version=2 MatchFX="ReaEQ" }');
         expect(await readFile(path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt"), "utf8")).toBe(surfaceSource);
 
         try {
@@ -717,18 +742,18 @@ WidgetEnd
         const resolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths, widgetMappings);
         expect(resolved.valid).toBeTrue();
         const zone = resolved.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
-        expect(zone.source).toContain("  Stop Play\n");
-        expect(zone.source).toContain("  Shift+Stop GoZone Transport\n");
+        expect(zone.source).toContain("Stop Play\n");
+        expect(zone.source).toContain("[Shift]+Stop GoZone Transport\n");
         const manuallyResolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths, [{ sourceWidget: "Play", targetWidget: "Control+Stop" }]);
         const manuallyMappedZone = manuallyResolved.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
         expect(manuallyResolved.valid).toBeTrue();
-        expect(manuallyMappedZone.source).toContain("  Control+Stop Play\n");
-        expect(manuallyMappedZone.source).toContain("  Shift+Control+Stop GoZone Transport\n");
+        expect(manuallyMappedZone.source).toContain("[Control]+Stop Play\n");
+        expect(manuallyMappedZone.source).toContain("[Shift]+[Control]+Stop GoZone Transport\n");
         const resolutions = [{ action: "create" as const, id: zone.id, sourceHash: zone.sourceHash, targetHash: zone.targetHash }];
         await source.import(store, knownActions, { includeSurface: false, resolutions, selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings });
         const imported = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8");
-        expect(imported).toContain("  Stop Play\n");
-        expect(imported).toContain("  Shift+Stop GoZone Transport\n");
+        expect(imported).toContain("Stop Play\n");
+        expect(imported).toContain("[Shift]+Stop GoZone Transport\n");
     });
 
     test("maps channel placeholder widgets only to another channel family", async () => {
@@ -742,11 +767,11 @@ WidgetEnd
         const selectedZonePaths = ["Zones/HomeZones/Home.zon"];
         const unresolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths);
 
-        expect(unresolved.widgetMappings[0].sourceWidget).toBe("Fader|");
-        expect(unresolved.widgetMappings[0].candidates.map((candidate) => candidate.name)).toEqual(["RotaryPush|"]);
+        expect(unresolved.widgetMappings[0].sourceWidget).toBe("Fader#");
+        expect(unresolved.widgetMappings[0].candidates.map((candidate) => candidate.name)).toEqual(["RotaryPush#"]);
         const resolved = await source.preview(store, knownActions, "FaderPortV2", false, selectedZonePaths, [{ sourceWidget: "Fader|", targetWidget: "RotaryPush|" }]);
         expect(resolved.valid).toBeTrue();
-        expect(resolved.items.find((item) => item.sourcePath === selectedZonePaths[0])?.source).toContain("  RotaryPush| Play\n");
+        expect(resolved.items.find((item) => item.sourcePath === selectedZonePaths[0])?.source).toContain("RotaryPush# Play\n");
     });
 
     test("treats Touch as a modifier for a display family", async () => {

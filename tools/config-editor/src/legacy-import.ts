@@ -7,6 +7,7 @@ import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts
 import { EditorOperationError } from "./store.ts";
 import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
 import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy-surface-format2.ts";
+import { convertLegacyZoneToFormat2 } from "./legacy-zone-format2.ts";
 import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
 import { migrateLegacySce24StateColors } from "./legacy-sce24-state.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
@@ -52,7 +53,7 @@ export interface LegacyImportDependency {
     matches: string[];
     name: string;
     selected: boolean;
-    type: "GoSubZone" | "GoZone" | "IncludedZones" | "SubZones";
+    type: "EnterZoneLayer" | "GoSubZone" | "GoZone" | "IncludedZones" | "SubZones" | "ZoneLayers";
 }
 
 export interface LegacyImportItem {
@@ -132,6 +133,7 @@ interface LegacySurfaceFiles {
 
 const NON_HARDWARE_WIDGETS = new Set(["ontrackselection", "onpageenter", "onpageleave", "oninitialization", "onplaystart", "onplaystop", "onrecordstart", "onrecordstop", "onzoneactivation", "onzonedeactivation", "nulldisplay"]);
 const MODIFIER_ACTIONS = new Set(["shift", "option", "control", "alt", "flip", "global", "marker", "nudge", "zoom", "scrub"]);
+const LEGACY_LEARN_ZONE_NAMES = new Set(["fxepilogue", "fxprologue", "fxrowlayout", "fxwidgetlayout"]);
 
 function sha256(source: string): string {
     return createHash("sha256").update(source).digest("hex");
@@ -225,19 +227,10 @@ function removeLegacyScribbleStripMode(source: string): string {
     return lines.map((line) => line.text + line.ending).join("");
 }
 
-function formatSource(source: string, kind: LegacyImportKind, targetPath: string, knownActions: Set<string>): string {
-    const document = parseByPath(source, targetPath, knownActions);
-    if (document.version !== "unversioned") return source;
-    const bom = source.startsWith("\uFEFF") ? "\uFEFF" : "";
-    const content = bom ? source.slice(1) : source;
-    const firstEnding = content.match(/\r\n|\r|\n/)?.[0] ?? "\n";
-    return `${bom}// @format ${kind} 1${firstEnding}${content}`;
-}
-
 function inferredBindingCapabilities(binding: ZoneBinding): LegacyWidgetCapability[] {
     const capabilities = new Set<LegacyWidgetCapability>();
-    if (binding.modifiers.some((modifier) => modifier === "Hold" || modifier === "DoublePress")) capabilities.add("press-input");
-    if (binding.modifiers.some((modifier) => modifier === "Decrease" || modifier === "Increase")) capabilities.add("relative-input");
+    if (binding.inputSelectors.some((selector) => selector === "Hold" || selector === "DoublePress")) capabilities.add("press-input");
+    if (binding.inputSelectors.some((selector) => selector === "Decrease" || selector === "Increase")) capabilities.add("relative-input");
     return [...capabilities].sort();
 }
 
@@ -281,9 +274,11 @@ function widgetMappingMap(widgetMappings: LegacyWidgetMapping[]): Map<string, st
     const result = new Map<string, string>();
     for (const mapping of widgetMappings) {
         if (!mapping.sourceWidget || !mapping.targetWidget) throw new EditorOperationError("legacy.widget.mapping.value", "Widget mappings require source and target widget names");
-        const key = normalizedWidgetName(mapping.sourceWidget);
+        const key = normalizedWidgetName(mapping.sourceWidget.replace(/\|$/, "#"));
         if (result.has(key)) throw new EditorOperationError("legacy.widget.mapping.duplicate", `Widget mapping is duplicated: ${mapping.sourceWidget}`);
-        result.set(key, mapping.targetWidget.trim());
+        const parts = mapping.targetWidget.trim().split("+").filter(Boolean);
+        const targetWidget = (parts.pop() ?? "").replace(/\|$/, "#");
+        result.set(key, parts.map((modifier) => `[${modifier.replace(/^\[|\]$/g, "")}]`).join("+") + (parts.length ? "+" : "") + targetWidget);
     }
     return result;
 }
@@ -323,9 +318,9 @@ function collectDependencies(relativePath: string, semantic: ZoneSemantic, match
         dependencies.push({ from: relativePath, matches, name, selected: selectedPaths.has(relativePath), type });
     };
     for (const name of semantic.includedZones) append("IncludedZones", name);
-    for (const name of semantic.subZones) append("SubZones", name);
+    for (const name of semantic.subZones) append("ZoneLayers", name);
     for (const binding of semantic.bindings) {
-        if ((binding.action === "GoZone" || binding.action === "GoSubZone") && binding.params[0]) append(binding.action, binding.params[0]);
+        if ((binding.action === "GoZone" || binding.action === "GoSubZone" || binding.action === "EnterZoneLayer") && binding.params[0]) append(binding.action, binding.params[0]);
     }
     return dependencies;
 }
@@ -353,7 +348,7 @@ function collectWidgetMappings(zoneDocuments: Map<string, AnyDocument>, selected
     const validMappings = new Map<string, string>();
     for (const [sourceKey, entries] of occurrences) {
         const sourceName = entries[0].binding.widget;
-        const patternSlots = sourceName.endsWith("|");
+        const patternSlots = sourceName.endsWith("#");
         const sourceSlot = surfaceWidgetSlots(sourceSurface, patternSlots).find((slot) => normalizedWidgetName(slot.name) === sourceKey);
         const targetSlots = targetSurface ? surfaceWidgetSlots(targetSurface, patternSlots) : [];
         const requiredCapabilities = [...new Set([...(sourceSlot?.capabilities ?? []), ...entries.flatMap((entry) => inferredBindingCapabilities(entry.binding))])].sort();
@@ -389,7 +384,7 @@ function widgetUsesMidiPalette(widget: SurfaceWidget): boolean {
 function targetUsesMidiPalette(surface: AnyDocument, widgetExpression: string): boolean {
     const widgets = (surface.semantic as SurfaceSemantic).widgets;
     const normalized = normalizedWidgetName(widgetExpression);
-    if (!normalized.endsWith("|")) return widgets.some((widget) => normalizedWidgetName(widget.name) === normalized && widgetUsesMidiPalette(widget));
+    if (!normalized.endsWith("#")) return widgets.some((widget) => normalizedWidgetName(widget.name) === normalized && widgetUsesMidiPalette(widget));
     const prefix = normalized.slice(0, -1);
     return widgets.some((widget) => normalizedWidgetName(widget.name).startsWith(prefix) && /^\d+$/.test(widget.name.slice(prefix.length)) && widgetUsesMidiPalette(widget));
 }
@@ -405,18 +400,20 @@ function mftCommandValues(binding: ZoneBinding): number[][] {
     return commands;
 }
 
-function addMftCommandDiagnostics(zoneDocuments: Map<string, AnyDocument>, selectedPaths: Set<string>, targetSurface: AnyDocument, validMappings: Map<string, string>): void {
+function collectMftCommandDiagnostics(zoneDocuments: Map<string, AnyDocument>, selectedPaths: Set<string>, targetSurface: AnyDocument, validMappings: Map<string, string>): Diagnostic[] {
+    const diagnostics: Diagnostic[] = [];
     for (const [sourcePath, document] of zoneDocuments) {
         if (!selectedPaths.has(sourcePath)) continue;
         for (const binding of (document.semantic as ZoneSemantic).bindings) {
-            const targetWidget = validMappings.get(normalizedWidgetName(binding.widget)) ?? binding.widget;
+            const targetWidget = validMappings.get(normalizedWidgetName(binding.widget.replace(/\|$/, "#"))) ?? binding.widget.replace(/\|$/, "#");
             if (!targetUsesMidiPalette(targetSurface, targetWidget)) continue;
             for (const command of mftCommandValues(binding)) {
                 const bytes = command.map((value) => `0x${value.toString(16).padStart(2, "0").toUpperCase()}`).join(" ");
-                addDiagnostic(document.diagnostics, "error", "legacy.zone.mft-color-command", `This RGB value is a raw MIDI command on the target palette widget: ${bytes}. Replace it with a normal color before import.`, binding.line, document.path);
+                addDiagnostic(diagnostics, "error", "legacy.zone.mft-color-command", `This RGB value is a raw MIDI command on the target palette widget: ${bytes}. Replace it with a normal color before import.`, binding.line, document.path);
             }
         }
     }
+    return diagnostics;
 }
 
 async function isDirectory(directoryPath: string): Promise<boolean> {
@@ -495,7 +492,7 @@ export class LegacyCsiSource {
         const files = await this.readSurfaceFiles(surfaceName);
         const targetProfileId = requestedProfileId || files.stableId;
         if (!isStableId(targetProfileId)) throw new EditorOperationError("legacy.target.profile", "Target profile ID must be a stable lowercase ASCII ID");
-        const selectedPaths = new Set(selectedZonePaths ?? files.zones.map((zone) => zone.sourcePath));
+        const selectedPaths = new Set(selectedZonePaths ?? files.zones.filter((zone) => !LEGACY_LEARN_ZONE_NAMES.has((legacyZoneName(zone.source) ?? "").toLowerCase())).map((zone) => zone.sourcePath));
         const availableZonePaths = new Set(files.zones.map((zone) => zone.sourcePath));
         for (const selectedPath of selectedPaths) if (!availableZonePaths.has(selectedPath)) throw new EditorOperationError("legacy.zone.missing", `Legacy zone is not available in ${surfaceName}: ${selectedPath}`);
 
@@ -534,18 +531,34 @@ export class LegacyCsiSource {
         const zoneMigrationDiagnostics = new Map<string, Diagnostic[]>();
         const migratedZoneSources = new Map<string, string>();
         const zoneTargetPaths = new Map<string, string>();
+        const preparedZoneSources = new Map<string, string>();
+        const legacyZoneDocuments = new Map<string, AnyDocument>();
         for (const zone of files.zones) {
-            const targetPath = targetPathMap.get(zone.sourcePath) || `Zones/User/${targetProfileId}/${zone.profile}/${zone.relativePath}`;
-            this.validateTargetScope("zone", targetPath, targetProfileId);
-            const initialSource = draftMap.get(zone.sourcePath)?.source ?? zone.source;
+            const draftSource = draftMap.get(zone.sourcePath)?.source ?? zone.source;
+            const initialSource = migrateLegacyZoneSyntax(migrateLegacyCommentSyntax(draftSource));
             const sharedModeSource = migrateSharedMode ? removeLegacyScribbleStripMode(initialSource) : initialSource;
             const ringMigration = hasSce24Ring ? migrateLegacySce24RingColors(sharedModeSource, zone.sourcePath) : { diagnostics: [], source: sharedModeSource };
             const stateMigration = hasSce24State ? migrateLegacySce24StateColors(ringMigration.source, zone.sourcePath) : { diagnostics: [], source: ringMigration.source };
+            preparedZoneSources.set(zone.sourcePath, stateMigration.source);
             zoneMigrationDiagnostics.set(zone.sourcePath, [...ringMigration.diagnostics, ...stateMigration.diagnostics]);
-            const migratedSource = formatSource(stateMigration.source, "zone", targetPath, knownActions);
+        }
+        const layerNames = new Set<string>();
+        for (const zone of files.zones) {
+            const legacyDocument = parseByPath(preparedZoneSources.get(zone.sourcePath)!, zone.sourcePath, knownActions);
+            legacyZoneDocuments.set(zone.sourcePath, legacyDocument);
+            for (const layerName of (legacyDocument.semantic as ZoneSemantic).subZones) layerNames.add(layerName.toLowerCase());
+        }
+        for (const zone of files.zones) {
+            const targetPath = targetPathMap.get(zone.sourcePath) || `Zones/User/${targetProfileId}/${zone.profile}/${zone.relativePath}`;
+            this.validateTargetScope("zone", targetPath, targetProfileId);
+            const preparedSource = preparedZoneSources.get(zone.sourcePath)!;
+            const zoneName = legacyZoneName(preparedSource) ?? path.basename(targetPath, path.extname(targetPath));
+            const conversion = convertLegacyZoneToFormat2(preparedSource, { isLayer: layerNames.has(zoneName.toLowerCase()), profile: zone.profile, targetPath });
+            const migratedSource = conversion.source;
+            zoneMigrationDiagnostics.get(zone.sourcePath)!.push(...conversion.diagnostics);
             migratedZoneSources.set(zone.sourcePath, migratedSource);
             const zoneDocument = parseByPath(migratedSource, targetPath, knownActions);
-            zoneDocument.diagnostics.push(...ringMigration.diagnostics);
+            zoneDocument.diagnostics.push(...zoneMigrationDiagnostics.get(zone.sourcePath)!);
             zoneDocuments.set(zone.sourcePath, zoneDocument);
             zoneTargetPaths.set(zone.sourcePath, targetPath);
         }
@@ -561,7 +574,11 @@ export class LegacyCsiSource {
             mappedDocument.diagnostics.push(...(zoneMigrationDiagnostics.get(sourcePath) ?? []));
             zoneDocuments.set(sourcePath, mappedDocument);
         }
-        if (targetSurface) addMftCommandDiagnostics(zoneDocuments, selectedPaths, targetSurface, widgetMappingResult.validMappings);
+        if (targetSurface) {
+            for (const diagnostic of collectMftCommandDiagnostics(legacyZoneDocuments, selectedPaths, targetSurface, widgetMappingResult.validMappings)) {
+                if (diagnostic.path) zoneDocuments.get(diagnostic.path)?.diagnostics.push(diagnostic);
+            }
+        }
 
         const matchesByName = new Map<string, string[]>();
         for (const [sourcePath, document] of zoneDocuments) {

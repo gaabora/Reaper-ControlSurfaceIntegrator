@@ -5,7 +5,9 @@
 #include "format2_value_validation.h"
 #include "../shared/settings_values.h"
 
+#include <array>
 #include <limits>
+#include <set>
 
 struct Format2PreparedActionContext {
     Widget* widget = nullptr;
@@ -24,6 +26,11 @@ struct Format2PreparedActionContext {
     bool invertFeedback = false;
     bool increase = false;
     bool decrease = false;
+    std::optional<std::array<double, 2>> range;
+    std::optional<double> delta;
+    std::vector<double> stepValues;
+    std::vector<double> accelerationDeltas;
+    std::vector<int> ticksPerStep;
 };
 
 static ActionModifierMode ResolveFormat2ModifierMode(ControlSurface* surface, Format2ModifierMode mode) {
@@ -78,6 +85,97 @@ static bool ReadFormat2TimingProperty(const Format2ZoneAction& action, const cha
     return ReadFormat2IntegerProperty(action, propertyName, fallback, definition->minValue, definition->maxValue, value, result);
 }
 
+static bool ReadFormat2DoubleList(const Format2ZoneAction& action, const char* propertyName, bool positiveOnly, std::vector<double>& values, Format2ZoneRuntimeResult& result) {
+    const Format2PropertySyntax* property = FindFormat2Property(action, propertyName);
+    if (!property) return true;
+    if (!property->value.list || property->value.items.empty()) {
+        AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.value-list", std::string(propertyName) + " must be one non-empty numeric list", property->value.location);
+        return false;
+    }
+    bool valid = true;
+    for (const Format2ScalarSyntax& item : property->value.items) {
+        double value = 0.0;
+        if (!ParseFormat2FiniteScalar(item, value) || (positiveOnly && value <= 0.0)) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.value-list-item", std::string(propertyName) + (positiveOnly ? " values must be positive finite numbers" : " values must be finite numbers"), item.location);
+            valid = false;
+            continue;
+        }
+        values.push_back(value);
+    }
+    return valid;
+}
+
+static bool ReadFormat2IntegerList(const Format2ZoneAction& action, const char* propertyName, std::vector<int>& values, Format2ZoneRuntimeResult& result) {
+    const Format2PropertySyntax* property = FindFormat2Property(action, propertyName);
+    if (!property) return true;
+    if (!property->value.list || property->value.items.empty()) {
+        AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.integer-list", std::string(propertyName) + " must be one non-empty integer list", property->value.location);
+        return false;
+    }
+    bool valid = true;
+    for (const Format2ScalarSyntax& item : property->value.items) {
+        int value = 0;
+        if (!ParseFormat2IntegerScalar(item, value) || value <= 0) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.integer-list-item", std::string(propertyName) + " values must be positive integers", item.location);
+            valid = false;
+            continue;
+        }
+        values.push_back(value);
+    }
+    return valid;
+}
+
+static bool PrepareFormat2ActionValues(const Format2ZoneAction& action, Format2PreparedActionContext& prepared, Format2ZoneRuntimeResult& result) {
+    bool valid = true;
+    const Format2PropertySyntax* range = FindFormat2Property(action, "Range");
+    if (range) {
+        std::vector<double> values;
+        const bool listValid = ReadFormat2DoubleList(action, "Range", false, values, result);
+        if (listValid && (values.size() != 2 || values[0] >= values[1])) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.range", "Range must contain two increasing finite numbers", range->value.location);
+            valid = false;
+        } else if (listValid) prepared.range = std::array<double, 2>{values[0], values[1]};
+        else valid = false;
+    }
+    const Format2PropertySyntax* delta = FindFormat2Property(action, "Delta");
+    if (delta) {
+        double value = 0.0;
+        if (delta->value.list || !ParseFormat2FiniteScalar(delta->value.scalar, value) || value <= 0.0) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.delta", "Delta must be one positive finite number", delta->value.location);
+            valid = false;
+        } else prepared.delta = value;
+    }
+    valid = ReadFormat2DoubleList(action, "StepValues", false, prepared.stepValues, result) && valid;
+    valid = ReadFormat2DoubleList(action, "AccelerationDeltas", true, prepared.accelerationDeltas, result) && valid;
+    valid = ReadFormat2IntegerList(action, "TicksPerStep", prepared.ticksPerStep, result) && valid;
+    if (!prepared.stepValues.empty() && (prepared.delta || !prepared.accelerationDeltas.empty())) {
+        AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.value-mode", "StepValues cannot be combined with Delta or AccelerationDeltas", action.actionLocation);
+        valid = false;
+    }
+    if (!prepared.ticksPerStep.empty() && prepared.stepValues.empty()) {
+        AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.ticks-without-steps", "TicksPerStep requires StepValues", action.actionLocation);
+        valid = false;
+    }
+    if (prepared.range) {
+        for (double value : prepared.stepValues) {
+            if (value < (*prepared.range)[0] || value > (*prepared.range)[1]) {
+                AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.step-range", "Every StepValues item must be inside Range", range->value.location);
+                valid = false;
+                break;
+            }
+        }
+    }
+    std::set<double> uniqueSteps;
+    for (double value : prepared.stepValues) {
+        if (!uniqueSteps.insert(value).second) {
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.step-duplicate", "StepValues cannot contain duplicates", action.actionLocation);
+            valid = false;
+            break;
+        }
+    }
+    return valid;
+}
+
 static std::string SerializeFormat2PropertyValue(const Format2ValueSyntax& value) {
     if (!value.list) return value.scalar.text;
     std::string serialized = "[ ";
@@ -92,9 +190,8 @@ static std::vector<std::string> MakeFormat2ActionParameters(const Format2ZoneAct
     std::vector<std::string> parameters;
     parameters.push_back(action.action);
     for (const Format2ScalarSyntax& argument : action.arguments) parameters.push_back(argument.text);
-    for (const Format2PropertySyntax& property : action.properties) {
-        if (property.name != "DelayMs" && property.name != "RepeatIntervalMs") parameters.push_back(property.name + "=" + SerializeFormat2PropertyValue(property.value));
-    }
+    const std::set<std::string> runtimeOwnedProperties = {"AccelerationDeltas", "DelayMs", "Delta", "Range", "RepeatIntervalMs", "StepValues", "TicksPerStep"};
+    for (const Format2PropertySyntax& property : action.properties) if (runtimeOwnedProperties.find(property.name) == runtimeOwnedProperties.end()) parameters.push_back(property.name + "=" + SerializeFormat2PropertyValue(property.value));
     return parameters;
 }
 
@@ -270,6 +367,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         else if (HasFormat2Property(binding.action, "RepeatIntervalMs")) integerPropertiesValid = ReadFormat2IntegerProperty(binding.action, "RepeatIntervalMs", 0, (std::numeric_limits<int>::min)(), (std::numeric_limits<int>::max)(), prepared.repeatIntervalMs, result) && integerPropertiesValid;
         int runCount = 1;
         integerPropertiesValid = ReadFormat2IntegerProperty(binding.action, "RunCount", 1, 1, (std::numeric_limits<int>::max)(), runCount, result) && integerPropertiesValid;
+        integerPropertiesValid = PrepareFormat2ActionValues(binding.action, prepared, result) && integerPropertiesValid;
         if (prepared.inputEvent != ActionInputEvent::Legacy && integerPropertiesValid) {
             gestureGroups[{widget, prepared.modifier}].push_back({{prepared.inputEvent, prepared.modifierMode, prepared.eventDelayMs, prepared.repeatIntervalMs, prepared.modifierTapWindowMs}, prepared.actionName, binding.location, MakeFormat2ActionIdentity(binding.action), HasFormat2Property(binding.action, "DelayMs"), HasFormat2Property(binding.action, "RepeatIntervalMs"), runCount, Format2ActionChangesModifier(prepared.actionName)});
         }
@@ -311,6 +409,11 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         }
         if (prepared.increase) context->SetRange({0.0, 2.0});
         else if (prepared.decrease) context->SetRange({-2.0, 1.0});
+        else if (prepared.range) context->SetRange({(*prepared.range)[0], (*prepared.range)[1]});
+        if (prepared.delta) context->SetDeltaValue(*prepared.delta);
+        if (!prepared.stepValues.empty()) context->SetStepValues(prepared.stepValues);
+        if (!prepared.accelerationDeltas.empty()) context->SetAccelerationValues(prepared.accelerationDeltas);
+        if (!prepared.ticksPerStep.empty()) context->SetTickCounts(prepared.ticksPerStep);
     }
     return result;
 }
