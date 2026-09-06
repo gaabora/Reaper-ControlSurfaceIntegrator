@@ -173,6 +173,13 @@ export function migrateLegacyZoneSyntax(source: string): string {
     return lines.map((line) => line.text + line.ending).join("");
 }
 
+function hasLegacyZoneContent(source: string): boolean {
+    return splitSourceLines(source).some((line) => {
+        initializeLine(line);
+        return line.tokens.length > 0;
+    });
+}
+
 function resolveLegacyMcuMeterMode(zones: Array<{ source: string; sourcePath: string }>, draftMap: Map<string, LegacyImportDraft>): { diagnostics: Diagnostic[]; mode: LegacyMcuMeterMode } {
     const canonicalModes = new Map<string, LegacyMcuMeterMode>([["iconv1m", "IconV1M"], ["mcu", "MCU"], ["sslnucleus2", "SSLNucleus2"], ["xtouch", "XTouch"]]);
     const diagnostics: Diagnostic[] = [];
@@ -785,7 +792,8 @@ export class LegacyCsiSource {
     private async countZones(zonesRoot: string): Promise<number> {
         let count = 0;
         await this.visitZoneFiles(zonesRoot, async (filePath, relativePath) => {
-            if (path.posix.basename(relativePath).toLowerCase() !== "gozones.zon" || !legacyGoZoneNavigators(migrateLegacyCommentSyntax(await readFile(filePath, "utf8")))) count++;
+            const source = migrateLegacyZoneSyntax(migrateLegacyCommentSyntax(await readFile(filePath, "utf8")));
+            if (hasLegacyZoneContent(source) && (path.posix.basename(relativePath).toLowerCase() !== "gozones.zon" || !legacyGoZoneNavigators(source))) count++;
         });
         return count;
     }
@@ -794,7 +802,8 @@ export class LegacyCsiSource {
         const zones: LegacyZoneSourceFile[] = [];
         await this.visitZoneFiles(zonesRoot, async (filePath, relativePath) => {
             const originalSource = await readFile(filePath, "utf8");
-            zones.push({ originalSourceHash: sha256(originalSource), profile, relativePath, source: migrateLegacyZoneSyntax(migrateLegacyCommentSyntax(originalSource)), sourcePath: `${sourceDirectory}/${relativePath}` });
+            const source = migrateLegacyZoneSyntax(migrateLegacyCommentSyntax(originalSource));
+            if (hasLegacyZoneContent(source)) zones.push({ originalSourceHash: sha256(originalSource), profile, relativePath, source, sourcePath: `${sourceDirectory}/${relativePath}` });
         });
         return zones;
     }

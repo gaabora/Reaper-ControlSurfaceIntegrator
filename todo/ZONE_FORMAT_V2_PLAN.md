@@ -1781,6 +1781,9 @@ Migration is a required part of every format 2 decision, not a later best-effort
 
 The current priority is the first end-to-end migration test with FaderPortV2 and then XTouchMiniMC: convert one complete Surface plus its selected Main and FX zones, validate only format 2 output, and load that output through the format 2 C++ runtime. Learn FX UI, rare public processors, and final documentation follow after this path works in REAPER.
 
+- ✅ Cover one atomic FaderPortV2 Bun import containing a Surface, selected Main and FX zones, and `LearnFX.fxzon`, then parse every written output as format 2. C++ runtime loading remains a separate manual REAPER check.
+- ✅ Cover one atomic eight-channel XTouchMiniMC Bun import containing a Surface, its Home and Channel zones, and one FX zone. Verify `Widget|` conversion, inferred channel count, OSK control targets, and format 2 parsing of every written file.
+
 Public legacy Surface conversion has one completion gate:
 
 - [ ] Every processor used by `CSI/Surfaces/*/Surface.txt` is classified. Each supported processor must preserve every required address, byte, channel, profile, curve, display field, color, ring, meter, SysEx field, and meaningful option. Each unsupported or ambiguous processor must produce a blocking diagnostic at its source line. The importer must never silently omit a processor or one of its parameters.

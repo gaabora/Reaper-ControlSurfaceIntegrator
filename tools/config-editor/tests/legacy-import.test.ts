@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
+import { parseByPath } from "../src/formats.ts";
 import { convertLegacyLearnFxToFormat2 } from "../src/legacy-learn-fx.ts";
 import { convertLegacySurfaceToFormat2 } from "../src/legacy-surface-format2.ts";
 import { convertLegacyZoneToFormat2 } from "../src/legacy-zone-format2.ts";
@@ -20,7 +21,7 @@ const identity: EditorProductIdentity = {
     productId: "test-product",
     resourceDirectory: "TestProduct",
 };
-const knownActions = new Set(["GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR", "TrackVolumeDisplay"]);
+const knownActions = new Set(["FXParam", "GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackVolume", "TrackVolumeDisplay"]);
 const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
@@ -144,7 +145,9 @@ WidgetEnd
     });
 
     test("shows one LearnFX.fxzon import item instead of legacy Learn pseudo-zones", async () => {
+        const surfacePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt");
         const zonesRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones");
+        await writeFile(surfacePath, `${surfaceSource}Widget Fader\n  Fader14Bit e0 7f 7f\nWidgetEnd\n`, "utf8");
         await mkdir(path.join(zonesRoot, "LearnZones"), { recursive: true });
         await writeFile(path.join(zonesRoot, "FXWidgetLayout.zon"), "Zone FXWidgetLayout\n  Fader FXParam\nZoneEnd\n\n#WidgetType Fader\n", "utf8");
         await writeFile(path.join(zonesRoot, "LearnZones", "FXPrologue.zon"), "Zone FXPrologue\nZoneEnd\n", "utf8");
@@ -684,6 +687,9 @@ WidgetEnd
     });
 
     test("discovers a surface from a parent path and prepares a complete preview", async () => {
+        const zonesRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones");
+        await writeFile(path.join(zonesRoot, "Empty.zon"), "", "utf8");
+        await writeFile(path.join(zonesRoot, "Comments.zon"), "// placeholder\n/ old placeholder\n# old placeholder\n", "utf8");
         const source = await LegacyCsiSource.create(temporaryRoot);
         expect(await source.listSurfaces()).toEqual([{ fxZoneCount: 1, name: "FaderPortV2", stableId: "faderportv2", zoneCount: 3 }]);
 
@@ -698,6 +704,7 @@ WidgetEnd
         ]);
         expect(preview.items.every((item) => item.source.startsWith("@Meta { Version=2"))).toBeTrue();
         expect(preview.items.some((item) => item.sourcePath.endsWith("GoZones.zon"))).toBeFalse();
+        expect(preview.items.some((item) => item.sourcePath.endsWith("Empty.zon") || item.sourcePath.endsWith("Comments.zon"))).toBeFalse();
         expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.source).toStartWith("@Meta { Version=2 Target=Tracks }");
         expect(preview.dependencies).toContainEqual({ from: "Zones/HomeZones/Home.zon", matches: ["Zones/GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
     });
@@ -722,20 +729,31 @@ WidgetEnd
         expect(preview.diagnostics.some((diagnostic) => diagnostic.code === "zones.dependency.missing")).toBeFalse();
     });
 
-    test("writes selected files in one transaction and requires conflict decisions on repeat", async () => {
+    test("writes a complete FaderPortV2 format 2 set in one transaction and requires conflict decisions on repeat", async () => {
+        const learnLayoutPath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "FXWidgetLayout.zon");
+        await writeFile(learnLayoutPath, "Zone FXWidgetLayout\n  Play FXParam\nZoneEnd\n\n#WidgetType Play\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();
         const preview = await source.preview(store, knownActions, "FaderPortV2", true);
         const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
         const report = await source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
 
-        expect(report.created).toHaveLength(4);
+        expect(report.created).toHaveLength(5);
         const importedSurface = await readFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "utf8");
         expect(importedSurface).toStartWith("@Meta { Version=2 Protocol=MIDI");
         expect(importedSurface).toContain("Widget Play {");
         expect(importedSurface).toContain("OSKLayout {");
-        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8")).toStartWith("@Meta { Version=2 Role=Home }");
-        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "ReaEQ.zon"), "utf8")).toStartWith('@Meta { Version=2 MatchFX="ReaEQ" }');
+        const importedHome = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8");
+        const importedFx = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "ReaEQ.zon"), "utf8");
+        const importedLearnFx = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "LearnFX.fxzon"), "utf8");
+        expect(importedHome).toStartWith("@Meta { Version=2 Role=Home }");
+        expect(importedFx).toStartWith('@Meta { Version=2 MatchFX="ReaEQ" }');
+        expect(importedLearnFx).toStartWith("@Meta { Version=2 }");
+        for (const [targetPath, importedSource] of [["Surfaces/User/faderportv2.txt", importedSurface], ["Zones/User/faderportv2/Main/HomeZones/Home.zon", importedHome], ["Zones/User/faderportv2/FX/ReaEQ.zon", importedFx], ["Zones/User/faderportv2/LearnFX.fxzon", importedLearnFx]]) {
+            const document = parseByPath(importedSource, targetPath, knownActions);
+            expect(document.version).toBe("2");
+            expect(document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+        }
         expect(await readFile(path.join(legacyRoot, "Surfaces", "FaderPortV2", "Surface.txt"), "utf8")).toBe(surfaceSource);
 
         try {
@@ -744,6 +762,44 @@ WidgetEnd
         } catch (error) {
             expect(error).toBeInstanceOf(EditorOperationError);
             expect((error as EditorOperationError).code).toBe("legacy.resolution.required");
+        }
+    });
+
+    test("writes a complete eight-channel XTouchMiniMC format 2 set", async () => {
+        const surfaceRoot = path.join(legacyRoot, "Surfaces", "XTouchMiniMC");
+        const zoneRoot = path.join(surfaceRoot, "Zones");
+        const fxRoot = path.join(surfaceRoot, "FXZones");
+        await mkdir(zoneRoot, { recursive: true });
+        await mkdir(fxRoot, { recursive: true });
+        const channelWidgets = Array.from({ length: 8 }, (_, channelIdx) => {
+            const channel = channelIdx + 1;
+            const controller = (0x10 + channelIdx).toString(16);
+            const pushNote = (0x20 + channelIdx).toString(16);
+            return `Widget Rotary${channel} RotaryWidgetClass\n  Encoder b0 ${controller} 7f\n  FB_Encoder b0 ${controller} 7f\nWidgetEnd\n\nWidget RotaryPush${channel}\n  Press 90 ${pushNote} 7f 90 ${pushNote} 00\nWidgetEnd\n`;
+        }).join("\n");
+        const layoutWidgets = Array.from({ length: 8 }, (_, channelIdx) => `    Widget Rotary${channelIdx + 1} Shape=Round PressTarget=RotaryPush${channelIdx + 1}`).join("\n");
+        const xTouchSurface = `StepSize\n  RotaryWidgetClass 0.003\nStepSizeEnd\n\n${channelWidgets}\nWidget Fader\n  Fader14Bit e8 7f 7f\nWidgetEnd\n\nWidget LayerA\n  Press 90 54 7f 90 54 00\nWidgetEnd\n\nWidget ButtonB7\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n\nOSKLayout Version=1\n  Row\n${layoutWidgets}\n    Widget Fader Shape=Fader Height=3\n  RowEnd\n  Row\n    Widget LayerA\n    Widget ButtonB7\n  RowEnd\nOSKLayoutEnd\n`;
+        await writeFile(path.join(surfaceRoot, "Surface.txt"), xTouchSurface, "utf8");
+        await writeFile(path.join(zoneRoot, "Home.zon"), "Zone Home\n  IncludedZones\n    Channel\n  IncludedZonesEnd\n  LayerA Control\n  ButtonB7 Play\nZoneEnd\n", "utf8");
+        await writeFile(path.join(zoneRoot, "Channel.zon"), "Zone Channel TrackNavigator\n  Rotary| TrackVolume\n  RotaryPush| TrackSelect\nZoneEnd\n", "utf8");
+        await writeFile(path.join(fxRoot, "ReaEQ.zon"), "Zone ReaEQ\n  Rotary1 FXParam 0\nZoneEnd\n", "utf8");
+
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const store = await createStore();
+        const preview = await source.preview(store, knownActions, "XTouchMiniMC", true);
+        expect(preview.valid).toBeTrue();
+        expect(preview.items.find((item) => item.kind === "surface")?.source).toStartWith('@Meta { Version=2 Protocol=MIDI Channels=8 Name="XTouchMiniMC" }');
+        expect(preview.items.find((item) => item.sourcePath === "Zones/Channel.zon")?.source).toContain("Rotary# TrackVolume");
+        expect(preview.items.find((item) => item.sourcePath === "Zones/Channel.zon")?.source).toContain("RotaryPush# TrackSelect");
+
+        const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
+        const report = await source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "XTouchMiniMC", widgetMappings: [] });
+        expect(report.created).toHaveLength(4);
+        for (const targetPath of report.created) {
+            const importedSource = await readFile(path.join(productRoot, targetPath), "utf8");
+            const document = parseByPath(importedSource, targetPath, knownActions);
+            expect(document.version).toBe("2");
+            expect(document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
         }
     });
 
