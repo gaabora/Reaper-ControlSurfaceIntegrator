@@ -1917,7 +1917,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
   - [ ] Convert legacy `Bank Target Amount` to `Bank Amount` when the target matches the converted zone context. Report a migration conflict when it does not match, so the user can move that binding to an included zone with the required context.
 - [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
-- [ ] Convert Learn FX pseudo-zones into `LearnFX.fxzon`, derive supported entry defaults, report ambiguous display/default targets, and do not convert `FXRowLayout`.
+- ✅ Convert Learn FX pseudo-zones into `LearnFX.fxzon`, derive supported entry defaults, report ambiguous display/default targets, validate resolved Surface capabilities, and do not convert `FXRowLayout`.
 - [ ] Convert brace-based `IncludedZones`, convert `SubZones` to the reusable `ZoneLayers` relation, and mark every referenced file with `Role=Layer`.
 - [ ] Convert `GoZone SelectedTrackFX`, `GoSubZone`, `LeaveSubZone`, and all lifecycle pseudo-widgets to their explicit format 2 actions or blocks.
 - ✅ Replace development product-config parsing, serialization, diagnostics, fixtures, drafts, and editor support with the new unversioned `.conf` model and Product plus Device settings scopes.

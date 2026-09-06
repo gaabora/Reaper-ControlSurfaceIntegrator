@@ -8,6 +8,7 @@ import { EditorOperationError } from "./store.ts";
 import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
 import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy-surface-format2.ts";
 import { convertLegacyLearnFxToFormat2, type LegacyLearnFxSource } from "./legacy-learn-fx.ts";
+import { validateLearnFxSurface } from "./learn-fx-surface.ts";
 import { convertLegacyZoneToFormat2 } from "./legacy-zone-format2.ts";
 import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
 import { migrateLegacySce24StateColors } from "./legacy-sce24-state.ts";
@@ -614,6 +615,7 @@ export class LegacyCsiSource {
             learnFxDiagnostics.push(...conversion.diagnostics);
             learnFxDocument = parseByPath(migratedLearnFx, learnFxTargetPath, knownActions);
             learnFxDocument.diagnostics.push(...learnFxDiagnostics);
+            if (targetSurface) learnFxDocument.diagnostics.push(...validateLearnFxSurface(learnFxDocument, targetSurface));
         }
 
         const matchesByName = new Map<string, string[]>();

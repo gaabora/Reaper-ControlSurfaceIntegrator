@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { actionNameSet, actionTraitsByName, loadActionCatalog } from "../src/action-catalog.ts";
 import { parseByPath } from "../src/formats.ts";
+import { validateLearnFxSurface } from "../src/learn-fx-surface.ts";
 import { serializeDocument } from "../src/model.ts";
 import { parseProductIdentity } from "../src/product-identity.ts";
 import { loadSettingsSchema } from "../src/settings-schema.ts";
@@ -19,6 +20,16 @@ async function fixturePaths(group: "invalid" | "valid"): Promise<string[]> {
 }
 
 describe("configuration formats", () => {
+    test("validates Learn FX selectors against Surface channels and capabilities", () => {
+        const surface = parseByPath('@Meta { Version=2 Protocol=MIDI Channels=2 Name="Learn surface" }\nWidget Fader1 {\n  Input Value { Encoding=MIDI7 Message=[ 0xB0, 0x10 ] }\n}\nWidget Fader2 {\n  Input Value { Encoding=MIDI7 Message=[ 0xB0, 0x11 ] }\n}\nWidget Display1 {\n  Feedback Text { Encoding=MIDISysEx Prefix=[ 0xF0 ] Suffix=[ 0xF7 ] }\n}\nWidget Display2 {\n  Feedback Text { Encoding=MIDISysEx Prefix=[ 0xF0 ] Suffix=[ 0xF7 ] }\n}\n', "/config/Surfaces/User/test.txt");
+        const valid = parseByPath("@Meta { Version=2 }\nFXWidgets {\n  Parameter Fader#\n  NameDisplay Display#\n}\n", "/config/Zones/User/test/LearnFX.fxzon");
+        expect(validateLearnFxSurface(valid, surface)).toEqual([]);
+
+        const invalid = parseByPath("@Meta { Version=2 }\nFXWidgets {\n  Parameter Missing#\n  ValueDisplay Fader1\n}\n", "/config/Zones/User/test/LearnFX.fxzon");
+        const diagnostics = validateLearnFxSurface(invalid, surface);
+        expect(diagnostics).toContainEqual(expect.objectContaining({ code: "format2.learn-fx.surface.widget.missing", line: 3, message: expect.stringContaining("Fader#") }));
+        expect(diagnostics).toContainEqual(expect.objectContaining({ code: "format2.learn-fx.surface.widget.capability", line: 4, message: expect.stringContaining("Display1") }));
+    });
     test("valid fixtures round-trip without text changes", async () => {
         const catalog = await loadActionCatalog(repositoryRoot);
         const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
