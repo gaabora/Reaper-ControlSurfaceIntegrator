@@ -1,9 +1,9 @@
 // osk.cpp — ControlSurface OSK (On-Screen Keyboard) member implementations.
 
 #include "integrator.h"
-#include "format2_action_metadata.h"
-#include "format2_gesture_validation.h"
 #include "format2_surface_document.h"
+#include "format2_zone_runtime.h"
+#include "format2_zone_source_editor.h"
 #include "zone_file_creator.h"
 
 static string BuildTimestampForBackup() {
@@ -106,13 +106,20 @@ static double MapOskContinuousValueToAction(Action* action, double value) {
 }
 
 static string QuoteZoneToken(const string& token) {
-    if (token.find_first_of(" \t") == string::npos) return token;
-
     const size_t equalsPosition = token.find('=');
-    if (equalsPosition != string::npos) {
-        return token.substr(0, equalsPosition + 1) + "\"" + token.substr(equalsPosition + 1) + "\"";
+    if (equalsPosition != string::npos && token.size() > equalsPosition + 2 && token[equalsPosition + 1] == '[' && token.back() == ']') return token;
+    const string propertyName = equalsPosition == string::npos ? "" : token.substr(0, equalsPosition);
+    const bool quotedProperty = propertyName == "FixedText" || propertyName == "OSD" || propertyName == "KeyLabel";
+    if (!quotedProperty && token.find_first_of(" \t\"\\") == string::npos) return token;
+
+    const size_t valueStart = equalsPosition == string::npos ? 0 : equalsPosition + 1;
+    string quoted = "\"";
+    for (size_t characterIdx = valueStart; characterIdx < token.size(); ++characterIdx) {
+        if (token[characterIdx] == '\"' || token[characterIdx] == '\\') quoted += '\\';
+        quoted += token[characterIdx];
     }
-    return "\"" + token + "\"";
+    quoted += "\"";
+    return equalsPosition == string::npos ? quoted : token.substr(0, valueStart) + quoted;
 }
 
 static string SerializeContextAction(ActionContext* context) {
@@ -169,6 +176,15 @@ struct OskConfigBinding {
     bool isIncrease = false;
     bool isDecrease = false;
 };
+
+static bool HasFormat2ModifierContext(Zone* zone, Widget* widget) {
+    map<int, const vector<unique_ptr<ActionContext>>*> modifierContexts;
+    if (!zone || !zone->GetAllModifierContexts(widget, modifierContexts)) return false;
+    for (const auto& contextEntry : modifierContexts) {
+        for (const unique_ptr<ActionContext>& context : *contextEntry.second) if (context && context->GetInputEvent() == ActionInputEvent::Modifier) return true;
+    }
+    return false;
+}
 
 static bool IsOskMetadataToken(const string& token, OskConfigBinding& binding) {
     if (token == "__OSK_HOLD") binding.hasHold = true;
@@ -251,48 +267,6 @@ static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData,
     return true;
 }
 
-static string OskConfigActionIdentity(const OskConfigBinding& binding) {
-    string identity;
-    for (const string& token : binding.actionTokens) {
-        if (!identity.empty()) identity += "\x1f";
-        identity += token;
-    }
-    return identity;
-}
-
-static vector<Format2Diagnostic> ValidateOskConfigGestures(Widget* widget, const vector<OskConfigBinding>& bindings, const SettingsValues& settings, int doublePressWindowMs) {
-    map<int, vector<Format2GestureBinding>> gestureGroups;
-    vector<Format2Diagnostic> diagnostics;
-    for (size_t bindingIdx = 0; bindingIdx < bindings.size(); ++bindingIdx) {
-        const OskConfigBinding& binding = bindings[bindingIdx];
-        Format2SourceLocation location;
-        location.line = static_cast<int>(bindingIdx + 1);
-        if (binding.hasHold && binding.hasDoublePress) {
-            diagnostics.push_back({"format2.zone.binding.button-event", "A binding cannot contain both Hold and DoublePress", location});
-            continue;
-        }
-        ActionInputEvent inputEvent = ActionInputEvent::Legacy;
-        if (binding.hasHold) inputEvent = ActionInputEvent::Hold;
-        else if (binding.hasDoublePress) inputEvent = ActionInputEvent::DoublePress;
-        else if (!binding.isIncrease && !binding.isDecrease && widget->GetIsTwoState()) inputEvent = settings.GetString("DefaultButtonTrigger") == "Tap" ? ActionInputEvent::Tap : ActionInputEvent::Press;
-        if (inputEvent == ActionInputEvent::Legacy) continue;
-        Format2GestureBinding gestureBinding;
-        gestureBinding.gesture.inputEvent = inputEvent;
-        if (inputEvent == ActionInputEvent::Hold) gestureBinding.gesture.delayMs = settings.GetInteger("HoldDelayMs");
-        gestureBinding.actionName = binding.actionTokens[0];
-        gestureBinding.location = location;
-        gestureBinding.actionIdentity = OskConfigActionIdentity(binding);
-        gestureBinding.changesModifier = Format2ActionChangesModifier(gestureBinding.actionName);
-        gestureGroups[binding.modifierValue].push_back(std::move(gestureBinding));
-    }
-    const bool exclusiveDoublePress = settings.GetString("DoublePressPolicy") == "Exclusive";
-    for (const auto& gestureGroup : gestureGroups) {
-        const vector<Format2Diagnostic> groupDiagnostics = ValidateFormat2GestureBindings(gestureGroup.second, doublePressWindowMs, exclusiveDoublePress);
-        diagnostics.insert(diagnostics.end(), groupDiagnostics.begin(), groupDiagnostics.end());
-    }
-    return diagnostics;
-}
-
 static string FormatOskConfigDiagnostics(const vector<Format2Diagnostic>& diagnostics, Format2DiagnosticSeverity severity) {
     const Format2Diagnostic* first = nullptr;
     int count = 0;
@@ -302,78 +276,40 @@ static string FormatOskConfigDiagnostics(const vector<Format2Diagnostic>& diagno
         count++;
     }
     if (!first) return "";
-    string message = first->message;
-    ReplaceAllWith(message, "line ", "binding ");
-    string result = first->code + " at binding " + to_string(first->location.line) + ": " + message;
+    string result = first->code + " at line " + to_string(first->location.line) + ": " + first->message;
     if (count > 1) result += " (and " + to_string(count - 1) + " more)";
     return result;
 }
 
-static vector<OskConfigBinding> CaptureConfigBindings(Zone* zone, Widget* widget) {
-    vector<OskConfigBinding> bindings;
-    if (!zone || !widget) return bindings;
-
-    map<int, const vector<unique_ptr<ActionContext>>*> modifierContexts;
-    zone->GetAllModifierContexts(widget, modifierContexts);
-    for (const auto& [modifierValue, contexts] : modifierContexts) {
-        for (const auto& contextPtr : *contexts) {
-            ActionContext* context = contextPtr.get();
-            if (!context) continue;
-
-            OskConfigBinding binding;
-            binding.modifierValue = modifierValue;
-            binding.actionTokens = context->GetSourceParams();
-            if (binding.actionTokens.empty()) binding.actionTokens.push_back(context->GetAction()->GetName());
-            binding.hasHold = context->GetHoldDelay() > 0;
-            binding.hasDoublePress = context->IsDoublePress();
-            binding.isValueInverted = context->GetIsValueInverted();
-            binding.isFeedbackInverted = context->GetIsFeedbackInverted();
-            binding.isDecrease = context->GetRangeMinimum() == -2.0 && context->GetRangeMaximum() == 1.0;
-            binding.isIncrease = context->GetRangeMinimum() == 0.0 && context->GetRangeMaximum() == 2.0;
-            bindings.push_back(binding);
-        }
-    }
-    return bindings;
-}
-
-static void ApplyConfigBindings(Zone* zone, Widget* widget, const vector<OskConfigBinding>& bindings) {
-    zone->ClearActionContexts(widget);
-    for (const auto& binding : bindings) {
-        vector<string> actionTokens = binding.actionTokens;
-        ActionContext* context = zone->AddActionContext(widget, binding.modifierValue, zone, actionTokens[0].c_str(), actionTokens);
-        if (!context) throw std::runtime_error("Action context creation failed");
-
-        if (binding.isValueInverted) context->SetIsValueInverted();
-        if (binding.isFeedbackInverted) context->SetIsFeedbackInverted();
-        if (binding.hasHold) {
-            if (context->GetHoldDelay() == 0) context->SetHoldDelay(ActionContext::INHERIT_VALUE);
-            widget->SetHasHoldActions();
-        }
-        if (binding.hasDoublePress) {
-            context->SetDoublePress();
-            widget->SetHasDoublePressActions();
-        }
-        if (binding.isDecrease) context->SetRange({ -2.0, 1.0 });
-        else if (binding.isIncrease) context->SetRange({ 0.0, 2.0 });
-    }
-}
-
-static string BuildWidgetTokenPrefix(int modifierValue, ActionContext* context) {
+static string BuildFormat2ModifierPrefix(int modifierValue) {
     string prefix;
-
-    if (context && context->IsDoublePress()) prefix += "DoublePress+";
-    if (context && context->GetHoldDelay() > 0) prefix += "Hold+";
-    if (context && context->GetIsValueInverted()) prefix += "Invert+";
-    if (context && context->GetIsFeedbackInverted()) prefix += "InvertFB+";
-    if (context && context->GetRangeMinimum() == -2.0 && context->GetRangeMaximum() == 1.0) prefix += "Decrease+";
-    else if (context && context->GetRangeMinimum() == 0.0 && context->GetRangeMaximum() == 2.0) prefix += "Increase+";
-
     if (modifierValue != 0) {
         char modifierBuffer[128];
         ModifierManager::GetModifierString(modifierValue, modifierBuffer, sizeof(modifierBuffer));
-        prefix += modifierBuffer;
+        vector<string> modifiers;
+        GetTokens(modifiers, modifierBuffer, '+');
+        for (const string& modifier : modifiers) if (!modifier.empty()) prefix += "[" + modifier + "]+";
     }
+    return prefix;
+}
 
+static string BuildFormat2SelectorPrefix(int modifierValue, ActionContext* context) {
+    string prefix = BuildFormat2ModifierPrefix(modifierValue);
+    if (context && context->IsDoublePress()) prefix += "(DoublePress)+";
+    else if (context) {
+        switch (context->GetInputEvent()) {
+            case ActionInputEvent::Press: prefix += "(Press)+"; break;
+            case ActionInputEvent::Tap: prefix += "(Tap)+"; break;
+            case ActionInputEvent::Release: prefix += "(Release)+"; break;
+            case ActionInputEvent::Hold: prefix += "(Hold)+"; break;
+            case ActionInputEvent::LongHold: prefix += "(LongHold)+"; break;
+            default: if (context->GetHoldDelay() > 0) prefix += "(Hold)+"; break;
+        }
+    }
+    if (context && context->GetIsValueInverted()) prefix += "(Invert)+";
+    if (context && context->GetIsFeedbackInverted()) prefix += "(InvertFB)+";
+    if (context && context->GetRangeMinimum() == -2.0 && context->GetRangeMaximum() == 1.0) prefix += "(Decrease)+";
+    else if (context && context->GetRangeMinimum() == 0.0 && context->GetRangeMaximum() == 2.0) prefix += "(Increase)+";
     return prefix;
 }
 
@@ -393,23 +329,72 @@ static string BuildOskTooltipModifierName(int modifierValue, ActionContext* cont
     return modifierName.empty() ? "NoMod" : modifierName;
 }
 
-static bool IsPseudoModifierToken(const string& token) {
-    return IsSameString(token, "Hold") || IsSameString(token, "DoublePress") || IsSameString(token, "Increase") || IsSameString(token, "Decrease");
+static string NormalizeFormat2OskProperty(const string& token) {
+    if (token.rfind("HoldDelay=", 0) == 0) return "DelayMs=" + token.substr(10);
+    if (token.rfind("HoldRepeatInterval=", 0) == 0) return "RepeatIntervalMs=" + token.substr(19);
+    if (token == "NoFeedback") return "Feedback=No";
+    return token;
 }
 
-static string ExtractWidgetNameFromZoneToken(const string& token) {
-    vector<string> parts;
-    GetTokens(parts, token, '+');
-    for (int idx = (int) parts.size() - 1; idx >= 0; --idx) {
-        const string& candidate = parts[idx];
-        if (ModifierManager::IsModifierName(candidate.c_str())) continue;
-        if (IsPseudoModifierToken(candidate)) continue;
-        return candidate;
+static string Format2OskColor(int red, int green, int blue) {
+    char color[8];
+    snprintf(color, sizeof(color), "#%02X%02X%02X", red, green, blue);
+    return color;
+}
+
+static vector<string> NormalizeFormat2OskActionTokens(const vector<string>& sourceTokens) {
+    vector<string> tokens;
+    for (size_t tokenIdx = 0; tokenIdx < sourceTokens.size(); ++tokenIdx) {
+        if (sourceTokens[tokenIdx] != "{") {
+            tokens.push_back(NormalizeFormat2OskProperty(sourceTokens[tokenIdx]));
+            continue;
+        }
+        vector<string> colorItems;
+        while (++tokenIdx < sourceTokens.size() && sourceTokens[tokenIdx] != "}") colorItems.push_back(sourceTokens[tokenIdx]);
+        if (colorItems.size() == 1 && colorItems[0] == "Track") {
+            tokens.push_back("StateColors=[ Track ]");
+            continue;
+        }
+        bool validRgb = !colorItems.empty() && colorItems.size() % 3 == 0;
+        for (const string& colorItem : colorItems) {
+            char* end = nullptr;
+            const long channel = strtol(colorItem.c_str(), &end, 10);
+            if (!end || *end != '\0' || channel < 0 || channel > 255) validRgb = false;
+        }
+        if (!validRgb) {
+            tokens.push_back("{");
+            tokens.insert(tokens.end(), colorItems.begin(), colorItems.end());
+            if (tokenIdx < sourceTokens.size()) tokens.push_back("}");
+            continue;
+        }
+        string colors = "StateColors=[ ";
+        for (size_t colorIdx = 0; colorIdx < colorItems.size(); colorIdx += 3) {
+            if (colorIdx > 0) colors += ", ";
+            colors += Format2OskColor(atoi(colorItems[colorIdx].c_str()), atoi(colorItems[colorIdx + 1].c_str()), atoi(colorItems[colorIdx + 2].c_str()));
+        }
+        tokens.push_back(colors + " ]");
     }
-    return "";
+    return tokens;
 }
 
-static vector<string> BuildSerializedWidgetLines(Zone* zone, Widget* widget, const string& widgetName) {
+static vector<string> BuildFormat2OskDraftLines(const string& widgetName, const vector<OskConfigBinding>& bindings) {
+    vector<string> lines;
+    for (const OskConfigBinding& binding : bindings) {
+        string line = BuildFormat2ModifierPrefix(binding.modifierValue);
+        if (binding.hasDoublePress) line += "(DoublePress)+";
+        else if (binding.hasHold) line += "(Hold)+";
+        if (binding.isValueInverted) line += "(Invert)+";
+        if (binding.isFeedbackInverted) line += "(InvertFB)+";
+        if (binding.isIncrease) line += "(Increase)+";
+        else if (binding.isDecrease) line += "(Decrease)+";
+        line += widgetName;
+        for (const string& actionToken : NormalizeFormat2OskActionTokens(binding.actionTokens)) line += " " + QuoteZoneToken(actionToken);
+        lines.push_back(std::move(line));
+    }
+    return lines;
+}
+
+static vector<string> BuildFormat2SerializedWidgetLines(Zone* zone, Widget* widget, const string& widgetName) {
     vector<string> lines;
     if (!zone || !widget) return lines;
 
@@ -421,69 +406,22 @@ static vector<string> BuildSerializedWidgetLines(Zone* zone, Widget* widget, con
             ActionContext* context = contextPtr.get();
             if (!context) continue;
 
-            string line = "  ";
-            line += BuildWidgetTokenPrefix(modifierValue, context);
+            string line;
+            line += BuildFormat2SelectorPrefix(modifierValue, context);
             line += widgetName;
-            line += "  ";
-
-            line += SerializeContextAction(context);
+            vector<string> sourceTokens = context->GetSourceParams();
+            if (sourceTokens.empty()) sourceTokens.push_back(context->GetAction()->GetName());
+            const vector<string> actionTokens = NormalizeFormat2OskActionTokens(sourceTokens);
+            for (const string& actionToken : actionTokens) line += " " + QuoteZoneToken(actionToken);
+            const bool holdEvent = context->GetInputEvent() == ActionInputEvent::Hold || context->GetInputEvent() == ActionInputEvent::LongHold || context->GetHoldDelay() > 0;
+            if (holdEvent && line.find(" DelayMs=") == string::npos) line += " DelayMs=" + to_string(context->GetHoldDelay());
+            if (context->GetHoldRepeatInterval() > 0 && line.find(" RepeatIntervalMs=") == string::npos) line += " RepeatIntervalMs=" + to_string(context->GetHoldRepeatInterval());
 
             lines.push_back(line);
         }
     }
 
     return lines;
-}
-
-static string FindInlineZoneComment(const string& line) {
-    bool insideQuote = false;
-    for (size_t characterIdx = 0; characterIdx + 1 < line.size(); ++characterIdx) {
-        const char character = line[characterIdx];
-        if (character == '"') insideQuote = !insideQuote;
-        if (!insideQuote && character == '/' && line[characterIdx + 1] == '/')
-            return line.substr(characterIdx);
-    }
-    return "";
-}
-
-static vector<string> CollectWidgetInlineComments(const vector<string>& originalLines, const string& targetZoneName, const string& widgetName) {
-    vector<string> comments;
-    bool inTargetZone = false;
-
-    for (const auto& rawLine : originalLines) {
-        string trimmed = rawLine;
-        TrimLine(trimmed);
-
-        if (!inTargetZone && trimmed.rfind("Zone ", 0) == 0) {
-            vector<string> zoneTokens;
-            GetTokens(zoneTokens, trimmed);
-            inTargetZone = zoneTokens.size() >= 2 && IsSameString(zoneTokens[1], targetZoneName);
-        }
-        if (inTargetZone && IsSameString(trimmed, "ZoneEnd"))
-            break;
-        if (!inTargetZone || trimmed.empty() || IsCommentedOrEmpty(trimmed))
-            continue;
-
-        vector<string> lineTokens;
-        GetTokens(lineTokens, trimmed);
-        if (lineTokens.empty()) continue;
-        if (!IsSameString(ExtractWidgetNameFromZoneToken(lineTokens[0]), widgetName))
-            continue;
-
-        comments.push_back(FindInlineZoneComment(rawLine));
-    }
-    return comments;
-}
-
-static void ApplyInlineComments(vector<string>& replacementLines, const vector<string>& comments) {
-    const size_t sharedCount = (std::min)(replacementLines.size(), comments.size());
-    for (size_t commentIdx = 0; commentIdx < sharedCount; ++commentIdx)
-        if (!comments[commentIdx].empty())
-            replacementLines[commentIdx] += " " + comments[commentIdx];
-
-    for (size_t commentIdx = sharedCount; commentIdx < comments.size(); ++commentIdx)
-        if (!comments[commentIdx].empty())
-            replacementLines.push_back("  " + comments[commentIdx]);
 }
 
 static bool WriteLinesToFile(const string& filePath, const vector<string>& lines, string& errorMessage) {
@@ -1009,6 +947,10 @@ void ControlSurface::HandleOSKConfigApplyLive(const string& widgetName, const st
         PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, "", "ZoneManager unavailable");
         return;
     }
+    if (!this->zoneManager_->UsesFormat2ZoneProfile()) {
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, "", "OSK can edit only format 2 zones");
+        return;
+    }
 
     Widget* widget = this->GetWidgetByName(widgetName);
     if (!widget) {
@@ -1021,6 +963,10 @@ void ControlSurface::HandleOSKConfigApplyLive(const string& widgetName, const st
         PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, "", "No active zone for widget");
         return;
     }
+    if (HasFormat2ModifierContext(activeZone, widget)) {
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), "Modifier declarations must be edited in the configuration editor");
+        return;
+    }
 
     vector<OskConfigBinding> parsedBindings;
     string errorMessage;
@@ -1028,38 +974,52 @@ void ControlSurface::HandleOSKConfigApplyLive(const string& widgetName, const st
         PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), errorMessage);
         return;
     }
-    const vector<Format2Diagnostic> gestureDiagnostics = ValidateOskConfigGestures(widget, parsedBindings, this->settings_, this->doublePressTime_);
-    const string gestureError = FormatOskConfigDiagnostics(gestureDiagnostics, Format2DiagnosticSeverity::Error);
-    if (!gestureError.empty()) {
-        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), gestureError);
-        return;
-    }
-    const string gestureWarning = FormatOskConfigDiagnostics(gestureDiagnostics, Format2DiagnosticSeverity::Warning);
 
-    const vector<OskConfigBinding> previousBindings = CaptureConfigBindings(activeZone, widget);
-    try {
-        activeZone->AddWidget(widget);
-        ApplyConfigBindings(activeZone, widget, parsedBindings);
-    } catch (const std::exception& exception) {
-        try {
-            ApplyConfigBindings(activeZone, widget, previousBindings);
-        } catch (...) {
-            this->zoneManager_->Initialize();
-        }
-        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), string("Apply failed: ") + exception.what());
+    const string zonePath = activeZone->GetSourceFilePath();
+    ifstream inputFile(zonePath);
+    if (!inputFile.is_open()) {
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), "Unable to open zone file for live edit");
         return;
     }
+
+    vector<string> originalLines;
+    for (string line; getline(inputFile, line);) originalLines.push_back(line);
+    inputFile.close();
+
+    const vector<string> replacementLines = BuildFormat2OskDraftLines(widgetName, parsedBindings);
+    const Format2ZoneWidgetEditResult editResult = EditFormat2ZoneWidgetSource(zonePath, originalLines, widgetName, this->zoneManager_->GetNumChannels(), replacementLines);
+    if (!editResult.success) {
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), editResult.message);
+        return;
+    }
+
+    Format2ZoneRuntimeBindingSelection selection;
+    selection.widgetId = widgetName;
+    selection.channelFamilyBaseName = editResult.channelFamilyBaseName;
+    const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(this->zoneManager_.get(), activeZone, editResult.parsed, nullptr, &selection);
+    const string runtimeError = FormatOskConfigDiagnostics(runtimeResult.diagnostics, Format2DiagnosticSeverity::Error);
+    if (!runtimeError.empty()) {
+        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), runtimeError);
+        return;
+    }
+    const string runtimeWarning = FormatOskConfigDiagnostics(runtimeResult.diagnostics, Format2DiagnosticSeverity::Warning);
 
     activeZone->UpdateCurrentActionContextModifiers();
     this->PublishOSKLabels();
     this->PublishOSKState();
     this->PublishOSKLabelMap();
-    PublishConfigStatus(gestureWarning.empty() ? "OK" : "WARN", "ApplyLive", this->name_, widgetName, activeZone->GetName(), gestureWarning.empty() ? "Apply live completed" : gestureWarning);
+    string resultMessage = runtimeWarning.empty() ? "Apply live completed" : runtimeWarning;
+    if (editResult.editedChannelFamily && runtimeWarning.empty()) resultMessage = "Apply live completed for every channel in the Widget family";
+    PublishConfigStatus(runtimeWarning.empty() ? "OK" : "WARN", "ApplyLive", this->name_, widgetName, activeZone->GetName(), resultMessage);
 }
 
 void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
     if (!this->zoneManager_) {
         PublishConfigStatus("ERR", "Save", this->name_, widgetName, "", "ZoneManager unavailable");
+        return;
+    }
+    if (!this->zoneManager_->UsesFormat2ZoneProfile()) {
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, "", "OSK can save only format 2 zones");
         return;
     }
 
@@ -1084,6 +1044,10 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
             targetZoneName = zoneNameEntry->second;
         if (zonePathEntry != this->oskConfigZonePathsByWidget_.end())
             zonePath = zonePathEntry->second;
+    }
+    if (activeZone && HasFormat2ModifierContext(activeZone, widget)) {
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, "Modifier declarations must be edited in the configuration editor");
+        return;
     }
     if (targetZoneName.empty()) {
         PublishConfigStatus("ERR", "Save", this->name_, widgetName, "", "No edit target zone for widget");
@@ -1114,70 +1078,14 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
         originalLines.push_back(line);
     inputFile.close();
 
-    vector<string> replacementLines;
-    if (activeZone)
-        replacementLines = BuildSerializedWidgetLines(activeZone, widget, widgetName);
-    ApplyInlineComments(
-        replacementLines,
-        CollectWidgetInlineComments(originalLines, targetZoneName, widgetName)
-    );
-
-    vector<string> updatedLines;
-    bool inTargetZone = false;
-    bool foundTargetZone = false;
-    bool insertedReplacementLines = false;
-
-    for (const auto& rawLine : originalLines) {
-        string trimmed = rawLine;
-        TrimLine(trimmed);
-
-        if (!inTargetZone && trimmed.rfind("Zone ", 0) == 0) {
-            vector<string> zoneTokens;
-            GetTokens(zoneTokens, trimmed);
-            if (zoneTokens.size() >= 2 && IsSameString(zoneTokens[1], targetZoneName)) {
-                inTargetZone = true;
-                foundTargetZone = true;
-            }
-        }
-
-        if (inTargetZone && IsSameString(trimmed, "ZoneEnd")) {
-            if (!insertedReplacementLines) {
-                for (const auto& replacementLine : replacementLines)
-                    updatedLines.push_back(replacementLine);
-                insertedReplacementLines = true;
-            }
-            updatedLines.push_back(rawLine);
-            inTargetZone = false;
-            continue;
-        }
-
-        bool skipCurrentLine = false;
-        if (inTargetZone && !trimmed.empty() && !IsCommentedOrEmpty(trimmed)) {
-            vector<string> lineTokens;
-            GetTokens(lineTokens, trimmed);
-            if (!lineTokens.empty()) {
-                const string lineWidgetName = ExtractWidgetNameFromZoneToken(lineTokens[0]);
-                if (IsSameString(lineWidgetName, widgetName)) {
-                    if (!insertedReplacementLines) {
-                        for (const auto& replacementLine : replacementLines)
-                            updatedLines.push_back(replacementLine);
-                        insertedReplacementLines = true;
-                    }
-                    skipCurrentLine = true;
-                }
-            }
-        }
-
-        if (!skipCurrentLine)
-            updatedLines.push_back(rawLine);
-    }
-
-    if (!foundTargetZone) {
-        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, "Target zone section not found in file");
+    const vector<string> replacementLines = activeZone ? BuildFormat2SerializedWidgetLines(activeZone, widget, widgetName) : vector<string>{};
+    const Format2ZoneWidgetEditResult editResult = EditFormat2ZoneWidgetSource(zonePath, originalLines, widgetName, this->zoneManager_->GetNumChannels(), replacementLines);
+    if (!editResult.success) {
+        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, editResult.message);
         return;
     }
 
-    if (updatedLines == originalLines) {
+    if (editResult.lines == originalLines) {
         if (activateUserZoneProfile) {
             this->oskConfigZoneNamesByWidget_.clear();
             this->oskConfigZonePathsByWidget_.clear();
@@ -1191,7 +1099,7 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
 
     string backupPath;
     string errorMessage;
-    if (!CommitZoneFile(zonePath, updatedLines, backupPath, errorMessage)) {
+    if (!CommitZoneFile(zonePath, editResult.lines, backupPath, errorMessage)) {
         PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, errorMessage);
         return;
     }
@@ -1205,7 +1113,8 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
     this->PublishOSKLabels();
     this->PublishOSKState();
     this->PublishOSKLabelMap();
-    PublishConfigStatus("OK", "Save", this->name_, widgetName, targetZoneName, "Saved to zone file; backup: " + backupPath);
+    const string saveMessage = editResult.editedChannelFamily ? "Saved channel-family binding; the change applies to every channel in the family; backup: " + backupPath : "Saved to zone file; backup: " + backupPath;
+    PublishConfigStatus("OK", "Save", this->name_, widgetName, targetZoneName, saveMessage);
 }
 
 void ControlSurface::HandleOSKConfigRevert(const string& widgetName) {

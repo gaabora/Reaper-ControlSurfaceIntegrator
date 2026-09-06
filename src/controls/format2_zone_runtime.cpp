@@ -166,7 +166,8 @@ static bool PrepareFormat2Selectors(ZoneManager* zoneManager, const Format2ZoneB
     return result.IsValid();
 }
 
-Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager, Zone* zone, const Format2ZoneParseResult& parsed, const Format2DocumentMetadata* inheritedMetadata) {
+Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager, Zone* zone, const Format2ZoneParseResult& parsed,
+    const Format2DocumentMetadata* inheritedMetadata, const Format2ZoneRuntimeBindingSelection* selection) {
     Format2ZoneRuntimeResult result;
     const Format2DocumentMetadata& runtimeMetadata = inheritedMetadata ? *inheritedMetadata : parsed.document.metadata;
     const Format2ZoneCompileResult compiled = CompileFormat2ZoneBindings(parsed.zone.bindings, zoneManager->GetNumChannels());
@@ -176,6 +177,9 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
     std::map<std::pair<Widget*, int>, std::vector<Format2GestureBinding>> gestureGroups;
 
     for (const Format2ModifierDeclaration& declaration : parsed.zone.modifiers) {
+        const bool selectedDeclaration = !selection || (selection->channelFamilyBaseName.empty() && declaration.widget.source == selection->widgetId)
+            || (!selection->channelFamilyBaseName.empty() && declaration.widget.kind == Format2WidgetSelectorKind::ChannelFamily && declaration.widget.baseName == selection->channelFamilyBaseName);
+        if (!selectedDeclaration) continue;
         if (declaration.kind == Format2ModifierDeclarationKind::Pseudo) {
             AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.pseudo-modifier", "PseudoModifier declarations are not part of the format 2 runtime yet", declaration.location);
             continue;
@@ -203,6 +207,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
     }
 
     for (const Format2LifecycleBlock& block : parsed.zone.lifecycleBlocks) {
+        if (selection) continue;
         Widget* widget = zoneManager->GetSurface()->GetWidgetByName(GetFormat2LifecycleWidgetName(block.event));
         if (!widget) {
             AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.lifecycle-widget", "The internal lifecycle Widget is not available on the Surface", block.location);
@@ -224,6 +229,11 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
 
     for (const Format2ActionContextSpec& spec : compiled.actionContexts) {
         const Format2ZoneBinding& binding = parsed.zone.bindings[spec.bindingIndex];
+        if (selection) {
+            const bool selectedExactWidget = selection->channelFamilyBaseName.empty() && spec.widgetId == selection->widgetId;
+            const bool selectedChannelFamily = !selection->channelFamilyBaseName.empty() && binding.widget.kind == Format2WidgetSelectorKind::ChannelFamily && binding.widget.baseName == selection->channelFamilyBaseName;
+            if (!selectedExactWidget && !selectedChannelFamily) continue;
+        }
         const auto modifierMode = modifierModesByWidget.find(binding.widget.baseName);
         if (modifierMode != modifierModesByWidget.end() && modifierMode->second != ActionModifierMode::Latch && IsFormat2HoldEvent(binding)) {
             AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.modifier-hold", "Hold and LongHold cannot use a Momentary or Hybrid modifier source Widget", binding.location);
@@ -270,6 +280,17 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         result.diagnostics.insert(result.diagnostics.end(), diagnostics.begin(), diagnostics.end());
     }
     if (!result.IsValid()) return result;
+    if (selection) {
+        if (selection->channelFamilyBaseName.empty()) {
+            Widget* selectedWidget = zoneManager->GetSurface()->GetWidgetByName(selection->widgetId);
+            if (selectedWidget) zone->ClearActionContexts(selectedWidget);
+        } else {
+            for (int channel = 1; channel <= zoneManager->GetNumChannels(); ++channel) {
+                Widget* selectedWidget = zoneManager->GetSurface()->GetWidgetByName(selection->channelFamilyBaseName + std::to_string(channel));
+                if (selectedWidget) zone->ClearActionContexts(selectedWidget);
+            }
+        }
+    }
     for (Format2PreparedActionContext& prepared : preparedContexts) {
         zone->AddWidget(prepared.widget);
         ActionContext* context = zone->AddActionContext(prepared.widget, prepared.modifier, zone, prepared.actionName.c_str(), prepared.parameters, prepared.navigator, prepared.surfaceChannelOffset);

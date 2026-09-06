@@ -1767,6 +1767,9 @@ The static codec audit intentionally excludes device names that do not select a 
 - ✅ Connect typed `IncludedZones`, `ZoneLayers`, and lifecycle dispatch. Build each relation from the retained parsed document, inherit the parent's effective target and bank context for every layer instance, route current-context input and feedback as layer, owner, then included zones, and map explicit lifecycle blocks to the existing internal runtime events.
 - ✅ Store the derived format 2 target on each runtime Zone and use it instead of the zone filename for track-collection activation, selected-track lifetime, Page-scope `GoZone`, idempotent navigation, and slot behavior. Keep old special-name branches only for legacy zones.
 - [ ] Replace the metadata preprocessor, binding parser, surface block readers, Learn FX line readers, and OSK line edits with the shared model where they overlap.
+  - ✅ Replace OSK `ConfigSave` scanning for `Zone` and `ZoneEnd` with a typed format 2 Widget-binding source edit. Preserve channel-family mapping units and reject mixed exact plus family sources.
+  - ✅ Route OSK `ConfigApplyLive` through the same temporary typed Zone edit and the normal format 2 runtime loader. Replace only the selected exact Widget or complete `Widget#` family after validation.
+  - [ ] Extend the OSK edit protocol with an explicit standard Modifier declaration and mode before allowing OSK to edit modifier-source Widgets. Until then, reject Apply Live and Save for those Widgets instead of converting a declaration into a normal binding.
 
 Ready when runtime behavior consumes validated documents and no feature reparses the same zone with a different grammar.
 

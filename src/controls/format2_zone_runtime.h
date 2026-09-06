@@ -13,4 +13,10 @@ struct Format2ZoneRuntimeResult {
     bool IsValid() const { return !HasFormat2DiagnosticErrors(this->diagnostics); }
 };
 
-Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager, Zone* zone, const Format2ZoneParseResult& parsed, const Format2DocumentMetadata* inheritedMetadata = nullptr);
+struct Format2ZoneRuntimeBindingSelection {
+    std::string widgetId;
+    std::string channelFamilyBaseName;
+};
+
+Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager, Zone* zone, const Format2ZoneParseResult& parsed,
+    const Format2DocumentMetadata* inheritedMetadata = nullptr, const Format2ZoneRuntimeBindingSelection* selection = nullptr);

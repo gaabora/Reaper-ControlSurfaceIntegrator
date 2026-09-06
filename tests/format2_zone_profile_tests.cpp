@@ -1,5 +1,6 @@
 #include "format2_zone_profile.h"
 #include "format2_zone_profile_loader.h"
+#include "format2_zone_source_editor.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -114,6 +115,50 @@ static void TestProfileLoader() {
     Require(result.sources.size() == result.documents.size(), "profile loader source alignment");
 }
 
+static void TestExactWidgetSourceEdit() {
+    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play Play", "Stop Stop"};
+    const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {"[Shift]+Play Reaper 40044"});
+    Require(result.success, "exact Widget source edit");
+    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "[Shift]+Play Reaper 40044", "Stop Stop"}), "exact Widget replacement");
+}
+
+static void TestChannelFamilySourceEdit() {
+    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Fader# TrackVolume", "Play Play"};
+    const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Fader2", 8, {"Fader2 TrackPan"});
+    Require(result.success, "channel-family source edit");
+    Require(result.editedChannelFamily, "channel-family edit status");
+    Require(result.channelFamilyBaseName == "Fader", "channel-family edit base name");
+    Require(result.parsed.zone.bindings.size() == 2, "channel-family edited document parse result");
+    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "Fader# TrackPan", "Play Play"}), "channel-family mapping remains one unit");
+}
+
+static void TestMixedWidgetSourceEditRejection() {
+    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Fader# TrackVolume", "Fader2 TrackPan"};
+    const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Fader2", 8, {"Fader2 TrackPanWidth"});
+    Require(!result.success, "mixed exact and family Widget edit rejection");
+}
+
+static void TestWidgetSourceEditPreservesComment() {
+    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play FixedTextDisplay \"a \\\"quoted\\\" // value\" // transport", "Stop Stop"};
+    const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {"Play Reaper 40044"});
+    Require(result.success, "Widget source edit with inline comment");
+    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "Play Reaper 40044 // transport", "Stop Stop"}), "Widget source comment preservation");
+}
+
+static void TestWidgetSourceEditRemovesBindings() {
+    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play Play", "Stop Stop"};
+    const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {});
+    Require(result.success, "Widget source binding removal");
+    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "Stop Stop"}), "Widget source binding removal result");
+}
+
+static void TestInvalidWidgetSourceEditRejection() {
+    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play Play"};
+    const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {"Play"});
+    Require(!result.success, "invalid Widget source edit rejection");
+    Require(result.lines.empty(), "invalid Widget source edit does not return writable lines");
+}
+
 int main() {
     TestValidProfile();
     TestHomeRules();
@@ -125,6 +170,12 @@ int main() {
     TestDeclaredLayerNavigation();
     TestLayerOnlyAction();
     TestProfileLoader();
+    TestExactWidgetSourceEdit();
+    TestChannelFamilySourceEdit();
+    TestMixedWidgetSourceEditRejection();
+    TestWidgetSourceEditPreservesComment();
+    TestWidgetSourceEditRemovesBindings();
+    TestInvalidWidgetSourceEditRejection();
     std::cout << "Format2ZoneProfile tests passed\n";
     return 0;
 }
