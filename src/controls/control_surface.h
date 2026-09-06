@@ -144,9 +144,7 @@ protected:
     bool speedX5_ = false;
 
     ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const string& name, int numChannels, int channelOffset, const SettingsValues& settings, const SettingOverrides& settingOverrides)
-        : csi_(csi), page_(page), name_(name), numChannels_(numChannels), channelOffset_(channelOffset)
-        , modifierManager_(make_unique<ModifierManager>(csi_, nullptr, this)
-    ) {
+        : csi_(csi), page_(page), name_(name), modifierManager_(make_unique<ModifierManager>(csi_, nullptr, this)), numChannels_(numChannels), channelOffset_(channelOffset) {
         this->ApplySettings(settings, settingOverrides);
         int size = 0;
         scrubModePtr_ = (int*) get_config_var("scrubmode", &size);

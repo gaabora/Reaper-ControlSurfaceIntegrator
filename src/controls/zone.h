@@ -68,7 +68,7 @@ protected:
 
 public:
     Zone(CSurfIntegrator* const csi, ZoneManager* const zoneManager, Navigator* navigator, int slotIndex, const string& name, const string& alias, const string& sourceFilePath)
-        : csi_(csi), zoneManager_(zoneManager), navigator_(navigator), slotIndex_(slotIndex), name_(name), alias_(alias), sourceFilePath_(sourceFilePath) {}
+        : zoneManager_(zoneManager), csi_(csi), navigator_(navigator), slotIndex_(slotIndex), name_(name), alias_(alias), sourceFilePath_(sourceFilePath) {}
 
     virtual ~Zone() {
         includedZones_.clear();
