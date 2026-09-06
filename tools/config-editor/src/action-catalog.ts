@@ -24,10 +24,19 @@ async function loadActionNameList(repositoryRoot: string, listName: string): Pro
     const metadataPath = path.join(repositoryRoot, "src", "controls", "format2_action_metadata.h");
     const source = await readFile(metadataPath, "utf8");
     const marker = `#define ${listName}(X)`;
-    const start = source.indexOf(marker);
-    const end = source.indexOf("\n\n", start);
-    if (start < 0 || end < 0) throw new Error(`Cannot find ${listName} in ${metadataPath}`);
-    return new Set([...source.slice(start, end).matchAll(/X\("([^"]+)"\)/g)].map((match) => match[1]));
+    const lines = source.split(/\r?\n/);
+    const start = lines.findIndex((line) => line.trimStart().startsWith(marker));
+    if (start < 0) throw new Error(`Cannot find ${listName} in ${metadataPath}`);
+    const macroLines: string[] = [];
+    for (let lineIdx = start; lineIdx < lines.length; lineIdx++) {
+        const line = lines[lineIdx];
+        macroLines.push(line);
+        if (!line.trimEnd().endsWith("\\")) break;
+        if (lineIdx === lines.length - 1) throw new Error(`${listName} is not terminated in ${metadataPath}`);
+    }
+    const actions = new Set([...macroLines.join("\n").matchAll(/X\("([^"]+)"\)/g)].map((match) => match[1]));
+    if (!actions.size) throw new Error(`${listName} contains no actions in ${metadataPath}`);
+    return actions;
 }
 
 interface ActionDocumentation {
