@@ -293,6 +293,7 @@ public:
     CSurfIntegrator* GetCSI() { return csi_; }
     ControlSurface* GetSurface() { return surface_; }
     bool UsesFormat2ZoneProfile() const { return this->format2ZoneProfile_ != nullptr; }
+    const Format2LoadedLearnFxDocument* GetFormat2LearnFx() const { return this->format2ZoneProfile_ && this->format2ZoneProfile_->learnFx ? &*this->format2ZoneProfile_->learnFx : nullptr; }
 
     Zone* GetActiveZoneForWidget(Widget* widget) {
         if (!widget) return NULL;

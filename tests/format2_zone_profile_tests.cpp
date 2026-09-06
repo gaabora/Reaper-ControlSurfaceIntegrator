@@ -113,6 +113,10 @@ static void TestProfileLoader() {
     Require(result.IsValid(), "profile loader result");
     Require(result.documents.size() == 2, "profile loader document count");
     Require(result.sources.size() == result.documents.size(), "profile loader source alignment");
+    Require(result.learnFx.has_value(), "profile loader Learn FX document");
+    Require(result.learnFx->layer == Format2ZoneSourceLayer::User, "User Learn FX document overrides Vendor");
+    Require(result.learnFx->parsed.learnFx.widgets.size() == 1, "active Learn FX document content");
+    Require(result.learnFx->parsed.learnFx.widgets.front().selector.source == "Rotary#", "active User Learn FX selector");
 }
 
 static void TestExactWidgetSourceEdit() {

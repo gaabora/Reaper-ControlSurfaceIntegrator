@@ -27,8 +27,23 @@ static Format2ZoneParseResult ReadFormat2ZoneFile(const std::filesystem::path& p
     return ParseFormat2ZoneDocumentSource(source, path.string(), kind);
 }
 
+static Format2LearnFxParseResult ReadFormat2LearnFxFile(const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        Format2LearnFxParseResult result;
+        result.document.kind = Format2DocumentKind::LearnFx;
+        result.document.lexical.sourcePath = path.string();
+        result.document.lexical.diagnostics.push_back({"format2.learn-fx.file.open", "Cannot open Learn FX file", {0, 1, 1}});
+        return result;
+    }
+    const std::string source((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    return ParseFormat2LearnFxDocumentSource(source, path.string());
+}
+
 Format2ZoneProfileLoadResult LoadFormat2ZoneProfile(const std::string& profileId, const std::vector<Format2ZoneProfileRoot>& roots) {
     Format2ZoneProfileLoadResult result;
+    std::optional<Format2LoadedLearnFxDocument> vendorLearnFx;
+    std::optional<Format2LoadedLearnFxDocument> userLearnFx;
     for (const Format2ZoneProfileRoot& root : roots) {
         const Format2DocumentKind kind = root.collection == Format2ZoneCollection::Main ? Format2DocumentKind::MainZone : Format2DocumentKind::FxZone;
         for (const std::filesystem::path& path : CollectFormat2ZoneFiles(root.path)) {
@@ -39,7 +54,17 @@ Format2ZoneProfileLoadResult LoadFormat2ZoneProfile(const std::string& profileId
             result.sources.push_back(MakeFormat2ZoneSource(document.collection, document.layer, document.parsed));
             result.documents.push_back(std::move(document));
         }
+        if (root.collection != Format2ZoneCollection::Fx) continue;
+        const std::filesystem::path learnFxPath = root.path.parent_path() / "LearnFX.fxzon";
+        if (!std::filesystem::exists(learnFxPath)) continue;
+        Format2LoadedLearnFxDocument learnFxDocument;
+        learnFxDocument.layer = root.layer;
+        learnFxDocument.parsed = ReadFormat2LearnFxFile(learnFxPath);
+        if (root.layer == Format2ZoneSourceLayer::User) userLearnFx = std::move(learnFxDocument);
+        else vendorLearnFx = std::move(learnFxDocument);
     }
+    if (userLearnFx) result.learnFx = std::move(userLearnFx);
+    else if (vendorLearnFx) result.learnFx = std::move(vendorLearnFx);
     result.profile = ResolveFormat2ZoneProfile(profileId, result.sources);
     return result;
 }

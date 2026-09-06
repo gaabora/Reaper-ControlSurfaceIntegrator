@@ -1,0 +1,5 @@
+@Meta { Version=2 }
+
+FXWidgets {
+  Parameter Fader#
+}

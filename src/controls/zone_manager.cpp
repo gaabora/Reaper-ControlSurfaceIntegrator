@@ -164,6 +164,7 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     }
 
     for (const Format2LoadedZoneDocument& document : loaded.documents) for (const Format2Diagnostic& diagnostic : document.parsed.document.lexical.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
+    if (loaded.learnFx) for (const Format2Diagnostic& diagnostic : loaded.learnFx->parsed.document.lexical.diagnostics) LogFormat2ZoneDiagnostic(loaded.learnFx->parsed.document.lexical.sourcePath, diagnostic);
     for (const Format2ZoneProfileDiagnostic& diagnostic : loaded.profile.diagnostics) LogFormat2ProfileDiagnostic(loaded.sources, diagnostic);
     if (!loaded.IsValid()) return Format2InitializationState::Failed;
 

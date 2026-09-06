@@ -1754,6 +1754,7 @@ The static codec audit intentionally excludes device names that do not select a 
   - ✅ Switch the Bun product-config consumer from Surface settings to Device settings.
 - ✅ Expose ring and bar feedback style resolution through runtime ActionContext metadata and publish the same confirmed action `FeedbackShape` through the generated editor action catalog. Explicit binding style still wins, while dynamic and unknown actions use the processor default.
 - [ ] Replace the native Learn FX dialog with OSK FX edit mode, one in-memory live-preview draft, and atomic User FX-zone save through the shared validated model.
+  - ✅ Resolve the fixed `LearnFX.fxzon` beside the selected FX profile with User-over-Vendor precedence, include its diagnostics in atomic profile validation, and retain its typed model in `ZoneManager` for OSK FX edit mode.
 - ✅ Validate the complete active profile before runtime objects are created.
   - ✅ Extend `Format2ZoneProfile` resolution with active Main references, structural cycle checks, `IncludedZones` versus `Role=Layer` rules, typed `GoZone` and `EnterZoneLayer` target checks, and focused source locations.
   - ✅ Extract format 2 navigation references through shared action metadata instead of local action-name checks in the zone or profile parser.

@@ -1,8 +1,10 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <vector>
 
+#include "format2_learn_fx_document.h"
 #include "format2_zone_profile.h"
 
 struct Format2ZoneProfileRoot {
@@ -17,12 +19,18 @@ struct Format2LoadedZoneDocument {
     Format2ZoneParseResult parsed;
 };
 
+struct Format2LoadedLearnFxDocument {
+    Format2ZoneSourceLayer layer = Format2ZoneSourceLayer::Vendor;
+    Format2LearnFxParseResult parsed;
+};
+
 struct Format2ZoneProfileLoadResult {
     std::vector<Format2LoadedZoneDocument> documents;
     std::vector<Format2ZoneSource> sources;
+    std::optional<Format2LoadedLearnFxDocument> learnFx;
     Format2ZoneProfileResolveResult profile;
 
-    bool IsValid() const { return this->profile.IsValid(); }
+    bool IsValid() const { return this->profile.IsValid() && (!this->learnFx || this->learnFx->parsed.IsValid()); }
     bool UsesFormat2() const;
     bool ContainsOnlyFormat2() const;
 };
