@@ -138,9 +138,9 @@ function convertAnonymousValues(tokens: string[], lineNumber: number, documentPa
             } else if (list) {
                 const entries = list[1].split(",").map((entry) => entry.trim());
                 if (!entries.length || entries.some((entry) => decimal(entry) === undefined)) invalid = true;
-                else parenthesis.push(entries.map((entry) => decimal(entry)!));
+                else parenthesis.push(entries.map((entry) => decimal(entry, entry.includes("."))!));
             } else {
-                const normalized = decimal(value);
+                const normalized = decimal(value, value.includes("."));
                 if (!normalized) invalid = true;
                 else stepValues.push(normalized);
             }
@@ -148,7 +148,8 @@ function convertAnonymousValues(tokens: string[], lineNumber: number, documentPa
         if (invalid || ranges.length > 2 || parenthesis.length > 1) addDiagnostic(diagnostics, "error", "legacy.zone.values.ambiguous", "Legacy action values cannot be converted without guessing. Edit this binding before import.", lineNumber, documentPath);
         else {
             if (ranges.length) result.push(propertyList("Range", ranges));
-            if (stepValues.length) result.push(propertyList("StepValues", stepValues, stepValues.length === 1));
+            if (stepValues.length === 1 && !ranges.length && !parenthesis.length) result.push(`Delta=${stepValues[0]}`);
+            else if (stepValues.length) result.push(propertyList("StepValues", stepValues));
             if (parenthesis.length) {
                 const valuesAreIntegers = parenthesis[0].every((value) => Number.isInteger(Number(value)));
                 if (valuesAreIntegers && stepValues.length) result.push(propertyList("TicksPerStep", parenthesis[0]));
