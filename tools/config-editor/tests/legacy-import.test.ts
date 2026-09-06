@@ -672,7 +672,7 @@ WidgetEnd
 
         expect(diagnostic?.message).toContain("matching legacy zone is not selected for import");
         expect(diagnostic?.line).toBe(4);
-        expect(diagnostic?.related).toEqual([{ line: 2, path: "Zones/GoZones/Transport.zon" }]);
+        expect(diagnostic?.related).toEqual([{ line: 1, path: "Zones/GoZones/Transport.zon" }]);
     });
 
     test("resolves an import dependency from the active target profile", async () => {
@@ -793,7 +793,7 @@ WidgetEnd
         const selectedZonePaths = ["Zones/HomeZones/Home.zon"];
         const initial = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths);
         const initialZone = initial.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
-        const draftSource = initialZone.source.replace("  Play Play\n", "  Play GoZone Transport\n");
+        const draftSource = initialZone.source.replace("Play Play\n", "Play GoZone Transport\n");
         const drafts = [{ originalSourceHash: initialZone.originalSourceHash, source: draftSource, sourcePath: initialZone.sourcePath }];
         const targetPaths = [{ sourcePath: initialZone.sourcePath, targetPath: "Zones/User/custom-profile/Main/Transport/Home.zon" }];
         const preview = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths, [], false, drafts, "custom-profile", targetPaths);
@@ -803,9 +803,9 @@ WidgetEnd
         expect(preview.valid).toBeTrue();
         expect(preview.targetProfileId).toBe("custom-profile");
         expect(importedZone.targetPath).toBe("Zones/User/custom-profile/Main/Transport/Home.zon");
-        expect(importedZone.source).toContain("  Play GoZone Transport\n");
+        expect(importedZone.source).toContain("Play GoZone Transport\n");
         await source.import(store, knownActions, { drafts, includeSurface: true, resolutions, selectedZonePaths, surfaceName: "FaderPortV2", targetPaths, targetProfileId: "custom-profile", widgetMappings: [] });
-        expect(await readFile(path.join(productRoot, "Zones", "User", "custom-profile", "Main", "Transport", "Home.zon"), "utf8")).toContain("  Play GoZone Transport\n");
+        expect(await readFile(path.join(productRoot, "Zones", "User", "custom-profile", "Main", "Transport", "Home.zon"), "utf8")).toContain("Play GoZone Transport\n");
         expect(await readFile(path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon"), "utf8")).toBe(homeSource);
     });
 

@@ -54,7 +54,6 @@ Format2ZoneProfileLoadResult LoadFormat2ZoneProfile(const std::string& profileId
             result.sources.push_back(MakeFormat2ZoneSource(document.collection, document.layer, document.parsed));
             result.documents.push_back(std::move(document));
         }
-        if (root.collection != Format2ZoneCollection::Fx) continue;
         const std::filesystem::path learnFxPath = root.path.parent_path() / "LearnFX.fxzon";
         if (!std::filesystem::exists(learnFxPath)) continue;
         Format2LoadedLearnFxDocument learnFxDocument;
