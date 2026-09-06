@@ -7,6 +7,7 @@ import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts
 import { EditorOperationError } from "./store.ts";
 import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
 import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy-surface-format2.ts";
+import { convertLegacyLearnFxToFormat2, type LegacyLearnFxSource } from "./legacy-learn-fx.ts";
 import { convertLegacyZoneToFormat2 } from "./legacy-zone-format2.ts";
 import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
 import { migrateLegacySce24StateColors } from "./legacy-sce24-state.ts";
@@ -18,7 +19,7 @@ import type { ZoneBinding, ZoneSemantic } from "./zone.ts";
 import type { ProductTreeEntry } from "./paths.ts";
 
 export type LegacyImportConflictAction = "create" | "rename" | "replace" | "skip";
-export type LegacyImportKind = "surface" | "zone";
+export type LegacyImportKind = "learn-fx" | "surface" | "zone";
 
 export interface LegacySurfaceSummary {
     fxZoneCount: number;
@@ -493,12 +494,27 @@ export class LegacyCsiSource {
         const files = await this.readSurfaceFiles(surfaceName);
         const targetProfileId = requestedProfileId || files.stableId;
         if (!isStableId(targetProfileId)) throw new EditorOperationError("legacy.target.profile", "Target profile ID must be a stable lowercase ASCII ID");
-        const selectedPaths = new Set(selectedZonePaths ?? files.zones.filter((zone) => !LEGACY_LEARN_ZONE_NAMES.has((legacyZoneName(zone.source) ?? "").toLowerCase())).map((zone) => zone.sourcePath));
-        const availableZonePaths = new Set(files.zones.map((zone) => zone.sourcePath));
+        const learnZonesByName = new Map<string, LegacyZoneSourceFile[]>();
+        const normalZones: LegacyZoneSourceFile[] = [];
+        for (const zone of files.zones) {
+            const zoneName = (legacyZoneName(zone.source) ?? "").toLowerCase();
+            if (!LEGACY_LEARN_ZONE_NAMES.has(zoneName)) normalZones.push(zone);
+            else {
+                const matchingZones = learnZonesByName.get(zoneName) ?? [];
+                matchingZones.push(zone);
+                learnZonesByName.set(zoneName, matchingZones);
+            }
+        }
+        const learnLayout = learnZonesByName.get("fxwidgetlayout")?.[0];
+        const defaultSelectedPaths = normalZones.map((zone) => zone.sourcePath);
+        if (learnLayout) defaultSelectedPaths.push(learnLayout.sourcePath);
+        const selectedPaths = new Set(selectedZonePaths ?? defaultSelectedPaths);
+        const availableZonePaths = new Set([...normalZones.map((zone) => zone.sourcePath), ...(learnLayout ? [learnLayout.sourcePath] : [])]);
         for (const selectedPath of selectedPaths) if (!availableZonePaths.has(selectedPath)) throw new EditorOperationError("legacy.zone.missing", `Legacy zone is not available in ${surfaceName}: ${selectedPath}`);
 
         const sourceFiles = new Map<string, { kind: LegacyImportKind; originalSourceHash: string; source: string }>([[files.surface.sourcePath, { kind: "surface", originalSourceHash: files.surface.originalSourceHash, source: files.surface.source }]]);
-        for (const zone of files.zones) sourceFiles.set(zone.sourcePath, { kind: "zone", originalSourceHash: zone.originalSourceHash, source: zone.source });
+        for (const zone of normalZones) sourceFiles.set(zone.sourcePath, { kind: "zone", originalSourceHash: zone.originalSourceHash, source: zone.source });
+        if (learnLayout) sourceFiles.set(learnLayout.sourcePath, { kind: "learn-fx", originalSourceHash: learnLayout.originalSourceHash, source: learnLayout.source });
         const draftMap = new Map<string, LegacyImportDraft>();
         for (const draft of drafts) {
             const sourceFile = sourceFiles.get(draft.sourcePath);
@@ -544,12 +560,12 @@ export class LegacyCsiSource {
             zoneMigrationDiagnostics.set(zone.sourcePath, [...ringMigration.diagnostics, ...stateMigration.diagnostics]);
         }
         const layerNames = new Set<string>();
-        for (const zone of files.zones) {
+        for (const zone of normalZones) {
             const legacyDocument = parseByPath(preparedZoneSources.get(zone.sourcePath)!, zone.sourcePath, knownActions);
             legacyZoneDocuments.set(zone.sourcePath, legacyDocument);
             for (const layerName of (legacyDocument.semantic as ZoneSemantic).subZones) layerNames.add(layerName.toLowerCase());
         }
-        for (const zone of files.zones) {
+        for (const zone of normalZones) {
             const targetPath = targetPathMap.get(zone.sourcePath) || `Zones/User/${targetProfileId}/${zone.profile}/${zone.relativePath}`;
             this.validateTargetScope("zone", targetPath, targetProfileId);
             const preparedSource = preparedZoneSources.get(zone.sourcePath)!;
@@ -581,6 +597,25 @@ export class LegacyCsiSource {
             }
         }
 
+        let learnFxDocument: AnyDocument | undefined;
+        let migratedLearnFx = "";
+        let learnFxTargetPath = "";
+        const learnFxDiagnostics: Diagnostic[] = [];
+        for (const [zoneName, matchingZones] of learnZonesByName) if (matchingZones.length > 1) addDiagnostic(learnFxDiagnostics, "error", "legacy.learn-fx.source.duplicate", `More than one legacy ${zoneName} zone was found. Keep one before import.`, undefined, matchingZones[1].sourcePath, matchingZones.map((zone) => ({ path: zone.sourcePath })));
+        if (learnLayout) {
+            learnFxTargetPath = targetPathMap.get(learnLayout.sourcePath) || `Zones/User/${targetProfileId}/LearnFX.fxzon`;
+            this.validateTargetScope("learn-fx", learnFxTargetPath, targetProfileId);
+            const learnSource = (zoneName: string): LegacyLearnFxSource | undefined => {
+                const zone = learnZonesByName.get(zoneName)?.[0];
+                return zone ? { source: preparedZoneSources.get(zone.sourcePath)!, sourcePath: zone.sourcePath } : undefined;
+            };
+            const conversion = convertLegacyLearnFxToFormat2({ epilogue: learnSource("fxepilogue"), layout: { source: draftMap.get(learnLayout.sourcePath)?.source ?? preparedZoneSources.get(learnLayout.sourcePath)!, sourcePath: learnLayout.sourcePath }, prologue: learnSource("fxprologue") });
+            migratedLearnFx = conversion.source;
+            learnFxDiagnostics.push(...conversion.diagnostics);
+            learnFxDocument = parseByPath(migratedLearnFx, learnFxTargetPath, knownActions);
+            learnFxDocument.diagnostics.push(...learnFxDiagnostics);
+        }
+
         const matchesByName = new Map<string, string[]>();
         for (const [sourcePath, document] of zoneDocuments) {
             const semantic = document.semantic as ZoneSemantic;
@@ -598,16 +633,17 @@ export class LegacyCsiSource {
             items.push({ diagnostics: diagnosticsWithQuickFixes(document, knownActions, true), id: `${kind}:${sourcePath}`, kind, originalSourceHash, selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, zoneName });
         };
         await appendItem("surface", files.surface.sourcePath, files.surface.originalSourceHash, surfaceTargetPath, migratedSurface, surfaceDocument, includeSurface);
-        for (const zone of files.zones) {
+        for (const zone of normalZones) {
             const document = zoneDocuments.get(zone.sourcePath)!;
             await appendItem("zone", zone.sourcePath, zone.originalSourceHash, zoneTargetPaths.get(zone.sourcePath)!, migratedZoneSources.get(zone.sourcePath)!, document, selectedPaths.has(zone.sourcePath), (document.semantic as ZoneSemantic).name);
         }
+        if (learnLayout && learnFxDocument) await appendItem("learn-fx", learnLayout.sourcePath, learnLayout.originalSourceHash, learnFxTargetPath, migratedLearnFx, learnFxDocument, selectedPaths.has(learnLayout.sourcePath), "Learn FX");
 
-        const selectedDocuments = items.filter((item) => item.selected).map((item) => item.kind === "surface" ? surfaceDocument : zoneDocuments.get(item.sourcePath)!);
+        const selectedDocuments = items.filter((item) => item.selected).map((item) => item.kind === "surface" ? surfaceDocument : item.kind === "learn-fx" ? learnFxDocument! : zoneDocuments.get(item.sourcePath)!);
         const mappingSurfaceDocuments = widgetTarget === "existing" ? [...(!includeSurface ? [surfaceDocument] : []), ...(targetSurface ? [targetSurface] : [])] : [];
         const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics).filter((diagnostic) => diagnostic.code !== "surface.format.missing" && diagnostic.code !== "zone.format.missing");
         const selectedDocumentsByPath = new Map<string, AnyDocument>(selectedDocuments.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
-        const replacedTargetPaths = new Set([...selectedPaths].map((sourcePath) => zoneTargetPaths.get(sourcePath)!.toLowerCase()));
+        const replacedTargetPaths = new Set([...selectedPaths].map((sourcePath) => zoneTargetPaths.get(sourcePath)).filter((targetPath): targetPath is string => Boolean(targetPath)).map((targetPath) => targetPath.toLowerCase()));
         const availableTargetZoneNames = await existingTargetZoneNames(store, targetProfileId, replacedTargetPaths);
         const availableZoneNamesByProfile = new Map([[targetProfileId.toLowerCase(), availableTargetZoneNames]]);
         const setDiagnostics = validateDocumentSet(selectedDocuments, { availableZoneNamesByProfile }).map((diagnostic) => {
@@ -692,11 +728,13 @@ export class LegacyCsiSource {
 
     private validateTargetScope(kind: LegacyImportKind, targetPath: string, targetProfileId: string): void {
         if (kind === "surface" && targetPath !== `Surfaces/User/${targetProfileId}.txt`) throw new EditorOperationError("legacy.target.surface", `The surface target must be Surfaces/User/${targetProfileId}.txt`);
+        if (kind === "learn-fx" && targetPath !== `Zones/User/${targetProfileId}/LearnFX.fxzon`) throw new EditorOperationError("legacy.target.learn-fx", `The Learn FX target must be Zones/User/${targetProfileId}/LearnFX.fxzon`);
         if (kind === "zone" && (!targetPath.startsWith(`Zones/User/${targetProfileId}/`) || !targetPath.endsWith(".zon"))) throw new EditorOperationError("legacy.target.zone", `A zone target must be a .zon file below Zones/User/${targetProfileId}`);
     }
 
     private validateRenameScope(item: LegacyImportItem, targetPath: string, targetProfileId: string): void {
         if (item.kind === "surface" && (!targetPath.startsWith("Surfaces/User/") || !targetPath.endsWith(".txt"))) throw new EditorOperationError("legacy.rename.scope", "A surface rename target must be a .txt file below Surfaces/User");
+        if (item.kind === "learn-fx") throw new EditorOperationError("legacy.rename.scope", "LearnFX.fxzon has one fixed target name and cannot be renamed");
         if (item.kind === "zone" && (!targetPath.startsWith(`Zones/User/${targetProfileId}/`) || !targetPath.endsWith(".zon"))) throw new EditorOperationError("legacy.rename.scope", `A zone rename target must be a .zon file below Zones/User/${targetProfileId}`);
     }
 

@@ -5,7 +5,7 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
-const BLOCK_KEYWORDS = new Set(["Binding", "BindingEnd", "IncludedZones", "IncludedZonesEnd", "OSKLayout", "OSKLayoutEnd", "Snippet", "SnippetEnd", "SubZones", "SubZonesEnd", "Widget", "WidgetEnd", "Zone", "ZoneEnd"]);
+const BLOCK_KEYWORDS = new Set(["Binding", "BindingEnd", "FXWidgets", "GeneratedBindings", "IncludedZones", "IncludedZonesEnd", "OSKLayout", "OSKLayoutEnd", "Snippet", "SnippetEnd", "SubZones", "SubZonesEnd", "Widget", "WidgetEnd", "Zone", "ZoneEnd"]);
 const VALUE_KEYWORDS = new Set(["No", "None", "Yes"]);
 
 const configurationLanguage = StreamLanguage.define({

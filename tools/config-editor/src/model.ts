@@ -1,4 +1,4 @@
-export type FormatId = "product-config" | "surface" | "zone" | "snippet";
+export type FormatId = "learn-fx" | "product-config" | "surface" | "zone" | "snippet";
 export type DiagnosticSeverity = "error" | "warning";
 export type SourceLineKind = "blank" | "comment" | "format" | "header" | "block-start" | "block-end" | "entry" | "unknown";
 

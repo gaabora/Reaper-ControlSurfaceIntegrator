@@ -65,6 +65,14 @@ describe("configuration formats", () => {
         expect(document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     });
 
+    test("parses a Learn FX profile document without changing source", () => {
+        const source = "@Meta { Version=2 }\n\nFXWidgets {\n  Parameter Fader#\n  ValueDisplay DisplayLower#\n}\n\nGeneratedBindings {\n  On ZoneDeactivation {\n    HideFXSlot\n  }\n}\n";
+        const document = parseByPath(source, "/config/Zones/User/test/LearnFX.fxzon");
+        expect(serializeDocument(document)).toBe(source);
+        expect(document.format).toBe("learn-fx");
+        expect(document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    });
+
     test("reports format 2 Zone metadata, layer, selector, and wildcard errors", async () => {
         const fixtureRoot = path.join(editorRoot, "fixtures", "format2-spec", "invalid");
         const expectedCodes = new Map([

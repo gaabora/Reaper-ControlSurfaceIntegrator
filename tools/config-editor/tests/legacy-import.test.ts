@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
+import { convertLegacyLearnFxToFormat2 } from "../src/legacy-learn-fx.ts";
 import { convertLegacySurfaceToFormat2 } from "../src/legacy-surface-format2.ts";
 import { convertLegacyZoneToFormat2 } from "../src/legacy-zone-format2.ts";
 import { migrateLegacySce24RingColors } from "../src/legacy-sce24-ring.ts";
@@ -126,6 +127,42 @@ WidgetEnd
         const conversion = convertLegacyZoneToFormat2("Zone Home\n  Play Reaper 40044 HoldDelay=500 HoldRepeatInterval=100 OSD=\"Repeat action\"\nZoneEnd\n", { profile: "Main", targetPath: "Zones/User/test/Main/Home.zon" });
         expect(conversion.diagnostics).toEqual([]);
         expect(conversion.source).toContain('(Hold)+Play Reaper 40044 DelayMs=500 RepeatIntervalMs=100 OSD="Repeat action"');
+    });
+
+    test("combines legacy Learn FX layout and generated bindings", () => {
+        const layout = migrateLegacyCommentSyntax("Zone FXWidgetLayout\n  Fader FXParam\n  RotaryBig FXParam\nZoneEnd\n\n#WidgetType Fader\n#WidgetType RotaryBig RingStyle=Dot\n/ #RingStyle Fill\n");
+        const prologue = migrateLegacyCommentSyntax("Zone FXPrologue\n  /OnZoneActivation ToggleUseLocalModifiers\nZoneEnd\n");
+        const epilogue = migrateLegacyCommentSyntax("Zone FXEpilogue\n  OnZoneDeactivation HideFXSlot\n  Bypass ClearFXSlot\nZoneEnd\n");
+        const conversion = convertLegacyLearnFxToFormat2({
+            epilogue: { source: epilogue, sourcePath: "Zones/LearnZones/FXEpilogue.zon" },
+            layout: { source: layout, sourcePath: "Zones/FXWidgetLayout.zon" },
+            prologue: { source: prologue, sourcePath: "Zones/LearnZones/FXPrologue.zon" },
+        });
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toBe("@Meta { Version=2 }\n\nFXWidgets {\n  Parameter Fader\n  Parameter RotaryBig RingStyle=Dot\n}\n\nGeneratedBindings {\n  On ZoneDeactivation {\n    HideFXSlot\n  }\n\n  Bypass ClearFXSlot\n}\n");
+    });
+
+    test("shows one LearnFX.fxzon import item instead of legacy Learn pseudo-zones", async () => {
+        const zonesRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones");
+        await mkdir(path.join(zonesRoot, "LearnZones"), { recursive: true });
+        await writeFile(path.join(zonesRoot, "FXWidgetLayout.zon"), "Zone FXWidgetLayout\n  Fader FXParam\nZoneEnd\n\n#WidgetType Fader\n", "utf8");
+        await writeFile(path.join(zonesRoot, "LearnZones", "FXPrologue.zon"), "Zone FXPrologue\nZoneEnd\n", "utf8");
+        await writeFile(path.join(zonesRoot, "LearnZones", "FXEpilogue.zon"), "Zone FXEpilogue\n  OnZoneDeactivation HideFXSlot\nZoneEnd\n", "utf8");
+        await writeFile(path.join(zonesRoot, "LearnZones", "FXRowLayout.zon"), "Zone FXRowLayout\n  \"\" \"\"\nZoneEnd\n", "utf8");
+
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const learnFx = preview.items.find((item) => item.kind === "learn-fx");
+
+        expect(learnFx).toMatchObject({ selected: true, sourcePath: "Zones/FXWidgetLayout.zon", targetPath: "Zones/User/faderportv2/LearnFX.fxzon" });
+        expect(learnFx?.source).toContain("Parameter Fader");
+        expect(learnFx?.source).toContain("On ZoneDeactivation");
+        expect(preview.items.some((item) => /FX(?:Prologue|Epilogue|RowLayout)\.zon$/.test(item.sourcePath))).toBeFalse();
+
+        const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
+        await source.import(await createStore(), knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
+        expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "LearnFX.fxzon"), "utf8")).toBe(learnFx?.source);
     });
 
     test("preserves prefix presses, press-only buttons, and seven-bit values", () => {

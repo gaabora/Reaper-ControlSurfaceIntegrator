@@ -5,7 +5,7 @@ import type { TranslationKey } from "./i18n.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
 
 export type ConfigOwner = "built-in" | "product" | "user" | "vendor";
-export type ConfigKind = "product-config" | "snippet" | "surface" | "zone";
+export type ConfigKind = "learn-fx" | "product-config" | "snippet" | "surface" | "zone";
 
 export interface ConfigPathInfo {
     kind: ConfigKind;
@@ -61,6 +61,8 @@ export function classifyConfigPath(relativePath: string, identity: EditorProduct
     const snippetId = segments[2]?.endsWith(".snippet") ? segments[2].slice(0, -8) : "";
     if (segments.length === 3 && segments[0] === "Surfaces" && segments[1] === "Vendor" && isStableId(surfaceId)) return { kind: "surface", owner: "vendor", writable: false };
     if (segments.length === 3 && segments[0] === "Surfaces" && segments[1] === "User" && isStableId(surfaceId)) return { kind: "surface", owner: "user", writable: true };
+    if (segments.length === 4 && segments[0] === "Zones" && segments[1] === "Vendor" && isStableId(segments[2]) && segments[3] === "LearnFX.fxzon") return { kind: "learn-fx", owner: "vendor", writable: false };
+    if (segments.length === 4 && segments[0] === "Zones" && segments[1] === "User" && isStableId(segments[2]) && segments[3] === "LearnFX.fxzon") return { kind: "learn-fx", owner: "user", writable: true };
     if (segments.length >= 4 && segments[0] === "Zones" && segments[1] === "Vendor" && isStableId(segments[2]) && segments.at(-1)?.endsWith(".zon")) return { kind: "zone", owner: "vendor", writable: false };
     if (segments.length >= 4 && segments[0] === "Zones" && segments[1] === "User" && isStableId(segments[2]) && segments.at(-1)?.endsWith(".zon")) return { kind: "zone", owner: "user", writable: true };
     if (segments.length === 3 && segments[0] === "Snippets" && segments[1] === "BuiltIn" && isStableId(snippetId)) return { kind: "snippet", owner: "built-in", writable: false };

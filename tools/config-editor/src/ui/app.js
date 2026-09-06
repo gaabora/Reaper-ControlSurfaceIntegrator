@@ -987,7 +987,7 @@ function updateLegacyZoneTreeSelection() {
 }
 
 function renderLegacyZones() {
-    const zones = (state.legacy.preview?.items || []).filter((item) => item.kind === "zone");
+    const zones = (state.legacy.preview?.items || []).filter((item) => item.kind === "zone" || item.kind === "learn-fx");
     elements.legacyZones.replaceChildren();
     if (!zones.length) {
         elements.legacyZones.className = "legacy-zone-tree secondary";
@@ -1184,6 +1184,7 @@ function renderLegacyPreview() {
         targetPath.className = "legacy-target-input";
         targetPath.value = item.targetPath;
         targetPath.title = translate("legacy.target");
+        targetPath.readOnly = item.kind === "learn-fx";
         targetPath.addEventListener("change", async () => {
             try {
                 state.legacy.targetPaths.set(item.sourcePath, targetPath.value);
@@ -1200,7 +1201,8 @@ function renderLegacyPreview() {
         let renameInput;
         if (item.targetExists) {
             actionControl = document.createElement("select");
-            for (const [value, key] of [["", "legacy.conflict.choose"], ["replace", "legacy.conflict.replace"], ["rename", "legacy.conflict.rename"], ["skip", "legacy.conflict.skip"]]) {
+            const conflictActions = item.kind === "learn-fx" ? [["", "legacy.conflict.choose"], ["replace", "legacy.conflict.replace"], ["skip", "legacy.conflict.skip"]] : [["", "legacy.conflict.choose"], ["replace", "legacy.conflict.replace"], ["rename", "legacy.conflict.rename"], ["skip", "legacy.conflict.skip"]];
+            for (const [value, key] of conflictActions) {
                 const option = document.createElement("option");
                 option.value = value;
                 option.textContent = translate(key);
@@ -1483,7 +1485,7 @@ elements.legacyIncludeSurface.addEventListener("change", async () => {
 
 elements.legacySelectAll.addEventListener("click", async () => {
     try {
-        const zonePaths = state.legacy.preview.items.filter((item) => item.kind === "zone").map((item) => item.sourcePath);
+        const zonePaths = state.legacy.preview.items.filter((item) => item.kind === "zone" || item.kind === "learn-fx").map((item) => item.sourcePath);
         await refreshLegacyPreview(zonePaths);
     } catch (error) { showError(error); }
 });

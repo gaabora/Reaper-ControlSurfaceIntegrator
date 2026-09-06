@@ -7,6 +7,7 @@ import { parseSnippet } from "./snippet.ts";
 import { parseSurface } from "./surface.ts";
 import { analysisText } from "./text.ts";
 import { isLearnTemplateDirective, parseZone } from "./zone.ts";
+import { parseLearnFx } from "./learn-fx.ts";
 
 export type AnyDocument = LosslessDocument<unknown>;
 
@@ -22,6 +23,7 @@ function addCommonSyntaxDiagnostics(document: AnyDocument): AnyDocument {
 export function parseByPath(source: string, filePath: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema, actionTraits?: ReadonlyMap<string, ActionTraits>): AnyDocument {
     const extension = path.extname(filePath).toLowerCase();
     if (extension === ".zon") return addCommonSyntaxDiagnostics(parseZone(source, filePath, knownActions, settingsSchema, actionTraits));
+    if (extension === ".fxzon") return addCommonSyntaxDiagnostics(parseLearnFx(source, filePath));
     if (extension === ".snippet") return addCommonSyntaxDiagnostics(parseSnippet(source, filePath, knownActions));
     if (extension === ".txt") return addCommonSyntaxDiagnostics(parseSurface(source, filePath));
     if (extension === ".conf") return addCommonSyntaxDiagnostics(parseProductConfig(source, filePath, settingsSchema));
@@ -29,5 +31,5 @@ export function parseByPath(source: string, filePath: string, knownActions?: Set
 }
 
 export function isSupportedConfigPath(filePath: string): boolean {
-    return [".conf", ".snippet", ".txt", ".zon"].includes(path.extname(filePath).toLowerCase());
+    return [".conf", ".fxzon", ".snippet", ".txt", ".zon"].includes(path.extname(filePath).toLowerCase());
 }
