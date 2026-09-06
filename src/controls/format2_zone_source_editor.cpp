@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <map>
+#include <set>
 
 #include "format2_zone_document.h"
 
@@ -87,27 +88,41 @@ Format2ZoneWidgetEditResult EditFormat2ZoneWidgetSource(const std::string& sourc
         return result;
     }
 
-    std::map<int, const Format2ZoneBinding*> matchingBindingsByLine;
-    std::vector<std::string> comments;
+    std::set<int> matchingLines;
+    std::map<int, std::string> commentsByLine;
     std::string channelFamilySelector;
     bool foundExactBinding = false;
     for (const Format2ZoneBinding& binding : parsed.zone.bindings) {
         const bool exactMatch = binding.widget.kind == Format2WidgetSelectorKind::Exact && binding.widget.source == widgetName;
         const bool familyMatch = binding.widget.kind == Format2WidgetSelectorKind::ChannelFamily && MatchesFormat2ChannelFamily(binding.widget.baseName, widgetName, surfaceChannelCount);
         if (!exactMatch && !familyMatch) continue;
-        matchingBindingsByLine[binding.location.line] = &binding;
+        matchingLines.insert(binding.location.line);
         foundExactBinding = foundExactBinding || exactMatch;
         if (familyMatch && !channelFamilySelector.empty() && channelFamilySelector != binding.widget.source) {
             result.message = "The selected Widget is produced by more than one channel-family selector";
             return result;
         }
         if (familyMatch) channelFamilySelector = binding.widget.source;
-        if (binding.location.line >= 1 && static_cast<std::size_t>(binding.location.line) <= originalLines.size()) comments.push_back(FindFormat2InlineComment(originalLines[binding.location.line - 1]));
+        if (binding.location.line >= 1 && static_cast<std::size_t>(binding.location.line) <= originalLines.size()) commentsByLine[binding.location.line] = FindFormat2InlineComment(originalLines[binding.location.line - 1]);
     }
     if (foundExactBinding && !channelFamilySelector.empty()) {
         result.message = "The selected Widget has both exact and channel-family bindings; resolve this conflict in the configuration editor";
         return result;
     }
+    bool foundModifierDeclaration = false;
+    for (const Format2ModifierDeclaration& declaration : parsed.zone.modifiers) {
+        if (declaration.widget.kind != Format2WidgetSelectorKind::Exact || declaration.widget.source != widgetName) continue;
+        foundModifierDeclaration = true;
+        matchingLines.insert(declaration.location.line);
+        if (declaration.location.line >= 1 && static_cast<std::size_t>(declaration.location.line) <= originalLines.size()) commentsByLine[declaration.location.line] = FindFormat2InlineComment(originalLines[declaration.location.line - 1]);
+    }
+    if (foundModifierDeclaration && !channelFamilySelector.empty()) {
+        result.message = "The selected Widget combines an exact Modifier declaration with channel-family bindings; resolve this conflict in the configuration editor";
+        return result;
+    }
+
+    std::vector<std::string> comments;
+    for (const auto& commentEntry : commentsByLine) comments.push_back(commentEntry.second);
 
     std::vector<std::string> replacementLines = requestedReplacementLines;
     if (!channelFamilySelector.empty()) {
@@ -119,8 +134,8 @@ Format2ZoneWidgetEditResult EditFormat2ZoneWidgetSource(const std::string& sourc
     bool insertedReplacement = false;
     for (std::size_t lineIdx = 0; lineIdx < originalLines.size(); ++lineIdx) {
         const int lineNumber = static_cast<int>(lineIdx + 1);
-        const auto bindingEntry = matchingBindingsByLine.find(lineNumber);
-        if (bindingEntry == matchingBindingsByLine.end()) {
+        const auto matchingLine = matchingLines.find(lineNumber);
+        if (matchingLine == matchingLines.end()) {
             result.lines.push_back(originalLines[lineIdx]);
             continue;
         }

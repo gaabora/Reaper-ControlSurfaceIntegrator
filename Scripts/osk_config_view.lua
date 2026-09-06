@@ -199,6 +199,31 @@ function M.RenderBody(ctx, state, deps)
 
     renderActionPicker(ctx, state, selected, deps)
     parts = deps.action_line.Parse(selected.line)
+
+    local modifierChanged, modifierSource = imgui.Checkbox(ctx, "Modifier source", selected.modifierMode ~= nil)
+    if modifierChanged then
+        selected.modifierMode = modifierSource and "Default" or nil
+        deps.model.UpdateDirtyState(state)
+    end
+    if selected.modifierMode then
+        imgui.SameLine(ctx)
+        imgui.SetNextItemWidth(ctx, theme.CONFIG.action_search_mode_width)
+        local modifierModeIndex = deps.model.MODIFIER_MODE_INDEX[selected.modifierMode] or 0
+        local modifierModeChanged
+        modifierModeChanged, modifierModeIndex = imgui.Combo(ctx, "Modifier mode", modifierModeIndex, deps.model.MODIFIER_MODE_ITEMS)
+        if modifierModeChanged then
+            selected.modifierMode = deps.model.MODIFIER_MODE_BY_INDEX[modifierModeIndex + 1] or "Default"
+            deps.model.UpdateDirtyState(state)
+        end
+        local modifierLineChanged
+        modifierLineChanged, selected.line = imgui.InputText(ctx, "Raw", selected.line or "")
+        if modifierLineChanged then
+            deps.model.RefreshBindingDerivedFields(selected, deps.action_line)
+            deps.model.UpdateDirtyState(state)
+        end
+        return
+    end
+
     local changedQuick = false
 
     local paramsText = table.concat(parts.params or {}, " ")

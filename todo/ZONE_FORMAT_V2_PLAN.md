@@ -1769,7 +1769,7 @@ The static codec audit intentionally excludes device names that do not select a 
 - [ ] Replace the metadata preprocessor, binding parser, surface block readers, Learn FX line readers, and OSK line edits with the shared model where they overlap.
   - ✅ Replace OSK `ConfigSave` scanning for `Zone` and `ZoneEnd` with a typed format 2 Widget-binding source edit. Preserve channel-family mapping units and reject mixed exact plus family sources.
   - ✅ Route OSK `ConfigApplyLive` through the same temporary typed Zone edit and the normal format 2 runtime loader. Replace only the selected exact Widget or complete `Widget#` family after validation.
-  - [ ] Extend the OSK edit protocol with an explicit standard Modifier declaration and mode before allowing OSK to edit modifier-source Widgets. Until then, reject Apply Live and Save for those Widgets instead of converting a declaration into a normal binding.
+  - ✅ Extend the OSK edit protocol with an explicit standard Modifier declaration and mode. Preserve inherited `Default` separately from the effective runtime mode, and reject an exact Modifier declaration combined with a channel-family binding for the same physical Widget.
 
 Ready when runtime behavior consumes validated documents and no feature reparses the same zone with a different grammar.
 

@@ -169,6 +169,8 @@ static bool HasBalancedBindingSyntax(const string& actionText, string& errorMess
 struct OskConfigBinding {
     int modifierValue = 0;
     vector<string> actionTokens;
+    Format2ModifierMode modifierMode = Format2ModifierMode::Default;
+    bool isModifierDeclaration = false;
     bool hasHold = false;
     bool hasDoublePress = false;
     bool isValueInverted = false;
@@ -177,15 +179,6 @@ struct OskConfigBinding {
     bool isDecrease = false;
 };
 
-static bool HasFormat2ModifierContext(Zone* zone, Widget* widget) {
-    map<int, const vector<unique_ptr<ActionContext>>*> modifierContexts;
-    if (!zone || !zone->GetAllModifierContexts(widget, modifierContexts)) return false;
-    for (const auto& contextEntry : modifierContexts) {
-        for (const unique_ptr<ActionContext>& context : *contextEntry.second) if (context && context->GetInputEvent() == ActionInputEvent::Modifier) return true;
-    }
-    return false;
-}
-
 static bool IsOskMetadataToken(const string& token, OskConfigBinding& binding) {
     if (token == "__OSK_HOLD") binding.hasHold = true;
     else if (token == "__OSK_DOUBLE_PRESS") binding.hasDoublePress = true;
@@ -193,7 +186,17 @@ static bool IsOskMetadataToken(const string& token, OskConfigBinding& binding) {
     else if (token == "__OSK_INVERT_FB") binding.isFeedbackInverted = true;
     else if (token == "__OSK_INCREASE") binding.isIncrease = true;
     else if (token == "__OSK_DECREASE") binding.isDecrease = true;
-    else return false;
+    else if (token == "__OSK_MODIFIER_DEFAULT") binding.isModifierDeclaration = true;
+    else if (token == "__OSK_MODIFIER_MOMENTARY") {
+        binding.isModifierDeclaration = true;
+        binding.modifierMode = Format2ModifierMode::Momentary;
+    } else if (token == "__OSK_MODIFIER_LATCH") {
+        binding.isModifierDeclaration = true;
+        binding.modifierMode = Format2ModifierMode::Latch;
+    } else if (token == "__OSK_MODIFIER_HYBRID") {
+        binding.isModifierDeclaration = true;
+        binding.modifierMode = Format2ModifierMode::Hybrid;
+    } else return false;
     return true;
 }
 
@@ -260,6 +263,14 @@ static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData,
         }
         if (binding.isIncrease && binding.isDecrease) {
             errorMessage = "Binding cannot be both Increase and Decrease at position " + to_string(bindingIdx + 1);
+            return false;
+        }
+        if (binding.isModifierDeclaration && (binding.modifierValue != 0 || binding.hasHold || binding.hasDoublePress || binding.isValueInverted || binding.isFeedbackInverted || binding.isIncrease || binding.isDecrease)) {
+            errorMessage = "A Modifier declaration cannot use binding selectors at position " + to_string(bindingIdx + 1);
+            return false;
+        }
+        if (binding.isModifierDeclaration && binding.actionTokens.size() != 1) {
+            errorMessage = "A Modifier declaration requires one modifier name at position " + to_string(bindingIdx + 1);
             return false;
         }
         bindings.push_back(binding);
@@ -380,6 +391,15 @@ static vector<string> NormalizeFormat2OskActionTokens(const vector<string>& sour
 static vector<string> BuildFormat2OskDraftLines(const string& widgetName, const vector<OskConfigBinding>& bindings) {
     vector<string> lines;
     for (const OskConfigBinding& binding : bindings) {
+        if (binding.isModifierDeclaration) {
+            string line = widgetName + " Modifier";
+            for (const string& actionToken : NormalizeFormat2OskActionTokens(binding.actionTokens)) line += " " + QuoteZoneToken(actionToken);
+            if (binding.modifierMode == Format2ModifierMode::Momentary) line += " Mode=Momentary";
+            else if (binding.modifierMode == Format2ModifierMode::Latch) line += " Mode=Latch";
+            else if (binding.modifierMode == Format2ModifierMode::Hybrid) line += " Mode=Hybrid";
+            lines.push_back(std::move(line));
+            continue;
+        }
         string line = BuildFormat2ModifierPrefix(binding.modifierValue);
         if (binding.hasDoublePress) line += "(DoublePress)+";
         else if (binding.hasHold) line += "(Hold)+";
@@ -406,6 +426,16 @@ static vector<string> BuildFormat2SerializedWidgetLines(Zone* zone, Widget* widg
             ActionContext* context = contextPtr.get();
             if (!context) continue;
 
+            if (context->GetInputEvent() == ActionInputEvent::Modifier) {
+                string line = widgetName + " Modifier " + context->GetAction()->GetName();
+                if (!context->GetModifierModeUsesDefault()) {
+                    if (context->GetModifierMode() == ActionModifierMode::Momentary) line += " Mode=Momentary";
+                    else if (context->GetModifierMode() == ActionModifierMode::Latch) line += " Mode=Latch";
+                    else if (context->GetModifierMode() == ActionModifierMode::Hybrid) line += " Mode=Hybrid";
+                }
+                lines.push_back(std::move(line));
+                continue;
+            }
             string line;
             line += BuildFormat2SelectorPrefix(modifierValue, context);
             line += widgetName;
@@ -927,6 +957,12 @@ void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {
             if (ctx->GetIsFeedbackInverted()) result += " __OSK_INVERT_FB";
             if (ctx->GetRangeMinimum() == -2.0 && ctx->GetRangeMaximum() == 1.0) result += " __OSK_DECREASE";
             else if (ctx->GetRangeMinimum() == 0.0 && ctx->GetRangeMaximum() == 2.0) result += " __OSK_INCREASE";
+            if (ctx->GetInputEvent() == ActionInputEvent::Modifier) {
+                if (ctx->GetModifierModeUsesDefault()) result += " __OSK_MODIFIER_DEFAULT";
+                else if (ctx->GetModifierMode() == ActionModifierMode::Momentary) result += " __OSK_MODIFIER_MOMENTARY";
+                else if (ctx->GetModifierMode() == ActionModifierMode::Hybrid) result += " __OSK_MODIFIER_HYBRID";
+                else result += " __OSK_MODIFIER_LATCH";
+            }
         }
     }
 
@@ -961,10 +997,6 @@ void ControlSurface::HandleOSKConfigApplyLive(const string& widgetName, const st
     Zone* activeZone = this->zoneManager_->GetActiveZoneForWidget(widget);
     if (!activeZone) {
         PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, "", "No active zone for widget");
-        return;
-    }
-    if (HasFormat2ModifierContext(activeZone, widget)) {
-        PublishConfigStatus("ERR", "ApplyLive", this->name_, widgetName, activeZone->GetName(), "Modifier declarations must be edited in the configuration editor");
         return;
     }
 
@@ -1044,10 +1076,6 @@ void ControlSurface::HandleOSKConfigSave(const string& widgetName) {
             targetZoneName = zoneNameEntry->second;
         if (zonePathEntry != this->oskConfigZonePathsByWidget_.end())
             zonePath = zonePathEntry->second;
-    }
-    if (activeZone && HasFormat2ModifierContext(activeZone, widget)) {
-        PublishConfigStatus("ERR", "Save", this->name_, widgetName, targetZoneName, "Modifier declarations must be edited in the configuration editor");
-        return;
     }
     if (targetZoneName.empty()) {
         PublishConfigStatus("ERR", "Save", this->name_, widgetName, "", "No edit target zone for widget");

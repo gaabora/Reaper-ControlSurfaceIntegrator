@@ -16,6 +16,7 @@ struct Format2PreparedActionContext {
     std::vector<std::string> parameters;
     ActionInputEvent inputEvent = ActionInputEvent::Legacy;
     ActionModifierMode modifierMode = ActionModifierMode::Legacy;
+    bool modifierModeUsesDefault = false;
     int eventDelayMs = 0;
     int repeatIntervalMs = 0;
     int modifierTapWindowMs = 0;
@@ -200,6 +201,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.parameters = {declaration.name};
         prepared.inputEvent = ActionInputEvent::Modifier;
         prepared.modifierMode = ResolveFormat2ModifierMode(zoneManager->GetSurface(), declaration.mode);
+        prepared.modifierModeUsesDefault = declaration.mode == Format2ModifierMode::Default;
         prepared.modifierTapWindowMs = zoneManager->GetSurface()->GetSettings().GetInteger("ModifierTapWindowMs");
         modifierModesByWidget[declaration.widget.baseName] = prepared.modifierMode;
         gestureGroups[{widget, 0}].push_back({{prepared.inputEvent, prepared.modifierMode, 0, 0, prepared.modifierTapWindowMs}, prepared.actionName, declaration.location, "Modifier:" + prepared.actionName, false, false, 1, true});
@@ -296,6 +298,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         ActionContext* context = zone->AddActionContext(prepared.widget, prepared.modifier, zone, prepared.actionName.c_str(), prepared.parameters, prepared.navigator, prepared.surfaceChannelOffset);
         context->SetInputEvent(prepared.inputEvent);
         context->SetModifierMode(prepared.modifierMode);
+        context->SetModifierModeUsesDefault(prepared.modifierModeUsesDefault);
         context->SetModifierTapWindow(prepared.modifierTapWindowMs);
         if (prepared.invert) context->SetIsValueInverted();
         if (prepared.invertFeedback) context->SetIsFeedbackInverted();

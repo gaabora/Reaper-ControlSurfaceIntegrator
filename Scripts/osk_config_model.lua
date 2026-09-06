@@ -4,6 +4,9 @@ local M = {}
 
 M.SEARCH_MODE_ITEMS = "all\0csi\0reaper\0"
 M.SEARCH_MODE_BY_INDEX = { "all", "csi", "reaper" }
+M.MODIFIER_MODE_ITEMS = "Use Device setting\0Momentary\0Latch\0Hybrid\0"
+M.MODIFIER_MODE_BY_INDEX = { "Default", "Momentary", "Latch", "Hybrid" }
+M.MODIFIER_MODE_INDEX = { Default = 0, Momentary = 1, Latch = 2, Hybrid = 3 }
 
 function M.ParseCsv(text)
     local out = {}
@@ -91,6 +94,7 @@ end
 
 function M.GetOtherSummary(binding, action_line)
     local labels = {}
+    if binding.modifierMode then labels[#labels + 1] = "Modifier " .. (binding.modifierMode == "Default" and "Device setting" or binding.modifierMode) end
     if binding.isIncrease then labels[#labels + 1] = "Increase" end
     if binding.isDecrease then labels[#labels + 1] = "Decrease" end
     if binding.isValueInverted then labels[#labels + 1] = "Invert" end
@@ -121,6 +125,7 @@ function M.ParseBindingString(raw, action_line)
                 isFeedbackInverted = false,
                 isIncrease = false,
                 isDecrease = false,
+                modifierMode = nil,
             }
             while true do
                 local token = line:match("%s+(__OSK_[A-Z_]+)$")
@@ -132,6 +137,10 @@ function M.ParseBindingString(raw, action_line)
                 elseif token == "__OSK_INVERT_FB" then metadata.isFeedbackInverted = true
                 elseif token == "__OSK_INCREASE" then metadata.isIncrease = true
                 elseif token == "__OSK_DECREASE" then metadata.isDecrease = true
+                elseif token == "__OSK_MODIFIER_DEFAULT" then metadata.modifierMode = "Default"
+                elseif token == "__OSK_MODIFIER_MOMENTARY" then metadata.modifierMode = "Momentary"
+                elseif token == "__OSK_MODIFIER_LATCH" then metadata.modifierMode = "Latch"
+                elseif token == "__OSK_MODIFIER_HYBRID" then metadata.modifierMode = "Hybrid"
                 end
             end
             local parts = action_line.Parse(line)
@@ -145,6 +154,7 @@ function M.ParseBindingString(raw, action_line)
                 isFeedbackInverted = metadata.isFeedbackInverted,
                 isIncrease = metadata.isIncrease,
                 isDecrease = metadata.isDecrease,
+                modifierMode = metadata.modifierMode,
             }
         end
     end
@@ -226,6 +236,7 @@ function M.SerializeBindings(bindings)
             if binding.isFeedbackInverted then line = line .. " __OSK_INVERT_FB" end
             if binding.isIncrease then line = line .. " __OSK_INCREASE" end
             if binding.isDecrease then line = line .. " __OSK_DECREASE" end
+            if binding.modifierMode then line = line .. " __OSK_MODIFIER_" .. binding.modifierMode:upper() end
             chunks[#chunks + 1] = tostring(binding.mod or 0) .. ":" .. line
         end
     end
@@ -245,6 +256,7 @@ function M.CloneBindings(bindings)
             isFeedbackInverted = binding.isFeedbackInverted == true,
             isIncrease = binding.isIncrease == true,
             isDecrease = binding.isDecrease == true,
+            modifierMode = binding.modifierMode,
         }
     end
     return copy

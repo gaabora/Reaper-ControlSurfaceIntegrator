@@ -159,6 +159,19 @@ static void TestInvalidWidgetSourceEditRejection() {
     Require(result.lines.empty(), "invalid Widget source edit does not return writable lines");
 }
 
+static void TestModifierSourceEdit() {
+    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "ShiftButton Modifier Shift", "Stop Stop"};
+    const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "ShiftButton", 1, {"ShiftButton Modifier Shift Mode=Momentary"});
+    Require(result.success, "Modifier source edit");
+    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "ShiftButton Modifier Shift Mode=Momentary", "Stop Stop"}), "Modifier source replacement");
+}
+
+static void TestModifierAndChannelFamilySourceEditRejection() {
+    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Fader# TrackVolume", "Fader2 Modifier Shift"};
+    const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Fader2", 8, {"Fader2 TrackPan"});
+    Require(!result.success, "exact Modifier and channel-family source edit rejection");
+}
+
 int main() {
     TestValidProfile();
     TestHomeRules();
@@ -176,6 +189,8 @@ int main() {
     TestWidgetSourceEditPreservesComment();
     TestWidgetSourceEditRemovesBindings();
     TestInvalidWidgetSourceEditRejection();
+    TestModifierSourceEdit();
+    TestModifierAndChannelFamilySourceEditRejection();
     std::cout << "Format2ZoneProfile tests passed\n";
     return 0;
 }

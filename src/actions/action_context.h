@@ -40,6 +40,7 @@ private:
 
     ActionTiming timing_; ///< Hold, repeat, and double-press timing state
     ActionModifierMode modifierMode_ = ActionModifierMode::Legacy;
+    bool modifierModeUsesDefault_ = false;
     ActionInputEvent recognizedInputEvent_ = ActionInputEvent::Legacy;
     int modifierTapWindowMs_ = 0;
     BlinkState blink_; ///< LED/display blink state
@@ -133,6 +134,8 @@ public:
     ActionInputEvent GetInputEvent() const { return this->timing_.inputEvent; }
     void SetModifierMode(ActionModifierMode modifierMode) { this->modifierMode_ = modifierMode; }
     ActionModifierMode GetModifierMode() const { return this->modifierMode_; }
+    void SetModifierModeUsesDefault(bool value) { this->modifierModeUsesDefault_ = value; }
+    bool GetModifierModeUsesDefault() const { return this->modifierModeUsesDefault_; }
     ActionInputEvent GetRecognizedInputEvent() const { return this->recognizedInputEvent_; }
     void SetModifierTapWindow(int value) { this->modifierTapWindowMs_ = value; }
     int GetModifierTapWindow() const { return this->modifierTapWindowMs_; }
