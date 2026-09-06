@@ -1,6 +1,7 @@
 #include "format2_zone_profile.h"
 #include "format2_zone_profile_loader.h"
 #include "format2_zone_source_editor.h"
+#include "format2_learn_fx_surface.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -22,6 +23,11 @@ static bool HasDiagnostic(const Format2ZoneProfileResolveResult& result, const s
 
 static bool HasParseDiagnostic(const Format2ZoneParseResult& result, const std::string& code) {
     for (const Format2Diagnostic& diagnostic : result.document.lexical.diagnostics) if (diagnostic.code == code) return true;
+    return false;
+}
+
+static bool HasLearnFxSurfaceDiagnostic(const Format2LearnFxSurfaceResolveResult& result, const std::string& code) {
+    for (const Format2Diagnostic& diagnostic : result.diagnostics) if (diagnostic.code == code) return true;
     return false;
 }
 
@@ -119,6 +125,32 @@ static void TestProfileLoader() {
     Require(result.learnFx->parsed.learnFx.widgets.front().selector.source == "Rotary#", "active User Learn FX selector");
 }
 
+static void TestLearnFxSurfaceResolution() {
+    const Format2LearnFxParseResult learnFx = ParseFormat2LearnFxDocumentSource("@Meta { Version=2 }\nFXWidgets {\n Parameter Rotary#\n NameDisplay Name#\n ValueDisplay Value#\n}\n", "LearnFX.fxzon");
+    Format2SurfaceParseResult surface;
+    surface.document.metadata.channels = 2;
+    surface.surface.widgets = {
+        {"Rotary1", {}, {}, 1, {Format2Capability::Relative}, {}}, {"Rotary2", {}, {}, 2, {Format2Capability::Relative}, {}},
+        {"Name1", {}, {}, 1, {Format2Capability::Text}, {}}, {"Name2", {}, {}, 2, {Format2Capability::Text}, {}},
+        {"Value1", {}, {}, 1, {Format2Capability::Text}, {}}, {"Value2", {}, {}, 2, {Format2Capability::Text}, {}},
+    };
+    const Format2LearnFxSurfaceResolveResult result = ResolveFormat2LearnFxSurface(learnFx.learnFx, surface);
+    Require(result.IsValid(), "Learn FX Surface resolution");
+    Require(result.widgets.size() == 6, "Learn FX channel-family expansion");
+}
+
+static void TestLearnFxSurfaceErrors() {
+    const Format2LearnFxParseResult learnFx = ParseFormat2LearnFxDocumentSource("@Meta { Version=2 }\nFXWidgets {\n Parameter Fader#\n ValueDisplay Fader1\n}\n", "LearnFX.fxzon");
+    Format2SurfaceParseResult surface;
+    surface.document.metadata.channels = 2;
+    surface.surface.widgets = {{"Fader1", {}, {}, 1, {Format2Capability::Absolute}, {}}};
+    const Format2LearnFxSurfaceResolveResult result = ResolveFormat2LearnFxSurface(learnFx.learnFx, surface);
+    Require(!result.IsValid(), "invalid Learn FX Surface resolution");
+    Require(HasLearnFxSurfaceDiagnostic(result, "format2.learn-fx.surface.widget.missing"), "missing Learn FX channel-family member");
+    Require(HasLearnFxSurfaceDiagnostic(result, "format2.learn-fx.surface.widget.capability"), "Learn FX role capability mismatch");
+    Require(HasLearnFxSurfaceDiagnostic(result, "format2.learn-fx.surface.widget.overlap"), "overlapping Learn FX roles");
+}
+
 static void TestExactWidgetSourceEdit() {
     const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play Play", "Stop Stop"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {"[Shift]+Play Reaper 40044"});
@@ -187,6 +219,8 @@ int main() {
     TestDeclaredLayerNavigation();
     TestLayerOnlyAction();
     TestProfileLoader();
+    TestLearnFxSurfaceResolution();
+    TestLearnFxSurfaceErrors();
     TestExactWidgetSourceEdit();
     TestChannelFamilySourceEdit();
     TestMixedWidgetSourceEditRejection();

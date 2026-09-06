@@ -494,5 +494,6 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
         }
     }
     if (parsed.surface.oskLayout) surface->ApplyFormat2OSKLayout(filePath, *parsed.surface.oskLayout);
+    surface->SetFormat2Surface(std::move(parsed));
     return Format2OscRuntimeLoadResult::Loaded;
 }

@@ -615,5 +615,6 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
     }
 
     if (parsed.surface.oskLayout) surface->ApplyFormat2OSKLayout(filePath, *parsed.surface.oskLayout);
+    surface->SetFormat2Surface(std::move(parsed));
     return Format2MidiRuntimeLoadResult::Loaded;
 }

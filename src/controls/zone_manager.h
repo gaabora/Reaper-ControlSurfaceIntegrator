@@ -3,6 +3,7 @@
 //  zone_manager.h — ZoneManager class
 //
 #include "preamble.h"
+#include "format2_learn_fx_surface.h"
 #include "format2_zone_profile_loader.h"
 #include "zone.h"
 #include "widget.h"
@@ -18,6 +19,7 @@ private:
     string vendorFxZoneFolder_;
     string userFxZoneFolder_;
     unique_ptr<Format2ZoneProfileLoadResult> format2ZoneProfile_;
+    optional<Format2LearnFxSurfaceResolveResult> format2LearnFxSurface_;
     map<string, size_t> format2DocumentIndexByPath_;
 
     vector<unique_ptr<ActionContext>> emptyContexts_;
@@ -294,6 +296,7 @@ public:
     ControlSurface* GetSurface() { return surface_; }
     bool UsesFormat2ZoneProfile() const { return this->format2ZoneProfile_ != nullptr; }
     const Format2LoadedLearnFxDocument* GetFormat2LearnFx() const { return this->format2ZoneProfile_ && this->format2ZoneProfile_->learnFx ? &*this->format2ZoneProfile_->learnFx : nullptr; }
+    const Format2LearnFxSurfaceResolveResult* GetFormat2LearnFxSurface() const { return this->format2LearnFxSurface_ ? &*this->format2LearnFxSurface_ : nullptr; }
 
     Zone* GetActiveZoneForWidget(Widget* widget) {
         if (!widget) return NULL;

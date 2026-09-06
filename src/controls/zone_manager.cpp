@@ -168,6 +168,18 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     for (const Format2ZoneProfileDiagnostic& diagnostic : loaded.profile.diagnostics) LogFormat2ProfileDiagnostic(loaded.sources, diagnostic);
     if (!loaded.IsValid()) return Format2InitializationState::Failed;
 
+    optional<Format2LearnFxSurfaceResolveResult> learnFxSurface;
+    if (loaded.learnFx) {
+        const Format2SurfaceParseResult* surface = this->surface_->GetFormat2Surface();
+        if (!surface) {
+            LogToConsole("[ERROR] LearnFX.fxzon requires a loaded format 2 Surface document.\n");
+            return Format2InitializationState::Failed;
+        }
+        learnFxSurface = ResolveFormat2LearnFxSurface(loaded.learnFx->parsed.learnFx, *surface);
+        for (const Format2Diagnostic& diagnostic : learnFxSurface->diagnostics) LogFormat2ZoneDiagnostic(loaded.learnFx->parsed.document.lexical.sourcePath, diagnostic);
+        if (!learnFxSurface->IsValid()) return Format2InitializationState::Failed;
+    }
+
     map<string, size_t> fxSourceByMatch;
     for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
         if (activeZone.collection != Format2ZoneCollection::Fx || !activeZone.available || !activeZone.activeSourceIndex) continue;
@@ -253,6 +265,7 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         return Format2InitializationState::Failed;
     }
     this->format2ZoneProfile_ = make_unique<Format2ZoneProfileLoadResult>(std::move(loaded));
+    this->format2LearnFxSurface_ = std::move(learnFxSurface);
     this->homeZone_->Activate();
     return Format2InitializationState::Initialized;
 }
@@ -327,6 +340,7 @@ void ZoneManager::ReloadFromDisk() {
     this->zoneInfo_.clear();
     this->format2DocumentIndexByPath_.clear();
     this->format2ZoneProfile_.reset();
+    this->format2LearnFxSurface_.reset();
     this->Initialize();
 }
 

@@ -4,6 +4,7 @@
 //
 #include "preamble.h"
 #include "../actions/action_timing.h"
+#include "format2_surface_document.h"
 #include "page_interface.h"
 #include "zone_manager.h"
 #include "modifier_manager.h"
@@ -39,6 +40,9 @@ private:
 
     bool isOsdEnabled_ = false;
     bool isOskEnabled_ = false;
+    unique_ptr<Format2SurfaceParseResult> format2Surface_;
+
+    void SetFormat2Surface(Format2SurfaceParseResult parsed) { this->format2Surface_ = make_unique<Format2SurfaceParseResult>(std::move(parsed)); }
 
     // OSK layout data parsed from Surface.txt
     struct OskWidgetInfo {
@@ -264,6 +268,7 @@ public:
 
     int GetNumChannels() { return numChannels_; }
     int GetChannelOffset() { return channelOffset_; }
+    const Format2SurfaceParseResult* GetFormat2Surface() const { return this->format2Surface_.get(); }
     rgba_color GetTrackColorForChannel(int channel);
     rgba_color GetDeviceFeedbackColor(const rgba_color& color, int defaultOutputMax = 255, float brightnessScale = 1.0f) const;
 
