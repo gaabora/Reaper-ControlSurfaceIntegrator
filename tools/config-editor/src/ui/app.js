@@ -923,10 +923,14 @@ function selectedLegacyItems() {
     return (state.legacy.preview?.items || []).filter((item) => item.selected);
 }
 
+function legacyItemAlreadyImported(item) {
+    return item.targetExists && Boolean(item.targetHash) && item.targetHash === item.sourceHash;
+}
+
 function resolutionFor(item) {
     let resolution = state.legacy.resolutions.get(item.id);
     if (!resolution || resolution.sourceHash !== item.sourceHash || resolution.targetHash !== item.targetHash) {
-        resolution = { action: item.targetExists ? "" : "create", id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash };
+        resolution = { action: legacyItemAlreadyImported(item) ? "skip" : item.targetExists ? "" : "create", id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash };
         state.legacy.resolutions.set(item.id, resolution);
     }
     return resolution;
@@ -935,7 +939,8 @@ function resolutionFor(item) {
 function updateLegacyImportButton() {
     const preview = state.legacy.preview;
     const selectedItems = selectedLegacyItems();
-    const unresolvedConflictCount = selectedItems.filter((item) => {
+    const pendingItems = selectedItems.filter((item) => !legacyItemAlreadyImported(item));
+    const unresolvedConflictCount = pendingItems.filter((item) => {
         const resolution = resolutionFor(item);
         if (!item.targetExists) return resolution.action !== "create";
         if (!["rename", "replace", "skip"].includes(resolution.action)) return true;
@@ -945,16 +950,22 @@ function updateLegacyImportButton() {
     const mappingErrorCount = preview?.diagnostics.filter((diagnostic) => diagnostic.severity === "error" && diagnostic.code === "legacy.widget.mapping.required").length || 0;
     let message = translate("legacy.import.selectSurface");
     let ready = false;
+    let statusClass = "danger";
     if (preview && !selectedItems.length) message = translate("legacy.import.selectFiles");
     else if (preview && mappingErrorCount) message = translate("legacy.import.resolveMappings", { count: mappingErrorCount });
     else if (preview && errorCount) message = translate("legacy.import.fixErrors", { count: errorCount });
     else if (preview && unresolvedConflictCount) message = translate("legacy.import.resolveConflicts", { count: unresolvedConflictCount });
+    else if (preview && !pendingItems.length) {
+        message = translate("legacy.import.identical");
+        statusClass = "success";
+    }
     else if (preview) {
-        message = translate("legacy.import.ready", { count: selectedItems.length });
+        message = translate("legacy.import.ready", { count: pendingItems.length });
         ready = true;
+        statusClass = "success";
     }
     elements.legacyImport.disabled = !ready;
-    elements.legacyImportReason.className = ready ? "success" : "danger";
+    elements.legacyImportReason.className = statusClass;
     elements.legacyImportReason.textContent = message;
     if (preview && !mappingErrorCount && !errorCount && unresolvedConflictCount) elements.legacyImportReason.setAttribute("href", "#legacy-preview");
     else elements.legacyImportReason.removeAttribute("href");
@@ -993,7 +1004,9 @@ function updateLegacyZoneTreeSelection() {
 }
 
 function renderLegacyZones() {
-    const zones = (state.legacy.preview?.items || []).filter((item) => item.kind === "zone" || item.kind === "learn-fx");
+    const preview = state.legacy.preview;
+    const importItemsByPath = new Map((preview?.items || []).filter((item) => item.kind === "zone" || item.kind === "learn-fx").map((item) => [item.sourcePath, item]));
+    const zones = (preview?.sources || []).filter((source) => /^(?:Zones|FXZones)\/.+\.zon$/i.test(source.sourcePath)).map((source) => importItemsByPath.get(source.sourcePath) || { ...source, auxiliary: true });
     elements.legacyZones.replaceChildren();
     if (!zones.length) {
         elements.legacyZones.className = "legacy-zone-tree secondary";
@@ -1033,17 +1046,20 @@ function renderLegacyZones() {
             const item = document.createElement("li");
             const row = document.createElement("div");
             row.className = "legacy-zone-row";
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.checked = state.legacy.selectedZonePaths.has(zone.sourcePath);
-            checkbox.title = zone.sourcePath;
-            checkbox.addEventListener("change", () => { void setLegacyZoneSelected(zone, checkbox.checked).catch(showError); });
             const button = document.createElement("button");
             button.dataset.path = zone.sourcePath;
-            button.dataset.label = fileName + (zone.zoneName ? " [" + zone.zoneName + "]" : "");
+            button.dataset.label = fileName + (zone.zoneName ? " [" + zone.zoneName + "]" : zone.auxiliary ? " [" + translate("legacy.source.learnFx") + "]" : "");
             button.title = zone.sourcePath;
             button.addEventListener("click", () => openLegacyDraft(zone));
-            row.append(checkbox, button);
+            if (!zone.auxiliary) {
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.checked = state.legacy.selectedZonePaths.has(zone.sourcePath);
+                checkbox.title = zone.sourcePath;
+                checkbox.addEventListener("change", () => { void setLegacyZoneSelected(zone, checkbox.checked).catch(showError); });
+                row.append(checkbox);
+            } else row.append(document.createElement("span"));
+            row.append(button);
             item.append(row);
             list.append(item);
         }
@@ -1051,7 +1067,7 @@ function renderLegacyZones() {
     };
     elements.legacyZones.append(renderDirectory(root));
     updateLegacyZoneTreeSelection();
-    const fxZones = zones.filter((zone) => zone.sourcePath.startsWith("FXZones/"));
+    const fxZones = zones.filter((zone) => !zone.auxiliary && zone.sourcePath.startsWith("FXZones/"));
     const selectedFxCount = fxZones.filter((zone) => state.legacy.selectedZonePaths.has(zone.sourcePath)).length;
     elements.legacySelectFx.disabled = !fxZones.length;
     elements.legacySelectFx.checked = Boolean(fxZones.length) && selectedFxCount === fxZones.length;
@@ -1205,7 +1221,12 @@ function renderLegacyPreview() {
         };
         let actionControl;
         let renameInput;
-        if (item.targetExists) {
+        if (legacyItemAlreadyImported(item)) {
+            actionControl = document.createElement("span");
+            actionControl.className = "success";
+            actionControl.textContent = translate("legacy.conflict.identical");
+            renameInput = document.createElement("span");
+        } else if (item.targetExists) {
             actionControl = document.createElement("select");
             const conflictActions = item.kind === "learn-fx" ? [["", "legacy.conflict.choose"], ["replace", "legacy.conflict.replace"], ["skip", "legacy.conflict.skip"]] : [["", "legacy.conflict.choose"], ["replace", "legacy.conflict.replace"], ["rename", "legacy.conflict.rename"], ["skip", "legacy.conflict.skip"]];
             for (const [value, key] of conflictActions) {

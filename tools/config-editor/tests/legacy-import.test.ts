@@ -105,6 +105,31 @@ WidgetEnd
         expect(conversion.source.match(/  Row \{/g)).toHaveLength(7);
     });
 
+    test("keeps the FaderPort fader and its first button row together", () => {
+        const legacySurface = migrateLegacyCommentSyntax(`Widget Fader # Shape=Fader Height=7.5
+  Fader14Bit e0 7f 7f
+  Touch 90 68 7f 90 68 00
+WidgetEnd
+
+# OSKRow
+Widget Solo # Color=ff9900
+  Press 90 08 7f 90 08 00
+WidgetEnd
+Widget Mute # Color=ff2222
+  Press 90 10 7f 90 10 00
+WidgetEnd
+Widget Arm # Color=ff2222
+  Press 90 00 7f 90 00 00
+WidgetEnd
+Widget Shift # Color=ff9900
+  Press 90 46 7f 90 46 00
+WidgetEnd
+`);
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPortV2", "Surfaces/User/faderportv2.txt");
+
+        expect(conversion.source).toContain("  Row {\n    Widget Fader Shape=Fader Height=7.5 TouchTarget=Fader ValueTarget=Fader\n    Widget Solo Color=#FF9900\n    Widget Mute Color=#FF2222\n    Widget Arm Color=#FF2222\n    Widget Shift Color=#FF9900\n  }");
+    });
+
     test("converts legacy comments and Learn directives at the start of a physical line", () => {
         const source = "\uFEFF/ disabled surface line\r\n  /OnZoneActivation NoAction\r\n# disabled hash line\r\n#WidgetType Fader\r\n# OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n";
         expect(migrateLegacyCommentSyntax(source)).toBe("\uFEFF// disabled surface line\r\n  //OnZoneActivation NoAction\r\n// disabled hash line\r\n#WidgetType Fader\r\n// OSKRow\r\n  X32Fader /ch/01/mix/fader // inline comment\r\n");
@@ -171,6 +196,8 @@ WidgetEnd
         const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
         await source.import(await createStore(), knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
         expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "LearnFX.fxzon"), "utf8")).toBe(learnFx?.source);
+        const importedPreview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        expect(importedPreview.items.filter((item) => item.selected).every((item) => item.targetHash === item.sourceHash)).toBeTrue();
     });
 
     test("keeps duplicate Learn FX sources available for diagnostic navigation and drafts", async () => {

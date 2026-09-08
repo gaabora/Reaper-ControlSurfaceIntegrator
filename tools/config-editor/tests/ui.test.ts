@@ -33,6 +33,7 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain('key: "Ctrl-/", run: toggleLineComment');
         expect(EDITOR_JAVASCRIPT).toContain('key: "Mod-/", run: toggleLineComment');
         expect(EDITOR_JAVASCRIPT).toContain("legacySourceForPath(diagnostic.path)");
+        expect(EDITOR_JAVASCRIPT).toContain("legacyItemAlreadyImported(item)");
         expect(EDITOR_JAVASCRIPT).not.toContain("JSON.stringify(error.details");
         expect(html).toContain('id="task-home"');
         expect(html).toContain('id="workflow-edit"');
