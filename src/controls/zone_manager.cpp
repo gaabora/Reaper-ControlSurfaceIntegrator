@@ -687,9 +687,8 @@ void ZoneManager::UpdateCurrentActionContextModifiers() {
 }
 
 void ZoneManager::PreProcessZones() {
-    if (this->zoneFolder_.empty())
-        const string zonesRoot = ProductPaths::FromReaperResourcePath().ZonesRoot().string();
-        return LogToConsole("[ERROR] Please check %s. Cannot find the Zone folder for %s under %s", ProductIdentity::ConfigFilename, this->GetSurface()->GetName(), GetRelativePath(zonesRoot.c_str()).c_str());
+    if (this->zoneFolder_.empty()) 
+        return LogToConsole("[ERROR] Please check %s. Cannot find the Zone folder for %s under %s", ProductIdentity::ConfigFilename, this->GetSurface()->GetName(), GetRelativePath(ProductPaths::FromReaperResourcePath().ZonesRoot().string().c_str()).c_str());
 
     vector<string> mainZoneFiles;
     collectFilesOfType(".zon", this->zoneFolder_, mainZoneFiles);

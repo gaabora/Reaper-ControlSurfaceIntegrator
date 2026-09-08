@@ -120,7 +120,7 @@ let draftWriteActive = false;
 let draftWritePromise = Promise.resolve();
 const codeEditor = createConfigurationEditor(elements.rawEditor, handleEditorChange);
 const legacyDraftEditor = createConfigurationEditor(elements.legacyDraftEditor, (source) => {
-    const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === state.legacy.activeDraftPath);
+    const item = legacySourceForPath(state.legacy.activeDraftPath);
     if (item) {
         state.legacy.drafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source });
         updateLegacyZoneTreeSelection();
@@ -315,6 +315,10 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
         }
         container.append(row);
     }
+}
+
+function legacySourceForPath(sourcePath) {
+    return state.legacy.preview?.items.find((candidate) => candidate.sourcePath === sourcePath) || state.legacy.preview?.sources?.find((candidate) => candidate.sourcePath === sourcePath);
 }
 
 function diagnosticsForAllFiles() {
@@ -535,11 +539,13 @@ async function restoreEditorRoute(route) {
 
 async function navigateDiagnostic(diagnostic) {
     if (state.task === "legacy") {
-        const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === diagnostic.path || candidate.targetPath === diagnostic.path);
+        const item = legacySourceForPath(diagnostic.path) || state.legacy.preview?.items.find((candidate) => candidate.targetPath === diagnostic.path);
         if (item) {
             openLegacyDraft(item, diagnostic.line);
             return;
         }
+        showNotification(translate("legacy.source.unavailable", { path: diagnostic.path || "" }), "warning");
+        return;
     }
     if (!diagnostic.path && !state.current) return;
     showTask("edit", false);
@@ -906,7 +912,7 @@ function openLegacyDraft(item, line) {
     elements.legacyDraftEmpty.hidden = true;
     elements.legacyDraftPanel.hidden = false;
     legacyDraftEditor.setVisible(true);
-    elements.legacyDraftPath.textContent = item.sourcePath + " → " + item.targetPath;
+    elements.legacyDraftPath.textContent = item.targetPath ? item.sourcePath + " → " + item.targetPath : item.sourcePath;
     const draft = state.legacy.drafts.get(item.sourcePath);
     legacyDraftEditor.setValue(draft?.source ?? item.source, changedItem);
     updateLegacyZoneTreeSelection();
@@ -1240,7 +1246,7 @@ function renderLegacyPreview() {
         container.append(conflictMessage, header, details);
         elements.legacyPreview.append(container);
     }
-    const activeItem = preview.items.find((item) => item.sourcePath === state.legacy.activeDraftPath);
+    const activeItem = legacySourceForPath(state.legacy.activeDraftPath);
     if (activeItem) {
         const draft = state.legacy.drafts.get(activeItem.sourcePath);
         if (draft) draft.source = activeItem.source;
@@ -1471,7 +1477,7 @@ elements.legacyDraftDiscard.addEventListener("click", async () => {
         const sourcePath = state.legacy.activeDraftPath;
         state.legacy.drafts.delete(sourcePath);
         await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
-        const item = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === sourcePath);
+        const item = legacySourceForPath(sourcePath);
         if (item) openLegacyDraft(item);
     } catch (error) { showError(error); }
 });

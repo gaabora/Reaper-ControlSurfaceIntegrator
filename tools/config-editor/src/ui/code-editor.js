@@ -1,4 +1,4 @@
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab, toggleLineComment } from "@codemirror/commands";
 import { bracketMatching, HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState } from "@codemirror/state";
@@ -97,13 +97,14 @@ export function createConfigurationEditor(parent, onChange) {
             dropCursor(),
             EditorState.allowMultipleSelections.of(true),
             configurationLanguage,
+            configurationLanguage.data.of({ commentTokens: { line: "//" } }),
             configurationEditorTheme,
             syntaxHighlighting(configurationHighlightStyle),
             bracketMatching(),
             rectangularSelection(),
             highlightActiveLine(),
             highlightSelectionMatches(),
-            keymap.of([indentWithTab, ...defaultKeymap, ...searchKeymap, ...historyKeymap]),
+            keymap.of([{ key: "Ctrl-/", run: toggleLineComment }, { key: "Mod-/", run: toggleLineComment }, indentWithTab, ...defaultKeymap, ...searchKeymap, ...historyKeymap]),
             editable.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
             EditorView.updateListener.of((update) => {
                 if (update.docChanged && !suppressChanges && onChange) onChange(update.state.doc.toString());

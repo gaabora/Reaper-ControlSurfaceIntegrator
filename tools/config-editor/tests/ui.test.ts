@@ -30,6 +30,9 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain("window.setTimeout(() => notification.remove(), 5000)");
         expect(EDITOR_JAVASCRIPT).toContain("mergeErrorDiagnostics(diagnostics)");
         expect(EDITOR_JAVASCRIPT).toContain("diagnostic.related || []");
+        expect(EDITOR_JAVASCRIPT).toContain('key: "Ctrl-/", run: toggleLineComment');
+        expect(EDITOR_JAVASCRIPT).toContain('key: "Mod-/", run: toggleLineComment');
+        expect(EDITOR_JAVASCRIPT).toContain("legacySourceForPath(diagnostic.path)");
         expect(EDITOR_JAVASCRIPT).not.toContain("JSON.stringify(error.details");
         expect(html).toContain('id="task-home"');
         expect(html).toContain('id="workflow-edit"');

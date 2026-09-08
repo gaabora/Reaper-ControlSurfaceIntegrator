@@ -73,6 +73,12 @@ export interface LegacyImportItem {
     zoneName?: string;
 }
 
+export interface LegacyImportSource {
+    originalSourceHash: string;
+    source: string;
+    sourcePath: string;
+}
+
 export interface LegacyImportPreview {
     dependencies: LegacyImportDependency[];
     diagnostics: Diagnostic[];
@@ -80,6 +86,7 @@ export interface LegacyImportPreview {
     items: LegacyImportItem[];
     root: string;
     selectedZonePaths: string[];
+    sources: LegacyImportSource[];
     surfaceName: string;
     surfaceStableId: string;
     targetProfileId: string;
@@ -502,9 +509,20 @@ export class LegacyCsiSource {
         const files = await this.readSurfaceFiles(surfaceName);
         const targetProfileId = requestedProfileId || files.stableId;
         if (!isStableId(targetProfileId)) throw new EditorOperationError("legacy.target.profile", "Target profile ID must be a stable lowercase ASCII ID");
+        const sourceFiles = new Map<string, { originalSourceHash: string; source: string }>([[files.surface.sourcePath, { originalSourceHash: files.surface.originalSourceHash, source: files.surface.source }]]);
+        for (const zone of files.zones) sourceFiles.set(zone.sourcePath, { originalSourceHash: zone.originalSourceHash, source: zone.source });
+        const draftMap = new Map<string, LegacyImportDraft>();
+        for (const draft of drafts) {
+            const sourceFile = sourceFiles.get(draft.sourcePath);
+            if (!sourceFile) throw new EditorOperationError("legacy.draft.source", `Import draft does not match a legacy source file: ${draft.sourcePath}`);
+            if (draftMap.has(draft.sourcePath)) throw new EditorOperationError("legacy.draft.duplicate", `Import draft is duplicated: ${draft.sourcePath}`);
+            if (sourceFile.originalSourceHash !== draft.originalSourceHash) throw new EditorOperationError("conflict.legacy-source", `Legacy source changed after its import draft was opened: ${draft.sourcePath}`);
+            draftMap.set(draft.sourcePath, draft);
+        }
+        const effectiveZones = files.zones.map((zone) => ({ ...zone, source: draftMap.get(zone.sourcePath)?.source ?? zone.source })).filter((zone) => hasLegacyZoneContent(zone.source));
         const learnZonesByName = new Map<string, LegacyZoneSourceFile[]>();
         const normalZones: LegacyZoneSourceFile[] = [];
-        for (const zone of files.zones) {
+        for (const zone of effectiveZones) {
             const zoneName = (legacyZoneName(zone.source) ?? "").toLowerCase();
             if (!LEGACY_LEARN_ZONE_NAMES.has(zoneName)) normalZones.push(zone);
             else {
@@ -520,17 +538,6 @@ export class LegacyCsiSource {
         const availableZonePaths = new Set([...normalZones.map((zone) => zone.sourcePath), ...(learnLayout ? [learnLayout.sourcePath] : [])]);
         for (const selectedPath of selectedPaths) if (!availableZonePaths.has(selectedPath)) throw new EditorOperationError("legacy.zone.missing", `Legacy zone is not available in ${surfaceName}: ${selectedPath}`);
 
-        const sourceFiles = new Map<string, { kind: LegacyImportKind; originalSourceHash: string; source: string }>([[files.surface.sourcePath, { kind: "surface", originalSourceHash: files.surface.originalSourceHash, source: files.surface.source }]]);
-        for (const zone of normalZones) sourceFiles.set(zone.sourcePath, { kind: "zone", originalSourceHash: zone.originalSourceHash, source: zone.source });
-        if (learnLayout) sourceFiles.set(learnLayout.sourcePath, { kind: "learn-fx", originalSourceHash: learnLayout.originalSourceHash, source: learnLayout.source });
-        const draftMap = new Map<string, LegacyImportDraft>();
-        for (const draft of drafts) {
-            const sourceFile = sourceFiles.get(draft.sourcePath);
-            if (!sourceFile) throw new EditorOperationError("legacy.draft.source", `Import draft does not match a legacy source file: ${draft.sourcePath}`);
-            if (draftMap.has(draft.sourcePath)) throw new EditorOperationError("legacy.draft.duplicate", `Import draft is duplicated: ${draft.sourcePath}`);
-            if (sourceFile.originalSourceHash !== draft.originalSourceHash) throw new EditorOperationError("conflict.legacy-source", `Legacy source changed after its import draft was opened: ${draft.sourcePath}`);
-            draftMap.set(draft.sourcePath, draft);
-        }
         const targetPathMap = new Map<string, string>();
         for (const target of requestedTargetPaths) {
             if (!sourceFiles.has(target.sourcePath)) throw new EditorOperationError("legacy.target.source", `Import target does not match a legacy source file: ${target.sourcePath}`);
@@ -685,6 +692,7 @@ export class LegacyCsiSource {
             items,
             root: this.root,
             selectedZonePaths: [...selectedPaths].sort(),
+            sources: [...sourceFiles].map(([sourcePath, sourceFile]) => ({ originalSourceHash: sourceFile.originalSourceHash, source: draftMap.get(sourcePath)?.source ?? sourceFile.source, sourcePath })),
             surfaceName: files.name,
             surfaceStableId: files.stableId,
             targetProfileId,

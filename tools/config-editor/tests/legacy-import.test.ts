@@ -166,10 +166,27 @@ WidgetEnd
         expect(learnFx?.source).toContain("Parameter Fader");
         expect(learnFx?.source).toContain("On ZoneDeactivation");
         expect(preview.items.some((item) => /FX(?:Prologue|Epilogue|RowLayout)\.zon$/.test(item.sourcePath))).toBeFalse();
+        expect(preview.sources.map((item) => item.sourcePath)).toContain("Zones/LearnZones/FXPrologue.zon");
 
         const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
         await source.import(await createStore(), knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
         expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "LearnFX.fxzon"), "utf8")).toBe(learnFx?.source);
+    });
+
+    test("keeps duplicate Learn FX sources available for diagnostic navigation and drafts", async () => {
+        const zonesRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones");
+        await mkdir(path.join(zonesRoot, "LearnZones"), { recursive: true });
+        await writeFile(path.join(zonesRoot, "FXWidgetLayout.zon"), "Zone FXWidgetLayout\n  Fader FXParam\nZoneEnd\n", "utf8");
+        await writeFile(path.join(zonesRoot, "LearnZones", "FXWidgetLayout.zon"), "Zone FXWidgetLayout\n  Rotary FXParam\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const diagnostic = preview.diagnostics.find((candidate) => candidate.code === "legacy.learn-fx.source.duplicate");
+
+        expect(diagnostic?.related?.map((location) => location.path)).toEqual(["Zones/FXWidgetLayout.zon", "Zones/LearnZones/FXWidgetLayout.zon"]);
+        const duplicateSource = preview.sources.find((item) => item.sourcePath === "Zones/LearnZones/FXWidgetLayout.zon");
+        expect(duplicateSource?.source).toContain("Rotary FXParam");
+        const fixedPreview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, preview.selectedZonePaths, [], false, [{ originalSourceHash: duplicateSource!.originalSourceHash, source: "// duplicate disabled\n", sourcePath: duplicateSource!.sourcePath }]);
+        expect(fixedPreview.diagnostics.some((candidate) => candidate.code === "legacy.learn-fx.source.duplicate")).toBeFalse();
     });
 
     test("preserves prefix presses, press-only buttons, and seven-bit values", () => {

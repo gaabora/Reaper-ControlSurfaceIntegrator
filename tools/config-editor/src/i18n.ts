@@ -65,6 +65,7 @@ const english = {
     "legacy.import.resolveMappings": "Resolve {count} widget mappings.",
     "legacy.import.selectFiles": "Select at least one file.",
     "legacy.import.selectSurface": "Choose a legacy surface.",
+    "legacy.source.unavailable": "Legacy import source is not available: {path}",
     "legacy.path.advanced": "Use another old CSI folder",
     "legacy.path.placeholder": "Old CSI root or its parent directory",
     "legacy.preview.empty": "Choose a legacy surface to prepare an import preview.",
