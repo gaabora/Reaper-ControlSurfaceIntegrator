@@ -4,6 +4,7 @@ This folder keeps the work that is still open.
 
 ## Active Backlog
 
+- [IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md](IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md) - [ ] import validation fixes, proposed explicit Zone source modes, device failure details, and OSD for every unhandled MIDI message
 - [FIXME_TODO.md](FIXME_TODO.md) - current correctness, validation, and cleanup follow-ups pulled from the old mixed TODO plans
 - [ARCHITECTURE_BACKLOG.md](ARCHITECTURE_BACKLOG.md) - architectural issues that still need design or implementation work
 - [REFACTORING_BACKLOG.md](REFACTORING_BACKLOG.md) - remaining structural refactor targets after the `src/` migration and current file split

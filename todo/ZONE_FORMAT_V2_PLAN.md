@@ -2,6 +2,8 @@
 
 ## Goal
 
+The proposed Vendor only, Vendor + User changes, and User only selection is tracked in [IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md](IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md). It is not implemented. The per-zone overlay rules below describe the combined mode; the follow-up also covers import validation gaps and runtime diagnostics.
+
 Replace the legacy zone and surface syntax and name-based runtime behavior with one explicit, validated model. Use the same lexical rules for `.zon`, surface `.txt`, `.fxzon`, and `.snippet` files. Keep legacy CSI parsing only in the Bun importer. The current runtime does not need backward compatibility after all bundled and user test data is converted.
 
 ## Current problems

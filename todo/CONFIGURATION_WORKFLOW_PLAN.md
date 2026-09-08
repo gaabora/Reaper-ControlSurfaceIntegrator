@@ -2,6 +2,8 @@
 
 ## Goal
 
+Import correctness, proposed explicit Zone source modes, and runtime failure messages have an open follow-up in [IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md](IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md). Its source-mode proposal needs review before it changes the existing configuration contract.
+
 Provide safe tools to create, edit, migrate, validate, and distribute surface, zone, and snippet configurations.
 
 Large configuration changes belong in a local Bun and TypeScript editor. The Lua OSK remains a live fine-tuning tool for MIDI surfaces and gains only small zone-file creation support.
