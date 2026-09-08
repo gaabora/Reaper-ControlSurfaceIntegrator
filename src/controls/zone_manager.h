@@ -96,7 +96,7 @@ private:
                 metadata.push_back(line);
             }
         } catch (const std::exception& e) {
-            LogToConsole("[ERROR] FAILED to LoadZoneMetadata in %s, around line %d\n", filePath, lineNumber);
+            LogToConsole("[ERROR] FAILED to LoadZoneMetadata in %s, around line %d\n", GetRelativePath(filePath).c_str(), lineNumber);
             LogToConsole("[ERROR] Exception: %s\n", e.what());
         }
     }

@@ -484,7 +484,7 @@ static void LoadTemplates(SurfaceFXTemplate* fxTemplate) {
             }
         }
     } catch (const std::exception& e) {
-        LogToConsole("[ERROR] FAILED to LoadTemplates in %s\n", zoneInfo["FXRowLayout"].filePath.c_str());
+        LogToConsole("[ERROR] FAILED to LoadTemplates in %s\n", GetRelativePath(zoneInfo["FXRowLayout"].filePath.c_str()).c_str());
         LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 
@@ -537,7 +537,7 @@ static void LoadTemplates(SurfaceFXTemplate* fxTemplate) {
             s_learnFX.pageSurfaceFXLearnLevel = "Level2";
 
     } catch (const std::exception& e) {
-        LogToConsole("[ERROR] FAILED to LoadTemplates in %s\n", zoneInfo["FXWidgetLayout"].filePath.c_str());
+        LogToConsole("[ERROR] FAILED to LoadTemplates in %s\n", GetRelativePath(zoneInfo["FXWidgetLayout"].filePath.c_str()).c_str());
         LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 }
@@ -562,7 +562,7 @@ static void WriteBoilerPlate(FILE* fxFile, string& fxBoilerplatePath) {
             fprintf(fxFile, "\t%s\n", line.c_str());
         }
     } catch (const std::exception& e) {
-        LogToConsole("[ERROR] FAILED to WriteBoilerPlate in %s, around line %d\n", fxBoilerplatePath.c_str(), lineNumber);
+        LogToConsole("[ERROR] FAILED to WriteBoilerPlate in %s, around line %d\n", GetRelativePath(fxBoilerplatePath.c_str()).c_str(), lineNumber);
         LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 }
@@ -757,7 +757,7 @@ static void SaveZone(SurfaceFXTemplate* t) {
 
         zoneManager->AddZoneFilePath(s_learnFX.fxName, info);
     } catch (const std::exception& e) {
-        LogToConsole("[ERROR] FAILED to SaveZone %s\n", path);
+        LogToConsole("[ERROR] FAILED to SaveZone %s\n", GetRelativePath(path).c_str());
         LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 }

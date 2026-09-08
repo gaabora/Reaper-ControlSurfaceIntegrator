@@ -443,7 +443,7 @@ void ZoneManager::PreProcessZoneFile(const string& filePath, bool isFxZone, bool
             break;
         }
     } catch (const std::exception& e) {
-        LogToConsole("[ERROR] FAILED to PreProcessZoneFile in %s\n", filePath.c_str());
+        LogToConsole("[ERROR] FAILED to PreProcessZoneFile in %s\n", GetRelativePath(filePath.c_str()).c_str());
         LogToConsole("[ERROR] Exception: %s\n", e.what());
     }
 }
@@ -688,7 +688,8 @@ void ZoneManager::UpdateCurrentActionContextModifiers() {
 
 void ZoneManager::PreProcessZones() {
     if (this->zoneFolder_.empty())
-        return LogToConsole("[ERROR] Please check %s. Cannot find the Zone folder for %s under %s", ProductIdentity::ConfigFilename, this->GetSurface()->GetName(), ProductPaths::FromReaperResourcePath().ZonesRoot().string().c_str());
+        const string zonesRoot = ProductPaths::FromReaperResourcePath().ZonesRoot().string();
+        return LogToConsole("[ERROR] Please check %s. Cannot find the Zone folder for %s under %s", ProductIdentity::ConfigFilename, this->GetSurface()->GetName(), GetRelativePath(zonesRoot.c_str()).c_str());
 
     vector<string> mainZoneFiles;
     collectFilesOfType(".zon", this->zoneFolder_, mainZoneFiles);

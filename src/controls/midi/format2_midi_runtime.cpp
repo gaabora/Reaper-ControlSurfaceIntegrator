@@ -177,7 +177,7 @@ bool Format2MidiRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primit
 Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePath, Midi_ControlSurface* surface) {
     ifstream file(filePath, std::ios::binary);
     if (!file.is_open()) {
-        LogToConsole("[ERROR] Cannot open format 2 MIDI Surface file %s\n", filePath.c_str());
+        LogToConsole("[ERROR] Cannot open format 2 MIDI Surface file %s\n", GetRelativePath(filePath.c_str()).c_str());
         return Format2MidiRuntimeLoadResult::Rejected;
     }
     ostringstream sourceBuffer;
@@ -186,17 +186,17 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
     const size_t contentStart = source.compare(0, 3, "\xEF\xBB\xBF") == 0 ? 3 : 0;
     const size_t firstText = source.find_first_not_of(" \t\r\n", contentStart);
     if (firstText == string::npos || source.compare(firstText, 5, "@Meta") != 0) {
-        LogToConsole("[ERROR] MIDI Surface %s is not format 2. Import it with the configuration editor first.\n", filePath.c_str());
+        LogToConsole("[ERROR] MIDI Surface %s is not format 2. Import it with the configuration editor first.\n", GetRelativePath(filePath.c_str()).c_str());
         return Format2MidiRuntimeLoadResult::Rejected;
     }
 
     Format2SurfaceParseResult parsed = ParseFormat2SurfaceSource(source, filePath);
     if (!parsed.IsValid()) {
-        for (const Format2Diagnostic& diagnostic : parsed.document.lexical.diagnostics) LogToConsole("[ERROR] Format 2 Surface parse failed in %s, line %d: %s\n", filePath.c_str(), diagnostic.location.line, diagnostic.message.c_str());
+        for (const Format2Diagnostic& diagnostic : parsed.document.lexical.diagnostics) LogToConsole("[ERROR] Format 2 Surface parse failed in %s, line %d: %s\n", GetRelativePath(filePath.c_str()).c_str(), diagnostic.location.line, diagnostic.message.c_str());
         return Format2MidiRuntimeLoadResult::Rejected;
     }
     if (parsed.document.metadata.protocol != Format2SurfaceProtocol::Midi) {
-        LogToConsole("[ERROR] MIDI surface %s requires Protocol=MIDI\n", filePath.c_str());
+        LogToConsole("[ERROR] MIDI surface %s requires Protocol=MIDI\n", GetRelativePath(filePath.c_str()).c_str());
         return Format2MidiRuntimeLoadResult::Rejected;
     }
 
@@ -205,7 +205,7 @@ Format2MidiRuntimeLoadResult Format2MidiRuntimeLoader::Load(const string& filePa
         for (const Format2SurfacePrimitive& primitive : definition.primitives) {
             if (IsSupported(primitive)) continue;
             hasUnsupportedPrimitives = true;
-            LogToConsole("[ERROR] Unsupported format 2 MIDI primitive in %s, line %d: %s %s\n", filePath.c_str(), primitive.location.line, primitive.direction == Format2PrimitiveDirection::Input ? "Input" : "Feedback", primitive.type.c_str());
+            LogToConsole("[ERROR] Unsupported format 2 MIDI primitive in %s, line %d: %s %s\n", GetRelativePath(filePath.c_str()).c_str(), primitive.location.line, primitive.direction == Format2PrimitiveDirection::Input ? "Input" : "Feedback", primitive.type.c_str());
         }
     }
     if (hasUnsupportedPrimitives) return Format2MidiRuntimeLoadResult::Rejected;

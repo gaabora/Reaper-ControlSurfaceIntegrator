@@ -188,7 +188,7 @@ void GetTokens(vector<string>& tokens, const string& line) {
         } else if (!insideQuote && c == ']') {
             pushToken();
             tokens.push_back("]");
-        } else if (isspace(c) && !insideQuote && propertyListDepth == 0) {
+        } else if (isspace(static_cast<unsigned char>(c)) && !insideQuote && propertyListDepth == 0) {
             pushToken();
         } else {
             token += c;

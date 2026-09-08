@@ -670,7 +670,7 @@ void ControlSurface::ApplyFormat2OSKLayout(const string& surfaceFilePath, const 
             OskWidgetInfo info;
             info.name = sourceCell.widget;
             if (!this->GetWidgetByName(info.name)) {
-                LogToConsole("[ERROR] Format 2 OSK layout references unknown widget '%s' in %s, line %d\n", info.name.c_str(), surfaceFilePath.c_str(), sourceCell.location.line);
+                LogToConsole("[ERROR] Format 2 OSK layout references unknown widget '%s' in %s, line %d\n", info.name.c_str(), GetRelativePath(surfaceFilePath.c_str()).c_str(), sourceCell.location.line);
                 continue;
             }
             info.shape = sourceCell.shape;

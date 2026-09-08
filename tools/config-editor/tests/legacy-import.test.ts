@@ -35,6 +35,10 @@ async function readGoldenFixture(scenario: string, kind: "expected" | "legacy", 
     return readFile(path.join(goldenFixtureRoot, scenario, kind, filename), "utf8");
 }
 
+function normalizeTrimLineEnd(source: string): string {
+    return source.replace(/\r\n/g, "\n").trimEnd();
+}
+
 async function createStore(): Promise<ConfigurationStore> {
     const guard = await ProductRootGuard.create(productRoot, identity);
     return new ConfigurationStore(guard, knownActions);
@@ -112,7 +116,7 @@ WidgetEnd
             const expectedZone = await readGoldenFixture("zone-structure", "expected", filename);
             const conversion = convertLegacyZoneToFormat2(legacyZone, { isLayer: filename === "Pan.zon", profile: "Main", targetPath: `Zones/User/test/Main/${filename}` });
             expect(conversion.diagnostics).toEqual([]);
-            expect(conversion.source.trimEnd()).toBe(expectedZone.trimEnd());
+            expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedZone));
         }
     });
 
@@ -121,7 +125,7 @@ WidgetEnd
         const expectedZone = await readGoldenFixture("actions-and-values", "expected", "Actions.zon");
         const conversion = convertLegacyZoneToFormat2(legacyZone, { profile: "Main", targetPath: "Zones/User/test/Main/Track.zon" });
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedZone.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedZone));
     });
 
     test("converts implicit legacy holds and keeps quoted values", () => {
@@ -195,7 +199,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort Classic", "Surfaces/User/faderport-classic.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("rejects a FaderPort Classic split fader whose two parts have the same prefix", () => {
@@ -235,7 +239,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported MIDI Fighter Twister Surface", "Surfaces/User/mft.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("converts MCU-family display rows to universal SysEx text feedback", () => {
@@ -272,7 +276,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "MCU displays", "Surfaces/User/mcu-displays.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("matches the X-Touch text and track-color golden Surface", async () => {
@@ -281,7 +285,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "X-Touch", "Surfaces/User/x-touch.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("matches the iCON text and track-color golden Surface", async () => {
@@ -290,7 +294,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "iCON V1X", "Surfaces/User/icon-v1x.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("matches the Icon display golden Surface", async () => {
@@ -299,7 +303,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "Icon displays", "Surfaces/User/icon-displays.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("matches the Asparion feedback golden Surface", async () => {
@@ -309,7 +313,7 @@ WidgetEnd
 
         expect(conversion.diagnostics).toEqual([]);
         expect(parseSurface(conversion.source, "Surfaces/User/asparion.txt").diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("requires an explicit channel for imported Asparion track-color feedback", () => {
@@ -324,7 +328,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported SCE24 Surface", "Surfaces/User/sce24.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("converts FaderPort scribble rows to one universal text profile", () => {
@@ -356,7 +360,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "Imported FaderPort 16 Surface", "Surfaces/User/faderport16.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("matches the FaderPort scribble-strip mode golden Surface", async () => {
@@ -365,7 +369,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort 16", "Surfaces/User/faderport16.txt", "XTouch", 2);
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("converts removed FaderPort 8 display aliases to the universal scribble profile", () => {
@@ -399,7 +403,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPort feedback", "Surfaces/User/faderport-feedback.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("matches the QCon master-meter golden Surface", async () => {
@@ -409,7 +413,7 @@ WidgetEnd
 
         expect(conversion.diagnostics).toEqual([]);
         expect(parseSurface(conversion.source, "Surfaces/User/qcon-master.txt").diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("matches the SCE24 ring golden Surface and migrates its zone colors", async () => {
@@ -419,7 +423,7 @@ WidgetEnd
         const zone = migrateLegacySce24RingColors("Zone Track\n  Rotary1 TrackVolume LEDRingColor=#0000ffff PushColor=#003f00ff\nZoneEnd\n", "Zones/Track.zon");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
         expect(zone.diagnostics).toEqual([]);
         expect(zone.source).toContain("RingColors=[ #003F00, #003F00, #003F00, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF, #0000FF ]");
         expect(zone.source).not.toContain("LEDRingColor=");
@@ -435,9 +439,9 @@ WidgetEnd
         const zone = migrateLegacySce24StateColors(legacyZone, "Zones/Home.zon");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
         expect(zone.diagnostics).toEqual([]);
-        expect(zone.source.trimEnd()).toBe(expectedZone.trimEnd());
+        expect(normalizeTrimLineEnd(zone.source)).toBe(normalizeTrimLineEnd(expectedZone));
     });
 
     test("moves a standalone SCE24 push color to its paired ring binding", () => {
@@ -500,7 +504,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "MCU meter and displays", "Surfaces/User/mcu.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("normalizes the legacy value-bar style spelling", () => {
@@ -542,7 +546,7 @@ WidgetEnd
 
         expect(conversion.diagnostics).toEqual([]);
         expect(parseSurface(conversion.source, "Surfaces/User/osc-controls.txt").diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("blocks conditional X32 integer address rewriting", () => {
@@ -565,7 +569,7 @@ WidgetEnd
 
         expect(conversion.diagnostics).toEqual([]);
         expect(parseSurface(conversion.source, "Surfaces/User/x32.txt").diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("rejects an X32 rotary acknowledgement without its input", () => {
@@ -581,7 +585,7 @@ WidgetEnd
 
         expect(conversion.diagnostics).toEqual([]);
         expect(parseSurface(conversion.source, "Surfaces/User/midi-osk.txt").diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("matches the OSC OSK golden Surface", async () => {
@@ -591,7 +595,7 @@ WidgetEnd
 
         expect(conversion.diagnostics).toEqual([]);
         expect(parseSurface(conversion.source, "Surfaces/User/osc-osk.txt").diagnostics).toEqual([]);
-        expect(conversion.source.trimEnd()).toBe(expectedSurface.trimEnd());
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
     test("reports raw MIDI commands only when an RGB value targets palette feedback", async () => {

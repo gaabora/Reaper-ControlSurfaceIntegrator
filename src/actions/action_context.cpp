@@ -54,17 +54,17 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         actionName = params[0];
 
     // Action with int param, could include leading minus sign
-    if (params.size() > 1 && (isdigit(params[1][0]) || params[1][0] == '-')) {
+    if (params.size() > 1 && (isdigit(static_cast<unsigned char>(params[1][0])) || params[1][0] == '-')) {
         intParam_ = atol(params[1].c_str());
     }
 
-    if (actionName == "Bank" && (params.size() > 2 && (isdigit(params[2][0]) || params[2][0] == '-'))) {
+    if (actionName == "Bank" && (params.size() > 2 && (isdigit(static_cast<unsigned char>(params[2][0])) || params[2][0] == '-'))) {
         stringParam_ = params[1];
         intParam_ = atol(params[2].c_str());
     }
 
     // Action with param index, must be positive
-    if (params.size() > 1 && isdigit(params[1][0])) {
+    if (params.size() > 1 && isdigit(static_cast<unsigned char>(params[1][0]))) {
         paramIndex_ = atol(params[1].c_str());
     }
 
@@ -95,7 +95,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         color_.ParseColors(params);
 
     if ((actionName == "Reaper" || actionName == "ReaperDec" || actionName == "ReaperInc") && params.size() > 1) {
-        if (isdigit(params[1][0])) {
+        if (isdigit(static_cast<unsigned char>(params[1][0]))) {
             commandId_ = atol(params[1].c_str());
         } else {
             commandId_ = NamedCommandLookup(params[1].c_str());
@@ -121,22 +121,22 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         }
     }
 
-    if ((actionName == "FXParam" || actionName == "JSFXParam") && params.size() > 1 && isdigit(params[1][0])) {
+    if ((actionName == "FXParam" || actionName == "JSFXParam") && params.size() > 1 && isdigit(static_cast<unsigned char>(params[1][0]))) {
         paramIndex_ = atol(params[1].c_str());
     }
 
-    if (actionName == "FXParamValueDisplay" && params.size() > 1 && isdigit(params[1][0])) {
+    if (actionName == "FXParamValueDisplay" && params.size() > 1 && isdigit(static_cast<unsigned char>(params[1][0]))) {
         paramIndex_ = atol(params[1].c_str());
     }
 
-    if (actionName == "FXParamNameDisplay" && params.size() > 1 && isdigit(params[1][0])) {
+    if (actionName == "FXParamNameDisplay" && params.size() > 1 && isdigit(static_cast<unsigned char>(params[1][0]))) {
         paramIndex_ = atol(params[1].c_str());
 
         if (params.size() > 2 && params[2] != "{" && params[2] != "[")
             fxParamDisplayName_ = params[2];
     }
 
-    if (actionName == "FixedTextDisplay" && (params.size() > 2 && (isdigit(params[2][0])))) {
+    if (actionName == "FixedTextDisplay" && (params.size() > 2 && isdigit(static_cast<unsigned char>(params[2][0])))) {
         stringParam_ = params[1];
         paramIndex_ = atol(params[2].c_str());
     }

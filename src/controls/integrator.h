@@ -709,7 +709,7 @@ public:
             std::error_code directoryError;
             filesystem::create_directories(rawFxFilesRoot, directoryError);
             if (directoryError) {
-                LogToConsole("[ERROR] Cannot create raw FX output folder %s: %s\n", rawFxFilesRoot.string().c_str(), directoryError.message().c_str());
+                LogToConsole("[ERROR] Cannot create raw FX output folder %s: %s\n", GetRelativePath(rawFxFilesRoot.string().c_str()).c_str(), directoryError.message().c_str());
                 return;
             }
 

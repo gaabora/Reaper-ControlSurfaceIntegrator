@@ -297,29 +297,14 @@ local function enumItems(values)
     return items
 end
 
-local function ioItems(data)
-    local names = {}
-    for midiIdx, device in ipairs(data.midi) do names[#names + 1] = device.name end
-    for oscIdx, device in ipairs(data.osc) do names[#names + 1] = device.name end
-    return enumItems(names)
-end
-
 local function assignmentIoItems(data, page, currentSurface)
     local assigned = {}
     for surfaceIdx, surface in ipairs(page.surfaces) do if surface ~= currentSurface then assigned[surface.deviceId] = true end end
-    local items = {}
+    local items = { { label = "", value = "" } }
     for deviceIdx, device in ipairs(data.midi) do if not assigned[device.name] then items[#items + 1] = { label = (device.active and "● " or "× ") .. device.name .. " (MIDI)", value = device.name } end end
     for deviceIdx, device in ipairs(data.osc) do if not assigned[device.name] then items[#items + 1] = { label = (device.active and "● " or "× ") .. device.name .. " (OSC)", value = device.name } end end
     items[#items + 1] = { label = "+ Add MIDI…", value = "__ADD_MIDI__" }
     items[#items + 1] = { label = "+ Add OSC…", value = "__ADD_OSC__" }
-    return items
-end
-
-local function availableIoItems(data, page)
-    local assigned = {}
-    for surfaceIdx, surface in ipairs(page.surfaces) do assigned[surface.deviceId] = true end
-    local items = {}
-    for itemIdx, item in ipairs(ioItems(data)) do if not assigned[item.value] then items[#items + 1] = item end end
     return items
 end
 
@@ -357,9 +342,8 @@ local function uniqueSurfaceName(page, baseName)
 end
 
 local function newSurface(data, page)
-    local ioDefinitions = availableIoItems(data, page)
     local templates = templateItems(data)
-    local deviceId = ioDefinitions[1] and ioDefinitions[1].value or ""
+    local deviceId = ""
     local surfaceId = templates[1] and templates[1].value or ""
     local profileId = defaultProfileId(data, surfaceId)
     local template = findTemplate(data, surfaceId)
@@ -527,7 +511,6 @@ local function renderAssignmentEditor(ctx, data, page, surface)
                     state.editIo.returnSurface = returnSurface
                     state.editSurface = nil
                     openedIoEditor = true
-                    imgui.CloseCurrentPopup(ctx)
                 else surface.deviceId = selectedIo end
             end
             imgui.SameLine(ctx)
@@ -538,7 +521,6 @@ local function renderAssignmentEditor(ctx, data, page, surface)
                     state.editIo = { index = ioIndex, kind = ioKind, returnSurface = state.editSurface }
                     state.editSurface = nil
                     openedIoEditor = true
-                    imgui.CloseCurrentPopup(ctx)
                 end
             end)
             ui.ItemTooltip(ctx, ioKind and ("Edit " .. surface.deviceId) or "Select or add an I/O definition")
@@ -561,6 +543,10 @@ local function renderAssignmentEditor(ctx, data, page, surface)
             if changed then local profile = findProfile(data, surface.mainProfile) surface.mainSource = profile and profile.mainSource or "Missing" end
         end)
         imgui.EndTable(ctx)
+    end
+    if openedIoEditor then
+        imgui.CloseCurrentPopup(ctx)
+        return true
     end
     if imgui.CollapsingHeader(ctx, "Advanced##SurfaceAssignmentAdvanced") then
         if beginForm(ctx, "##AssignmentAdvancedForm") then

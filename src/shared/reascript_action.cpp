@@ -38,23 +38,23 @@ int ResolveCommandId(const char* relativeScriptPath, const char* operationName) 
     while (!normalizedRelativePath.empty() && (normalizedRelativePath[0] == '/' || normalizedRelativePath[0] == '\\')) normalizedRelativePath.erase(0, 1);
     const std::filesystem::path scriptPath = std::filesystem::path(GetResourcePath()) / normalizedRelativePath;
     if (!std::filesystem::is_regular_file(scriptPath)) {
-        LogToConsole("[ERROR] FAILED to %s. ReaScript file does not exist: '%s'\n", operationName, scriptPath.string().c_str());
+        LogToConsole("[ERROR] FAILED to %s. ReaScript file does not exist: '%s'\n", operationName, GetRelativePath(scriptPath.string().c_str()).c_str());
         return 0;
     }
 
     const std::string scriptPathString = scriptPath.string();
     const int registeredCommandId = ::AddRemoveReaScript(true, 0, scriptPathString.c_str(), true);
     if (registeredCommandId != 0) {
-        if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ReaScript registered: '%s', commandId=%d\n", scriptPathString.c_str(), registeredCommandId);
+        if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] ReaScript registered: '%s', commandId=%d\n", GetRelativePath(scriptPathString.c_str()).c_str(), registeredCommandId);
         return registeredCommandId;
     }
 
     const int existingCommandId = FindRegisteredCommandId(scriptPath);
     if (existingCommandId > 0) {
-        if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] Reusing registered ReaScript: '%s', commandId=%d\n", scriptPathString.c_str(), existingCommandId);
+        if (g_debugLevel >= DEBUG_LEVEL_NOTICE) LogToConsole("[NOTICE] Reusing registered ReaScript: '%s', commandId=%d\n", GetRelativePath(scriptPathString.c_str()).c_str(), existingCommandId);
         return existingCommandId;
     }
-    if (existingCommandId == 0) LogToConsole("[ERROR] FAILED to %s. AddRemoveReaScript failed and no registered action matches '%s'\n", operationName, scriptPathString.c_str());
+    if (existingCommandId == 0) LogToConsole("[ERROR] FAILED to %s. AddRemoveReaScript failed and no registered action matches '%s'\n", operationName, GetRelativePath(scriptPathString.c_str()).c_str());
     return 0;
 }
 }

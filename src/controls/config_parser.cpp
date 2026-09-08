@@ -5,7 +5,7 @@
 #include "integrator_config_parser.h"
 
 static void LogConfigIssue(const string& configPath, const IntegratorConfigIssue& issue) {
-    LogToConsole("[ERROR] Configuration issue in %s at line %d: %s\n", configPath.c_str(), issue.lineNumber, issue.message.c_str());
+    LogToConsole("[ERROR] Configuration issue in %s at line %d: %s\n", GetRelativePath(configPath.c_str()).c_str(), issue.lineNumber, issue.message.c_str());
 }
 
 static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integrator, Page* page, const SurfaceAssignmentConfig& config, const ProductPaths& productPaths, const vector<unique_ptr<Midi_ControlSurfaceIO>>& midiIo, const vector<unique_ptr<OSC_ControlSurfaceIO>>& oscIo, string& errorMessage) {
@@ -17,7 +17,7 @@ static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integ
         return nullptr;
     }
     if (!surfaceFile) {
-        errorMessage = "Missing surface '" + config.surfaceId + "'. Expected " + productPaths.UserSurfacesRoot().string() + "/" + config.surfaceId + ".txt or " + productPaths.VendorSurfacesRoot().string() + "/" + config.surfaceId + ".txt";
+        errorMessage = "Missing surface '" + config.surfaceId + "'. Expected " + GetRelativePath((productPaths.UserSurfacesRoot() / (config.surfaceId + ".txt")).string().c_str()) + " or " + GetRelativePath((productPaths.VendorSurfacesRoot() / (config.surfaceId + ".txt")).string().c_str());
         return nullptr;
     }
 
@@ -29,7 +29,9 @@ static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integ
         return nullptr;
     }
     if (!mainZoneFolder) {
-        errorMessage = "Missing Main zone profile '" + config.mainZoneProfileId + "'. Expected " + productPaths.MainZones(ZoneSource::User, config.mainZoneProfileId).string() + " or " + productPaths.MainZones(ZoneSource::Vendor, config.mainZoneProfileId).string();
+        const string userMainPath = productPaths.MainZones(ZoneSource::User, config.mainZoneProfileId).string();
+        const string vendorMainPath = productPaths.MainZones(ZoneSource::Vendor, config.mainZoneProfileId).string();
+        errorMessage = "Missing Main zone profile '" + config.mainZoneProfileId + "'. Expected " + GetRelativePath(userMainPath.c_str()) + " or " + GetRelativePath(vendorMainPath.c_str());
         return nullptr;
     }
 
@@ -45,7 +47,7 @@ static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integ
     std::error_code createFxFolderError;
     filesystem::create_directories(userFxZoneFolder, createFxFolderError);
     if (createFxFolderError || !filesystem::is_directory(userFxZoneFolder)) {
-        errorMessage = "Unable to create User FX zone folder " + userFxZoneFolder.string() + ": " + createFxFolderError.message();
+        errorMessage = "Unable to create User FX zone folder " + GetRelativePath(userFxZoneFolder.string().c_str()) + ": " + createFxFolderError.message();
         return nullptr;
     }
 
@@ -104,7 +106,7 @@ static void CreateConfiguredIo(CSurfIntegrator* integrator, const IntegratorConf
             midiIo.push_back(make_unique<Midi_ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.inputPort, io.outputPort, io.refreshRate, io.maxMessagesPerRun));
         } catch (const std::exception& error) {
             summary.issueCount++;
-            LogToConsole("[ERROR] Skipping MIDI SurfaceType '%s' from %s at line %d: %s\n", io.name.c_str(), configPath.c_str(), io.lineNumber, error.what());
+            LogToConsole("[ERROR] Skipping MIDI SurfaceType '%s' from %s at line %d: %s\n", io.name.c_str(), GetRelativePath(configPath.c_str()).c_str(), io.lineNumber, error.what());
         }
     }
     for (const OscIoConfig& io : config.oscIo) {
@@ -114,7 +116,7 @@ static void CreateConfiguredIo(CSurfIntegrator* integrator, const IntegratorConf
             else oscIo.push_back(make_unique<OSC_X32ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.receiveOnPort.c_str(), io.transmitToPort.c_str(), io.transmitToIpAddress.c_str(), io.maxPacketsPerRun));
         } catch (const std::exception& error) {
             summary.issueCount++;
-            LogToConsole("[ERROR] Skipping OSC SurfaceType '%s' from %s at line %d: %s\n", io.name.c_str(), configPath.c_str(), io.lineNumber, error.what());
+            LogToConsole("[ERROR] Skipping OSC SurfaceType '%s' from %s at line %d: %s\n", io.name.c_str(), GetRelativePath(configPath.c_str()).c_str(), io.lineNumber, error.what());
         }
     }
 }
@@ -134,7 +136,7 @@ static void CreateConfiguredSurfaces(CSurfIntegrator* integrator, const Integrat
                 if (!surface) {
                     summary.issueCount++;
                     summary.skippedSurfaceCount++;
-                    LogToConsole("[ERROR] Skipping Surface '%s' from %s at line %d: %s\n", surfaceConfig.surfaceName.c_str(), configPath.c_str(), surfaceConfig.lineNumber, errorMessage.c_str());
+                    LogToConsole("[ERROR] Skipping Surface '%s' from %s at line %d: %s\n", surfaceConfig.surfaceName.c_str(), GetRelativePath(configPath.c_str()).c_str(), surfaceConfig.lineNumber, errorMessage.c_str());
                     continue;
                 }
                 page->GetSurfaces().push_back(std::move(surface));
@@ -142,7 +144,7 @@ static void CreateConfiguredSurfaces(CSurfIntegrator* integrator, const Integrat
             } catch (const std::exception& error) {
                 summary.issueCount++;
                 summary.skippedSurfaceCount++;
-                LogToConsole("[ERROR] Skipping Surface '%s' from %s at line %d: %s\n", surfaceConfig.surfaceName.c_str(), configPath.c_str(), surfaceConfig.lineNumber, error.what());
+                LogToConsole("[ERROR] Skipping Surface '%s' from %s at line %d: %s\n", surfaceConfig.surfaceName.c_str(), GetRelativePath(configPath.c_str()).c_str(), surfaceConfig.lineNumber, error.what());
             }
         }
     }
@@ -155,10 +157,10 @@ static void ApplyConfiguredListeners(const IntegratorConfig& config, vector<uniq
             try {
                 if (ApplyListenerConfig(pages[pageIdx].get(), listenerConfig, errorMessage)) continue;
                 summary.issueCount++;
-                LogToConsole("[ERROR] Skipping Listener from %s at line %d: %s\n", configPath.c_str(), listenerConfig.lineNumber, errorMessage.c_str());
+                LogToConsole("[ERROR] Skipping Listener from %s at line %d: %s\n", GetRelativePath(configPath.c_str()).c_str(), listenerConfig.lineNumber, errorMessage.c_str());
             } catch (const std::exception& error) {
                 summary.issueCount++;
-                LogToConsole("[ERROR] Skipping Listener from %s at line %d: %s\n", configPath.c_str(), listenerConfig.lineNumber, error.what());
+                LogToConsole("[ERROR] Skipping Listener from %s at line %d: %s\n", GetRelativePath(configPath.c_str()).c_str(), listenerConfig.lineNumber, error.what());
             }
         }
     }
@@ -200,13 +202,13 @@ void CSurfIntegrator::Init() {
     const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
     const string productRootPath = productPaths.ProductRoot().string();
     if (!filesystem::is_directory(productRootPath)) {
-        LogToConsole("[ERROR] Missing %s resource folder. Please check your installation, cannot find %s\n", ProductIdentity::DisplayName, productRootPath.c_str());
+        LogToConsole("[ERROR] Missing %s resource folder. Please check your installation, cannot find %s\n", ProductIdentity::DisplayName, GetRelativePath(productRootPath.c_str()).c_str());
         return;
     }
 
     const string configPath = productPaths.ConfigFile().string();
     if (!filesystem::is_regular_file(configPath)) {
-        LogToConsole("[ERROR] Missing %s. Please check your installation, cannot find %s\n", ProductIdentity::ConfigFilename, configPath.c_str());
+        LogToConsole("[ERROR] Missing %s. Please check your installation, cannot find %s\n", ProductIdentity::ConfigFilename, GetRelativePath(configPath.c_str()).c_str());
         return;
     }
 
@@ -215,7 +217,7 @@ void CSurfIntegrator::Init() {
         config = ParseFormat2IntegratorConfig(configPath);
         ResolveConfiguredDeviceChannels(config, productPaths);
     } catch (const std::exception& error) {
-        LogToConsole("[ERROR] FAILED to parse %s: %s\n", configPath.c_str(), error.what());
+        LogToConsole("[ERROR] FAILED to parse %s: %s\n", GetRelativePath(configPath.c_str()).c_str(), error.what());
         return;
     }
     if (!config.fatalError.empty()) {

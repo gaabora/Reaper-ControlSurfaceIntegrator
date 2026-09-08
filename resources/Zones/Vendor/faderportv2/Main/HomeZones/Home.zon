@@ -203,7 +203,6 @@ Zone Home
 // -------------------------------------------
 
   Section                           Nudge Blink
-  Nudge                             SendMIDIMessage "90 3c 7f"  // Section button light ON
   Nudge+RotaryBigPush               Reaper 41228     // Item edit: Toggle open/close nudge/set dialog
   Nudge+Decrease+RotaryBig          Reaper 41250     // Item edit: Nudge left by last nudge dialog settings
   Nudge+Increase+RotaryBig          Reaper 41249     // Item edit: Nudge right by last nudge dialog settings

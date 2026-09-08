@@ -393,7 +393,7 @@ bool Format2OscRuntimeLoader::IsSupported(const Format2SurfacePrimitive& primiti
 Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath, OSC_ControlSurface* surface) {
     ifstream file(filePath, std::ios::binary);
     if (!file.is_open()) {
-        LogToConsole("[ERROR] Cannot open format 2 OSC Surface file %s\n", filePath.c_str());
+        LogToConsole("[ERROR] Cannot open format 2 OSC Surface file %s\n", GetRelativePath(filePath.c_str()).c_str());
         return Format2OscRuntimeLoadResult::Rejected;
     }
     ostringstream sourceBuffer;
@@ -402,17 +402,17 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
     const size_t contentStart = source.compare(0, 3, "\xEF\xBB\xBF") == 0 ? 3 : 0;
     const size_t firstText = source.find_first_not_of(" \t\r\n", contentStart);
     if (firstText == string::npos || source.compare(firstText, 5, "@Meta") != 0) {
-        LogToConsole("[ERROR] OSC Surface %s is not format 2. Import it with the configuration editor first.\n", filePath.c_str());
+        LogToConsole("[ERROR] OSC Surface %s is not format 2. Import it with the configuration editor first.\n", GetRelativePath(filePath.c_str()).c_str());
         return Format2OscRuntimeLoadResult::Rejected;
     }
 
     Format2SurfaceParseResult parsed = ParseFormat2SurfaceSource(source, filePath);
     if (!parsed.IsValid()) {
-        for (const Format2Diagnostic& diagnostic : parsed.document.lexical.diagnostics) LogToConsole("[ERROR] Format 2 Surface parse failed in %s, line %d: %s\n", filePath.c_str(), diagnostic.location.line, diagnostic.message.c_str());
+        for (const Format2Diagnostic& diagnostic : parsed.document.lexical.diagnostics) LogToConsole("[ERROR] Format 2 Surface parse failed in %s, line %d: %s\n", GetRelativePath(filePath.c_str()).c_str(), diagnostic.location.line, diagnostic.message.c_str());
         return Format2OscRuntimeLoadResult::Rejected;
     }
     if (parsed.document.metadata.protocol != Format2SurfaceProtocol::Osc) {
-        LogToConsole("[ERROR] OSC surface %s requires Protocol=OSC\n", filePath.c_str());
+        LogToConsole("[ERROR] OSC surface %s requires Protocol=OSC\n", GetRelativePath(filePath.c_str()).c_str());
         return Format2OscRuntimeLoadResult::Rejected;
     }
 
@@ -421,7 +421,7 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
         for (const Format2SurfacePrimitive& primitive : definition.primitives) {
             if (IsSupported(primitive)) continue;
             hasUnsupportedPrimitives = true;
-            LogToConsole("[ERROR] Unsupported format 2 OSC primitive in %s, line %d: %s %s\n", filePath.c_str(), primitive.location.line, primitive.direction == Format2PrimitiveDirection::Input ? "Input" : "Feedback", primitive.type.c_str());
+            LogToConsole("[ERROR] Unsupported format 2 OSC primitive in %s, line %d: %s %s\n", GetRelativePath(filePath.c_str()).c_str(), primitive.location.line, primitive.direction == Format2PrimitiveDirection::Input ? "Input" : "Feedback", primitive.type.c_str());
         }
     }
     if (hasUnsupportedPrimitives) return Format2OscRuntimeLoadResult::Rejected;
