@@ -17,6 +17,7 @@ interface ZoneLayerLocation {
 const BUTTON_EVENTS = new Set(["Press", "Tap", "Release", "Hold", "LongHold", "DoublePress"]);
 
 export interface ValidationOptions {
+    completeProfiles?: boolean;
     actionTraits?: ReadonlyMap<string, ActionTraits>;
     availableZoneNamesByProfile?: Map<string, Set<string>>;
     settingsSchema?: SettingsSchema;
@@ -128,7 +129,8 @@ function diagnosticIdentity(diagnostic: Diagnostic): string {
 export function validateDocumentSet(documents: AnyDocument[], options: ValidationOptions = {}): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
     const zonesByKey = new Map<string, AnyDocument>();
-    const fxZonesByLayer = new Map<string, AnyDocument>();
+    const zonesByLayer = new Map<string, AnyDocument>();
+    const duplicateZoneKeys = new Set<string>();
     const activeSurfaces = new Map<string, { document: AnyDocument; user: boolean }>();
     for (const document of documents) {
         if (document.format !== "surface" || !document.path) continue;
@@ -169,14 +171,15 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
         if (!semantic.name) continue;
         const lowercaseName = semantic.name.toLowerCase();
         const location = zoneLayerLocation(document.path);
-        if (location?.collection === "FX") {
-            const layerKey = `${location.profileId.toLowerCase()}\0${location.source}\0${lowercaseName}`;
-            const existingLayerZone = fxZonesByLayer.get(layerKey);
+        if (location) {
+            const layerKey = `${location.profileId.toLowerCase()}\0${location.collection}\0${location.source}\0${lowercaseName}`;
+            const existingLayerZone = zonesByLayer.get(layerKey);
             if (existingLayerZone) {
                 addDuplicateZoneDiagnostic(diagnostics, document, existingLayerZone, semantic.name);
+                duplicateZoneKeys.add(zoneKey(document, semantic.name));
                 continue;
             }
-            fxZonesByLayer.set(layerKey, document);
+            zonesByLayer.set(layerKey, document);
         }
         const key = zoneKey(document, semantic.name);
         const existing = zonesByKey.get(key);
@@ -235,11 +238,50 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
     }
     for (const document of zonesByKey.values()) {
         const semantic = document.semantic as ZoneSemantic;
+        if (document.version === "2") {
+            for (const reference of semantic.dependencyReferences) {
+                const target = zonesByKey.get(`${zoneScope(document)}\0main\0${reference.name.toLowerCase()}`);
+                if (!target || duplicateZoneKeys.has(zoneKey(target, reference.name)) || target.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+                    addDiagnostic(diagnostics, options.completeProfiles || target ? "error" : "warning", "zones.dependency.missing", `Zone "${semantic.name}" references unavailable Main zone "${reference.name}". Fix or import that zone.`, reference.line, document.path, target?.path ? [{ path: target.path, line: zoneHeaderLine(target) }] : undefined);
+                    continue;
+                }
+                const role = (target.semantic as ZoneSemantic).role;
+                let message = "";
+                let code = "";
+                if (reference.type === "GoZone" && role === "Home") { code = "navigation.home"; message = `GoZone cannot target Role=Home zone '${reference.name}'; use GoHome`; }
+                else if (reference.type === "GoZone" && role === "Layer") { code = "navigation.layer"; message = `GoZone cannot target Role=Layer zone '${reference.name}'; use EnterZoneLayer`; }
+                else if ((reference.type === "ZoneLayers" || reference.type === "EnterZoneLayer") && role !== "Layer") { code = "layer.role"; message = `${reference.type} target '${reference.name}' must declare Role=Layer`; }
+                else if (reference.type === "IncludedZones" && role === "Layer") { code = "included.layer"; message = `IncludedZones cannot target Role=Layer zone '${reference.name}'`; }
+                else if (reference.type === "EnterZoneLayer" && !semantic.subZones.some((name) => name.toLowerCase() === reference.name.toLowerCase())) { code = "navigation.layer-not-declared"; message = `EnterZoneLayer target '${reference.name}' is not declared in ZoneLayers for zone '${semantic.name}'`; }
+                if (message) addDiagnostic(diagnostics, "error", `format2.zone-profile.${code}`, message, reference.line, document.path, target.path ? [{ path: target.path, line: zoneHeaderLine(target) }] : undefined);
+            }
+            continue;
+        }
         const availableNames = options.availableZoneNamesByProfile?.get(zoneScope(document));
         for (const dependency of semantic.dependencies) {
             if (zonesByKey.has(zoneKey(document, dependency)) || availableNames?.has(dependency.toLowerCase())) continue;
             const reference = semantic.dependencyReferences.find((candidate) => candidate.name.toLowerCase() === dependency.toLowerCase());
             addDiagnostic(diagnostics, "warning", "zones.dependency.missing", `Zone "${semantic.name}" references missing zone "${dependency}".`, reference?.line, document.path);
+        }
+    }
+
+    if (options.completeProfiles) {
+        const format2Profiles = new Set(documents.filter((document) => document.format === "zone" && document.version === "2").map(zoneScope));
+        for (const document of documents) {
+            if (document.format === "zone" && document.version !== "2" && format2Profiles.has(zoneScope(document))) addDiagnostic(diagnostics, "error", "format2.zone-profile.legacy", `Profile '${zoneScope(document)}' contains a legacy Zone file. Convert the complete profile or import to a separate profile ID.`, zoneHeaderLine(document), document.path);
+        }
+        const mainProfiles = new Map<string, AnyDocument[]>();
+        for (const document of zonesByKey.values()) {
+            if (zoneLayerLocation(document.path)?.collection === "FX") continue;
+            const profile = zoneScope(document);
+            const entries = mainProfiles.get(profile) ?? [];
+            entries.push(document);
+            mainProfiles.set(profile, entries);
+        }
+        for (const [profile, entries] of mainProfiles) {
+            if (!entries.some((document) => document.version === "2")) continue;
+            const homeZones = entries.filter((document) => (document.semantic as ZoneSemantic).role === "Home" && !duplicateZoneKeys.has(zoneKey(document, (document.semantic as ZoneSemantic).name!)) && !document.diagnostics.some((diagnostic) => diagnostic.severity === "error"));
+            if (homeZones.length !== 1) addDiagnostic(diagnostics, "error", `format2.zone-profile.home.${homeZones.length ? "duplicate" : "missing"}`, `Zone profile '${profile}' requires exactly one valid Main zone with Role=Home. Fix the Home zone errors or import a Home zone.`, undefined, entries[0].path, homeZones.flatMap((document) => document.path ? [{ path: document.path, line: zoneHeaderLine(document) }] : []));
         }
     }
 

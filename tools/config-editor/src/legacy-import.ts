@@ -17,7 +17,6 @@ import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
 import type { SurfaceSemantic, SurfaceWidget } from "./surface.ts";
 import type { ZoneBinding, ZoneSemantic } from "./zone.ts";
-import type { ProductTreeEntry } from "./paths.ts";
 
 export type LegacyImportConflictAction = "create" | "rename" | "replace" | "skip";
 export type LegacyImportKind = "learn-fx" | "surface" | "zone";
@@ -442,33 +441,6 @@ async function isDirectory(directoryPath: string): Promise<boolean> {
     }
 }
 
-function flattenTreeEntries(entries: ProductTreeEntry[], result: ProductTreeEntry[] = []): ProductTreeEntry[] {
-    for (const entry of entries) {
-        result.push(entry);
-        if (entry.children) flattenTreeEntries(entry.children, result);
-    }
-    return result;
-}
-
-async function existingTargetZoneNames(store: ConfigurationStore, targetProfileId: string, replacedTargetPaths: Set<string>): Promise<Set<string>> {
-    const entries = flattenTreeEntries(await store.tree());
-    const profileKey = targetProfileId.toLowerCase();
-    const userMainPrefix = `zones/user/${profileKey}/main/`;
-    const hasUserMain = entries.some((entry) => entry.path.toLowerCase() === `zones/user/${profileKey}/main` || entry.path.toLowerCase().startsWith(userMainPrefix)) || [...replacedTargetPaths].some((targetPath) => targetPath.startsWith(userMainPrefix));
-    const names = new Set<string>();
-    for (const entry of entries) {
-        if (entry.kind !== "file" || entry.type !== "zone") continue;
-        const normalizedPath = entry.path.replaceAll("\\", "/");
-        const location = normalizedPath.match(/^Zones\/(Vendor|User)\/([^/]+)\/(Main|FX)\//i);
-        if (!location || location[2].toLowerCase() !== profileKey || replacedTargetPaths.has(normalizedPath.toLowerCase())) continue;
-        if (hasUserMain && location[1].toLowerCase() === "vendor" && location[3].toLowerCase() === "main") continue;
-        const opened = await store.openDocument(entry.path);
-        const zoneName = (opened.document.semantic as ZoneSemantic).name;
-        if (zoneName) names.add(zoneName.toLowerCase());
-    }
-    return names;
-}
-
 export class LegacyCsiSource {
     private constructor(private readonly root: string) {}
 
@@ -554,7 +526,7 @@ export class LegacyCsiSource {
         const migrateSharedMode = includeSurface && !useExistingSurface && hasScribbleStripMode && scribbleStripMode.mode !== undefined;
         const surfaceConversion = convertLegacySurfaceToFormat2(surfaceSource, files.name, surfaceTargetPath, meterMode.mode, migrateSharedMode ? scribbleStripMode.mode : undefined);
         const migratedSurface = surfaceConversion.source;
-        const surfaceDocument = parseByPath(migratedSurface, surfaceTargetPath, knownActions);
+        const surfaceDocument = store.parseDocument(surfaceTargetPath, migratedSurface);
         surfaceDocument.diagnostics.push(...surfaceConversion.diagnostics);
         if (includeSurface && !useExistingSurface) surfaceDocument.diagnostics.push(...meterMode.diagnostics, ...scribbleStripMode.diagnostics);
         const hasSce24Ring = /^\s*FB_SCE24Encoder\b/im.test(draftMap.get(files.surface.sourcePath)?.source ?? files.surface.source);
@@ -575,21 +547,31 @@ export class LegacyCsiSource {
             zoneMigrationDiagnostics.set(zone.sourcePath, [...ringMigration.diagnostics, ...stateMigration.diagnostics]);
         }
         const layerNames = new Set<string>();
+        const layerParents = new Map<string, string[]>();
         for (const zone of normalZones) {
             const legacyDocument = parseByPath(preparedZoneSources.get(zone.sourcePath)!, zone.sourcePath, knownActions);
             legacyZoneDocuments.set(zone.sourcePath, legacyDocument);
-            for (const layerName of (legacyDocument.semantic as ZoneSemantic).subZones) layerNames.add(layerName.toLowerCase());
+            const semantic = legacyDocument.semantic as ZoneSemantic;
+            for (const layerName of semantic.subZones) {
+                const layerKey = layerName.toLowerCase();
+                layerNames.add(layerKey);
+                const parents = layerParents.get(layerKey) ?? [];
+                if (semantic.name) parents.push(semantic.name);
+                layerParents.set(layerKey, parents);
+            }
         }
         for (const zone of normalZones) {
             const targetPath = targetPathMap.get(zone.sourcePath) || `Zones/User/${targetProfileId}/${zone.profile}/${zone.relativePath}`;
             this.validateTargetScope("zone", targetPath, targetProfileId);
             const preparedSource = preparedZoneSources.get(zone.sourcePath)!;
             const zoneName = legacyZoneName(preparedSource) ?? path.basename(targetPath, path.extname(targetPath));
-            const conversion = convertLegacyZoneToFormat2(preparedSource, { isLayer: layerNames.has(zoneName.toLowerCase()), profile: zone.profile, targetPath });
+            const parents = layerParents.get(zoneName.toLowerCase());
+            const bankContexts = parents?.some((parent) => layerNames.has(parent.toLowerCase())) ? [] : parents;
+            const conversion = convertLegacyZoneToFormat2(preparedSource, { bankContexts, isLayer: layerNames.has(zoneName.toLowerCase()), profile: zone.profile, targetPath });
             const migratedSource = conversion.source;
             zoneMigrationDiagnostics.get(zone.sourcePath)!.push(...conversion.diagnostics);
             migratedZoneSources.set(zone.sourcePath, migratedSource);
-            const zoneDocument = parseByPath(migratedSource, targetPath, knownActions);
+            const zoneDocument = store.parseDocument(targetPath, migratedSource);
             zoneDocument.diagnostics.push(...zoneMigrationDiagnostics.get(zone.sourcePath)!);
             zoneDocuments.set(zone.sourcePath, zoneDocument);
             zoneTargetPaths.set(zone.sourcePath, targetPath);
@@ -602,7 +584,7 @@ export class LegacyCsiSource {
             if (!selectedPaths.has(sourcePath)) continue;
             const source = replaceMappedWidgets(migratedZoneSources.get(sourcePath)!, document, widgetMappingResult.validMappings);
             migratedZoneSources.set(sourcePath, source);
-            const mappedDocument = parseByPath(source, document.path!, knownActions);
+            const mappedDocument = store.parseDocument(document.path!, source);
             mappedDocument.diagnostics.push(...(zoneMigrationDiagnostics.get(sourcePath) ?? []));
             zoneDocuments.set(sourcePath, mappedDocument);
         }
@@ -659,10 +641,8 @@ export class LegacyCsiSource {
         const mappingSurfaceDocuments = widgetTarget === "existing" ? [...(!includeSurface ? [surfaceDocument] : []), ...(targetSurface ? [targetSurface] : [])] : [];
         const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics).filter((diagnostic) => diagnostic.code !== "surface.format.missing" && diagnostic.code !== "zone.format.missing");
         const selectedDocumentsByPath = new Map<string, AnyDocument>(selectedDocuments.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
-        const replacedTargetPaths = new Set([...selectedPaths].map((sourcePath) => zoneTargetPaths.get(sourcePath)).filter((targetPath): targetPath is string => Boolean(targetPath)).map((targetPath) => targetPath.toLowerCase()));
-        const availableTargetZoneNames = await existingTargetZoneNames(store, targetProfileId, replacedTargetPaths);
-        const availableZoneNamesByProfile = new Map([[targetProfileId.toLowerCase(), availableTargetZoneNames]]);
-        const setDiagnostics = validateDocumentSet(selectedDocuments, { availableZoneNamesByProfile }).map((diagnostic) => {
+        const profileDocuments = selectedPaths.size ? await store.zoneProfileDocuments(targetProfileId, selectedDocuments) : selectedDocuments;
+        const setDiagnostics = validateDocumentSet(profileDocuments, { completeProfiles: true }).map((diagnostic) => {
             const document = diagnostic.path ? selectedDocumentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
             let contextualDiagnostic = diagnostic;
             if (document && diagnostic.code === "zones.dependency.missing") {
@@ -676,7 +656,7 @@ export class LegacyCsiSource {
             }
             return document ? diagnosticWithQuickFixes(document, contextualDiagnostic, knownActions, true) : contextualDiagnostic;
         });
-        const diagnostics = selectedDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, true)).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
+        const diagnostics = profileDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, !document.path?.startsWith("Zones/Vendor/"))).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
         const selectedTargetPaths = new Map<string, string>();
         for (const item of items.filter((candidate) => candidate.selected)) {
             const targetKey = item.targetPath.toLowerCase();
@@ -738,6 +718,9 @@ export class LegacyCsiSource {
         }
         for (const resolution of request.resolutions) if (!preview.items.some((item) => item.selected && item.id === resolution.id)) throw new EditorOperationError("legacy.resolution.unknown", `Import resolution does not match a selected source: ${resolution.id}`);
         if (!changes.length) return { changed: [], created: [], failed: [], restored: [], skipped };
+        const finalDocuments = await store.zoneProfileDocuments(preview.targetProfileId, changes.map((change) => store.parseDocument(change.path, change.source)));
+        const finalDiagnostics = finalDocuments.flatMap((document) => document.diagnostics).concat(validateDocumentSet(finalDocuments, { completeProfiles: true }));
+        if (finalDiagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", "The final import profile contains errors after Replace, Rename, or Skip. No files were imported.", finalDiagnostics);
         const report = await store.saveTransaction(changes);
         report.skipped.push(...skipped);
         return report;

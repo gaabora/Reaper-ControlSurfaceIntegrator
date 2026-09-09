@@ -160,6 +160,23 @@ export class ConfigurationStore {
         return documentView(parseByPath(source, relativePath, this.knownActions, this.settingsSchema, this.actionTraits), this.knownActions, info.writable);
     }
 
+    parseDocument(relativePath: string, source: string): AnyDocument {
+        this.guard.getPathInfo(relativePath);
+        return parseByPath(source, relativePath, this.knownActions, this.settingsSchema, this.actionTraits);
+    }
+
+    async zoneProfileDocuments(profileId: string, replacements: AnyDocument[]): Promise<AnyDocument[]> {
+        const documents = new Map(replacements.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document]));
+        for (const entry of flattenFileEntries(await this.tree())) {
+            if (entry.type !== "zone") continue;
+            const location = entry.path.replaceAll("\\", "/").match(/^Zones\/(?:Vendor|User)\/([^/]+)\/(?:Main|FX)\//i);
+            if (!location || location[1].toLowerCase() !== profileId.toLowerCase() || documents.has(entry.path.toLowerCase())) continue;
+            const opened = await this.openDocument(entry.path);
+            documents.set(entry.path.toLowerCase(), this.parseDocument(entry.path, opened.source));
+        }
+        return [...documents.values()];
+    }
+
     applyQuickFix(relativePath: string, source: string, request: QuickFixRequest): { document: DocumentView; source: string } {
         const info = this.guard.getPathInfo(relativePath);
         if (!info.writable) throw new EditorOperationError("quick-fix.read-only", `Cannot apply a quick fix to a read-only file: ${relativePath}`);
@@ -190,7 +207,7 @@ export class ConfigurationStore {
             files.push({ diagnostics: diagnosticsWithQuickFixes(document, this.knownActions, opened.writable), path: entry.path });
         }
         const documentsByPath = new Map<string, AnyDocument>(documents.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
-        const diagnostics = validateDocumentSet(documents, { actionTraits: this.actionTraits, settingsSchema: this.settingsSchema }).map((diagnostic) => {
+        const diagnostics = validateDocumentSet(documents, { completeProfiles: true, actionTraits: this.actionTraits, settingsSchema: this.settingsSchema }).map((diagnostic) => {
             const document = diagnostic.path ? documentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
             return document ? diagnosticWithQuickFixes(document, diagnostic, this.knownActions, writableByPath.get(diagnostic.path!.toLowerCase()) ?? false) : diagnostic;
         });

@@ -45,7 +45,7 @@ export function convertHashCommentLine(text: string): string {
     return byteOrderMark + content.replace(/^(\s*)#/, "$1//");
 }
 
-export function tokenizeLine(text: string): string[] {
+export function tokenizeLine(text: string, preserveQuotes = false): string[] {
     const tokens: string[] = [];
     let token = "";
     let insideQuote = false;
@@ -70,6 +70,7 @@ export function tokenizeLine(text: string): string[] {
         } else if (insideQuote && character === "\\") {
             escaped = true;
         } else if (character === "\"") {
+            if (preserveQuotes) token += character;
             insideQuote = !insideQuote;
             if (!insideQuote && propertyListDepth === 0) pushToken();
         } else if (!insideQuote && character === "[" && (propertyListDepth > 0 || token.includes("="))) {

@@ -4,7 +4,12 @@
 
 Make imported profiles pass the same checks as runtime. Show why a configured device cannot run its actions without requiring debug logs. Let the user select which Zone profile sources can run.
 
-This is an implementation proposal. Code changes and verification runs need separate approval. The three source modes and the edge cases below need design review before implementation.
+Implementation is approved. Verification runs still need approval. The source modes use whole-zone replacement. Gesture input, modifier state changes, and explicit NoAction count as intentional handling; they must not produce an unhandled-input notice solely because no immediate action changes REAPER.
+
+## Current implementation status
+
+- [ ] Import conversion and validation changes are written and await focused checks. They cover matching Bank contexts, ambiguous exits, empty relations, Home navigation, lifecycle arguments, required destinations, Home count, mixed formats, and final conflict decisions. Tests include Skip retaining an invalid destination and Rename producing a second Home.
+- [ ] Complete the remaining conversion and runtime parity cases, explicit source modes, Devices status, and per-message OSD. The current runtime source selection has not changed; mixed Vendor/User formats are now reported during complete import validation rather than accepted.
 
 ## Confirmed problems
 
@@ -94,7 +99,7 @@ Acceptance: with a failed Home zone, Devices shows that MIDI can arrive while th
 - [ ] Publish configuration failure notices without depending on an action in the failed Home zone or its EnableOSD setting. Make the diagnostic display work when normal action OSD cannot start. Keep Devices available if the Lua OSD cannot open.
 - [ ] Define priority between diagnostic OSD and normal action OSD so a routine message cannot immediately hide the reason for the unhandled event.
 - [ ] Review the exact meaning of handled before implementation. Pending Hold/DoublePress recognition, release messages, modifier state updates, explicit NoAction, compound MIDI inputs, and protocol-only traffic need explicit decisions. Do not silently add exclusions from the user's every-message rule.
-- [ ] Proposed rule for review: input consumed by a valid gesture or modifier is pending or handled; explicit NoAction is an intentional assignment. A message that is truly unhandled always generates an event. If the user instead means only messages that immediately execute an action, include these other cases with truthful labels such as Waiting for Hold rather than calling the profile broken.
+- ✅ Approved handling rule: input consumed by a valid gesture or modifier is pending or handled; explicit NoAction is an intentional assignment. A message that is truly unhandled always generates an event. Implementation and verification remain open.
 - [ ] Define attribution when one physical input serves multiple assignments or listeners. Report the affected current assignment and avoid counting one raw message more than once for that assignment when several widget decoders participate.
 
 Example display for a failed profile:

@@ -3,6 +3,7 @@ import { addDiagnostic, type Diagnostic } from "./model.ts";
 import { analysisText, initializeLine, splitSourceLines } from "./text.ts";
 
 export interface LegacyZoneFormat2Options {
+    bankContexts?: string[];
     isLayer?: boolean;
     profile: "FX" | "Main";
     targetPath: string;
@@ -216,6 +217,8 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
     const metadata = metadataFor(zoneName, header?.tokens.slice(2) ?? [], options, diagnostics, header?.lineNumber);
     const output: string[] = [`@Meta { Version=2${metadata.length ? ` ${metadata.join(" ")}` : ""} }`, ""];
     let section: "included" | "layers" | undefined;
+    let sectionStart = 0;
+    let sectionEntries = 0;
 
     const appendBlank = (): void => {
         if (output.at(-1) !== "") output.push("");
@@ -234,17 +237,27 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         if (keyword === "IncludedZones" || keyword === "SubZones") {
             appendBlank();
             section = keyword === "IncludedZones" ? "included" : "layers";
+            sectionStart = output.length;
+            sectionEntries = 0;
             output.push(section === "included" ? "IncludedZones {" : "ZoneLayers {");
             continue;
         }
         if (keyword === "IncludedZonesEnd" || keyword === "SubZonesEnd") {
-            output.push("}");
+            if (!section || (keyword === "IncludedZonesEnd") !== (section === "included")) {
+                addDiagnostic(diagnostics, "error", "legacy.zone.reference.end", `${keyword} has no matching relation block.`, line.lineNumber, options.targetPath);
+                continue;
+            }
+            if (sectionEntries) output.push("}");
+            else output.splice(sectionStart, 1);
             appendBlank();
             section = undefined;
             continue;
         }
         if (section) {
-            if (line.tokens[0]) output.push(`  ${line.tokens[0]}`);
+            if (line.tokens[0]) {
+                output.push(`  ${line.tokens[0]}`);
+                sectionEntries++;
+            }
             continue;
         }
         if (STANDALONE_NAVIGATORS.has(keyword) && line.tokens.length === 1) continue;
@@ -267,8 +280,21 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         if (action === "GoZone" && actionTokens[0] === "SelectedTrackFX") {
             convertedAction = "ToggleSelectedTrackFX";
             actionTokens = actionTokens.slice(1);
+        } else if (action === "GoZone" && actionTokens[0]?.toLowerCase() === "home") {
+            convertedAction = "GoHome";
+            actionTokens = actionTokens.slice(1);
         } else if (action === "GoSubZone") convertedAction = "EnterZoneLayer";
-        else if (action === "LeaveSubZone") convertedAction = "ExitZoneLayer";
+        else if (action === "LeaveSubZone") {
+            if (options.isLayer) convertedAction = "ExitZoneLayer";
+            else addDiagnostic(diagnostics, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Use GoHome to return home, or declare it in SubZones and enter it with GoSubZone before import.`, line.lineNumber, options.targetPath);
+        }
+        if (action === "Bank" && actionTokens.length >= 2 && !actionTokens[0].includes("=")) {
+            const bankTarget = MAGIC_MAIN_METADATA.get(actionTokens[0].toLowerCase());
+            const contexts = options.bankContexts ?? (options.isLayer ? [] : [zoneName]);
+            const sameContext = options.profile === "Main" && bankTarget && contexts.length > 0 && contexts.every((context) => MAGIC_MAIN_METADATA.get(context.toLowerCase())?.join(" ") === bankTarget.join(" "));
+            if (sameContext) actionTokens = actionTokens.slice(1);
+            else addDiagnostic(diagnostics, "error", "legacy.zone.bank.context", `Bank ${actionTokens[0]} cannot use this zone's context (${contexts.join(", ") || "unknown parent"}). Move this binding to a zone with the matching Target and BankTarget before import. Removing the target name would change its behavior.`, line.lineNumber, options.targetPath);
+        }
         const actionText = [convertedAction, ...actionTokens].filter(Boolean).join(" ");
         if (lifecycle) {
             appendBlank();

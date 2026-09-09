@@ -770,7 +770,7 @@ WidgetEnd
     test("resolves an import dependency from the active target profile", async () => {
         const targetZonePath = path.join(productRoot, "Zones", "User", "faderportv2", "Main", "GoZones", "Transport.zon");
         await mkdir(path.dirname(targetZonePath), { recursive: true });
-        await writeFile(targetZonePath, "// @format zone 1\nZone Transport\n  Play Play\nZoneEnd\n", "utf8");
+        await writeFile(targetZonePath, "@Meta { Version=2 }\nPlay Play\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);
 
@@ -863,6 +863,8 @@ WidgetEnd
     });
 
     test("requires a compatible widget mapping and rewrites every selected binding", async () => {
+        await mkdir(path.join(productRoot, "Zones/User/faderportv2/Main"), { recursive: true });
+        await writeFile(path.join(productRoot, "Zones/User/faderportv2/Main/Transport.zon"), "@Meta { Version=2 }\nStop Play\n", "utf8");
         await writeFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "Widget Play\n  Encoder b0 10 7f\nWidgetEnd\nWidget Stop\n  Press 90 5d 7f 90 5d 00\nWidgetEnd\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();
@@ -972,6 +974,8 @@ WidgetEnd
     });
 
     test("uses the existing surface when the imported surface conflict is skipped", async () => {
+        await mkdir(path.join(productRoot, "Zones/User/faderportv2/Main"), { recursive: true });
+        await writeFile(path.join(productRoot, "Zones/User/faderportv2/Main/Transport.zon"), "@Meta { Version=2 }\nStop Play\n", "utf8");
         await writeFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "Widget Play\n  Encoder b0 10 7f\nWidgetEnd\nWidget Stop\n  Press 90 5d 7f 90 5d 00\nWidgetEnd\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();
@@ -989,5 +993,34 @@ WidgetEnd
         await source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings });
         expect(await readFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "utf8")).toContain("  Encoder b0 10 7f\n");
         expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8")).toContain("Stop Play\n");
+    });
+
+    test("blocks Skip when it retains an invalid destination required by Home", async () => {
+        const targetPath = "Zones/User/faderportv2/Main/GoZones/Transport.zon";
+        const invalidSource = "@Meta { Version=2 }\nPlay Bank SelectedTracks -1\n";
+        await mkdir(path.dirname(path.join(productRoot, targetPath)), { recursive: true });
+        await writeFile(path.join(productRoot, targetPath), invalidSource, "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const store = await createStore();
+        const preview = await source.preview(store, knownActions, "FaderPortV2", true);
+        expect(preview.valid).toBeTrue();
+        const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: item.targetPath === targetPath ? "skip" as const : "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
+        await expect(source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] })).rejects.toThrow("final import profile contains errors");
+        expect((await store.fileState("Surfaces/User/faderportv2.txt")).exists).toBeFalse();
+        expect(await readFile(path.join(productRoot, targetPath), "utf8")).toBe(invalidSource);
+    });
+
+    test("blocks Rename when the retained destination creates a second Home", async () => {
+        const targetPath = "Zones/User/faderportv2/Main/HomeZones/Home.zon";
+        await mkdir(path.dirname(path.join(productRoot, targetPath)), { recursive: true });
+        await writeFile(path.join(productRoot, targetPath), "@Meta { Version=2 Role=Home }\nPlay Play\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const store = await createStore();
+        const preview = await source.preview(store, knownActions, "FaderPortV2", true);
+        expect(preview.valid).toBeTrue();
+        const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: item.targetPath === targetPath ? "rename" as const : "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash, ...(item.targetPath === targetPath ? { targetPath: "Zones/User/faderportv2/Main/OtherHome.zon" } : {}) }));
+        await expect(source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] })).rejects.toThrow("final import profile contains errors");
+        expect((await store.fileState("Surfaces/User/faderportv2.txt")).exists).toBeFalse();
+        expect((await store.fileState("Zones/User/faderportv2/Main/OtherHome.zon")).exists).toBeFalse();
     });
 });

@@ -113,7 +113,10 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
     let metadataLine: number | undefined;
     let relation: "included" | "layers" | undefined;
     let relationDepth = 0;
+    let relationLine = 0;
+    let relationEntryCount = 0;
     let lifecycleDepth = 0;
+    const layerActions: Array<{ action: string; line: number }> = [];
     const metadata = new Map<string, { line: number; value: string }>();
     const buttonEvents = new Set(["Press", "Tap", "Release", "Hold", "LongHold", "DoublePress"]);
     const directionEvents = new Set(["Increase", "Decrease"]);
@@ -129,6 +132,7 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
     };
 
     const addRelationEntry = (name: string, lineNumber: number): void => {
+        relationEntryCount++;
         if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(name)) {
             addDiagnostic(diagnostics, "error", "format2.zone.reference.id", `Zone reference is not a valid ID: ${name}`, lineNumber, documentPath);
             return;
@@ -138,6 +142,26 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         else semantic.subZones.push(name);
         semantic.dependencies.push(name);
         semantic.dependencyReferences.push({ line: lineNumber, name, type });
+    };
+
+    const endRelation = (): void => {
+        if (!relationEntryCount) addDiagnostic(diagnostics, "error", "format2.zone.reference.required", `${relation === "included" ? "IncludedZones" : "ZoneLayers"} requires at least one zone ID`, relationLine, documentPath);
+        relation = undefined;
+    };
+
+    const validateAction = (text: string, lineNumber: number): void => {
+        const [action, ...tokens] = tokenizeLine(text, true);
+        const params = tokens.filter((token) => !/^[A-Za-z][A-Za-z0-9]*=/.test(token));
+        if (action === "Bank" && (params.length !== 1 || !/^-?\d+$/.test(params[0]))) addDiagnostic(diagnostics, "error", "format2.zone.action.bank-amount", "Bank requires one unquoted signed integer amount", lineNumber, documentPath);
+        if (["ToggleSelectedTrackFX", "ClearLastTouchedFXParam", "ClearFocusedFX", "ClearSelectedTrackFX", "ClearFXSlot"].includes(action) && params.length) addDiagnostic(diagnostics, "error", "format2.zone.action.argument", `${action} does not accept positional parameters`, lineNumber, documentPath);
+        if (action === "ExitZoneLayer") layerActions.push({ action, line: lineNumber });
+        if (action !== "GoZone" && action !== "EnterZoneLayer") return;
+        if (params.length !== 1 || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(params[0])) {
+            addDiagnostic(diagnostics, "error", "format2.zone.navigation.argument", `${action} requires one unquoted zone ID`, lineNumber, documentPath);
+            return;
+        }
+        semantic.dependencies.push(params[0]);
+        semantic.dependencyReferences.push({ line: lineNumber, name: params[0], type: action });
     };
 
     for (const line of lines) {
@@ -168,19 +192,22 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
             for (const entry of entries) addRelationEntry(entry, line.lineNumber);
             relationDepth += delta;
             line.kind = relationDepth > 0 ? "entry" : "block-end";
-            if (relationDepth <= 0) relation = undefined;
+            if (relationDepth <= 0) endRelation();
             continue;
         }
         if (lifecycleDepth > 0) {
             lifecycleDepth += delta;
             line.kind = lifecycleDepth > 0 ? "entry" : "block-end";
             const action = line.tokens[0];
+            if (lifecycleDepth > 0 && action) validateAction(text, line.lineNumber);
             if (lifecycleDepth > 0 && action && knownActions && !knownActions.has(action)) addDiagnostic(diagnostics, "warning", "zone.action.unknown", `Unknown runtime action: ${action}`, line.lineNumber, documentPath);
             continue;
         }
         if (line.tokens[0] === "IncludedZones" || line.tokens[0] === "ZoneLayers") {
             relation = line.tokens[0] === "IncludedZones" ? "included" : "layers";
             relationDepth = delta;
+            relationLine = line.lineNumber;
+            relationEntryCount = 0;
             line.kind = "block-start";
             const openBrace = text.indexOf("{");
             const closeBrace = text.lastIndexOf("}");
@@ -191,7 +218,7 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
                 const inlineEnd = closeBrace > openBrace ? closeBrace : text.length;
                 const inlineEntries = tokenizeLine(text.slice(openBrace + 1, inlineEnd));
                 for (const entry of inlineEntries) addRelationEntry(entry, line.lineNumber);
-                if (closeBrace > openBrace) relation = undefined;
+                if (closeBrace > openBrace) endRelation();
             }
             continue;
         }
@@ -237,6 +264,7 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
             continue;
         }
         semantic.bindings.push({ action, inputSelectors: expression.inputSelectors, line: line.lineNumber, modifiers: expression.modifiers, params, properties, widget: expression.widget });
+        validateAction(text.slice(expressionText.length).trimStart(), line.lineNumber);
         for (const propertyName of ["DelayMs", "RepeatIntervalMs", "RunCount"]) if (new RegExp(`(?:^|\\s)${propertyName}\\s*=\\s*"`).test(text)) addDiagnostic(diagnostics, "error", "format2.zone.gesture.integer-property", `${propertyName} must be one complete unquoted integer`, line.lineNumber, documentPath);
         const selectedButtonEvents = expression.inputSelectors.filter((selector) => buttonEvents.has(selector));
         if (selectedButtonEvents.length > 1) addDiagnostic(diagnostics, "error", "format2.zone.binding.event", "A binding cannot select more than one button event", line.lineNumber, documentPath);
@@ -247,10 +275,6 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         for (const selector of expression.inputSelectors) if (!buttonEvents.has(selector) && !directionEvents.has(selector) && !inputTransforms.has(selector)) addDiagnostic(diagnostics, "error", "format2.zone.binding.input", `Unknown input selector: ${selector}`, line.lineNumber, documentPath);
         for (const modifier of expression.modifiers) if (!contextSelectors.has(modifier)) addDiagnostic(diagnostics, "error", "format2.zone.binding.modifier", `Unknown modifier selector: ${modifier}`, line.lineNumber, documentPath);
         if (knownActions && !knownActions.has(action)) addDiagnostic(diagnostics, "warning", "zone.action.unknown", `Unknown runtime action: ${action}`, line.lineNumber, documentPath);
-        if ((action === "GoZone" || action === "EnterZoneLayer") && params[0]) {
-            semantic.dependencies.push(params[0]);
-            semantic.dependencyReferences.push({ line: line.lineNumber, name: params[0], type: action });
-        }
     }
 
     if (!metadataLine) addDiagnostic(diagnostics, "error", "format2.metadata.required", "Format 2 Zone requires @Meta", undefined, documentPath);
@@ -270,6 +294,9 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
     const version = metadata.get("Version");
     if (!version || version.value !== "2") addDiagnostic(diagnostics, "error", "format2.metadata.version", "@Meta requires Version=2", version?.line ?? metadataLine, documentPath);
     semantic.role = metadata.get("Role")?.value;
+    if (semantic.role !== "Layer" || /(?:^|[\\/])FX[\\/]/i.test(documentPath ?? "")) {
+        for (const entry of layerActions) addDiagnostic(diagnostics, "error", "format2.zone.action.layer-only", `${entry.action} is valid only in a Main zone with Role=Layer`, entry.line, documentPath);
+    }
     semantic.target = metadata.get("Target")?.value;
     semantic.alias = metadata.get("Alias")?.value;
     const matchFx = metadata.get("MatchFX")?.value;
