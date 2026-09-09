@@ -767,6 +767,22 @@ WidgetEnd
         expect(diagnostic?.related).toEqual([{ line: 1, path: "Zones/GoZones/Transport.zon" }]);
     });
 
+    test("explains that a selected dependency is invalid and links Bank context zones", async () => {
+        const surfaceRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2");
+        await writeFile(path.join(surfaceRoot, "Zones", "HomeZones", "Home.zon"), "Zone Home\n  SubZones\n    LinkLock\n  SubZonesEnd\n  Link GoSubZone LinkLock\nZoneEnd\n", "utf8");
+        await writeFile(path.join(surfaceRoot, "Zones", "GoZones", "SelectedTrackFXMenu.zon"), "Zone SelectedTrackFXMenu\n  Play Play\nZoneEnd\n", "utf8");
+        await writeFile(path.join(surfaceRoot, "Zones", "GoZones", "LinkLock.zon"), "Zone LinkLock\n  Prev Bank SelectedTrackFXMenu -1\n  Link LeaveSubZone\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const dependency = preview.diagnostics.find((diagnostic) => diagnostic.code === "zones.dependency.missing" && diagnostic.message.includes("LinkLock"));
+        const bankContext = preview.diagnostics.find((diagnostic) => diagnostic.code === "legacy.zone.bank.context");
+
+        expect(dependency?.message).toContain("selected but invalid");
+        expect(preview.diagnostics.some((diagnostic) => diagnostic.code === "format2.zone.action.bank-amount" && diagnostic.line === bankContext?.line && diagnostic.path === bankContext?.path)).toBeFalse();
+        expect(bankContext?.related?.map((related) => related.path)).toContain("Zones/GoZones/SelectedTrackFXMenu.zon");
+        expect(bankContext?.related?.map((related) => related.path)).toContain("Zones/HomeZones/Home.zon");
+    });
+
     test("resolves an import dependency from the active target profile", async () => {
         const targetZonePath = path.join(productRoot, "Zones", "User", "faderportv2", "Main", "GoZones", "Transport.zon");
         await mkdir(path.dirname(targetZonePath), { recursive: true });

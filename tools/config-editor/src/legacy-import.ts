@@ -623,6 +623,16 @@ export class LegacyCsiSource {
             matches.push(sourcePath);
             matchesByName.set(semantic.name.toLowerCase(), matches);
         }
+        for (const document of zoneDocuments.values()) {
+            const semantic = document.semantic as ZoneSemantic;
+            const parentNames = semantic.name ? layerParents.get(semantic.name.toLowerCase()) ?? [] : [];
+            for (const diagnostic of document.diagnostics) {
+                if (diagnostic.code !== "legacy.zone.bank.context") continue;
+                const bankTargetName = diagnostic.message.match(/^Bank\s+(\S+)\s+cannot/)?.[1];
+                const relatedPaths = [...(bankTargetName ? matchesByName.get(bankTargetName.toLowerCase()) ?? [] : []), ...parentNames.flatMap((parentName) => matchesByName.get(parentName.toLowerCase()) ?? [])];
+                diagnostic.related = [...new Set(relatedPaths)].map((sourcePath) => ({ line: legacyZoneDocuments.get(sourcePath)?.lines.find((line) => line.kind === "header")?.lineNumber, path: sourcePath }));
+            }
+        }
         const dependenciesByKey = new Map<string, LegacyImportDependency>();
         for (const [sourcePath, document] of zoneDocuments) for (const dependency of collectDependencies(sourcePath, document.semantic as ZoneSemantic, matchesByName, selectedPaths)) dependenciesByKey.set(dependencyKey(dependency), dependency);
 
@@ -644,7 +654,7 @@ export class LegacyCsiSource {
         const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics).filter((diagnostic) => diagnostic.code !== "surface.format.missing" && diagnostic.code !== "zone.format.missing");
         const selectedDocumentsByPath = new Map<string, AnyDocument>(selectedDocuments.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
         const profileDocuments = selectedPaths.size ? await store.zoneProfileDocuments(targetProfileId, selectedDocuments, recommendedSourceMode === "User" ? new Set(["User"]) : undefined) : selectedDocuments;
-        const setDiagnostics = validateDocumentSet(profileDocuments, { completeProfiles: true }).map((diagnostic) => {
+        const setDiagnostics = validateDocumentSet(profileDocuments, { completeProfiles: true }).flatMap((diagnostic) => {
             const document = diagnostic.path ? selectedDocumentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
             let contextualDiagnostic = diagnostic;
             if (document && diagnostic.code === "zones.dependency.missing") {
@@ -652,13 +662,29 @@ export class LegacyCsiSource {
                 const reference = semantic.dependencyReferences.find((candidate) => candidate.line === diagnostic.line);
                 const matchingSources = reference ? matchesByName.get(reference.name.toLowerCase()) ?? [] : [];
                 if (reference && matchingSources.length) {
-                    const related = matchingSources.map((sourcePath) => ({ line: zoneDocuments.get(sourcePath)?.lines.find((line) => line.kind === "format")?.lineNumber, path: sourcePath }));
-                    contextualDiagnostic = { ...diagnostic, message: `Zone "${semantic.name}" references "${reference.name}", but its matching legacy zone is not selected for import and no active target zone was found.`, related };
+                    const selectedMatches = matchingSources.filter((sourcePath) => selectedPaths.has(sourcePath));
+                    const relatedSources = selectedMatches.length ? selectedMatches : matchingSources;
+                    const related = relatedSources.map((sourcePath) => ({ line: zoneDocuments.get(sourcePath)?.lines.find((line) => line.kind === "format")?.lineNumber, path: sourcePath }));
+                    contextualDiagnostic = selectedMatches.length
+                        ? { ...diagnostic, message: `Zone "${semantic.name}" references "${reference.name}". That Zone is selected but invalid. Fix its errors first.`, related }
+                        : { ...diagnostic, message: `Zone "${semantic.name}" references "${reference.name}", but its matching legacy zone is not selected for import and no active target zone was found.`, related };
                 }
             }
-            return document ? diagnosticWithQuickFixes(document, contextualDiagnostic, knownActions, true) : contextualDiagnostic;
+            const result = [document ? diagnosticWithQuickFixes(document, contextualDiagnostic, knownActions, true) : contextualDiagnostic];
+            if (document && diagnostic.code === "format2.zone-profile.layer.role") {
+                const reference = (document.semantic as ZoneSemantic).dependencyReferences.find((candidate) => candidate.line === diagnostic.line);
+                const targetSourcePath = reference ? (matchesByName.get(reference.name.toLowerCase()) ?? []).find((sourcePath) => selectedPaths.has(sourcePath)) : undefined;
+                const targetDocument = targetSourcePath ? zoneDocuments.get(targetSourcePath) : undefined;
+                if (reference && targetDocument?.path) {
+                    const targetDiagnostic: Diagnostic = { code: "format2.zone-profile.layer.role-target", line: targetDocument.lines.find((line) => line.kind === "format")?.lineNumber, message: `Alternative: make Zone '${reference.name}' a Layer and use ExitZoneLayer for its exit.`, path: targetDocument.path, related: diagnostic.path ? [{ line: diagnostic.line, path: diagnostic.path }] : undefined, severity: "error" };
+                    result.push(diagnosticWithQuickFixes(targetDocument, targetDiagnostic, knownActions, true));
+                }
+            }
+            return result;
         });
-        const diagnostics = profileDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, !document.path?.startsWith("Zones/Vendor/"))).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
+        const allDiagnostics = profileDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, !document.path?.startsWith("Zones/Vendor/"))).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
+        const bankContextLocations = new Set(allDiagnostics.filter((diagnostic) => diagnostic.code === "legacy.zone.bank.context").map((diagnostic) => `${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`));
+        const diagnostics = allDiagnostics.filter((diagnostic) => diagnostic.code !== "format2.zone.action.bank-amount" || !bankContextLocations.has(`${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`));
         const selectedTargetPaths = new Map<string, string>();
         for (const item of items.filter((candidate) => candidate.selected)) {
             const targetKey = item.targetPath.toLowerCase();

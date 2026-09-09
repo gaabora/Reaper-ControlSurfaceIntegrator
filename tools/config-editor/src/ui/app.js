@@ -1376,6 +1376,8 @@ async function initialize(initialRoute) {
             return;
         }
         const status = await api("/api/status");
+        codeEditor.setActionCompletions(status.actions);
+        legacyDraftEditor.setActionCompletions(status.actions);
         const title = translate("app.title", { product: status.identity.displayName });
         elements.title.textContent = title;
         document.title = title;

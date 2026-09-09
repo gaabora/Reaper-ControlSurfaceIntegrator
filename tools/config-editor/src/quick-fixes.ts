@@ -92,6 +92,36 @@ function replaceUnknownZoneAction(context: QuickFixContext, fix: DiagnosticQuick
     return serializeDocument(context.document);
 }
 
+function bindingActionAtDiagnosticLine(context: QuickFixContext): string | undefined {
+    if (context.document.format !== "zone" || !context.diagnostic.line) return undefined;
+    return (context.document.semantic as ZoneSemantic).bindings.find((binding) => binding.line === context.diagnostic.line)?.action;
+}
+
+function replaceBindingAction(context: QuickFixContext, expectedAction: string, replacementAction: string): string {
+    if (bindingActionAtDiagnosticLine(context) !== expectedAction) throw new QuickFixError("quick-fix.source", `The ${expectedAction} action is no longer available at this line`);
+    const line = context.document.lines[context.diagnostic.line! - 1];
+    const bindingMatch = line?.text.match(/^(\s*\S+\s+)(\S+)(.*)$/);
+    if (!line || !bindingMatch || bindingMatch[2] !== expectedAction) throw new QuickFixError("quick-fix.source", `The ${expectedAction} action token is no longer available`);
+    line.text = bindingMatch[1] + replacementAction + bindingMatch[3];
+    return serializeDocument(context.document);
+}
+
+function makeZoneLayer(context: QuickFixContext): string {
+    if (context.document.format !== "zone" || context.document.version !== "2") throw new QuickFixError("quick-fix.format", "Only a format 2 Zone can become a layer");
+    const semantic = context.document.semantic as ZoneSemantic;
+    if (semantic.target || semantic.role && semantic.role !== "Layer") throw new QuickFixError("quick-fix.context", "This Zone already has an incompatible Role or Target");
+    const metadataLine = context.document.lines.find((line) => line.text.trimStart().startsWith("@Meta"));
+    if (!metadataLine) throw new QuickFixError("quick-fix.source", "The Zone metadata line is not available");
+    if (semantic.role !== "Layer") metadataLine.text = metadataLine.text.replace(/\s*\}(\s*(?:\/\/.*)?)$/, " Role=Layer }$1");
+    for (const binding of semantic.bindings) {
+        if (binding.action !== "LeaveSubZone" && binding.action !== "GoHome") continue;
+        const line = context.document.lines[binding.line - 1];
+        const bindingMatch = line?.text.match(/^(\s*\S+\s+)(LeaveSubZone|GoHome)(.*)$/);
+        if (line && bindingMatch) line.text = bindingMatch[1] + "ExitZoneLayer" + bindingMatch[3];
+    }
+    return serializeDocument(context.document);
+}
+
 const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
     {
         apply: (context) => convertSingleSlashComment(context),
@@ -127,6 +157,27 @@ const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
             return dependency ? [{ data: { dependency }, id: "zones.dependency.cycle.comment-out", label: `Comment out dependency on ${dependency}` }] : [];
         },
         id: "zones.dependency.cycle.comment-out",
+    },
+    {
+        acceptsSetDiagnostic: true,
+        apply: (context) => replaceBindingAction(context, "EnterZoneLayer", "GoZone"),
+        fixes: (context) => context.diagnostic.code === "format2.zone-profile.layer.role" && bindingActionAtDiagnosticLine(context) === "EnterZoneLayer" ? [{ id: "zone.navigation.use-go-zone", label: "Use GoZone instead" }] : [],
+        id: "zone.navigation.use-go-zone",
+    },
+    {
+        acceptsSetDiagnostic: true,
+        apply: (context) => makeZoneLayer(context),
+        fixes: (context) => {
+            if (context.diagnostic.code !== "format2.zone-profile.layer.role-target" || context.document.format !== "zone") return [];
+            const semantic = context.document.semantic as ZoneSemantic;
+            return !semantic.target && (!semantic.role || semantic.role === "Layer") ? [{ id: "zone.role.make-layer", label: "Make this Zone a Layer" }] : [];
+        },
+        id: "zone.role.make-layer",
+    },
+    {
+        apply: (context) => replaceBindingAction(context, "ExitZoneLayer", "GoHome"),
+        fixes: (context) => context.diagnostic.code === "format2.zone.action.layer-only" && bindingActionAtDiagnosticLine(context) === "ExitZoneLayer" ? [{ id: "zone.navigation.exit-to-home", label: "Use GoHome instead" }] : [],
+        id: "zone.navigation.exit-to-home",
     },
 ];
 

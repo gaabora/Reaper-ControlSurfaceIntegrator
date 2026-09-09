@@ -3,7 +3,7 @@ import { parseByPath } from "../src/formats.ts";
 import { applyQuickFix, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, QuickFixError } from "../src/quick-fixes.ts";
 import { validateDocumentSet } from "../src/validation.ts";
 
-const knownActions = new Set(["GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
+const knownActions = new Set(["EnterZoneLayer", "ExitZoneLayer", "GoHome", "GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
 
 describe("diagnostic quick fix registry", () => {
     test("offers and applies the zone format marker fix without saving", () => {
@@ -76,5 +76,35 @@ describe("diagnostic quick fix registry", () => {
         expect(diagnostic.fixes).toEqual([{ data: { dependency: "Alpha" }, id: "zones.dependency.cycle.comment-out", label: "Comment out dependency on Alpha" }]);
         const result = applyQuickFix(betaSource, betaPath, knownActions, { diagnostic: { code: diagnostic.code, line: diagnostic.line, message: diagnostic.message }, fix: diagnostic.fixes![0] });
         expect(result.source).toContain("\n  // Alpha\n");
+    });
+
+    test("offers independent navigation and layer fixes for an invalid EnterZoneLayer target", () => {
+        const homePath = "Zones/User/test/Main/Home.zon";
+        const homeSource = "@Meta { Version=2 Role=Home }\nButton EnterZoneLayer Metronome\n";
+        const home = parseByPath(homeSource, homePath, knownActions);
+        const profileDiagnostic = { code: "format2.zone-profile.layer.role", line: 2, message: "EnterZoneLayer target 'Metronome' must declare Role=Layer", path: homePath, severity: "error" as const };
+        const homeDiagnostic = diagnosticWithQuickFixes(home, profileDiagnostic, knownActions, true);
+        expect(homeDiagnostic.fixes?.map((fix) => fix.label)).toEqual(["Use GoZone instead"]);
+        expect(applyQuickFix(homeSource, homePath, knownActions, { diagnostic: profileDiagnostic, fix: homeDiagnostic.fixes![0] }).source).toContain("Button GoZone Metronome");
+
+        const metronomePath = "Zones/User/test/Main/Metronome.zon";
+        const metronomeSource = "@Meta { Version=2 }\nBack GoHome\n";
+        const metronome = parseByPath(metronomeSource, metronomePath, knownActions);
+        const targetDiagnostic = { code: "format2.zone-profile.layer.role-target", line: 1, message: "Alternative: make Zone 'Metronome' a Layer and use ExitZoneLayer for its exit.", path: metronomePath, severity: "error" as const };
+        const metronomeDiagnostic = diagnosticWithQuickFixes(metronome, targetDiagnostic, knownActions, true);
+        expect(metronomeDiagnostic.fixes?.map((fix) => fix.label)).toEqual(["Make this Zone a Layer"]);
+        const layer = applyQuickFix(metronomeSource, metronomePath, knownActions, { diagnostic: targetDiagnostic, fix: metronomeDiagnostic.fixes![0] });
+        expect(layer.source).toContain("@Meta { Version=2 Role=Layer }");
+        expect(layer.source).toContain("Back ExitZoneLayer");
+        expect(layer.document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    });
+
+    test("offers GoHome when ExitZoneLayer is used outside a layer", () => {
+        const relativePath = "Zones/User/test/Main/Metronome.zon";
+        const source = "@Meta { Version=2 }\nBack ExitZoneLayer\n";
+        const document = parseByPath(source, relativePath, knownActions);
+        const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "format2.zone.action.layer-only");
+        expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["Use GoHome instead"]);
+        expect(applyQuickFix(source, relativePath, knownActions, { diagnostic: diagnostic!, fix: diagnostic!.fixes![0] }).source).toContain("Back GoHome");
     });
 });

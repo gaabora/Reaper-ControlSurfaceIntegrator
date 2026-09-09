@@ -33,6 +33,8 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain("diagnostic.related || []");
         expect(codeEditorJavascript).toContain('key: "Ctrl-/", run: toggleLineComment');
         expect(codeEditorJavascript).toContain('key: "Mod-/", run: toggleLineComment');
+        expect(codeEditorJavascript).toContain("autocompletion");
+        expect(codeEditorJavascript).toContain("setActionCompletions");
         expect(EDITOR_JAVASCRIPT).toContain("legacySourceForPath(diagnostic.path)");
         expect(EDITOR_JAVASCRIPT).toContain("legacyItemAlreadyImported(item)");
         expect(EDITOR_JAVASCRIPT).not.toContain("JSON.stringify(error.details");

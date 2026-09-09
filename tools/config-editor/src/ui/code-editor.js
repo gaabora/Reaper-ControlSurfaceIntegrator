@@ -1,3 +1,4 @@
+import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab, toggleLineComment } from "@codemirror/commands";
 import { bracketMatching, HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
@@ -85,8 +86,15 @@ const configurationEditorTheme = EditorView.theme({
 
 export function createConfigurationEditor(parent, onChange) {
     const editable = new Compartment();
+    const completion = new Compartment();
     let readOnly = true;
     let suppressChanges = false;
+    let actionCompletions = [];
+    const completeAction = (context) => {
+        const word = context.matchBefore(/[A-Za-z_][A-Za-z0-9_-]*/);
+        if (!context.explicit && (!word || word.from === word.to)) return null;
+        return { from: word?.from ?? context.pos, options: actionCompletions, validFor: /^[A-Za-z_][A-Za-z0-9_-]*$/ };
+    };
     const createState = (source) => EditorState.create({
         doc: source,
         extensions: [
@@ -101,10 +109,11 @@ export function createConfigurationEditor(parent, onChange) {
             configurationEditorTheme,
             syntaxHighlighting(configurationHighlightStyle),
             bracketMatching(),
+            completion.of(autocompletion({ override: [completeAction] })),
             rectangularSelection(),
             highlightActiveLine(),
             highlightSelectionMatches(),
-            keymap.of([{ key: "Ctrl-/", run: toggleLineComment }, { key: "Mod-/", run: toggleLineComment }, indentWithTab, ...defaultKeymap, ...searchKeymap, ...historyKeymap]),
+            keymap.of([{ key: "Ctrl-/", run: toggleLineComment }, { key: "Mod-/", run: toggleLineComment }, indentWithTab, ...completionKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap]),
             editable.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
             EditorView.updateListener.of((update) => {
                 if (update.docChanged && !suppressChanges && onChange) onChange(update.state.doc.toString());
@@ -128,6 +137,10 @@ export function createConfigurationEditor(parent, onChange) {
             if (readOnly === nextReadOnly) return;
             readOnly = nextReadOnly;
             view.dispatch({ effects: editable.reconfigure([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]) });
+        },
+        setActionCompletions(actions) {
+            actionCompletions = (actions || []).map((action) => ({ detail: action.detail || undefined, label: action.label, type: "function" }));
+            view.dispatch({ effects: completion.reconfigure(autocompletion({ override: [completeAction] })) });
         },
         setValue(value, resetState = false) {
             const source = String(value ?? "");
