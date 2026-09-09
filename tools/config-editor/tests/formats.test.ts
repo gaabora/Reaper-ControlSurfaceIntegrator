@@ -156,6 +156,20 @@ describe("configuration formats", () => {
         expect(diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.runtime.modifier-hold", line: 3, severity: "error" }));
     });
 
+    test("keeps a missing Zone Widget as a non-blocking warning", async () => {
+        const catalog = await loadActionCatalog(repositoryRoot);
+        const knownActions = actionNameSet(catalog);
+        const actionTraits = actionTraitsByName(catalog);
+        const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
+        const config = parseByPath("Device dev {\n  Type=MIDI\n  Input=0\n  Output=0\n}\nPage Home {\n  Surface main {\n    Device=dev\n    Template=testsurface\n    MainProfile=testprofile\n  }\n}\n", "/config/ReaControlSurface.conf", knownActions, settingsSchema, actionTraits);
+        const surface = parseByPath("@Meta { Version=2 Protocol=MIDI Channels=1 }\nWidget LayerB {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x01, 0x7F ] Off=[ 0x90, 0x01, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
+        const zone = parseByPath("@Meta { Version=2 Role=Home }\nLayerB Modifier Shift\n(DoublePress)+Shift ToggleOSK\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const diagnostics = validateDocumentSet([config, surface, zone], { actionTraits, settingsSchema });
+
+        expect(diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.widget.missing", line: 3, severity: "warning" }));
+        expect(diagnostics.some((diagnostic) => diagnostic.code === "format2.zone.widget.missing" && diagnostic.severity === "error")).toBeFalse();
+    });
+
     test("keeps a spaced property list in one token without joining positional step values", () => {
         expect(tokenizeLine("Rotary1 TrackPan RingColors=[ #003F00, #0000FF ] [ 0.5 ]")).toEqual(["Rotary1", "TrackPan", "RingColors=[ #003F00, #0000FF ]", "[", "0.5", "]"]);
         expect(tokenizeLine("Rotary1 TrackPan [0.5] RingColors=[#003F00,#0000FF]")).toEqual(["Rotary1", "TrackPan", "[", "0.5", "]", "RingColors=[ #003F00, #0000FF ]"]);

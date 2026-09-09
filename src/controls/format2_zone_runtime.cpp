@@ -57,8 +57,8 @@ static const Format2PropertySyntax* FindFormat2Property(const Format2ZoneAction&
     return nullptr;
 }
 
-static void AddFormat2RuntimeDiagnostic(Format2ZoneRuntimeResult& result, const std::string& code, const std::string& message, const Format2SourceLocation& location) {
-    result.diagnostics.push_back({code, message, location});
+static void AddFormat2RuntimeDiagnostic(Format2ZoneRuntimeResult& result, const std::string& code, const std::string& message, const Format2SourceLocation& location, Format2DiagnosticSeverity severity = Format2DiagnosticSeverity::Error) {
+    result.diagnostics.push_back({code, message, location, severity});
 }
 
 static bool ReadFormat2IntegerProperty(const Format2ZoneAction& action, const char* propertyName, int fallback, int minimum, int maximum, int& value, Format2ZoneRuntimeResult& result) {
@@ -284,7 +284,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         }
         Widget* widget = zoneManager->GetSurface()->GetWidgetByName(declaration.widget.baseName);
         if (!widget) {
-            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.widget.missing", "Modifier Widget does not exist on the Surface: " + declaration.widget.baseName, declaration.widget.location);
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.widget.missing", "Modifier Widget does not exist on the Surface: " + declaration.widget.baseName, declaration.widget.location, Format2DiagnosticSeverity::Warning);
             continue;
         }
         if (!widget->GetIsTwoState()) {
@@ -340,7 +340,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         }
         Widget* widget = zoneManager->GetSurface()->GetWidgetByName(spec.widgetId);
         if (!widget) {
-            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.widget.missing", "Widget does not exist on the Surface: " + spec.widgetId, binding.widget.location);
+            AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.widget.missing", "Widget does not exist on the Surface: " + spec.widgetId, binding.widget.location, Format2DiagnosticSeverity::Warning);
             continue;
         }
         if (Action::NameToType(binding.action.action) == ActionType::Invalid) {

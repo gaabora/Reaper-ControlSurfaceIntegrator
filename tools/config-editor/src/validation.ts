@@ -79,7 +79,7 @@ function resolveZoneBindings(document: AnyDocument, surfaceDocument: AnyDocument
     const surface = surfaceDocument.semantic as SurfaceSemantic;
     const widgetsByName = new Map(surface.widgets.map((widget) => [widget.name, widget]));
     const resolved: ZoneBinding[] = [];
-    const addMissingWidget = (widget: string, binding: ZoneBinding): void => addDiagnostic(diagnostics, "error", "format2.zone.widget.missing", `Widget does not exist on Surface ${surfaceDocument.path}: ${widget}`, binding.line, document.path, surfaceDocument.path ? [{ path: surfaceDocument.path }] : undefined);
+    const addMissingWidget = (widget: string, binding: ZoneBinding): void => addDiagnostic(diagnostics, "warning", "format2.zone.widget.missing", `Widget does not exist on Surface ${surfaceDocument.path}: ${widget}`, binding.line, document.path, surfaceDocument.path ? [{ path: surfaceDocument.path }] : undefined);
     const resolveExact = (widgetName: string, binding: ZoneBinding): void => {
         const widget = widgetsByName.get(widgetName);
         if (!widget) {
