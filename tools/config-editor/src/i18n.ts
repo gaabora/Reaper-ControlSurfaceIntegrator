@@ -82,6 +82,7 @@ const english = {
     "legacy.source": "Source",
     "legacy.status.notFound": "No usable old CSI folder was found at {path}. Open Advanced details only if it is in another location.",
     "legacy.status.opened": "Opened legacy CSI root: {path}",
+    "legacy.status.userSource": " A complete Home profile is selected. Set its Zone source to User only after import.",
     "legacy.step.source.description": "Choose a surface and its zones. The standard old CSI folder was checked automatically.",
     "legacy.step.source.title": "Choose what to import",
     "legacy.step.resolve.description": "Fix mappings and conflicts, then import the selected files.",

@@ -4,12 +4,12 @@
 
 Make imported profiles pass the same checks as runtime. Show why a configured device cannot run its actions without requiring debug logs. Let the user select which Zone profile sources can run.
 
-Implementation is approved. Verification runs still need approval. The source modes use whole-zone replacement. Gesture input, modifier state changes, and explicit NoAction count as intentional handling; they must not produce an unhandled-input notice solely because no immediate action changes REAPER.
+Implementation and test runs are approved. The source modes use whole-zone replacement. Gesture input, modifier state changes, and explicit NoAction count as intentional handling; they must not produce an unhandled-input notice solely because no immediate action changes REAPER.
 
 ## Current implementation status
 
-- [ ] Import conversion and validation changes are written and await focused checks. They cover matching Bank contexts, ambiguous exits, empty relations, Home navigation, lifecycle arguments, required destinations, Home count, mixed formats, and final conflict decisions. Tests include Skip retaining an invalid destination and Rename producing a second Home.
-- [ ] Complete the remaining conversion and runtime parity cases, explicit source modes, Devices status, and per-message OSD. The current runtime source selection has not changed; mixed Vendor/User formats are now reported during complete import validation rather than accepted.
+- ✅ Import conversion and validation changes pass the focused editor tests. They cover matching Bank contexts, ambiguous exits, empty relations, Home navigation, lifecycle arguments, required destinations, Home count, mixed formats, and final conflict decisions. Tests include Skip retaining an invalid destination, Rename producing a second Home, and a complete User import with an old legacy Vendor file still present.
+- [ ] Explicit source modes, Devices Zone readiness, retained failure text, and per-message MIDI OSD are implemented. Debug build and all four C++ test targets pass. REAPER runtime checks remain.
 
 ## Confirmed problems
 

@@ -165,12 +165,15 @@ export class ConfigurationStore {
         return parseByPath(source, relativePath, this.knownActions, this.settingsSchema, this.actionTraits);
     }
 
-    async zoneProfileDocuments(profileId: string, replacements: AnyDocument[]): Promise<AnyDocument[]> {
+    async zoneProfileDocuments(profileId: string, replacements: AnyDocument[], sources?: ReadonlySet<"User" | "Vendor">): Promise<AnyDocument[]> {
         const documents = new Map(replacements.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document]));
         for (const entry of flattenFileEntries(await this.tree())) {
             if (entry.type !== "zone") continue;
             const location = entry.path.replaceAll("\\", "/").match(/^Zones\/(?:Vendor|User)\/([^/]+)\/(?:Main|FX)\//i);
             if (!location || location[1].toLowerCase() !== profileId.toLowerCase() || documents.has(entry.path.toLowerCase())) continue;
+            const sourceName = entry.path.replaceAll("\\", "/").match(/^Zones\/(Vendor|User)\//i)?.[1];
+            const source = sourceName?.toLowerCase() === "user" ? "User" : sourceName ? "Vendor" : undefined;
+            if (sources && (!source || !sources.has(source))) continue;
             const opened = await this.openDocument(entry.path);
             documents.set(entry.path.toLowerCase(), this.parseDocument(entry.path, opened.source));
         }

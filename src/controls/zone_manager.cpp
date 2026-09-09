@@ -36,8 +36,8 @@ static bool RemapZoneFolderPath(string& configuredPath, const filesystem::path& 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ZoneManager
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-ZoneManager::ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& vendorFxZoneFolder, const string& userFxZoneFolder)
-    : csi_(csi), surface_(surface), zoneFolder_(zoneFolder), vendorFxZoneFolder_(vendorFxZoneFolder), userFxZoneFolder_(userFxZoneFolder) {
+ZoneManager::ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& vendorFxZoneFolder, const string& userFxZoneFolder, ZoneProfileSourceMode mainSourceMode, ZoneProfileSourceMode fxSourceMode)
+    : csi_(csi), surface_(surface), zoneFolder_(zoneFolder), vendorFxZoneFolder_(vendorFxZoneFolder), userFxZoneFolder_(userFxZoneFolder), mainSourceMode_(mainSourceMode), fxSourceMode_(fxSourceMode) {
 }
 
 Navigator* ZoneManager::GetNavigatorForTrack(MediaTrack* track) { return surface_->GetPage()->GetTrackNavigationManager()->GetNavigatorForTrack(track); }
@@ -49,6 +49,10 @@ int ZoneManager::GetNumChannels() { return surface_->GetNumChannels(); }
 static void LogFormat2ZoneDiagnostic(const string& sourcePath, const Format2Diagnostic& diagnostic) {
     const char* level = diagnostic.severity == Format2DiagnosticSeverity::Warning ? "WARNING" : "ERROR";
     LogToConsole("[%s] %s:%d:%d: %s: %s\n", level, GetRelativePath(sourcePath.c_str()).c_str(), diagnostic.location.line, diagnostic.location.column, diagnostic.code.c_str(), diagnostic.message.c_str());
+}
+
+static string Format2ZoneIssue(const string& sourcePath, const Format2Diagnostic& diagnostic) {
+    return GetRelativePath(sourcePath.c_str()) + ":" + to_string(diagnostic.location.line) + ": " + diagnostic.message;
 }
 
 static void LogFormat2ProfileDiagnostic(const vector<Format2ZoneSource>& sources, const Format2ZoneProfileDiagnostic& diagnostic) {
@@ -147,17 +151,18 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     const std::optional<string> mainProfileId = userMainProfileId ? userMainProfileId : vendorMainProfileId;
     vector<Format2ZoneProfileRoot> roots;
     if (mainProfileId) {
-        roots.push_back({productPaths.MainZones(ZoneSource::Vendor, *mainProfileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::Vendor});
-        roots.push_back({productPaths.MainZones(ZoneSource::User, *mainProfileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::User});
+        if (this->mainSourceMode_ != ZoneProfileSourceMode::User) roots.push_back({productPaths.MainZones(ZoneSource::Vendor, *mainProfileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::Vendor});
+        if (this->mainSourceMode_ != ZoneProfileSourceMode::Vendor) roots.push_back({productPaths.MainZones(ZoneSource::User, *mainProfileId), Format2ZoneCollection::Main, Format2ZoneSourceLayer::User});
     } else {
         roots.push_back({this->zoneFolder_, Format2ZoneCollection::Main, userMainProfileId ? Format2ZoneSourceLayer::User : Format2ZoneSourceLayer::Vendor});
     }
-    roots.push_back({this->vendorFxZoneFolder_, Format2ZoneCollection::Fx, Format2ZoneSourceLayer::Vendor});
-    roots.push_back({this->userFxZoneFolder_, Format2ZoneCollection::Fx, Format2ZoneSourceLayer::User});
+    if (this->fxSourceMode_ != ZoneProfileSourceMode::User) roots.push_back({this->vendorFxZoneFolder_, Format2ZoneCollection::Fx, Format2ZoneSourceLayer::Vendor});
+    if (this->fxSourceMode_ != ZoneProfileSourceMode::Vendor) roots.push_back({this->userFxZoneFolder_, Format2ZoneCollection::Fx, Format2ZoneSourceLayer::User});
 
     Format2ZoneProfileLoadResult loaded = LoadFormat2ZoneProfile(mainProfileId ? *mainProfileId : this->surface_->GetName(), roots);
     if (!loaded.UsesFormat2()) return Format2InitializationState::NotUsed;
     if (!loaded.ContainsOnlyFormat2()) {
+        this->initializationIssue_ = "Zone profile mixes legacy and format 2 files. Convert the complete profile.";
         LogToConsole("[ERROR] Zone profile '%s' mixes legacy and format 2 .zon files. Convert the complete profile before loading it.\n", loaded.profile.profileId.c_str());
         for (const Format2LoadedZoneDocument& document : loaded.documents) if (document.parsed.document.metadata.version != 2) LogToConsole("[ERROR] Legacy Zone file in format 2 profile: %s\n", GetRelativePath(document.parsed.document.lexical.sourcePath.c_str()).c_str());
         return Format2InitializationState::Failed;
@@ -166,18 +171,34 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
     for (const Format2LoadedZoneDocument& document : loaded.documents) for (const Format2Diagnostic& diagnostic : document.parsed.document.lexical.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
     if (loaded.learnFx) for (const Format2Diagnostic& diagnostic : loaded.learnFx->parsed.document.lexical.diagnostics) LogFormat2ZoneDiagnostic(loaded.learnFx->parsed.document.lexical.sourcePath, diagnostic);
     for (const Format2ZoneProfileDiagnostic& diagnostic : loaded.profile.diagnostics) LogFormat2ProfileDiagnostic(loaded.sources, diagnostic);
-    if (!loaded.IsValid()) return Format2InitializationState::Failed;
+    if (!loaded.IsValid()) {
+        for (const Format2LoadedZoneDocument& document : loaded.documents) {
+            for (const Format2Diagnostic& diagnostic : document.parsed.document.lexical.diagnostics) {
+                if (diagnostic.severity == Format2DiagnosticSeverity::Error) {
+                    this->initializationIssue_ = Format2ZoneIssue(document.parsed.document.lexical.sourcePath, diagnostic);
+                    return Format2InitializationState::Failed;
+                }
+            }
+        }
+        if (!loaded.profile.diagnostics.empty()) this->initializationIssue_ = loaded.profile.diagnostics.front().message;
+        if (this->initializationIssue_.empty()) this->initializationIssue_ = "Zone profile is invalid. Open the configuration editor for details.";
+        return Format2InitializationState::Failed;
+    }
 
     std::optional<Format2LearnFxSurfaceResolveResult> learnFxSurface;
     if (loaded.learnFx) {
         const Format2SurfaceParseResult* surface = this->surface_->GetFormat2Surface();
         if (!surface) {
+            this->initializationIssue_ = "LearnFX requires a format 2 Surface template.";
             LogToConsole("[ERROR] LearnFX.fxzon requires a loaded format 2 Surface document.\n");
             return Format2InitializationState::Failed;
         }
         learnFxSurface = ResolveFormat2LearnFxSurface(loaded.learnFx->parsed.learnFx, *surface);
         for (const Format2Diagnostic& diagnostic : learnFxSurface->diagnostics) LogFormat2ZoneDiagnostic(loaded.learnFx->parsed.document.lexical.sourcePath, diagnostic);
-        if (!learnFxSurface->IsValid()) return Format2InitializationState::Failed;
+        if (!learnFxSurface->IsValid()) {
+            this->initializationIssue_ = learnFxSurface->diagnostics.empty() ? "LearnFX configuration is invalid." : Format2ZoneIssue(loaded.learnFx->parsed.document.lexical.sourcePath, learnFxSurface->diagnostics.front());
+            return Format2InitializationState::Failed;
+        }
     }
 
     map<string, size_t> fxSourceByMatch;
@@ -212,6 +233,10 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(this, zone.get(), document.parsed);
         for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
         if (!runtimeResult.IsValid()) {
+            if (this->initializationIssue_.empty()) for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) if (diagnostic.severity == Format2DiagnosticSeverity::Error) {
+                this->initializationIssue_ = Format2ZoneIssue(document.parsed.document.lexical.sourcePath, diagnostic);
+                break;
+            }
             loaded.sources[sourceIndex].valid = false;
             continue;
         }
@@ -220,7 +245,10 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
 
     loaded.profile = ResolveFormat2ZoneProfile(loaded.profile.profileId, loaded.sources);
     for (const Format2ZoneProfileDiagnostic& diagnostic : loaded.profile.diagnostics) LogFormat2ProfileDiagnostic(loaded.sources, diagnostic);
-    if (!loaded.IsValid()) return Format2InitializationState::Failed;
+    if (!loaded.IsValid()) {
+        if (this->initializationIssue_.empty()) this->initializationIssue_ = loaded.profile.diagnostics.empty() ? "Zone profile cannot create valid runtime bindings." : loaded.profile.diagnostics.front().message;
+        return Format2InitializationState::Failed;
+    }
 
     map<string, size_t> activeMainSources;
     for (const Format2ActiveZoneSource& activeZone : loaded.profile.activeZones) {
@@ -230,6 +258,7 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         const Format2DocumentMetadata& metadata = loaded.documents[prepared.first].parsed.document.metadata;
         if (metadata.role == Format2ZoneRole::Layer) continue;
         if (!AddFormat2ZoneRelations(this, prepared.second.get(), prepared.first, loaded, activeMainSources, GetFormat2EffectiveMetadata(metadata))) {
+            this->initializationIssue_ = "Zone profile contains an unavailable IncludedZones or ZoneLayers reference.";
             LogToConsole("[ERROR] Failed to create runtime relations for format 2 Zone '%s'.\n", loaded.documents[prepared.first].parsed.zone.id.c_str());
             return Format2InitializationState::Failed;
         }
@@ -261,6 +290,7 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         else this->goZones_.push_back(std::move(prepared->second));
     }
     if (!this->homeZone_) {
+        this->initializationIssue_ = "Zone profile has no runnable Home zone.";
         LogToConsole("[ERROR] Format 2 Zone profile '%s' did not produce a runnable Home zone.\n", loaded.profile.profileId.c_str());
         return Format2InitializationState::Failed;
     }
@@ -271,6 +301,7 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
 }
 
 void ZoneManager::Initialize() {
+    this->initializationIssue_.clear();
     const Format2InitializationState state = this->InitializeFormat2();
     if (state != Format2InitializationState::NotUsed) return;
     this->InitializeLegacy();
@@ -280,7 +311,10 @@ void ZoneManager::InitializeLegacy() {
     PreProcessZones();
 
     if (zoneInfo_.find("Home") == zoneInfo_.end())
+    {
+        this->initializationIssue_ = "Zone profile has no Home zone.";
         return LogToConsole("[ERROR] Missing Home Zone for %s\n", surface_->GetName());
+    }
 
     homeZone_ = make_unique<Zone>(csi_, this, GetSelectedTrackNavigator(), 0, "Home", "Home", zoneInfo_["Home"].filePath);
     LoadZoneFile(homeZone_.get(), "");
@@ -700,13 +734,17 @@ void ZoneManager::PreProcessZones() {
     const bool mainZonesAreUserZones = productPaths.UserZoneProfileIdForPath(this->zoneFolder_).has_value();
     for (const string& zoneFile : mainZoneFiles) this->PreProcessZoneFile(zoneFile, false, mainZonesAreUserZones);
 
-    vector<string> vendorFxZoneFiles;
-    collectFilesOfType(".zon", this->vendorFxZoneFolder_, vendorFxZoneFiles);
-    for (const string& zoneFile : vendorFxZoneFiles) this->PreProcessZoneFile(zoneFile, true, false);
+    if (this->fxSourceMode_ != ZoneProfileSourceMode::User) {
+        vector<string> vendorFxZoneFiles;
+        collectFilesOfType(".zon", this->vendorFxZoneFolder_, vendorFxZoneFiles);
+        for (const string& zoneFile : vendorFxZoneFiles) this->PreProcessZoneFile(zoneFile, true, false);
+    }
 
-    vector<string> userFxZoneFiles;
-    collectFilesOfType(".zon", this->userFxZoneFolder_, userFxZoneFiles);
-    for (const string& zoneFile : userFxZoneFiles) this->PreProcessZoneFile(zoneFile, true, true);
+    if (this->fxSourceMode_ != ZoneProfileSourceMode::Vendor) {
+        vector<string> userFxZoneFiles;
+        collectFilesOfType(".zon", this->userFxZoneFolder_, userFxZoneFiles);
+        for (const string& zoneFile : userFxZoneFiles) this->PreProcessZoneFile(zoneFile, true, true);
+    }
 }
 
 void ZoneManager::DoAction(Widget* widget, double value) {
@@ -715,6 +753,7 @@ void ZoneManager::DoAction(Widget* widget, double value) {
     bool isUsed = false;
 
     DoAction(widget, value, isUsed);
+    this->currentInputHandled_ = this->currentInputHandled_ || isUsed;
 }
 
 void ZoneManager::DoAction(Widget* widget, double value, bool& isUsed) {
@@ -761,6 +800,7 @@ void ZoneManager::DoRelativeAction(Widget* widget, double delta) {
     bool isUsed = false;
 
     DoRelativeAction(widget, delta, isUsed);
+    this->currentInputHandled_ = this->currentInputHandled_ || isUsed;
 }
 
 void ZoneManager::DoRelativeAction(Widget* widget, double delta, bool& isUsed) {
@@ -807,6 +847,7 @@ void ZoneManager::DoRelativeAction(Widget* widget, int accelerationIndex, double
     bool isUsed = false;
 
     DoRelativeAction(widget, accelerationIndex, delta, isUsed);
+    this->currentInputHandled_ = this->currentInputHandled_ || isUsed;
 }
 
 void ZoneManager::DoRelativeAction(Widget* widget, int accelerationIndex, double delta, bool& isUsed) {
@@ -851,6 +892,7 @@ void ZoneManager::DoTouch(Widget* widget, double value) {
     widget->LogInput(value);
     bool isUsed = false;
     DoTouch(widget, value, isUsed);
+    this->currentInputHandled_ = this->currentInputHandled_ || isUsed;
 }
 
 void ZoneManager::DoTouch(Widget* widget, double value, bool& isUsed) {

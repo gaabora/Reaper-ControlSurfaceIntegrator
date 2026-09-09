@@ -66,9 +66,9 @@ Data/
     Generated/ZoneRawFXFiles/
 ```
 
-Surface, profile, and operation IDs use lowercase ASCII letters, digits, `_`, and `-`. A surface filename is its stable ID plus `.txt`. A User surface with the same ID overrides its Vendor file. For zones, User Main overrides Vendor Main only when the User Main directory exists. Vendor and User FX directories are loaded together. A User FX zone with the same exact `Zone` name overrides its Vendor zone. Existing symlinks must not resolve outside the typed root.
+Surface, profile, and operation IDs use lowercase ASCII letters, digits, `_`, and `-`. A surface filename is its stable ID plus `.txt`. A User surface with the same ID overrides its Vendor file. Each Surface assignment selects `Vendor`, `VendorAndUser`, or `User` independently for Main and FX zones. In `VendorAndUser`, a User zone replaces the complete Vendor zone with the same case-insensitive ID and can add zones. Excluded sources do not take part in format or profile validation. Existing symlinks must not resolve outside the typed root.
 
-Vendor zones are read-only at runtime. The runtime creates `Zones/User/<profile-id>/FX` when it initializes a configured FX profile. FX Learn and new FX zone files always write there. Before OSK edits Vendor Main, it requests confirmation and atomically copies only Main into the matching User profile. Before OSK edits a Vendor FX zone, it requests confirmation and copies only that file to the same relative User FX path. OSK then reloads the layered zones.
+Vendor zones are read-only at runtime. The runtime creates `Zones/User/<profile-id>/FX` when the selected FX source includes User. FX Learn and new FX zone files write there. Before OSK edits Vendor Main, it requests confirmation and atomically copies only Main into the matching User profile. Before OSK edits a Vendor FX zone, it requests confirmation and copies only that file to the same relative User FX path. OSK then reloads the layered zones.
 
 The runtime does not read the old `CSI/` root. Legacy names and layouts belong only in the future import workflow.
 

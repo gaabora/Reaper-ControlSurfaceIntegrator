@@ -268,16 +268,20 @@ private:
             this->AddIssue(block.location.line, "Surface ID is duplicated case-insensitively on Page " + page.name + ": " + id);
             return;
         }
-        const PropertyMap properties = this->CollectProperties(block, {"Device", "Template", "MainProfile", "FXProfile", "StartChannel"});
+        const PropertyMap properties = this->CollectProperties(block, {"Device", "Template", "MainProfile", "FXProfile", "MainSource", "FXSource", "StartChannel"});
         SurfaceAssignmentConfig surface;
         surface.lineNumber = block.location.line;
         surface.surfaceName = id;
         surface.startChannel = 0;
         if (!this->ReadScalar(this->RequireProperty(properties, "Device", block.location.line), surface.deviceId) || !this->ReadScalar(this->RequireProperty(properties, "Template", block.location.line), surface.surfaceId)) return;
         surface.mainZoneProfileId = surface.surfaceId;
-        surface.fxZoneProfileId = surface.mainZoneProfileId;
         if (properties.count("MainProfile")) this->ReadScalar(properties.at("MainProfile"), surface.mainZoneProfileId);
+        surface.fxZoneProfileId = surface.mainZoneProfileId;
         if (properties.count("FXProfile")) this->ReadScalar(properties.at("FXProfile"), surface.fxZoneProfileId);
+        std::string sourceMode;
+        if (properties.count("MainSource") && this->ReadScalar(properties.at("MainSource"), sourceMode) && !ParseZoneProfileSourceMode(sourceMode, surface.mainZoneSourceMode)) this->AddIssue(properties.at("MainSource")->nameLocation.line, "MainSource must be Vendor, VendorAndUser, or User");
+        surface.fxZoneSourceMode = surface.mainZoneSourceMode;
+        if (properties.count("FXSource") && this->ReadScalar(properties.at("FXSource"), sourceMode) && !ParseZoneProfileSourceMode(sourceMode, surface.fxZoneSourceMode)) this->AddIssue(properties.at("FXSource")->nameLocation.line, "FXSource must be Vendor, VendorAndUser, or User");
         if (properties.count("StartChannel")) this->ReadInteger(properties.at("StartChannel"), surface.startChannel, 0, 1000000);
         page.surfaces.push_back(std::move(surface));
     }

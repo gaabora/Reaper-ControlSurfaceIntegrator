@@ -718,7 +718,7 @@ function automaticLayoutProperties(sourceLines: ReturnType<typeof splitSourceLin
     const properties = new Map(widget.oskProperties);
     if (fader) {
         properties.set("Shape", "Fader");
-        properties.set("Height", "7");
+        if (!properties.has("Height")) properties.set("Height", "7");
         if (widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "touch")) properties.set("TouchTarget", widget.name);
         properties.set("ValueTarget", widget.name);
     }
@@ -766,7 +766,7 @@ function legacyCommentLayout(source: string, widgets: SurfaceWidget[]): string[]
             if (cell.type === "spacer") result.push(`    Spacer${propertyText(cell.properties!)}`);
             else if (cell.widget) {
                 const properties = automaticLayoutProperties(sourceLines, cell.widget, widgets, isFaderWidget(cell.widget));
-                if (isFaderWidget(cell.widget)) properties.set("Height", String(Math.max(7, rows.length)));
+                if (isFaderWidget(cell.widget) && !properties.has("Height")) properties.set("Height", String(Math.max(7, rows.length)));
                 result.push(`    Widget ${cell.widget.name}${propertyText(properties)}`);
             }
         }

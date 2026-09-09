@@ -26,6 +26,7 @@
 - Resolve format 2 MIDISysEx Color, Ring, Bar, and Meter through their closed typed Payload suffixes. Color uses `Red7`, `Green7`, `Blue7`; Ring uses `RingValue7`, `RingStyleCode7`; Bar uses `BarValue7`, `BarStyleCode7`; Meter uses `MeterValue7`. Keep all device and channel bytes as literal prefix data.
 - Resolve format 2 Ring Configure Payload items through the closed segment-mask and RGB field set. Expand masks from RingProfile Segments, group equal colors, apply ColorCalibration, and send configuration when the Ring binding becomes active.
 - Construct MIDIExact Press and Touch plus MIDI14 Value input and feedback directly from typed properties. Do not convert them back to legacy token lines.
+- Reset one handling result before each input message and set it when an active action context consumes the input. Publish one diagnostic OSD update for every unhandled message, with a monotonic count, raw bytes, and the Widget or profile reason when known.
 
 ## Work Guidance
 

@@ -780,9 +780,14 @@ WidgetEnd
     test("writes a complete FaderPortV2 format 2 set in one transaction and requires conflict decisions on repeat", async () => {
         const learnLayoutPath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "FXWidgetLayout.zon");
         await writeFile(learnLayoutPath, "Zone FXWidgetLayout\n  Play FXParam\nZoneEnd\n\n#WidgetType Play\n", "utf8");
+        const oldVendorZonePath = path.join(productRoot, "Zones", "Vendor", "faderportv2", "Main", "FXWidgetLayout.zon");
+        await mkdir(path.dirname(oldVendorZonePath), { recursive: true });
+        await writeFile(oldVendorZonePath, "Zone FXWidgetLayout\n  Play FXParam\nZoneEnd\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();
         const preview = await source.preview(store, knownActions, "FaderPortV2", true);
+        expect(preview.recommendedSourceMode).toBe("User");
+        expect(preview.valid).toBeTrue();
         const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
         const report = await source.import(store, knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
 
@@ -933,14 +938,15 @@ WidgetEnd
     test("imports an edited draft into a custom profile and target without changing the old CSI file", async () => {
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();
-        const selectedZonePaths = ["Zones/HomeZones/Home.zon"];
+        const homePath = "Zones/HomeZones/Home.zon";
+        const selectedZonePaths = [homePath, "Zones/GoZones/Transport.zon"];
         const initial = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths);
-        const initialZone = initial.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
+        const initialZone = initial.items.find((item) => item.sourcePath === homePath)!;
         const draftSource = initialZone.source.replace("Play Play\n", "Play GoZone Transport\n");
         const drafts = [{ originalSourceHash: initialZone.originalSourceHash, source: draftSource, sourcePath: initialZone.sourcePath }];
-        const targetPaths = [{ sourcePath: initialZone.sourcePath, targetPath: "Zones/User/custom-profile/Main/Transport/Home.zon" }];
+        const targetPaths = [{ sourcePath: homePath, targetPath: "Zones/User/custom-profile/Main/Transport/Home.zon" }];
         const preview = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths, [], false, drafts, "custom-profile", targetPaths);
-        const importedZone = preview.items.find((item) => item.sourcePath === selectedZonePaths[0])!;
+        const importedZone = preview.items.find((item) => item.sourcePath === homePath)!;
         const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
 
         expect(preview.valid).toBeTrue();

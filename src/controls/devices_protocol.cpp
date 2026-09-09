@@ -140,6 +140,16 @@ static string MainProfileSourceStatus(const ProductPaths& productPaths, const st
     }
 }
 
+static bool MainProfileSourceAvailable(const ProductPaths& productPaths, const SurfaceAssignmentConfig& surface) {
+    std::error_code error;
+    const bool vendorAvailable = filesystem::is_directory(productPaths.MainZones(ZoneSource::Vendor, surface.mainZoneProfileId), error);
+    error.clear();
+    const bool userAvailable = filesystem::is_directory(productPaths.MainZones(ZoneSource::User, surface.mainZoneProfileId), error);
+    if (surface.mainZoneSourceMode == ZoneProfileSourceMode::Vendor) return vendorAvailable;
+    if (surface.mainZoneSourceMode == ZoneProfileSourceMode::User) return userAvailable;
+    return vendorAvailable || userAvailable;
+}
+
 static bool DirectoryExists(const filesystem::path& path) {
     std::error_code error;
     return filesystem::is_directory(path, error);
@@ -363,9 +373,8 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
                 errorMessage = "Surface assignment " + page.name + " / " + surface.surfaceName + " has no valid Surface template";
                 return false;
             }
-            const string mainSource = MainProfileSourceStatus(productPaths, surface.mainZoneProfileId);
-            if (mainSource == "Missing" || mainSource == "Invalid") {
-                errorMessage = "Surface assignment " + page.name + " / " + surface.surfaceName + " has no valid Main Zone profile";
+            if (!MainProfileSourceAvailable(productPaths, surface)) {
+                errorMessage = "Surface assignment " + page.name + " / " + surface.surfaceName + " has no Main Zone profile in the selected source mode " + ZoneProfileSourceModeName(surface.mainZoneSourceMode);
                 return false;
             }
             if (surface.startChannel < 0) {
@@ -533,14 +542,19 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         for (size_t surfaceIdx = 0; surfaceIdx < page.surfaces.size(); ++surfaceIdx) {
             const SurfaceAssignmentConfig& surface = page.surfaces[surfaceIdx];
             const string surfacePrefix = prefix + "Surface." + to_string(surfaceIdx + 1) + ".";
+            ControlSurface* runtimeSurface = FindRuntimeSurface(runtimePage, surface.surfaceName);
             AppendDevicesProperty(body, surfacePrefix + "Line", surface.lineNumber);
             AppendDevicesProperty(body, surfacePrefix + "Name", surface.surfaceName);
             AppendDevicesProperty(body, surfacePrefix + "DeviceId", surface.deviceId);
             AppendDevicesProperty(body, surfacePrefix + "SurfaceId", surface.surfaceId);
             AppendDevicesProperty(body, surfacePrefix + "MainProfile", surface.mainZoneProfileId);
+            AppendDevicesProperty(body, surfacePrefix + "MainSourceMode", ZoneProfileSourceModeName(surface.mainZoneSourceMode));
             AppendDevicesProperty(body, surfacePrefix + "FxProfile", surface.fxZoneProfileId);
+            AppendDevicesProperty(body, surfacePrefix + "FxSourceMode", ZoneProfileSourceModeName(surface.fxZoneSourceMode));
             AppendDevicesProperty(body, surfacePrefix + "StartChannel", surface.startChannel);
-            AppendDevicesProperty(body, surfacePrefix + "Active", HasRuntimeSurface(runtimePage, surface.surfaceName) ? 1 : 0);
+            AppendDevicesProperty(body, surfacePrefix + "Active", runtimeSurface ? 1 : 0);
+            AppendDevicesProperty(body, surfacePrefix + "ZoneReady", runtimeSurface && runtimeSurface->GetZoneManager()->IsReady() ? 1 : 0);
+            AppendDevicesProperty(body, surfacePrefix + "RuntimeIssue", runtimeSurface ? runtimeSurface->GetZoneManager()->GetInitializationIssue() : "Surface assignment did not start");
             AppendDevicesProperty(body, surfacePrefix + "IoType", ConfiguredIoType(config, surface.deviceId));
             AppendDevicesProperty(body, surfacePrefix + "IoActive", HasRuntimeIo(this->midiSurfacesIO_, this->oscSurfacesIO_, surface.deviceId) ? 1 : 0);
             AppendDevicesProperty(body, surfacePrefix + "TemplateSource", SurfaceSourceStatus(productPaths, surface.surfaceId));

@@ -43,17 +43,21 @@ local function parseSurface(properties, prefix)
         active = boolean(properties, prefix .. "Active"),
         deviceId = properties[prefix .. "DeviceId"] or "",
         fxProfile = properties[prefix .. "FxProfile"] or "",
+        fxSourceMode = properties[prefix .. "FxSourceMode"] or "VendorAndUser",
         fxSource = properties[prefix .. "FxSource"] or "Missing",
         ioActive = boolean(properties, prefix .. "IoActive"),
         ioType = properties[prefix .. "IoType"] or "Missing",
         line = number(properties, prefix .. "Line"),
         mainProfile = properties[prefix .. "MainProfile"] or "",
+        mainSourceMode = properties[prefix .. "MainSourceMode"] or "VendorAndUser",
         mainSource = properties[prefix .. "MainSource"] or "Missing",
         name = properties[prefix .. "Name"] or "",
+        runtimeIssue = properties[prefix .. "RuntimeIssue"] or "",
         startChannel = number(properties, prefix .. "StartChannel"),
         surfaceId = properties[prefix .. "SurfaceId"] or "",
         templateSource = properties[prefix .. "TemplateSource"] or "Missing",
-        useDifferentFx = (properties[prefix .. "FxProfile"] or "") ~= (properties[prefix .. "MainProfile"] or ""),
+        useDifferentFx = (properties[prefix .. "FxProfile"] or "") ~= (properties[prefix .. "MainProfile"] or "") or (properties[prefix .. "FxSourceMode"] or "VendorAndUser") ~= (properties[prefix .. "MainSourceMode"] or "VendorAndUser"),
+        zoneReady = boolean(properties, prefix .. "ZoneReady"),
     }
 end
 

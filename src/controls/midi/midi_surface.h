@@ -112,11 +112,12 @@ private:
     DWORD lastRun_ = 0;
 
     vector<vector<int>> format2InitializationMessages_;
+    unsigned long long unhandledMidiMessageCount_ = 0;
 
     void InitializeFormat2Messages();
 
 public:
-    Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, Midi_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides);
+    Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, Midi_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides, ZoneProfileSourceMode mainSourceMode, ZoneProfileSourceMode fxSourceMode);
 
     virtual ~Midi_ControlSurface() {}
 

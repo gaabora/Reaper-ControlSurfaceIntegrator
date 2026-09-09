@@ -13,6 +13,7 @@ public:
     virtual ~MessageGenerator() {}
 
     virtual void ProcessMidiMessage(const MIDI_event_ex_t* midiMessage) {}
+    const char* GetWidgetName() const { return this->widget_->GetName(); }
     virtual void ProcessMessage(double value) {
         widget_->GetZoneManager()->DoAction(widget_, value);
     }

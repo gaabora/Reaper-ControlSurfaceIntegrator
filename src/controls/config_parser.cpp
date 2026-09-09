@@ -23,12 +23,14 @@ static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integ
 
     std::optional<filesystem::path> mainZoneFolder;
     try {
-        mainZoneFolder = productPaths.FindMainZones(config.mainZoneProfileId);
+        if (config.mainZoneSourceMode == ZoneProfileSourceMode::Vendor) mainZoneFolder = productPaths.MainZones(ZoneSource::Vendor, config.mainZoneProfileId);
+        else if (config.mainZoneSourceMode == ZoneProfileSourceMode::User) mainZoneFolder = productPaths.MainZones(ZoneSource::User, config.mainZoneProfileId);
+        else mainZoneFolder = productPaths.FindMainZones(config.mainZoneProfileId);
     } catch (const std::exception& error) {
         errorMessage = "Invalid ZoneFolder '" + config.mainZoneProfileId + "': " + error.what();
         return nullptr;
     }
-    if (!mainZoneFolder) {
+    if (!mainZoneFolder || !filesystem::is_directory(*mainZoneFolder)) {
         const string userMainPath = productPaths.MainZones(ZoneSource::User, config.mainZoneProfileId).string();
         const string vendorMainPath = productPaths.MainZones(ZoneSource::Vendor, config.mainZoneProfileId).string();
         errorMessage = "Missing Main zone profile '" + config.mainZoneProfileId + "'. Expected " + GetRelativePath(userMainPath.c_str()) + " or " + GetRelativePath(vendorMainPath.c_str());
@@ -45,8 +47,8 @@ static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integ
         return nullptr;
     }
     std::error_code createFxFolderError;
-    filesystem::create_directories(userFxZoneFolder, createFxFolderError);
-    if (createFxFolderError || !filesystem::is_directory(userFxZoneFolder)) {
+    if (config.fxZoneSourceMode != ZoneProfileSourceMode::Vendor) filesystem::create_directories(userFxZoneFolder, createFxFolderError);
+    if (config.fxZoneSourceMode != ZoneProfileSourceMode::Vendor && (createFxFolderError || !filesystem::is_directory(userFxZoneFolder))) {
         errorMessage = "Unable to create User FX zone folder " + GetRelativePath(userFxZoneFolder.string().c_str()) + ": " + createFxFolderError.message();
         return nullptr;
     }
@@ -58,11 +60,11 @@ static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integ
     const string& deviceId = config.deviceId.empty() ? config.surfaceName : config.deviceId;
     for (const auto& io : midiIo) {
         if (!IsSameString(deviceId, io->GetName())) continue;
-        return make_unique<Midi_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get(), config.effectiveSettings, config.settingOverrides);
+        return make_unique<Midi_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get(), config.effectiveSettings, config.settingOverrides, config.mainZoneSourceMode, config.fxZoneSourceMode);
     }
     for (const auto& io : oscIo) {
         if (!IsSameString(deviceId, io->GetName())) continue;
-        return make_unique<OSC_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get(), config.effectiveSettings, config.settingOverrides);
+        return make_unique<OSC_ControlSurface>(integrator, page, config.surfaceName.c_str(), config.startChannel, surfaceFilePath.c_str(), mainZoneFolderPath.c_str(), vendorFxZoneFolderPath.c_str(), userFxZoneFolderPath.c_str(), io.get(), config.effectiveSettings, config.settingOverrides, config.mainZoneSourceMode, config.fxZoneSourceMode);
     }
     errorMessage = "Surface '" + config.surfaceName + "' references unavailable Device '" + deviceId + "'";
     return nullptr;

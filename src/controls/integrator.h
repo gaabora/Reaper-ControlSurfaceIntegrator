@@ -185,6 +185,7 @@ public:
     }
 
     osd_data QueuedOSD;
+    bool queuedOsdIsDiagnostic_ = false;
     DWORD lastPositionOSDTime_ = 0;
     int osdCommandId_ = 0;
     void OpenOSDPanel() {
@@ -757,14 +758,17 @@ public:
     }
 
     void ShowErrorOSD(const string& text) {
-        ForceOSD(text, osd_data::COLOR_ERROR);
+        osd_data osdData = osd_data(text);
+        osdData.bgColor = osd_data::COLOR_ERROR;
+        this->QueuedOSD = osdData;
+        this->queuedOsdIsDiagnostic_ = true;
     }
     void ForceOSD(const string& text, const string& bgColor = "") {
         osd_data osdData = osd_data(text);
         osdData.bgColor = bgColor;
         this->EnqueueOSD(osdData);
     }
-    void EnqueueOSD(const osd_data& osdData) { this->QueuedOSD = osdData; }
+    void EnqueueOSD(const osd_data& osdData) { if (!this->queuedOsdIsDiagnostic_) this->QueuedOSD = osdData; }
 
     bool HasAnyOSDEnabled() {
         if (!(this->pages_.size() > this->currentPageIndex_ && this->pages_[this->currentPageIndex_])) return false;
@@ -833,6 +837,7 @@ public:
                 OpenOSDPanel();
                 DAW::ShowOSD(QueuedOSD);
                 QueuedOSD = osd_data();
+                this->queuedOsdIsDiagnostic_ = false;
             }
             PollAndHandleOSKCommands();
             try {

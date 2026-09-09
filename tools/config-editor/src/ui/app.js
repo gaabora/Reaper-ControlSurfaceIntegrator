@@ -1286,6 +1286,7 @@ async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = uses
     state.legacy.selectedZonePaths = new Set(result.preview.selectedZonePaths);
     state.legacy.targetProfileId = result.preview.targetProfileId;
     elements.legacyTargetProfile.value = result.preview.targetProfileId;
+    elements.legacyStatus.textContent = translate("legacy.status.opened", { path: result.preview.root }) + (result.preview.recommendedSourceMode === "User" ? translate("legacy.status.userSource") : "");
     state.legacy.widgetMappings = new Map(result.preview.widgetMappings.filter((issue) => issue.selectedTarget).map((issue) => [issue.sourceWidget, issue.selectedTarget]));
     elements.legacySelectAll.disabled = false;
     elements.legacySelectNone.disabled = false;

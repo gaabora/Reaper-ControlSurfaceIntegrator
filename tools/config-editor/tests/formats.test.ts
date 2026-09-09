@@ -127,6 +127,13 @@ describe("configuration formats", () => {
         expect(policyDiagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.unreachable", line: 2, severity: "error" }));
     });
 
+    test("accepts explicit Zone source modes and rejects unknown modes", () => {
+        const valid = parseByPath("Device dev {\n  Type=MIDI\n  Input=0\n  Output=0\n}\nPage Home {\n  Surface main {\n    Device=dev\n    Template=testsurface\n    MainProfile=testprofile\n    MainSource=VendorAndUser\n    FXProfile=testprofile\n    FXSource=User\n  }\n}\n", "/config/ReaControlSurface.conf");
+        expect(valid.diagnostics).not.toContainEqual(expect.objectContaining({ code: "product.surface.profile-source" }));
+        const invalid = parseByPath("Device dev {\n  Type=MIDI\n  Input=0\n  Output=0\n}\nPage Home {\n  Surface main {\n    Device=dev\n    Template=testsurface\n    MainProfile=testprofile\n    MainSource=Automatic\n  }\n}\n", "/config/ReaControlSurface.conf");
+        expect(invalid.diagnostics).toContainEqual(expect.objectContaining({ code: "product.surface.profile-source", line: 11, severity: "error" }));
+    });
+
     test("treats format 2 modifier declarations as gesture sources", async () => {
         const catalog = await loadActionCatalog(repositoryRoot);
         const knownActions = actionNameSet(catalog);

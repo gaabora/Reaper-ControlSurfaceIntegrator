@@ -43,7 +43,7 @@ local function inactiveRuntimeCount(data)
     for oscIdx, device in ipairs(data.osc) do if not device.active then inactiveCount = inactiveCount + 1 end end
     for pageIdx, page in ipairs(data.pages) do
         if not page.active then inactiveCount = inactiveCount + 1 end
-        for surfaceIdx, surface in ipairs(page.surfaces) do if not surface.active then inactiveCount = inactiveCount + 1 end end
+        for surfaceIdx, surface in ipairs(page.surfaces) do if not surface.active or not surface.zoneReady then inactiveCount = inactiveCount + 1 end end
         for listenerIdx, listener in ipairs(page.listeners) do if not listener.active then inactiveCount = inactiveCount + 1 end end
     end
     return inactiveCount
@@ -52,6 +52,7 @@ end
 local STATUS_ACTIVE_COLOR = 0x40c060ff
 local STATUS_INACTIVE_COLOR = 0xff5050ff
 local EDITOR_BUTTON_COLORS = { active = 0xb85c10ff, button = 0xd97718ff, hovered = 0xf08a27ff }
+local ZONE_SOURCE_MODES = { { label = "Vendor only", value = "Vendor" }, { label = "Vendor + User changes", value = "VendorAndUser" }, { label = "User only", value = "User" } }
 local LIST_CHILD_HEIGHT = 260
 local LISTENER_LIST_WIDTH = 210
 local PAGE_LIST_WIDTH = 210
@@ -348,7 +349,7 @@ local function newSurface(data, page)
     local profileId = defaultProfileId(data, surfaceId)
     local template = findTemplate(data, surfaceId)
     local profile = findProfile(data, profileId)
-    return { active = false, deviceId = deviceId, fxProfile = profileId, fxSource = profile and profile.fxSource or "Missing", ioActive = false, ioType = "", mainProfile = profileId, mainSource = profile and profile.mainSource or "Missing", name = uniqueSurfaceName(page, deviceId ~= "" and deviceId or "Surface"), startChannel = 0, surfaceId = surfaceId, templateSource = template and template.source or "Missing", useDifferentFx = false }
+    return { active = false, deviceId = deviceId, fxProfile = profileId, fxSource = profile and profile.fxSource or "Missing", fxSourceMode = "VendorAndUser", ioActive = false, ioType = "", mainProfile = profileId, mainSource = profile and profile.mainSource or "Missing", mainSourceMode = "VendorAndUser", name = uniqueSurfaceName(page, deviceId ~= "" and deviceId or "Surface"), startChannel = 0, surfaceId = surfaceId, templateSource = template and template.source or "Missing", useDifferentFx = false }
 end
 
 local function removePage(data, pageIdx)
@@ -452,11 +453,13 @@ local function renderAssignmentList(ctx, data, page, pageIdx, fonts)
             imgui.TableSetupColumn(ctx, "Remove", imgui.TableColumnFlags_WidthFixed, actionSize)
             for surfaceIdx, surface in ipairs(page.surfaces) do
                 imgui.TableNextRow(ctx)
-                imgui.TableSetColumnIndex(ctx, 0) renderListStatus(ctx, surface.active)
+                imgui.TableSetColumnIndex(ctx, 0)
+                renderListStatus(ctx, surface.active and surface.zoneReady)
+                if not surface.active or not surface.zoneReady then ui.ItemTooltip(ctx, surface.runtimeIssue and surface.runtimeIssue ~= "" and surface.runtimeIssue or "The Surface assignment is not ready") end
                 imgui.TableSetColumnIndex(ctx, 1)
                 if imgui.Selectable(ctx, surface.name .. "##AssignmentList" .. surfaceIdx, state.surfaceIndex == surfaceIdx) then state.surfaceIndex = surfaceIdx end
                 imgui.TableSetColumnIndex(ctx, 2)
-                local canOpenOsk = page.current and surface.active
+                local canOpenOsk = page.current and surface.active and surface.zoneReady
                 local oskEnabled = canOpenOsk and isSurfaceOskEnabled(surface.name)
                 ui.Disabled(ctx, not canOpenOsk, function() if imgui.Button(ctx, "OSK##OpenSurfaceOsk" .. surfaceIdx, 40, actionSize) then toggleSurfaceOsk(page, surface) end end)
                 ui.ItemTooltip(ctx, canOpenOsk and ((oskEnabled and "Close OSK for " or "Open OSK for ") .. surface.name) or (page.current and "The Surface must be connected before OSK can open" or "Switch REAPER to this Page before opening its OSK"))
@@ -487,6 +490,8 @@ local function surfaceEditorError(data, page, surface)
     if not findTemplate(data, surface.surfaceId) then return "Select an existing Surface template" end
     local mainProfile = findProfile(data, surface.mainProfile)
     if not mainProfile or mainProfile.mainSource == "Missing" or mainProfile.mainSource == "Invalid" then return "Select an existing Zone profile" end
+    if surface.mainSourceMode == "Vendor" and not mainProfile.vendorMain then return "The selected Zone profile has no Vendor source" end
+    if surface.mainSourceMode == "User" and not mainProfile.userMain then return "The selected Zone profile has no User source" end
     if surface.useDifferentFx then
         local fxProfile = findProfile(data, surface.fxProfile)
         if not fxProfile or fxProfile.fxSource == "Missing" or fxProfile.fxSource == "Invalid" then return "Select an existing FX Zone profile" end
@@ -542,6 +547,7 @@ local function renderAssignmentEditor(ctx, data, page, surface)
             changed, surface.mainProfile = ui.ComboEnum(ctx, "##AssignmentMain", surface.mainProfile, profileItems(data))
             if changed then local profile = findProfile(data, surface.mainProfile) surface.mainSource = profile and profile.mainSource or "Missing" end
         end)
+        fieldRow(ctx, "Zone source", function() changed, surface.mainSourceMode = ui.ComboEnum(ctx, "##AssignmentMainSource", surface.mainSourceMode or "VendorAndUser", ZONE_SOURCE_MODES) end)
         imgui.EndTable(ctx)
     end
     if openedIoEditor then
@@ -559,15 +565,18 @@ local function renderAssignmentEditor(ctx, data, page, surface)
                 changed, surface.fxProfile = ui.ComboEnum(ctx, "##AssignmentFx", surface.fxProfile, profileItems(data))
                 if changed then local profile = findProfile(data, surface.fxProfile) surface.fxSource = profile and profile.fxSource or "Missing" end
             end)
+            fieldRow(ctx, "FX Zone source", function() changed, surface.fxSourceMode = ui.ComboEnum(ctx, "##AssignmentFxSource", surface.fxSourceMode or "VendorAndUser", ZONE_SOURCE_MODES) end)
             imgui.EndTable(ctx)
         end
     end
     if not surface.useDifferentFx then
         surface.fxProfile = surface.mainProfile
+        surface.fxSourceMode = surface.mainSourceMode
         local profile = findProfile(data, surface.fxProfile)
         surface.fxSource = profile and profile.fxSource or "Missing"
     end
     localError(ctx, surfaceEditorError(data, page, surface))
+    if surface.active then renderRuntime(ctx, surface.zoneReady, surface.runtimeIssue, surface.zoneReady and "The Surface and Zone profile are ready." or "The device is connected, but its Zone profile cannot run.") end
     return openedIoEditor
 end
 
@@ -754,11 +763,15 @@ local function mergeRuntimeStatus(draft, response)
                 for surfaceIdx, surface in ipairs(page.surfaces) do
                     surface.active = false
                     surface.ioActive = false
+                    surface.runtimeIssue = ""
+                    surface.zoneReady = false
                     for responseSurfaceIdx, responseSurface in ipairs(responsePage.surfaces) do
                         if responseSurface.name == surface.name then
                             surface.active = responseSurface.active
                             surface.ioActive = responseSurface.ioActive
                             surface.ioType = responseSurface.ioType
+                            surface.runtimeIssue = responseSurface.runtimeIssue
+                            surface.zoneReady = responseSurface.zoneReady
                             break
                         end
                     end

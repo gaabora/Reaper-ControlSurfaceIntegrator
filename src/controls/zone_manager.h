@@ -7,6 +7,7 @@
 #include "format2_zone_profile_loader.h"
 #include "zone.h"
 #include "widget.h"
+#include "zone_profile_source_mode.h"
 
 class ZoneManager
 {
@@ -18,9 +19,13 @@ private:
     string zoneFolder_;
     string vendorFxZoneFolder_;
     string userFxZoneFolder_;
+    ZoneProfileSourceMode mainSourceMode_;
+    ZoneProfileSourceMode fxSourceMode_;
     unique_ptr<Format2ZoneProfileLoadResult> format2ZoneProfile_;
     std::optional<Format2LearnFxSurfaceResolveResult> format2LearnFxSurface_;
     map<string, size_t> format2DocumentIndexByPath_;
+    string initializationIssue_;
+    bool currentInputHandled_ = false;
 
     vector<unique_ptr<ActionContext>> emptyContexts_;
 
@@ -231,7 +236,7 @@ private:
     }
 
 public:
-    ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& vendorFxZoneFolder, const string& userFxZoneFolder);
+    ZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& vendorFxZoneFolder, const string& userFxZoneFolder, ZoneProfileSourceMode mainSourceMode, ZoneProfileSourceMode fxSourceMode);
 
     ~ZoneManager() {
         focusedFXZone_ = NULL;
@@ -287,6 +292,10 @@ public:
     void DoRelativeAction(Widget* widget, double delta);
     void DoRelativeAction(Widget* widget, int accelerationIndex, double delta);
     void DoTouch(Widget* widget, double value);
+    void BeginInputMessage() { this->currentInputHandled_ = false; }
+    bool WasInputMessageHandled() const { return this->currentInputHandled_; }
+    bool IsReady() const { return this->homeZone_ != nullptr; }
+    const string& GetInitializationIssue() const { return this->initializationIssue_; }
 
     const string& GetZoneFolder() { return zoneFolder_; }
     const char* GetFXZoneFolder() { return userFxZoneFolder_.c_str(); }

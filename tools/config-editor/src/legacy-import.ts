@@ -84,6 +84,7 @@ export interface LegacyImportPreview {
     includeSurface: boolean;
     items: LegacyImportItem[];
     root: string;
+    recommendedSourceMode: "User" | "VendorAndUser";
     selectedZonePaths: string[];
     sources: LegacyImportSource[];
     surfaceName: string;
@@ -598,7 +599,7 @@ export class LegacyCsiSource {
         let migratedLearnFx = "";
         let learnFxTargetPath = "";
         const learnFxDiagnostics: Diagnostic[] = [];
-        for (const [zoneName, matchingZones] of learnZonesByName) if (matchingZones.length > 1) addDiagnostic(learnFxDiagnostics, "error", "legacy.learn-fx.source.duplicate", `More than one legacy ${zoneName} zone was found. Keep one before import.`, undefined, matchingZones[1].sourcePath, matchingZones.map((zone) => ({ path: zone.sourcePath })));
+        for (const [zoneName, matchingZones] of learnZonesByName) if (matchingZones.length > 1) addDiagnostic(learnFxDiagnostics, "error", "legacy.learn-fx.source.duplicate", `More than one legacy ${zoneName} zone was found. Keep one before import (or comment out content of the one to abandon by selecting all text and pressing ctrl+/ or cmd+/)`, undefined, matchingZones[1].sourcePath, matchingZones.map((zone) => ({ path: zone.sourcePath })));
         if (learnLayout) {
             learnFxTargetPath = targetPathMap.get(learnLayout.sourcePath) || `Zones/User/${targetProfileId}/LearnFX.fxzon`;
             this.validateTargetScope("learn-fx", learnFxTargetPath, targetProfileId);
@@ -638,10 +639,11 @@ export class LegacyCsiSource {
         if (learnLayout && learnFxDocument) await appendItem("learn-fx", learnLayout.sourcePath, learnLayout.originalSourceHash, learnFxTargetPath, migratedLearnFx, learnFxDocument, selectedPaths.has(learnLayout.sourcePath), "Learn FX");
 
         const selectedDocuments = items.filter((item) => item.selected).map((item) => item.kind === "surface" ? surfaceDocument : item.kind === "learn-fx" ? learnFxDocument! : zoneDocuments.get(item.sourcePath)!);
+        const recommendedSourceMode = selectedDocuments.some((document) => document.format === "zone" && (document.semantic as ZoneSemantic).role === "Home") ? "User" : "VendorAndUser";
         const mappingSurfaceDocuments = widgetTarget === "existing" ? [...(!includeSurface ? [surfaceDocument] : []), ...(targetSurface ? [targetSurface] : [])] : [];
         const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics).filter((diagnostic) => diagnostic.code !== "surface.format.missing" && diagnostic.code !== "zone.format.missing");
         const selectedDocumentsByPath = new Map<string, AnyDocument>(selectedDocuments.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
-        const profileDocuments = selectedPaths.size ? await store.zoneProfileDocuments(targetProfileId, selectedDocuments) : selectedDocuments;
+        const profileDocuments = selectedPaths.size ? await store.zoneProfileDocuments(targetProfileId, selectedDocuments, recommendedSourceMode === "User" ? new Set(["User"]) : undefined) : selectedDocuments;
         const setDiagnostics = validateDocumentSet(profileDocuments, { completeProfiles: true }).map((diagnostic) => {
             const document = diagnostic.path ? selectedDocumentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
             let contextualDiagnostic = diagnostic;
@@ -671,6 +673,7 @@ export class LegacyCsiSource {
             includeSurface,
             items,
             root: this.root,
+            recommendedSourceMode,
             selectedZonePaths: [...selectedPaths].sort(),
             sources: [...sourceFiles].map(([sourcePath, sourceFile]) => ({ originalSourceHash: sourceFile.originalSourceHash, source: draftMap.get(sourcePath)?.source ?? sourceFile.source, sourcePath })),
             surfaceName: files.name,
@@ -718,7 +721,7 @@ export class LegacyCsiSource {
         }
         for (const resolution of request.resolutions) if (!preview.items.some((item) => item.selected && item.id === resolution.id)) throw new EditorOperationError("legacy.resolution.unknown", `Import resolution does not match a selected source: ${resolution.id}`);
         if (!changes.length) return { changed: [], created: [], failed: [], restored: [], skipped };
-        const finalDocuments = await store.zoneProfileDocuments(preview.targetProfileId, changes.map((change) => store.parseDocument(change.path, change.source)));
+        const finalDocuments = await store.zoneProfileDocuments(preview.targetProfileId, changes.map((change) => store.parseDocument(change.path, change.source)), preview.recommendedSourceMode === "User" ? new Set(["User"]) : undefined);
         const finalDiagnostics = finalDocuments.flatMap((document) => document.diagnostics).concat(validateDocumentSet(finalDocuments, { completeProfiles: true }));
         if (finalDiagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", "The final import profile contains errors after Replace, Rename, or Skip. No files were imported.", finalDiagnostics);
         const report = await store.saveTransaction(changes);

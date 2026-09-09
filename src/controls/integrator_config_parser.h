@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "../shared/settings_values.h"
+#include "zone_profile_source_mode.h"
 
 struct IntegratorConfigIssue {
     int lineNumber = 0;
@@ -43,6 +44,8 @@ struct SurfaceAssignmentConfig {
     std::string surfaceId;
     std::string mainZoneProfileId;
     std::string fxZoneProfileId;
+    ZoneProfileSourceMode mainZoneSourceMode = ZoneProfileSourceMode::VendorAndUser;
+    ZoneProfileSourceMode fxZoneSourceMode = ZoneProfileSourceMode::VendorAndUser;
     int startChannel = 0;
     SettingOverrides settingOverrides;
     SettingsValues effectiveSettings;

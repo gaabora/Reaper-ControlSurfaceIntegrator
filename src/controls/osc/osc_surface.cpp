@@ -184,13 +184,13 @@ void OSC_X32ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface* surface) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, OSC_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides)
+OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, OSC_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides, ZoneProfileSourceMode mainSourceMode, ZoneProfileSourceMode fxSourceMode)
     : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset, settings, settingOverrides), surfaceIO_(surfaceIO)
 {
     Format2OscRuntimeLoader::Load(templateFilename, this);
     this->InitHardwiredWidgets(this);
     this->ApplyInitialFeedbackValues();
-    this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
+    this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder, mainSourceMode, fxSourceMode);
 }
 
 void OSC_ControlSurface::ProcessOSCMessage(const char* message, double value) {

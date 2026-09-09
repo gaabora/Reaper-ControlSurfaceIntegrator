@@ -165,8 +165,8 @@ protected:
         LoadOskEnabledSetting();
     }
 
-    void InitZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& vendorFxZoneFolder, const string& userFxZoneFolder) {
-        zoneManager_ = make_unique<ZoneManager>(csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
+    void InitZoneManager(CSurfIntegrator* const csi, ControlSurface* surface, const string& zoneFolder, const string& vendorFxZoneFolder, const string& userFxZoneFolder, ZoneProfileSourceMode mainSourceMode, ZoneProfileSourceMode fxSourceMode) {
+        zoneManager_ = make_unique<ZoneManager>(csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder, mainSourceMode, fxSourceMode);
         zoneManager_->Initialize();
     }
 

@@ -149,13 +149,13 @@ bool Midi_ControlSurfaceIO::PollForDeviceReconnect() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Midi_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, Midi_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides)
+Midi_ControlSurface::Midi_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* surfaceFile, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, Midi_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides, ZoneProfileSourceMode mainSourceMode, ZoneProfileSourceMode fxSourceMode)
     : ControlSurface(csi, page, name, surfaceIO->GetChannelCount(), channelOffset, settings, settingOverrides), surfaceIO_(surfaceIO) {
     Format2MidiRuntimeLoader::Load(surfaceFile, this);
     this->InitHardwiredWidgets(this);
     this->InitializeFormat2Messages();
     this->ApplyInitialFeedbackValues();
-    this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder);
+    this->InitZoneManager(this->csi_, this, zoneFolder, vendorFxZoneFolder, userFxZoneFolder, mainSourceMode, fxSourceMode);
 }
 
 void Midi_ControlSurface::InitializeFormat2Messages() {
@@ -180,13 +180,31 @@ void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t* evt) {
     string twoByteKey = to_string(evt->midi_message[0] * 0x10000 + evt->midi_message[1] * 0x100);
     string oneByteKey = to_string(evt->midi_message[0] * 0x10000);
 
-    // At this point we don't know how much of the message comprises the key, so try all three
-    if (MessageGeneratorsByMessage_.find(threeByteKey) != MessageGeneratorsByMessage_.end())
-        MessageGeneratorsByMessage_[threeByteKey]->ProcessMidiMessage(evt);
-    else if (MessageGeneratorsByMessage_.find(twoByteKey) != MessageGeneratorsByMessage_.end())
-        MessageGeneratorsByMessage_[twoByteKey]->ProcessMidiMessage(evt);
-    else if (MessageGeneratorsByMessage_.find(oneByteKey) != MessageGeneratorsByMessage_.end())
-        MessageGeneratorsByMessage_[oneByteKey]->ProcessMidiMessage(evt);
+    MessageGenerator* generator = nullptr;
+    if (MessageGeneratorsByMessage_.find(threeByteKey) != MessageGeneratorsByMessage_.end()) generator = MessageGeneratorsByMessage_[threeByteKey].get();
+    else if (MessageGeneratorsByMessage_.find(twoByteKey) != MessageGeneratorsByMessage_.end()) generator = MessageGeneratorsByMessage_[twoByteKey].get();
+    else if (MessageGeneratorsByMessage_.find(oneByteKey) != MessageGeneratorsByMessage_.end()) generator = MessageGeneratorsByMessage_[oneByteKey].get();
+
+    ZoneManager* zoneManager = this->GetZoneManager();
+    zoneManager->BeginInputMessage();
+    if (generator) generator->ProcessMidiMessage(evt);
+    if (zoneManager->WasInputMessageHandled()) return;
+
+    ++this->unhandledMidiMessageCount_;
+    ostringstream message;
+    message << this->GetName() << ": MIDI input not handled (#" << this->unhandledMidiMessageCount_ << ")\n";
+    message << std::uppercase << std::hex << std::setfill('0');
+    const int displayedByteCount = (std::min)(evt->size, 16);
+    for (int byteIdx = 0; byteIdx < displayedByteCount; ++byteIdx) {
+        if (byteIdx > 0) message << " ";
+        message << std::setw(2) << static_cast<int>(static_cast<unsigned char>(evt->midi_message[byteIdx]));
+    }
+    if (evt->size > displayedByteCount) message << " ... (" << std::dec << evt->size << " bytes)";
+    else message << std::dec;
+    if (!zoneManager->IsReady()) message << "\n" << (zoneManager->GetInitializationIssue().empty() ? "Zone profile is not ready." : zoneManager->GetInitializationIssue());
+    else if (generator) message << "\nWidget " << generator->GetWidgetName() << " has no action in the current Zone.";
+    else message << "\nNo Widget in the Surface template matches this MIDI message.";
+    this->csi_->ShowErrorOSD(message.str());
 }
 
 void Midi_ControlSurface::SendMidiSysExMessage(MIDI_event_ex_t* midiMessage) {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createEditorHtml, EDITOR_CSS, EDITOR_JAVASCRIPT } from "../src/ui.ts";
+import codeEditorJavascript from "../src/ui/code-editor.js" with { type: "text" };
 
 describe("browser UI bindings", () => {
     test("declares every used element and references an existing HTML ID", () => {
@@ -30,8 +31,8 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain("window.setTimeout(() => notification.remove(), 5000)");
         expect(EDITOR_JAVASCRIPT).toContain("mergeErrorDiagnostics(diagnostics)");
         expect(EDITOR_JAVASCRIPT).toContain("diagnostic.related || []");
-        expect(EDITOR_JAVASCRIPT).toContain('key: "Ctrl-/", run: toggleLineComment');
-        expect(EDITOR_JAVASCRIPT).toContain('key: "Mod-/", run: toggleLineComment');
+        expect(codeEditorJavascript).toContain('key: "Ctrl-/", run: toggleLineComment');
+        expect(codeEditorJavascript).toContain('key: "Mod-/", run: toggleLineComment');
         expect(EDITOR_JAVASCRIPT).toContain("legacySourceForPath(diagnostic.path)");
         expect(EDITOR_JAVASCRIPT).toContain("legacyItemAlreadyImported(item)");
         expect(EDITOR_JAVASCRIPT).not.toContain("JSON.stringify(error.details");
