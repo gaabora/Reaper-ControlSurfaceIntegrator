@@ -37,7 +37,10 @@ const elements = {
     editorBody: requiredElement("editor-body"),
     editorMain: requiredElement("editor-main"),
     filePanel: requiredElement("file-panel"),
+    helpClose: requiredElement("help-close"),
+    helpDialog: requiredElement("help-dialog"),
     legacyDependencies: requiredElement("legacy-dependencies"),
+    legacyDependenciesSection: requiredElement("legacy-dependencies-section"),
     legacyDiagnostics: requiredElement("legacy-diagnostics"),
     legacyDraftCheck: requiredElement("legacy-draft-check"),
     legacyDraftDiscard: requiredElement("legacy-draft-discard"),
@@ -54,9 +57,7 @@ const elements = {
     legacyPreview: requiredElement("legacy-preview"),
     legacyReload: requiredElement("legacy-reload"),
     legacyResolveStep: requiredElement("legacy-resolve-step"),
-    legacyRefresh: requiredElement("legacy-refresh"),
     legacySelectAll: requiredElement("legacy-select-all"),
-    legacySelectFx: requiredElement("legacy-select-fx"),
     legacySelectNone: requiredElement("legacy-select-none"),
     legacyStatus: requiredElement("legacy-status"),
     legacySourceStep: requiredElement("legacy-source-step"),
@@ -64,6 +65,7 @@ const elements = {
     legacyTargetFeedback: requiredElement("legacy-target-feedback"),
     legacyTargetProfile: requiredElement("legacy-target-profile"),
     legacyWidgetMappings: requiredElement("legacy-widget-mappings"),
+    legacyWidgetMappingsSection: requiredElement("legacy-widget-mappings-section"),
     legacyZones: requiredElement("legacy-zones"),
     homeHeader: requiredElement("home-header"),
     openDataPath: requiredElement("open-data-path"),
@@ -108,7 +110,7 @@ const state = {
     current: null,
     draftConflicts: new Set(),
     globalProblems: [],
-    legacy: { activeDraftPath: "", drafts: new Map(), preview: null, resolutions: new Map(), selectedZonePaths: new Set(), targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
+    legacy: { activeDraftPath: "", collapsedFolders: new Set(), drafts: new Map(), preview: null, resolutions: new Map(), selectedZonePaths: new Set(), targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
     problemFiles: new Map(),
     snippet: { choices: new Map(), conflictAction: "", insertionLine: 1, preview: null, treeEntries: [] },
     renderedDocumentPath: "",
@@ -971,27 +973,35 @@ function updateLegacyImportButton() {
     else elements.legacyImportReason.removeAttribute("href");
 }
 
-async function setLegacyZoneSelected(zone, selected) {
+function addLegacyZoneWithDependencies(sourcePath, selectedPaths, preview) {
+    selectedPaths.add(sourcePath);
+    const pendingPaths = [sourcePath];
+    const visitedPaths = new Set();
+    while (pendingPaths.length) {
+        const pendingPath = pendingPaths.shift();
+        if (!pendingPath || visitedPaths.has(pendingPath)) continue;
+        visitedPaths.add(pendingPath);
+        for (const dependency of preview.dependencies.filter((candidate) => candidate.from === pendingPath && candidate.matches.length === 1)) {
+            const dependencyPath = dependency.matches[0];
+            if (selectedPaths.has(dependencyPath)) continue;
+            selectedPaths.add(dependencyPath);
+            pendingPaths.push(dependencyPath);
+        }
+    }
+}
+
+async function setLegacyZonesSelected(zones, selected) {
     const preview = state.legacy.preview;
     if (!preview) return;
+    const selectedPaths = new Set(state.legacy.selectedZonePaths);
     if (selected) {
-        state.legacy.selectedZonePaths.add(zone.sourcePath);
-        const pendingPaths = [zone.sourcePath];
-        const visitedPaths = new Set();
-        while (pendingPaths.length) {
-            const sourcePath = pendingPaths.shift();
-            if (!sourcePath || visitedPaths.has(sourcePath)) continue;
-            visitedPaths.add(sourcePath);
-            for (const dependency of preview.dependencies.filter((candidate) => candidate.from === sourcePath && candidate.matches.length === 1)) {
-                const dependencyPath = dependency.matches[0];
-                if (!state.legacy.selectedZonePaths.has(dependencyPath)) {
-                    state.legacy.selectedZonePaths.add(dependencyPath);
-                    pendingPaths.push(dependencyPath);
-                }
-            }
-        }
-    } else state.legacy.selectedZonePaths.delete(zone.sourcePath);
-    await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+        for (const zone of zones) addLegacyZoneWithDependencies(zone.sourcePath, selectedPaths, preview);
+    } else for (const zone of zones) selectedPaths.delete(zone.sourcePath);
+    await refreshLegacyPreview([...selectedPaths]);
+}
+
+async function setLegacyZoneSelected(zone, selected) {
+    await setLegacyZonesSelected([zone], selected);
 }
 
 function updateLegacyZoneTreeSelection() {
@@ -1011,9 +1021,6 @@ function renderLegacyZones() {
     if (!zones.length) {
         elements.legacyZones.className = "legacy-zone-tree secondary";
         elements.legacyZones.textContent = translate("legacy.zones.empty");
-        elements.legacySelectFx.disabled = true;
-        elements.legacySelectFx.checked = false;
-        elements.legacySelectFx.indeterminate = false;
         return;
     }
     elements.legacyZones.className = "legacy-zone-tree";
@@ -1028,17 +1035,39 @@ function renderLegacyZones() {
         }
         directory.files.push({ fileName, zone });
     }
-    const renderDirectory = (directory) => {
+    const selectableZones = (directory) => [...directory.files.map((file) => file.zone), ...[...directory.directories.values()].flatMap(selectableZones)].filter((zone) => !zone.auxiliary);
+    const renderDirectory = (directory, parentPath = "") => {
         const list = document.createElement("ul");
         for (const [directoryName, childDirectory] of [...directory.directories].sort(([leftName], [rightName]) => leftName.localeCompare(rightName))) {
+            const directoryPath = parentPath ? parentPath + "/" + directoryName : directoryName;
+            const directoryZones = selectableZones(childDirectory);
+            const selectedCount = directoryZones.filter((zone) => state.legacy.selectedZonePaths.has(zone.sourcePath)).length;
             const item = document.createElement("li");
             const details = document.createElement("details");
-            details.open = true;
+            details.dataset.path = directoryPath;
+            details.open = !state.legacy.collapsedFolders.has(directoryPath);
             const summary = document.createElement("summary");
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.disabled = !directoryZones.length;
+            checkbox.checked = Boolean(directoryZones.length) && selectedCount === directoryZones.length;
+            checkbox.indeterminate = selectedCount > 0 && selectedCount < directoryZones.length;
+            checkbox.title = translate("legacy.folder.select", { folder: directoryPath });
+            checkbox.addEventListener("click", (event) => event.stopPropagation());
+            checkbox.addEventListener("change", () => {
+                details.open = checkbox.checked;
+                if (checkbox.checked) state.legacy.collapsedFolders.delete(directoryPath);
+                else state.legacy.collapsedFolders.add(directoryPath);
+                void setLegacyZonesSelected(directoryZones, checkbox.checked).catch(showError);
+            });
             const icon = document.createElement("span");
             icon.className = "folder-icon";
-            summary.append(icon, document.createTextNode(directoryName));
-            details.append(summary, renderDirectory(childDirectory));
+            summary.append(checkbox, icon, document.createTextNode(directoryName));
+            details.addEventListener("toggle", () => {
+                if (details.open) state.legacy.collapsedFolders.delete(directoryPath);
+                else state.legacy.collapsedFolders.add(directoryPath);
+            });
+            details.append(summary, renderDirectory(childDirectory, directoryPath));
             item.append(details);
             list.append(item);
         }
@@ -1067,16 +1096,12 @@ function renderLegacyZones() {
     };
     elements.legacyZones.append(renderDirectory(root));
     updateLegacyZoneTreeSelection();
-    const fxZones = zones.filter((zone) => !zone.auxiliary && zone.sourcePath.startsWith("FXZones/"));
-    const selectedFxCount = fxZones.filter((zone) => state.legacy.selectedZonePaths.has(zone.sourcePath)).length;
-    elements.legacySelectFx.disabled = !fxZones.length;
-    elements.legacySelectFx.checked = Boolean(fxZones.length) && selectedFxCount === fxZones.length;
-    elements.legacySelectFx.indeterminate = selectedFxCount > 0 && selectedFxCount < fxZones.length;
 }
 
 function renderLegacyDependencies() {
     const preview = state.legacy.preview;
     const dependencies = (preview?.dependencies || []).filter((dependency) => dependency.selected);
+    elements.legacyDependenciesSection.hidden = !dependencies.length;
     elements.legacyDependencies.replaceChildren();
     if (!dependencies.length) {
         elements.legacyDependencies.className = "legacy-list secondary";
@@ -1110,6 +1135,7 @@ function usesExistingLegacySurface() {
 
 function renderLegacyWidgetMappings() {
     const issues = state.legacy.preview?.widgetMappings || [];
+    elements.legacyWidgetMappingsSection.hidden = !issues.length;
     elements.legacyWidgetMappings.replaceChildren();
     if (!issues.length) {
         elements.legacyWidgetMappings.className = "legacy-widget-mappings secondary";
@@ -1278,7 +1304,6 @@ function renderLegacyPreview() {
 
 async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = usesExistingLegacySurface()) {
     if (!elements.legacySurface.value) return;
-    const hadPreview = Boolean(state.legacy.preview);
     const body = { drafts: legacyDraftsForRequest(), includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value, targetPaths: legacyTargetPathsForRequest(), targetProfileId: state.legacy.targetProfileId || undefined, useExistingSurface, widgetMappings: widgetMappingsForRequest() };
     if (selectedZonePaths !== undefined) body.selectedZonePaths = selectedZonePaths;
     const result = await api("/api/legacy/preview", { method: "POST", body: JSON.stringify(body) });
@@ -1290,12 +1315,7 @@ async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = uses
     state.legacy.widgetMappings = new Map(result.preview.widgetMappings.filter((issue) => issue.selectedTarget).map((issue) => [issue.sourceWidget, issue.selectedTarget]));
     elements.legacySelectAll.disabled = false;
     elements.legacySelectNone.disabled = false;
-    elements.legacyRefresh.disabled = false;
     renderLegacyPreview();
-    if (!hadPreview) {
-        elements.legacySourceStep.open = false;
-        elements.legacyResolveStep.open = true;
-    }
 }
 
 function renderLegacySource(selection, selectedSurfaceName = "") {
@@ -1326,6 +1346,7 @@ function renderLegacySelection(selection) {
     elements.legacyOperationReport.hidden = true;
     elements.legacyOperationReport.textContent = "";
     state.legacy.drafts.clear();
+    state.legacy.collapsedFolders.clear();
     state.legacy.preview = null;
     state.legacy.resolutions.clear();
     state.legacy.selectedZonePaths.clear();
@@ -1336,11 +1357,7 @@ function renderLegacySelection(selection) {
     setFeedback(elements.legacyTargetFeedback, "");
     renderLegacySource(selection);
     elements.legacySelectAll.disabled = true;
-    elements.legacySelectFx.disabled = true;
-    elements.legacySelectFx.checked = false;
-    elements.legacySelectFx.indeterminate = false;
     elements.legacySelectNone.disabled = true;
-    elements.legacyRefresh.disabled = true;
     elements.legacySourceStep.open = true;
     elements.legacyResolveStep.open = false;
     renderLegacyPreview();
@@ -1420,6 +1437,13 @@ async function initialize(initialRoute) {
     }
 }
 
+for (const step of [elements.legacySourceStep, elements.legacyResolveStep]) step.addEventListener("toggle", () => {
+    if (!elements.legacySourceStep.open && !elements.legacyResolveStep.open) step.open = true;
+});
+
+for (const button of document.querySelectorAll("[data-open-help]")) button.addEventListener("click", () => elements.helpDialog.showModal());
+elements.helpClose.addEventListener("click", () => elements.helpDialog.close());
+
 elements.openDataPath.addEventListener("click", async () => {
     try {
         const requestedRoute = readEditorRoute();
@@ -1468,6 +1492,7 @@ elements.legacyReload.addEventListener("click", async () => {
 elements.legacySurface.addEventListener("change", async () => {
     try {
         closeLegacyDraft();
+        state.legacy.collapsedFolders.clear();
         state.legacy.drafts.clear();
         state.legacy.resolutions.clear();
         state.legacy.selectedZonePaths.clear();
@@ -1515,29 +1540,17 @@ elements.legacyIncludeSurface.addEventListener("change", async () => {
 
 elements.legacySelectAll.addEventListener("click", async () => {
     try {
+        state.legacy.collapsedFolders.clear();
         const zonePaths = state.legacy.preview.items.filter((item) => item.kind === "zone" || item.kind === "learn-fx").map((item) => item.sourcePath);
         await refreshLegacyPreview(zonePaths);
     } catch (error) { showError(error); }
 });
 
-elements.legacySelectFx.addEventListener("change", async () => {
-    try {
-        const selectedZonePaths = new Set(state.legacy.selectedZonePaths);
-        const fxZonePaths = state.legacy.preview.items.filter((item) => item.kind === "zone" && item.sourcePath.startsWith("FXZones/")).map((item) => item.sourcePath);
-        for (const fxZonePath of fxZonePaths) {
-            if (elements.legacySelectFx.checked) selectedZonePaths.add(fxZonePath);
-            else selectedZonePaths.delete(fxZonePath);
-        }
-        await refreshLegacyPreview([...selectedZonePaths]);
-    } catch (error) { showError(error); }
-});
-
 elements.legacySelectNone.addEventListener("click", async () => {
-    try { await refreshLegacyPreview([]); } catch (error) { showError(error); }
-});
-
-elements.legacyRefresh.addEventListener("click", async () => {
-    try { await refreshLegacyPreview([...state.legacy.selectedZonePaths]); } catch (error) { showError(error); }
+    try {
+        for (const details of elements.legacyZones.querySelectorAll("details[data-path]")) state.legacy.collapsedFolders.add(details.dataset.path);
+        await refreshLegacyPreview([]);
+    } catch (error) { showError(error); }
 });
 
 elements.legacyImport.addEventListener("click", async () => {

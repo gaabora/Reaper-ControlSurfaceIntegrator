@@ -10,6 +10,7 @@
 <body>
   <header id="home-header">
     <h1 id="title">{{title}}</h1>
+    <button class="icon-button home-help" data-open-help title="{{help.open}}" aria-label="{{help.open}}">?</button>
   </header>
   <section id="task-home" class="task-home">
     <div class="data-path-field">
@@ -30,7 +31,7 @@
     <div class="workflow-topbar">
       <button id="back-to-tasks" class="back-button" title="{{action.backToTasks}}" aria-label="{{action.backToTasks}}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="workflow-heading"><h2 id="workflow-title"></h2><p id="workflow-description" class="secondary"></p></div>
-      <div class="actions"><button id="check-all" hidden>{{action.checkAll}}</button><button id="save-all" class="primary" disabled hidden>{{action.saveAll}}</button></div>
+      <div class="actions"><button class="icon-button" data-open-help title="{{help.open}}" aria-label="{{help.open}}">?</button><button id="check-all" hidden>{{action.checkAll}}</button><button id="save-all" class="primary" disabled hidden>{{action.saveAll}}</button></div>
     </div>
     <div id="editor-body" class="editor-body">
       <aside id="file-panel" hidden>
@@ -61,36 +62,35 @@
           </section>
           <section class="legacy-preview-column">
             <div class="legacy-steps">
-              <details id="legacy-source-step" class="legacy-step-panel" name="legacy-steps" open>
+              <details id="legacy-source-step" class="legacy-step-panel" open>
                 <summary><span class="step-number">1</span><span><strong>{{legacy.step.source.title}}</strong><small>{{legacy.step.source.description}}</small></span></summary>
                 <div class="legacy-step-body">
-                  <div class="legacy-controls">
-                    <select id="legacy-surface" aria-label="{{legacy.surface.title}}" disabled><option value="">{{legacy.surface.placeholder}}</option></select>
+                  <div class="legacy-source-controls">
+                    <label class="legacy-surface-control"><span>{{legacy.surface.title}}</span><select id="legacy-surface" disabled><option value="">{{legacy.surface.placeholder}}</option></select></label>
                     <button id="legacy-reload" disabled>{{action.reloadLegacy}}</button>
+                  </div>
+                  <div class="legacy-selection-controls">
                     <label><input id="legacy-include-surface" type="checkbox" checked> {{legacy.includeSurface}}</label>
-                    <label><input id="legacy-select-fx" type="checkbox" disabled> {{legacy.selectFx}}</label>
-                    <button id="legacy-select-all" disabled>{{legacy.selectAll}}</button>
-                    <button id="legacy-select-none" disabled>{{legacy.selectNone}}</button>
-                    <button id="legacy-refresh" disabled>{{action.preview}}</button>
+                    <div class="actions"><button id="legacy-select-all" disabled>{{legacy.selectAll}}</button><button id="legacy-select-none" disabled>{{legacy.selectNone}}</button></div>
                   </div>
                   <details class="advanced-panel legacy-path-panel">
                     <summary>{{legacy.path.advanced}}</summary>
                     <div class="legacy-path-controls"><input id="legacy-path" placeholder="{{legacy.path.placeholder}}"><button id="open-legacy">{{action.open}}</button></div>
                     <div id="legacy-path-feedback" class="feedback danger" hidden></div>
                   </details>
-                  <h2>{{legacy.dependencies.title}}</h2>
-                  <div id="legacy-dependencies" class="legacy-list secondary">{{legacy.dependencies.empty}}</div>
+                  <details id="legacy-dependencies-section" class="legacy-subsection">
+                    <summary>{{legacy.dependencies.title}}</summary>
+                    <div id="legacy-dependencies" class="legacy-list secondary">{{legacy.dependencies.empty}}</div>
+                  </details>
                 </div>
               </details>
-              <details id="legacy-resolve-step" class="legacy-step-panel" name="legacy-steps">
+              <details id="legacy-resolve-step" class="legacy-step-panel">
                 <summary><span class="step-number">2</span><span><strong>{{legacy.step.resolve.title}}</strong><small>{{legacy.step.resolve.description}}</small></span></summary>
                 <div class="legacy-step-body">
                   <div class="legacy-profile-field"><label class="legacy-profile-control"><span>{{legacy.targetProfile}}</span><input id="legacy-target-profile" placeholder="{{legacy.targetProfile.placeholder}}"></label><div id="legacy-target-feedback" class="feedback danger" hidden></div></div>
                   <p id="legacy-status" class="secondary">{{legacy.preview.empty}}</p>
-                  <h2>{{legacy.widgetMappings.title}}</h2>
-                  <div id="legacy-widget-mappings" class="legacy-widget-mappings secondary">{{legacy.widgetMappings.empty}}</div>
-                  <h2>{{legacy.preview.title}}</h2>
-                  <div id="legacy-preview" class="legacy-preview secondary">{{legacy.preview.empty}}</div>
+                  <section id="legacy-widget-mappings-section" class="legacy-resolve-section" hidden><h2>{{legacy.widgetMappings.title}}</h2><div id="legacy-widget-mappings" class="legacy-widget-mappings secondary">{{legacy.widgetMappings.empty}}</div></section>
+                  <section class="legacy-resolve-section"><h2>{{legacy.preview.title}}</h2><div id="legacy-preview" class="legacy-preview secondary">{{legacy.preview.empty}}</div></section>
                   <pre id="legacy-operation-report" class="operation-report" hidden></pre>
                 </div>
               </details>
@@ -159,6 +159,15 @@
       <h2>{{discard.title}}</h2>
       <p>{{discard.message}}</p>
       <div class="dialog-actions"><button id="discard-cancel">{{action.cancel}}</button><button id="discard-confirm" class="danger-button">{{action.discardChanges}}</button></div>
+    </div>
+  </dialog>
+  <dialog id="help-dialog">
+    <div class="dialog-panel help-dialog">
+      <div class="dialog-header"><h2>{{help.title}}</h2><button id="help-close" class="icon-button" title="{{action.close}}" aria-label="{{action.close}}">×</button></div>
+      <p>{{help.intro}}</p>
+      <ol class="help-steps"><li>{{help.step.path}}</li><li>{{help.step.task}}</li><li>{{help.step.edit}}</li><li>{{help.step.check}}</li></ol>
+      <h3>{{help.shortcuts}}</h3>
+      <dl class="shortcut-list"><div><dt><kbd>Ctrl</kbd> + <kbd>/</kbd></dt><dd>{{help.shortcut.comment}}</dd></div><div><dt><kbd>Ctrl</kbd> + <kbd>Space</kbd></dt><dd>{{help.shortcut.complete}}</dd></div><div><dt><kbd>Ctrl</kbd> + <kbd>F</kbd></dt><dd>{{help.shortcut.find}}</dd></div><div><dt><kbd>Ctrl</kbd> + <kbd>Z</kbd></dt><dd>{{help.shortcut.undo}}</dd></div><div><dt><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></dt><dd>{{help.shortcut.redo}}</dd></div></dl>
     </div>
   </dialog>
   <div id="notifications" class="notification-stack" aria-live="polite"></div>

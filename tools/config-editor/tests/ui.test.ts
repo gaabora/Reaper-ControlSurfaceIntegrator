@@ -45,6 +45,14 @@ describe("browser UI bindings", () => {
         expect(html).toContain('id="legacy-draft-empty"');
         expect(html).toContain('id="legacy-target-profile"');
         expect(html).toContain('id="legacy-reload"');
+        expect(html).toContain('id="help-dialog"');
+        expect(html).toContain('data-open-help');
+        expect(html).not.toContain('name="legacy-steps"');
+        expect(html).not.toContain('id="legacy-select-fx"');
+        expect(html).not.toContain('id="legacy-refresh"');
+        expect(EDITOR_JAVASCRIPT).toContain("if (!elements.legacySourceStep.open && !elements.legacyResolveStep.open) step.open = true");
+        expect(EDITOR_JAVASCRIPT).toContain("setLegacyZonesSelected(directoryZones, checkbox.checked)");
+        expect(EDITOR_JAVASCRIPT).not.toContain("if (!hadPreview)");
         expect(html).toContain('id="snippet-bindings"');
         expect(html).toContain('id="snippet-dialog"');
         expect(html).toContain('id="save-all"');
