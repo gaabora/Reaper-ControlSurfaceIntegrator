@@ -37,4 +37,11 @@ describe("temporary configuration drafts", () => {
         expect((await firstStore.read(relativePath))?.source).toBe("first draft");
         expect((await secondStore.read(relativePath))?.source).toBe("second draft");
     });
+
+    test("preserves optional import draft metadata", async () => {
+        const store = new ConfigurationDraftStore("test-product-import", "/reaper/Data/TestProduct", temporaryRoot);
+        await store.write("draft-key", "original", "draft source", { sourcePath: "Zones/Home.zon", targetPath: "Zones/User/test/Main/Home.zon" });
+
+        expect(await store.read("draft-key")).toMatchObject({ data: { sourcePath: "Zones/Home.zon", targetPath: "Zones/User/test/Main/Home.zon" }, source: "draft source" });
+    });
 });

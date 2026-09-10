@@ -174,7 +174,7 @@ void Midi_ControlSurface::InitializeFormat2Messages() {
 }
 
 void Midi_ControlSurface::ProcessMidiMessage(const MIDI_event_ex_t* evt) {
-    if (g_surfaceRawInDisplay) LogToConsole("[DEBUG] IN <- %s %02x %02x %02x \n", name_.c_str(), evt->midi_message[0], evt->midi_message[1], evt->midi_message[2]);
+    if (g_surfaceRawInDisplay) LogToConsole("[DEBUG] MIDI received: Surface=%s Bytes=%02X %02X %02X\n", name_.c_str(), evt->midi_message[0], evt->midi_message[1], evt->midi_message[2]);
 
     string threeByteKey = to_string(evt->midi_message[0] * 0x10000 + evt->midi_message[1] * 0x100 + evt->midi_message[2]);
     string twoByteKey = to_string(evt->midi_message[0] * 0x10000 + evt->midi_message[1] * 0x100);

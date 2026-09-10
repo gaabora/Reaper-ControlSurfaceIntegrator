@@ -109,6 +109,30 @@ static void TestLayerOnlyAction() {
     Require(layer.IsValid(), "ExitZoneLayer layer acceptance");
 }
 
+static void TestTerminalModifierSource() {
+    const Format2ZoneParseResult parsed = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nLayerB Modifier Option\n(DoublePress)+[Option] ToggleOSK\n", "Home.zon", Format2DocumentKind::MainZone);
+    Require(parsed.IsValid(), "terminal Modifier source acceptance");
+    Require(parsed.zone.bindings.size() == 1, "terminal Modifier source binding count");
+    Require(parsed.zone.bindings.front().modifierSource && *parsed.zone.bindings.front().modifierSource == "Option", "terminal Modifier source name");
+    Require(parsed.zone.bindings.front().widget.baseName == "LayerB", "terminal Modifier source Widget resolution");
+
+    const Format2ZoneParseResult unknown = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\n(DoublePress)+[Fine] ToggleOSK\n", "Home.zon", Format2DocumentKind::MainZone);
+    Require(HasParseDiagnostic(unknown, "format2.zone.binding.modifier-source"), "unknown terminal Modifier source rejection");
+}
+
+static void TestModifierBlink() {
+    const Format2ZoneParseResult defaultBlink = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink\n", "Home.zon", Format2DocumentKind::MainZone);
+    Require(defaultBlink.IsValid(), "Modifier default Blink parse");
+    Require(defaultBlink.zone.modifiers.size() == 1 && defaultBlink.zone.modifiers[0].blink && defaultBlink.zone.modifiers[0].blinkIntervalMs == -1, "Modifier default Blink values");
+
+    const Format2ZoneParseResult explicitBlink = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=750\n", "Home.zon", Format2DocumentKind::MainZone);
+    Require(explicitBlink.IsValid(), "Modifier explicit Blink parse");
+    Require(explicitBlink.zone.modifiers.size() == 1 && explicitBlink.zone.modifiers[0].blink && explicitBlink.zone.modifiers[0].blinkIntervalMs == 750, "Modifier explicit Blink values");
+
+    const Format2ZoneParseResult invalidBlink = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=fast\n", "Home.zon", Format2DocumentKind::MainZone);
+    Require(HasParseDiagnostic(invalidBlink, "format2.zone.modifier.blink"), "invalid Modifier Blink interval");
+}
+
 static void TestProfileLoader() {
     const std::filesystem::path fixtureRoot = std::filesystem::path(__FILE__).parent_path() / "fixtures" / "format2-zone-profile";
     const std::vector<Format2ZoneProfileRoot> roots {
@@ -218,6 +242,8 @@ int main() {
     TestNavigationRoleRules();
     TestDeclaredLayerNavigation();
     TestLayerOnlyAction();
+    TestTerminalModifierSource();
+    TestModifierBlink();
     TestProfileLoader();
     TestLearnFxSurfaceResolution();
     TestLearnFxSurfaceErrors();

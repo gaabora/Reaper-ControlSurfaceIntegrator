@@ -26,6 +26,8 @@ struct Format2PreparedActionContext {
     bool invertFeedback = false;
     bool increase = false;
     bool decrease = false;
+    bool blink = false;
+    int blinkIntervalMs = -1;
     std::optional<std::array<double, 2>> range;
     std::optional<double> delta;
     std::vector<double> stepValues;
@@ -300,8 +302,10 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.modifierMode = ResolveFormat2ModifierMode(zoneManager->GetSurface(), declaration.mode);
         prepared.modifierModeUsesDefault = declaration.mode == Format2ModifierMode::Default;
         prepared.modifierTapWindowMs = zoneManager->GetSurface()->GetSettings().GetInteger("ModifierTapWindowMs");
+        prepared.blink = declaration.blink;
+        prepared.blinkIntervalMs = declaration.blinkIntervalMs;
         modifierModesByWidget[declaration.widget.baseName] = prepared.modifierMode;
-        gestureGroups[{widget, 0}].push_back({{prepared.inputEvent, prepared.modifierMode, 0, 0, prepared.modifierTapWindowMs}, prepared.actionName, declaration.location, "Modifier:" + prepared.actionName, false, false, 1, true});
+        gestureGroups[{widget, 0}].push_back({{prepared.inputEvent, prepared.modifierMode, 0, 0, prepared.modifierTapWindowMs}, prepared.actionName, declaration.location, "Modifier:" + prepared.actionName, false, false, 1, true, false});
         preparedContexts.push_back(std::move(prepared));
     }
 
@@ -369,7 +373,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         integerPropertiesValid = ReadFormat2IntegerProperty(binding.action, "RunCount", 1, 1, (std::numeric_limits<int>::max)(), runCount, result) && integerPropertiesValid;
         integerPropertiesValid = PrepareFormat2ActionValues(binding.action, prepared, result) && integerPropertiesValid;
         if (prepared.inputEvent != ActionInputEvent::Legacy && integerPropertiesValid) {
-            gestureGroups[{widget, prepared.modifier}].push_back({{prepared.inputEvent, prepared.modifierMode, prepared.eventDelayMs, prepared.repeatIntervalMs, prepared.modifierTapWindowMs}, prepared.actionName, binding.location, MakeFormat2ActionIdentity(binding.action), HasFormat2Property(binding.action, "DelayMs"), HasFormat2Property(binding.action, "RepeatIntervalMs"), runCount, Format2ActionChangesModifier(prepared.actionName)});
+            gestureGroups[{widget, prepared.modifier}].push_back({{prepared.inputEvent, prepared.modifierMode, prepared.eventDelayMs, prepared.repeatIntervalMs, prepared.modifierTapWindowMs}, prepared.actionName, binding.location, MakeFormat2ActionIdentity(binding.action), HasFormat2Property(binding.action, "DelayMs"), HasFormat2Property(binding.action, "RepeatIntervalMs"), runCount, Format2ActionChangesModifier(prepared.actionName), binding.modifierSource.has_value()});
         }
         if (!prepared.navigator) AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.navigator.missing", "No Navigator is available for Widget: " + spec.widgetId, binding.widget.location);
         preparedContexts.push_back(std::move(prepared));
@@ -398,6 +402,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         context->SetModifierMode(prepared.modifierMode);
         context->SetModifierModeUsesDefault(prepared.modifierModeUsesDefault);
         context->SetModifierTapWindow(prepared.modifierTapWindowMs);
+        if (prepared.blink) context->SetBlinkInterval(prepared.blinkIntervalMs);
         if (prepared.invert) context->SetIsValueInverted();
         if (prepared.invertFeedback) context->SetIsFeedbackInverted();
         if (prepared.inputEvent == ActionInputEvent::Hold || prepared.inputEvent == ActionInputEvent::LongHold) {

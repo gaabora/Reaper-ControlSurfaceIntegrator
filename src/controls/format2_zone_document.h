@@ -27,6 +27,7 @@ struct Format2ZoneAction {
 
 struct Format2ZoneBinding {
     Format2SourceLocation location;
+    std::optional<std::string> modifierSource;
     std::vector<Format2ZoneSelector> selectors;
     Format2WidgetSelector widget;
     Format2ZoneAction action;
@@ -51,6 +52,8 @@ struct Format2ModifierDeclaration {
     std::string name;
     Format2SourceLocation nameLocation;
     Format2ModifierMode mode = Format2ModifierMode::Default;
+    bool blink = false;
+    int blinkIntervalMs = -1;
 };
 
 struct Format2ZoneReference {

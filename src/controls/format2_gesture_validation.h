@@ -12,6 +12,7 @@ struct Format2GestureBinding {
     bool repeatSpecified = false;
     int runCount = 1;
     bool changesModifier = false;
+    bool terminalModifierSource = false;
 };
 
 // Call once per resolved physical Widget and normalized modifier context.

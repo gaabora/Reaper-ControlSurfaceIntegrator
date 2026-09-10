@@ -177,6 +177,8 @@ struct OskConfigBinding {
     bool isFeedbackInverted = false;
     bool isIncrease = false;
     bool isDecrease = false;
+    bool blink = false;
+    int blinkIntervalMs = -1;
 };
 
 static bool IsOskMetadataToken(const string& token, OskConfigBinding& binding) {
@@ -268,6 +270,23 @@ static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData,
         if (binding.isModifierDeclaration && (binding.modifierValue != 0 || binding.hasHold || binding.hasDoublePress || binding.isValueInverted || binding.isFeedbackInverted || binding.isIncrease || binding.isDecrease)) {
             errorMessage = "A Modifier declaration cannot use binding selectors at position " + to_string(bindingIdx + 1);
             return false;
+        }
+        if (binding.isModifierDeclaration && binding.actionTokens.size() == 2 && binding.actionTokens[1] == "Blink") {
+            binding.blink = true;
+            binding.actionTokens.pop_back();
+        } else if (binding.isModifierDeclaration && binding.actionTokens.size() == 2 && binding.actionTokens[1].rfind("Blink=", 0) == 0) {
+            size_t parsedBlinkCharacters = 0;
+            try {
+                binding.blinkIntervalMs = std::stoi(binding.actionTokens[1].substr(6), &parsedBlinkCharacters);
+            } catch (...) {
+                binding.blinkIntervalMs = -1;
+            }
+            if (binding.blinkIntervalMs < 1 || parsedBlinkCharacters != binding.actionTokens[1].size() - 6) {
+                errorMessage = "Modifier Blink requires one positive integer interval at position " + to_string(bindingIdx + 1);
+                return false;
+            }
+            binding.blink = true;
+            binding.actionTokens.pop_back();
         }
         if (binding.isModifierDeclaration && binding.actionTokens.size() != 1) {
             errorMessage = "A Modifier declaration requires one modifier name at position " + to_string(bindingIdx + 1);
@@ -397,6 +416,7 @@ static vector<string> BuildFormat2OskDraftLines(const string& widgetName, const 
             if (binding.modifierMode == Format2ModifierMode::Momentary) line += " Mode=Momentary";
             else if (binding.modifierMode == Format2ModifierMode::Latch) line += " Mode=Latch";
             else if (binding.modifierMode == Format2ModifierMode::Hybrid) line += " Mode=Hybrid";
+            if (binding.blink) line += binding.blinkIntervalMs > 0 ? " Blink=" + to_string(binding.blinkIntervalMs) : " Blink";
             lines.push_back(std::move(line));
             continue;
         }
@@ -433,6 +453,7 @@ static vector<string> BuildFormat2SerializedWidgetLines(Zone* zone, Widget* widg
                     else if (context->GetModifierMode() == ActionModifierMode::Latch) line += " Mode=Latch";
                     else if (context->GetModifierMode() == ActionModifierMode::Hybrid) line += " Mode=Hybrid";
                 }
+                if (context->IsBlinkSet()) line += context->GetConfiguredBlinkInterval() > 0 ? " Blink=" + to_string(context->GetConfiguredBlinkInterval()) : " Blink";
                 lines.push_back(std::move(line));
                 continue;
             }

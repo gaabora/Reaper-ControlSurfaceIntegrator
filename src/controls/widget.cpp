@@ -51,5 +51,5 @@ void Widget::ForceClear() {
 }
 
 void Widget::LogInput(double value) {
-    if (g_surfaceInDisplay) LogToConsole("[DEBUG] wIN <- %s %s %f\n", GetSurface()->GetName(), GetName(), value);
+    if (g_surfaceInDisplay) LogToConsole("[DEBUG] Widget input: Surface=%s Widget=%s Value=%f\n", GetSurface()->GetName(), GetName(), value);
 }

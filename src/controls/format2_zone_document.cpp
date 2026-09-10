@@ -1,4 +1,5 @@
 #include "format2_zone_document.h"
+#include "format2_value_validation.h"
 
 #include <algorithm>
 #include <map>
@@ -208,6 +209,8 @@ private:
         while (tokenIdx < node.positionalTokens.size() && (node.positionalTokens[tokenIdx].kind == Format2TokenKind::LeftBracket || node.positionalTokens[tokenIdx].kind == Format2TokenKind::LeftParenthesis)) {
             const Format2TokenKind openingKind = node.positionalTokens[tokenIdx].kind;
             const Format2TokenKind closingKind = openingKind == Format2TokenKind::LeftBracket ? Format2TokenKind::RightBracket : Format2TokenKind::RightParenthesis;
+            const bool terminalModifierSource = openingKind == Format2TokenKind::LeftBracket && tokenIdx + 2 < node.positionalTokens.size() && node.positionalTokens[tokenIdx + 1].kind == Format2TokenKind::Bare && node.positionalTokens[tokenIdx + 2].kind == closingKind && (tokenIdx + 3 >= node.positionalTokens.size() || node.positionalTokens[tokenIdx + 3].kind != Format2TokenKind::Plus);
+            if (terminalModifierSource) break;
             if (tokenIdx + 3 >= node.positionalTokens.size() || node.positionalTokens[tokenIdx + 1].kind != Format2TokenKind::Bare || node.positionalTokens[tokenIdx + 2].kind != closingKind || node.positionalTokens[tokenIdx + 3].kind != Format2TokenKind::Plus) {
                 this->AddDiagnostic("format2.zone.binding.selector", "A binding selector must use [Name]+ or (Name)+ before the Widget", node.positionalTokens[tokenIdx].location);
                 return;
@@ -216,14 +219,24 @@ private:
             selectors.push_back({ openingKind == Format2TokenKind::LeftBracket ? Format2ZoneSelectorKind::Context : Format2ZoneSelectorKind::Input, name.text, name.location });
             tokenIdx += 4;
         }
-        if (tokenIdx >= node.positionalTokens.size() || node.positionalTokens[tokenIdx].kind != Format2TokenKind::Bare) {
+        std::optional<std::string> modifierSource;
+        Format2WidgetSelector widget;
+        if (tokenIdx + 2 < node.positionalTokens.size() && node.positionalTokens[tokenIdx].kind == Format2TokenKind::LeftBracket && node.positionalTokens[tokenIdx + 1].kind == Format2TokenKind::Bare && node.positionalTokens[tokenIdx + 2].kind == Format2TokenKind::RightBracket) {
+            modifierSource = node.positionalTokens[tokenIdx + 1].text;
+            widget.kind = Format2WidgetSelectorKind::Exact;
+            widget.source = "[" + *modifierSource + "]";
+            widget.location = node.positionalTokens[tokenIdx].location;
+            tokenIdx += 3;
+        } else if (tokenIdx >= node.positionalTokens.size() || node.positionalTokens[tokenIdx].kind != Format2TokenKind::Bare) {
             this->AddDiagnostic("format2.zone.binding.widget", "A binding requires one Widget after its selectors", node.location);
             return;
+        } else {
+            const Format2WidgetSelectorParseResult widgetResult = ParseFormat2WidgetSelector(node.positionalTokens[tokenIdx]);
+            for (const Format2Diagnostic& diagnostic : widgetResult.diagnostics) this->AddDiagnostic(diagnostic.code, diagnostic.message, diagnostic.location);
+            if (!widgetResult.selector) return;
+            widget = *widgetResult.selector;
+            tokenIdx++;
         }
-        const Format2WidgetSelectorParseResult widgetResult = ParseFormat2WidgetSelector(node.positionalTokens[tokenIdx]);
-        for (const Format2Diagnostic& diagnostic : widgetResult.diagnostics) this->AddDiagnostic(diagnostic.code, diagnostic.message, diagnostic.location);
-        if (!widgetResult.selector) return;
-        tokenIdx++;
         if (tokenIdx >= node.positionalTokens.size() || node.positionalTokens[tokenIdx].kind != Format2TokenKind::Bare) {
             this->AddDiagnostic("format2.zone.binding.action", "A binding requires one unquoted action after the Widget", node.location);
             return;
@@ -252,14 +265,19 @@ private:
                 this->AddDiagnostic("format2.learn-fx.generated.modifier", "GeneratedBindings does not accept modifier declarations", action.actionLocation);
                 return;
             }
-            this->ParseModifierDeclaration(node, *widgetResult.selector, selectors, action);
+            if (modifierSource) {
+                this->AddDiagnostic("format2.zone.modifier.selector", "A modifier declaration cannot use another modifier as its source Widget", widget.location);
+                return;
+            }
+            this->ParseModifierDeclaration(node, widget, selectors, action);
             return;
         }
 
         Format2ZoneBinding binding;
         binding.location = node.location;
+        binding.modifierSource = modifierSource;
         binding.selectors = std::move(selectors);
-        binding.widget = *widgetResult.selector;
+        binding.widget = widget;
         binding.action = std::move(action);
         this->ValidateBindingSelectors(binding);
         this->result_.zone.bindings.push_back(std::move(binding));
@@ -337,8 +355,9 @@ private:
         if (!selectors.empty()) this->AddDiagnostic("format2.zone.modifier.selector", "A modifier declaration cannot have binding selectors", selectors.front().location);
         if (widget.kind != Format2WidgetSelectorKind::Exact) this->AddDiagnostic("format2.zone.modifier.widget", "A modifier declaration requires one exact Widget", widget.location);
         const bool standard = action.action == "Modifier";
-        if ((standard && action.arguments.size() != 1) || (!standard && !action.arguments.empty())) {
-            this->AddDiagnostic("format2.zone.modifier.argument", standard ? "Modifier requires one standard modifier name" : "PseudoModifier does not accept a separate modifier name", action.actionLocation);
+        const bool hasBareBlink = standard && action.arguments.size() == 2 && !action.arguments[1].quoted && action.arguments[1].text == "Blink";
+        if ((standard && action.arguments.size() != 1 && !hasBareBlink) || (!standard && !action.arguments.empty())) {
+            this->AddDiagnostic("format2.zone.modifier.argument", standard ? "Modifier requires one standard modifier name and accepts an optional Blink" : "PseudoModifier does not accept a separate modifier name", action.actionLocation);
             return;
         }
         Format2ModifierDeclaration declaration;
@@ -349,12 +368,19 @@ private:
         declaration.nameLocation = standard ? action.arguments[0].location : widget.location;
         if (standard && (action.arguments[0].quoted || !IsFormat2StandardModifier(declaration.name))) this->AddDiagnostic("format2.zone.modifier.name", "Unknown standard modifier name: " + declaration.name, declaration.nameLocation);
         if (!standard && (IsFormat2StandardModifier(declaration.name) || IsFormat2ChannelStateSelector(declaration.name))) this->AddDiagnostic("format2.zone.modifier.name.reserved", "PseudoModifier cannot use reserved selector name " + declaration.name, declaration.nameLocation);
+        declaration.blink = hasBareBlink;
         for (const Format2PropertySyntax& property : action.properties) {
-            if (property.name != "Mode") {
+            if (property.name == "Blink") {
+                int blinkIntervalMs = 0;
+                if (property.value.list || !ParseFormat2IntegerScalar(property.value.scalar, blinkIntervalMs) || blinkIntervalMs < 1) this->AddDiagnostic("format2.zone.modifier.blink", "Modifier Blink must be one positive integer interval in milliseconds", property.value.location);
+                else {
+                    declaration.blink = true;
+                    declaration.blinkIntervalMs = blinkIntervalMs;
+                }
+            } else if (property.name != "Mode") {
                 this->AddDiagnostic("format2.zone.modifier.property", "Unknown modifier declaration property: " + property.name, property.nameLocation);
                 continue;
-            }
-            if (property.value.list || property.value.scalar.quoted) {
+            } else if (property.value.list || property.value.scalar.quoted) {
                 this->AddDiagnostic("format2.zone.modifier.mode", "Modifier Mode must be Momentary, Latch, or Hybrid", property.value.location);
             } else if (property.value.scalar.text == "Momentary") {
                 declaration.mode = Format2ModifierMode::Momentary;
@@ -392,18 +418,31 @@ private:
 
     void ValidateDeclarationsAndSelectors() {
         std::map<std::string, Format2SourceLocation> modifierNames;
+        std::map<std::string, Format2WidgetSelector> modifierWidgetsByName;
         std::set<std::string> exactModifierNames;
         std::map<std::string, Format2SourceLocation> modifierWidgets;
         for (const Format2ModifierDeclaration& declaration : this->result_.zone.modifiers) {
             const std::string canonicalName = Format2ZoneAsciiLower(declaration.name);
             const std::string canonicalWidget = Format2ZoneAsciiLower(declaration.widget.baseName);
             if (modifierNames.find(canonicalName) != modifierNames.end()) this->AddDiagnostic("format2.zone.modifier.name.duplicate", "Modifier name is declared more than once: " + declaration.name, declaration.nameLocation);
-            else modifierNames[canonicalName] = declaration.nameLocation;
+            else {
+                modifierNames[canonicalName] = declaration.nameLocation;
+                modifierWidgetsByName[declaration.name] = declaration.widget;
+            }
             exactModifierNames.insert(declaration.name);
             if (modifierWidgets.find(canonicalWidget) != modifierWidgets.end()) this->AddDiagnostic("format2.zone.modifier.widget.duplicate", "Widget is used by more than one modifier declaration: " + declaration.widget.baseName, declaration.widget.location);
             else modifierWidgets[canonicalWidget] = declaration.widget.location;
         }
-        for (const Format2ZoneBinding& binding : this->result_.zone.bindings) {
+        for (Format2ZoneBinding& binding : this->result_.zone.bindings) {
+            if (binding.modifierSource) {
+                const auto declaration = modifierWidgetsByName.find(*binding.modifierSource);
+                if (declaration == modifierWidgetsByName.end()) this->AddDiagnostic("format2.zone.binding.modifier-source", "Unknown or incorrectly cased modifier source: " + *binding.modifierSource, binding.widget.location);
+                else {
+                    const Format2SourceLocation sourceLocation = binding.widget.location;
+                    binding.widget = declaration->second;
+                    binding.widget.location = sourceLocation;
+                }
+            }
             for (const Format2ZoneSelector& selector : binding.selectors) {
                 if (selector.kind != Format2ZoneSelectorKind::Context || IsFormat2StandardModifier(selector.name) || IsFormat2ChannelStateSelector(selector.name)) continue;
                 if (exactModifierNames.find(selector.name) == exactModifierNames.end()) this->AddDiagnostic("format2.zone.binding.context.unknown", "Unknown or incorrectly cased context selector: " + selector.name, selector.location);

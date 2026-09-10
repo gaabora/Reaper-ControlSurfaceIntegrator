@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 export interface ConfigurationDraft {
+    data?: Record<string, string>;
     originalHash: string;
     path: string;
     source: string;
@@ -40,7 +41,7 @@ export class ConfigurationDraftStore {
         for (const fileName of fileNames.filter((candidate) => candidate.endsWith(".json"))) {
             const stored = await this.readStoredDraft(path.join(this.draftRoot, fileName));
             if (!stored || stored.productRoot !== this.productRoot || fileName !== `${this.draftKey(stored.path)}.json`) continue;
-            drafts.push({ originalHash: stored.originalHash, path: stored.path, source: stored.source, updatedAt: stored.updatedAt });
+            drafts.push({ data: stored.data, originalHash: stored.originalHash, path: stored.path, source: stored.source, updatedAt: stored.updatedAt });
         }
         return drafts.sort((left, right) => left.path.localeCompare(right.path));
     }
@@ -48,11 +49,11 @@ export class ConfigurationDraftStore {
     async read(relativePath: string): Promise<ConfigurationDraft | undefined> {
         const stored = await this.readStoredDraft(this.draftPath(relativePath));
         if (!stored || stored.productRoot !== this.productRoot || stored.path !== relativePath) return undefined;
-        return { originalHash: stored.originalHash, path: stored.path, source: stored.source, updatedAt: stored.updatedAt };
+        return { data: stored.data, originalHash: stored.originalHash, path: stored.path, source: stored.source, updatedAt: stored.updatedAt };
     }
 
-    async write(relativePath: string, originalHash: string, source: string): Promise<ConfigurationDraft> {
-        const draft: StoredConfigurationDraft = { originalHash, path: relativePath, productRoot: this.productRoot, source, updatedAt: new Date().toISOString(), version: 1 };
+    async write(relativePath: string, originalHash: string, source: string, data?: Record<string, string>): Promise<ConfigurationDraft> {
+        const draft: StoredConfigurationDraft = { data, originalHash, path: relativePath, productRoot: this.productRoot, source, updatedAt: new Date().toISOString(), version: 1 };
         await mkdir(this.draftRoot, { recursive: true, mode: 0o700 });
         const targetPath = this.draftPath(relativePath);
         const stagedPath = path.join(this.draftRoot, `.${path.basename(targetPath)}.${randomUUID()}.tmp`);
@@ -63,7 +64,7 @@ export class ConfigurationDraftStore {
             await this.removeFileIfPresent(stagedPath);
             throw error;
         }
-        return { originalHash, path: relativePath, source, updatedAt: draft.updatedAt };
+        return { data, originalHash, path: relativePath, source, updatedAt: draft.updatedAt };
     }
 
     private draftKey(relativePath: string): string {
@@ -79,6 +80,7 @@ export class ConfigurationDraftStore {
         try {
             const value = JSON.parse(await readFile(filePath, "utf8")) as Partial<StoredConfigurationDraft>;
             if (value.version !== 1 || typeof value.originalHash !== "string" || typeof value.path !== "string" || typeof value.productRoot !== "string" || typeof value.source !== "string" || typeof value.updatedAt !== "string") return undefined;
+            if (value.data !== undefined && (!value.data || typeof value.data !== "object" || Array.isArray(value.data) || Object.values(value.data).some((entry) => typeof entry !== "string"))) return undefined;
             return value as StoredConfigurationDraft;
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError) return undefined;

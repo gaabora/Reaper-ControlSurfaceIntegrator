@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { parseByPath } from "../src/formats.ts";
-import { applyQuickFix, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, QuickFixError } from "../src/quick-fixes.ts";
+import { addLegacyBankContextQuickFixes, addLegacyExitLayerQuickFixes, applyQuickFix, applyQuickFixSet, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, QuickFixError } from "../src/quick-fixes.ts";
+import { convertLegacyZoneToFormat2 } from "../src/legacy-zone-format2.ts";
 import { validateDocumentSet } from "../src/validation.ts";
 
-const knownActions = new Set(["EnterZoneLayer", "ExitZoneLayer", "GoHome", "GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
+const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "GoHome", "GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
 
 describe("diagnostic quick fix registry", () => {
     test("offers and applies the zone format marker fix without saving", () => {
@@ -56,7 +57,7 @@ describe("diagnostic quick fix registry", () => {
         const document = parseByPath(source, relativePath, knownActions);
         const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "zone.action.unknown");
 
-        expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["TrackPan", "TrackPanL", "TrackPanR"]);
+        expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["TrackPan", "TrackPanL", "TrackPanR", "Comment out this line"]);
         const result = applyQuickFix(source, relativePath, knownActions, { diagnostic: { code: diagnostic!.code, line: diagnostic!.line, message: diagnostic!.message }, fix: diagnostic!.fixes![0] });
         expect(result.source).toContain("  Rotary1    TrackPan    NoFeedback=Yes // keep\n");
         expect(result.document.diagnostics.some((candidate) => candidate.code === "zone.action.unknown")).toBeFalse();
@@ -76,6 +77,27 @@ describe("diagnostic quick fix registry", () => {
         expect(diagnostic.fixes).toEqual([{ data: { dependency: "Alpha" }, id: "zones.dependency.cycle.comment-out", label: "Comment out dependency on Alpha" }]);
         const result = applyQuickFix(betaSource, betaPath, knownActions, { diagnostic: { code: diagnostic.code, line: diagnostic.line, message: diagnostic.message }, fix: diagnostic.fixes![0] });
         expect(result.source).toContain("\n  // Alpha\n");
+    });
+
+    test("can comment out an unknown action line", () => {
+        const relativePath = "Zones/User/test/Main/Home.zon";
+        const source = "@Meta { Version=2 Role=Home }\nButton the\n";
+        const document = parseByPath(source, relativePath, knownActions);
+        const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "zone.action.unknown")!;
+        const fix = diagnostic.fixes!.find((candidate) => candidate.id === "zone.action.comment-out")!;
+
+        expect(fix.label).toBe("Comment out this line");
+        expect(applyQuickFix(source, relativePath, knownActions, { diagnostic, fix }).source).toContain("// Button the");
+    });
+
+    test("can comment out an unknown lifecycle action line", () => {
+        const relativePath = "Zones/User/test/Main/Home.zon";
+        const source = "@Meta { Version=2 Role=Home }\nOn Activate {\n  the\n}\n";
+        const document = parseByPath(source, relativePath, knownActions);
+        const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "zone.action.unknown")!;
+        const fix = diagnostic.fixes!.find((candidate) => candidate.id === "zone.action.comment-out")!;
+
+        expect(applyQuickFix(source, relativePath, knownActions, { diagnostic, fix }).source).toContain("  // the");
     });
 
     test("offers independent navigation and layer fixes for an invalid EnterZoneLayer target", () => {
@@ -106,5 +128,90 @@ describe("diagnostic quick fix registry", () => {
         const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "format2.zone.action.layer-only");
         expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["Use GoHome instead"]);
         expect(applyQuickFix(source, relativePath, knownActions, { diagnostic: diagnostic!, fix: diagnostic!.fixes![0] }).source).toContain("Back GoHome");
+    });
+
+    test("offers complete Home and Layer fixes for an ambiguous legacy exit", () => {
+        const homePath = "Zones/User/test/Main/Home.zon";
+        const targetPath = "Zones/User/test/Main/Metronome.zon";
+        const homeSource = "@Meta { Version=2 Role=Home }\nButton GoZone Metronome\n";
+        const conversion = convertLegacyZoneToFormat2("Zone Metronome\nBack LeaveSubZone\nZoneEnd\n", { profile: "Main", targetPath });
+        const homeDocument = parseByPath(homeSource, homePath, knownActions);
+        const targetDocument = parseByPath(conversion.source, targetPath, knownActions);
+        targetDocument.diagnostics.push(...conversion.diagnostics);
+        addLegacyExitLayerQuickFixes([homeDocument, targetDocument]);
+        const diagnostic = diagnosticsWithQuickFixes(targetDocument, knownActions, true).find((candidate) => candidate.code === "legacy.zone.exit.context")!;
+
+        expect(diagnostic.fixes?.map((fix) => fix.label)).toEqual(["Make Metronome a linked Layer", "Use GoHome instead"]);
+        const goHome = applyQuickFix(conversion.source, targetPath, knownActions, { diagnostic, fix: diagnostic.fixes![1] });
+        expect(goHome.source).toContain("Back GoHome");
+
+        const layer = applyQuickFixSet([{ path: targetPath, source: conversion.source }, { path: homePath, source: homeSource }], knownActions, { diagnostic, fix: diagnostic.fixes![0] });
+        expect(layer.changes.find((change) => change.path === homePath)?.source).toContain("ZoneLayers {\n  Metronome\n}");
+        expect(layer.changes.find((change) => change.path === homePath)?.source).toContain("Button EnterZoneLayer Metronome");
+        expect(layer.changes.find((change) => change.path === targetPath)?.source).toContain("@Meta { Version=2 Role=Layer }");
+        expect(layer.changes.find((change) => change.path === targetPath)?.source).toContain("Back ExitZoneLayer");
+    });
+
+    test("moves a named Bank binding to the Zone that owns its context", () => {
+        const sourcePath = "Zones/User/test/Main/LinkLock.zon";
+        const destinationPath = "Zones/User/test/Main/SelectedTrackFXMenu.zon";
+        const source = "@Meta { Version=2 Role=Layer }\nPrev Bank SelectedTrackFXMenu -1\n";
+        const destination = "@Meta { Version=2 Target=SelectedTrack BankTarget=FX }\nPlay Play\n";
+        const diagnostic = { code: "legacy.zone.bank.context", line: 2, message: "Wrong Bank context", path: sourcePath, severity: "error" as const };
+        const sourceDocument = parseByPath(source, sourcePath, knownActions);
+        const destinationDocument = parseByPath(destination, destinationPath, knownActions);
+        sourceDocument.diagnostics.push(diagnostic);
+        addLegacyBankContextQuickFixes([sourceDocument, destinationDocument]);
+        const decorated = diagnosticsWithQuickFixes(sourceDocument, knownActions, true).find((candidate) => candidate.code === diagnostic.code)!;
+        const fix = decorated.fixes!.find((candidate) => candidate.id === "zone.bank.move-to-context")!;
+        const result = applyQuickFixSet([{ path: sourcePath, source }, { path: destinationPath, source: destination }], knownActions, { diagnostic: decorated, fix });
+
+        expect(decorated.related).toEqual([{ line: 1, path: destinationPath }]);
+        expect(result.changes.find((change) => change.path === sourcePath)?.source).not.toContain("Bank SelectedTrackFXMenu");
+        expect(result.changes.find((change) => change.path === destinationPath)?.source).toContain("Prev Bank -1");
+    });
+
+    test("moves only the Bank binding selected by its diagnostic line", () => {
+        const sourcePath = "Zones/User/test/Main/LinkLock.zon";
+        const destinationPath = "Zones/User/test/Main/SelectedTrackFXMenu.zon";
+        const source = "@Meta { Version=2 Role=Layer }\nPrev Bank SelectedTrackFXMenu -1\nNext Bank SelectedTrackFXMenu 1\n";
+        const destination = "@Meta { Version=2 Target=SelectedTrack BankTarget=FX }\n";
+        const diagnostic = { code: "legacy.zone.bank.context", line: 2, message: "Wrong Bank context", path: sourcePath, severity: "error" as const };
+        const sourceDocument = parseByPath(source, sourcePath, knownActions);
+        const destinationDocument = parseByPath(destination, destinationPath, knownActions);
+        sourceDocument.diagnostics.push(diagnostic);
+        addLegacyBankContextQuickFixes([sourceDocument, destinationDocument]);
+        const decorated = diagnosticsWithQuickFixes(sourceDocument, knownActions, true).find((candidate) => candidate.code === diagnostic.code)!;
+        const fix = decorated.fixes!.find((candidate) => candidate.id === "zone.bank.move-to-context")!;
+        const result = applyQuickFixSet([{ path: sourcePath, source }, { path: destinationPath, source: destination }], knownActions, { diagnostic: decorated, fix });
+
+        expect(result.changes.find((change) => change.path === sourcePath)?.source).toContain("Next Bank SelectedTrackFXMenu 1");
+        expect(result.changes.find((change) => change.path === sourcePath)?.source).not.toContain("Prev Bank SelectedTrackFXMenu -1");
+        expect(result.changes.find((change) => change.path === destinationPath)?.source).toContain("Prev Bank -1");
+        expect(result.changes.find((change) => change.path === destinationPath)?.source).not.toContain("Next Bank 1");
+    });
+
+    test("can comment out a duplicate legacy Learn FX source", () => {
+        const relativePath = "Zones/User/test/LearnFX.fxzon";
+        const source = "Zone FXWidgetLayout\nButton TrackPan\nZoneEnd\n";
+        const diagnostic = { code: "legacy.learn-fx.source.duplicate", message: "Duplicate Learn FX file", path: relativePath, severity: "error" as const };
+        const document = parseByPath(source, relativePath, knownActions);
+        const decorated = diagnosticWithQuickFixes(document, diagnostic, knownActions, true);
+        const fix = decorated.fixes!.find((candidate) => candidate.id === "legacy.learn-fx.duplicate.comment-out")!;
+
+        expect(applyQuickFix(source, relativePath, knownActions, { diagnostic, fix }).source).toBe("// Zone FXWidgetLayout\n// Button TrackPan\n// ZoneEnd\n");
+    });
+
+    test("moves a legacy named Bank target into format 2 metadata", () => {
+        const relativePath = "Zones/User/test/Main/SelectedTrack.zon";
+        const source = "@Meta { Version=2 Target=SelectedTrack }\nPrev Bank SelectedTrackFXMenu -1\nNext Bank SelectedTrackFXMenu 1\n";
+        const firstDocument = parseByPath(source, relativePath, knownActions);
+        const firstDiagnostic = diagnosticsWithQuickFixes(firstDocument, knownActions, true).find((candidate) => candidate.code === "format2.zone.action.bank-amount" && candidate.line === 2)!;
+        const firstResult = applyQuickFix(source, relativePath, knownActions, { diagnostic: firstDiagnostic, fix: firstDiagnostic.fixes![0] });
+        const secondDiagnostic = diagnosticsWithQuickFixes(firstResult.document, knownActions, true).find((candidate) => candidate.code === "format2.zone.action.bank-amount" && candidate.line === 3)!;
+        const secondResult = applyQuickFix(firstResult.source, relativePath, knownActions, { diagnostic: secondDiagnostic, fix: secondDiagnostic.fixes![0] });
+
+        expect(secondResult.source).toBe("@Meta { Version=2 Target=SelectedTrack BankTarget=FX }\nPrev Bank -1\nNext Bank 1\n");
+        expect(secondResult.document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     });
 });

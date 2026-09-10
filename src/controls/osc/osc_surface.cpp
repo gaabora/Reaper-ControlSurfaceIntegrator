@@ -196,7 +196,7 @@ OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext*
 void OSC_ControlSurface::ProcessOSCMessage(const char* message, double value) {
     if (MessageGeneratorsByMessage_.find(message) != MessageGeneratorsByMessage_.end())
         MessageGeneratorsByMessage_[message]->ProcessMessage(value);
-    if (g_surfaceInDisplay) LogToConsole("[DEBUG] IN <- %s %s %f\n", name_.c_str(), message, value);
+    if (g_surfaceInDisplay) LogToConsole("[DEBUG] OSC received: Surface=%s Address=%s Value=%f\n", name_.c_str(), message, value);
 }
 
 void OSC_ControlSurface::SendOSCMessage(const char* zoneName) {

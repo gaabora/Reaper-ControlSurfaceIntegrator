@@ -16,7 +16,7 @@ describe("legacy Zone readiness", () => {
 
     test("blocks a layer bank that would change its target", () => {
         const conversion = convertLegacyZoneToFormat2("Zone LinkLock\nPrev Bank SelectedTrackFXMenu -1\nZoneEnd\n", { bankContexts: ["Home"], isLayer: true, profile: "Main", targetPath: profileRoot + "LinkLock.zon" });
-        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.zone.bank.context", severity: "error", line: 2 }));
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.zone.bank.context", severity: "error", line: 3 }));
         expect(conversion.source).toContain("Bank SelectedTrackFXMenu -1");
     });
 

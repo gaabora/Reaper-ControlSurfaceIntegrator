@@ -1,4 +1,4 @@
-import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { actionNameSet, actionTraitsByName } from "./action-catalog.ts";
@@ -10,7 +10,7 @@ import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
 import { ProductPathError, ProductRootGuard } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
-import { QuickFixError, type QuickFixRequest } from "./quick-fixes.ts";
+import { applyQuickFixSet, QuickFixError, type QuickFixDocumentSource, type QuickFixRequest } from "./quick-fixes.ts";
 import { previewSnippetApplication, snippetSurfaceContext, type SnippetApplicationRequest, type SnippetBindingChoice, type SnippetConflictAction } from "./snippet-workflow.ts";
 import type { SaveChange } from "./store.ts";
 import { ConfigurationStore, EditorOperationError } from "./store.ts";
@@ -166,6 +166,10 @@ function legacyTargetPaths(body: Record<string, unknown>): LegacyImportTargetPat
     return body.targetPaths.map(legacyTargetPath);
 }
 
+function legacyDraftStorageKey(root: string, surfaceName: string, targetProfileId: string, sourcePath: string): string {
+    return createHash("sha256").update([root, surfaceName, targetProfileId, sourcePath].join("\0")).digest("hex");
+}
+
 function legacyImportRequest(body: Record<string, unknown>): LegacyImportRequest {
     if (!Array.isArray(body.resolutions)) throw new EditorOperationError("request.resolutions", "resolutions must be an array");
     return {
@@ -234,6 +238,17 @@ function quickFixRequest(body: Record<string, unknown>): QuickFixRequest {
     };
 }
 
+function quickFixDocument(value: unknown): QuickFixDocumentSource {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.quick-fix-document", "Each quick-fix document must be an object");
+    const body = value as Record<string, unknown>;
+    return { path: stringField(body, "path"), source: stringField(body, "source") };
+}
+
+function quickFixDocuments(body: Record<string, unknown>): QuickFixDocumentSource[] {
+    if (!Array.isArray(body.documents)) throw new EditorOperationError("request.quick-fix-documents", "documents must be an array");
+    return body.documents.map(quickFixDocument);
+}
+
 function errorResponse(error: unknown): Response {
     if (error instanceof SyntaxError) return jsonResponse({ error: { code: "request.json", message: "Request body is not valid JSON" } }, 400);
     if (error instanceof ProductPathError) return jsonResponse({ error: { code: "path.invalid", message: error.message } }, 400);
@@ -256,6 +271,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
     let legacySelection: LegacySourceSelection | undefined;
     let legacySource: LegacyCsiSource | undefined;
     let draftStore: ConfigurationDraftStore | undefined;
+    let legacyDraftStore: ConfigurationDraftStore | undefined;
     let store: ConfigurationStore | undefined;
     let origin = "";
     const fetchRequest = async (request: Request): Promise<Response> => {
@@ -275,6 +291,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);
                 store = new ConfigurationStore(guard, knownActions, {}, options.settingsSchema, actionTraits);
                 draftStore = new ConfigurationDraftStore(options.identity.productId, store.getRoot());
+                legacyDraftStore = new ConfigurationDraftStore(`${options.identity.productId}-legacy-import`, store.getRoot());
                 try {
                     await options.settings?.writeLastDataPath(store.getReaperDataPath());
                 } catch (error) {
@@ -294,7 +311,48 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             }
             if (!store) throw new EditorOperationError("data-path.required", "Open a REAPER data path first");
             if (!draftStore) throw new EditorOperationError("draft.store.required", "Draft storage is unavailable");
+            if (!legacyDraftStore) throw new EditorOperationError("draft.store.required", "Import draft storage is unavailable");
             if (requestUrl.pathname.startsWith("/api/legacy/") && !legacySource) throw new EditorOperationError("legacy.path.required", "Open a legacy CSI path first");
+            if (requestUrl.pathname === "/api/legacy/drafts" && request.method === "GET") {
+                const surfaceName = requestUrl.searchParams.get("surfaceName") ?? "";
+                const targetProfileId = requestUrl.searchParams.get("targetProfileId") ?? "";
+                const root = legacySource!.getRoot();
+                const drafts = (await legacyDraftStore.list()).filter((draft) => draft.data?.root === root && draft.data.surfaceName === surfaceName && draft.data.targetProfileId === targetProfileId);
+                return jsonResponse({ drafts: drafts.map((draft) => ({ originalSourceHash: draft.originalHash, originalTargetPath: draft.data!.originalTargetPath, source: draft.source, sourcePath: draft.data!.sourcePath, targetPath: draft.data!.targetPath })) });
+            }
+            if (requestUrl.pathname === "/api/legacy/draft" && request.method === "POST") {
+                const body = await requestBody(request);
+                const root = legacySource!.getRoot();
+                const surfaceName = stringField(body, "surfaceName");
+                const targetProfileId = stringField(body, "targetProfileId");
+                const sourcePath = stringField(body, "sourcePath");
+                const originalSourceHash = stringField(body, "originalSourceHash");
+                const source = stringField(body, "source");
+                const targetPath = stringField(body, "targetPath");
+                const originalTargetPath = stringField(body, "originalTargetPath");
+                const storageKey = legacyDraftStorageKey(root, surfaceName, targetProfileId, sourcePath);
+                if (source === stringField(body, "originalSource") && targetPath === originalTargetPath) {
+                    await legacyDraftStore.discard(storageKey);
+                    return jsonResponse({ dirty: false });
+                }
+                const data = { originalTargetPath, root, sourcePath, surfaceName, targetPath, targetProfileId };
+                return jsonResponse({ dirty: true, draft: await legacyDraftStore.write(storageKey, originalSourceHash, source, data) });
+            }
+            if (requestUrl.pathname === "/api/legacy/draft/discard" && request.method === "POST") {
+                const body = await requestBody(request);
+                const storageKey = legacyDraftStorageKey(legacySource!.getRoot(), stringField(body, "surfaceName"), stringField(body, "targetProfileId"), stringField(body, "sourcePath"));
+                await legacyDraftStore.discard(storageKey);
+                return jsonResponse({ discarded: stringField(body, "sourcePath") });
+            }
+            if (requestUrl.pathname === "/api/legacy/drafts/discard-all" && request.method === "POST") {
+                const body = await requestBody(request);
+                const root = legacySource!.getRoot();
+                const surfaceName = stringField(body, "surfaceName");
+                const targetProfileId = stringField(body, "targetProfileId");
+                const drafts = (await legacyDraftStore.list()).filter((draft) => draft.data?.root === root && draft.data.surfaceName === surfaceName && draft.data.targetProfileId === targetProfileId);
+                for (const draft of drafts) await legacyDraftStore.discard(draft.path);
+                return jsonResponse({ discarded: drafts.length });
+            }
             if (requestUrl.pathname === "/api/legacy/preview" && request.method === "POST") {
                 const body = await requestBody(request);
                 const selectedZonePaths = stringArrayField(body, "selectedZonePaths", true);
@@ -316,6 +374,10 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             if (requestUrl.pathname === "/api/quick-fix" && request.method === "POST") {
                 const body = await requestBody(request);
                 return jsonResponse(store.applyQuickFix(stringField(body, "path"), stringField(body, "source"), quickFixRequest(body)));
+            }
+            if (requestUrl.pathname === "/api/quick-fix-set" && request.method === "POST") {
+                const body = await requestBody(request);
+                return jsonResponse(applyQuickFixSet(quickFixDocuments(body), knownActions, quickFixRequest(body)));
             }
             if (requestUrl.pathname === "/api/drafts" && request.method === "GET") {
                 const drafts = await draftStore.list();

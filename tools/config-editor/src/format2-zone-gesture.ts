@@ -37,6 +37,12 @@ function actionIdentity(binding: ZoneBinding): string {
     return JSON.stringify([binding.action, binding.params, properties]);
 }
 
+function usesMatchingTerminalModifierSource(binding: ZoneBinding, other: ZoneBinding): boolean {
+    if (binding.modifierKind && other.modifierSource) return binding.action === other.modifierSource;
+    if (other.modifierKind && binding.modifierSource) return other.action === binding.modifierSource;
+    return false;
+}
+
 function addRelatedDiagnostics(diagnostics: Diagnostic[], severity: "error" | "warning", code: string, message: string, first: ZoneBinding, second: ZoneBinding, documentPath?: string): void {
     const firstRelated = documentPath ? [{ line: second.line, path: documentPath }] : undefined;
     const secondRelated = documentPath ? [{ line: first.line, path: documentPath }] : undefined;
@@ -132,7 +138,7 @@ export function validateFormat2ZoneGestures(bindings: ZoneBinding[], actionTrait
                 const otherDelay = effectiveDelay(other, otherEvent, effectiveSettings);
                 const doublePressWindowMs = effectiveSettings?.doublePressWindowMs;
                 if (traits?.changesModifier && otherTraits?.changesModifier) addRelatedDiagnostics(diagnostics, "warning", "format2.zone.gesture.additive", "More than one action changes modifier state on the same Widget", binding, other, documentPath);
-                else if (traits?.changesModifier || otherTraits?.changesModifier) addRelatedDiagnostics(diagnostics, "warning", "format2.zone.gesture.additive", "A modifier action and a normal action share the same Widget", binding, other, documentPath);
+                else if ((traits?.changesModifier || otherTraits?.changesModifier) && !usesMatchingTerminalModifierSource(binding, other)) addRelatedDiagnostics(diagnostics, "warning", "format2.zone.gesture.additive", "A modifier action and a normal action share the same Widget", binding, other, documentPath);
                 else if ((event === "Press" && isHoldEvent(otherEvent) && !traits?.changesContext) || (otherEvent === "Press" && isHoldEvent(event) && !otherTraits?.changesContext)) addRelatedDiagnostics(diagnostics, "warning", "format2.zone.gesture.additive", "Press and hold actions are additive", binding, other, documentPath);
                 else if ((event === "Release" && isHoldEvent(otherEvent)) || (otherEvent === "Release" && isHoldEvent(event))) addRelatedDiagnostics(diagnostics, "warning", "format2.zone.gesture.additive", "Release also runs after a Hold or LongHold milestone", binding, other, documentPath);
                 else if (((event === "Hold" && otherEvent === "LongHold") || (event === "LongHold" && otherEvent === "Hold")) && !(traits?.changesContext && delay !== undefined && otherDelay !== undefined && delay <= otherDelay) && !(otherTraits?.changesContext && otherDelay !== undefined && delay !== undefined && otherDelay <= delay)) addRelatedDiagnostics(diagnostics, "warning", "format2.zone.gesture.additive", "LongHold runs after Hold when both are declared", binding, other, documentPath);

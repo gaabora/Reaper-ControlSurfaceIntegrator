@@ -268,22 +268,41 @@ target_include_directories(${PROJECT_NAME} PRIVATE "${PRODUCT_GENERATED_DIRECTOR
 
 include(CTest)
 if(BUILD_TESTING)
-  add_executable(ReaControlSurfaceButtonGestureTests tests/button_gesture_tests.cpp src/actions/button_gesture.cpp)
+  add_executable(ReaControlSurfaceButtonGestureTests tests/button_gesture_tests.cpp
+    src/actions/button_gesture.cpp
+  )
   target_compile_features(ReaControlSurfaceButtonGestureTests PRIVATE cxx_std_17)
   target_include_directories(ReaControlSurfaceButtonGestureTests PRIVATE "${PROJECT_SOURCE_DIR}/src/actions")
   add_test(NAME ReaControlSurfaceButtonGesture COMMAND ReaControlSurfaceButtonGestureTests)
 
-  add_executable(ReaControlSurfaceGestureValidationTests tests/gesture_validation_tests.cpp src/controls/format2_gesture_validation.cpp src/controls/format2_action_metadata.cpp)
+  add_executable(ReaControlSurfaceGestureValidationTests tests/gesture_validation_tests.cpp
+    src/controls/format2_gesture_validation.cpp
+    src/controls/format2_action_metadata.cpp
+  )
   target_compile_features(ReaControlSurfaceGestureValidationTests PRIVATE cxx_std_17)
   target_include_directories(ReaControlSurfaceGestureValidationTests PRIVATE "${PROJECT_SOURCE_DIR}/src/controls")
   add_test(NAME ReaControlSurfaceGestureValidation COMMAND ReaControlSurfaceGestureValidationTests)
 
-  add_executable(ReaControlSurfaceSettingsTests tests/settings_values_tests.cpp src/shared/settings_values.cpp)
+  add_executable(ReaControlSurfaceSettingsTests tests/settings_values_tests.cpp
+    src/shared/settings_values.cpp
+  )
   target_compile_features(ReaControlSurfaceSettingsTests PRIVATE cxx_std_17)
   target_include_directories(ReaControlSurfaceSettingsTests PRIVATE "${PROJECT_SOURCE_DIR}/src/shared" "${PRODUCT_GENERATED_DIRECTORY}")
   add_test(NAME ReaControlSurfaceSettingsValues COMMAND ReaControlSurfaceSettingsTests)
 
-  add_executable(ReaControlSurfaceFormat2ZoneProfileTests tests/format2_zone_profile_tests.cpp src/controls/format2_action_metadata.cpp src/controls/format2_document.cpp src/controls/format2_learn_fx_document.cpp src/controls/format2_learn_fx_surface.cpp src/controls/format2_lexer.cpp src/controls/format2_syntax.cpp src/controls/format2_zone_document.cpp src/controls/format2_zone_profile.cpp src/controls/format2_zone_profile_loader.cpp src/controls/format2_zone_source_editor.cpp)
+  add_executable(ReaControlSurfaceFormat2ZoneProfileTests tests/format2_zone_profile_tests.cpp
+    src/controls/format2_action_metadata.cpp
+    src/controls/format2_document.cpp
+    src/controls/format2_learn_fx_document.cpp
+    src/controls/format2_learn_fx_surface.cpp
+    src/controls/format2_lexer.cpp
+    src/controls/format2_syntax.cpp
+    src/controls/format2_value_validation.cpp
+    src/controls/format2_zone_document.cpp
+    src/controls/format2_zone_profile.cpp
+    src/controls/format2_zone_profile_loader.cpp
+    src/controls/format2_zone_source_editor.cpp
+  )
   target_compile_features(ReaControlSurfaceFormat2ZoneProfileTests PRIVATE cxx_std_17)
   target_include_directories(ReaControlSurfaceFormat2ZoneProfileTests PRIVATE "${PROJECT_SOURCE_DIR}/src/controls")
   add_test(NAME ReaControlSurfaceFormat2ZoneProfile COMMAND ReaControlSurfaceFormat2ZoneProfileTests)

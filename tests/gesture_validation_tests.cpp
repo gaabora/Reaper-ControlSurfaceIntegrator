@@ -72,6 +72,9 @@ int main() {
     Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Hold, "Play", 4, 1000), Binding(ActionInputEvent::Release, "Stop", 5)}, 400, true), "format2.zone.gesture.additive"), "release after Hold warning");
     Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Press, "Play", 4), Binding(ActionInputEvent::DoublePress, "Stop", 5)}, 400, true), "format2.zone.gesture.additive"), "DoublePress with Press warning");
     Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Modifier, "Shift", 4), Binding(ActionInputEvent::DoublePress, "Play", 5)}, 400, true), "format2.zone.gesture.additive"), "modifier source with DoublePress warning");
+    Format2GestureBinding terminalModifierSource = Binding(ActionInputEvent::DoublePress, "Play", 5);
+    terminalModifierSource.terminalModifierSource = true;
+    Require(!HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Modifier, "Shift", 4), terminalModifierSource}, 400, true), "format2.zone.gesture.additive"), "terminal modifier source does not conflict with its declaration");
     Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Press, "Shift", 4), Binding(ActionInputEvent::Press, "Play", 5)}, 400, true), "format2.zone.gesture.additive"), "modifier and normal action warning");
     Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Press, "Shift", 4), Binding(ActionInputEvent::Press, "Option", 5)}, 400, true), "format2.zone.gesture.additive"), "multiple modifier actions warning");
     Format2GestureBinding countedModifier = Binding(ActionInputEvent::Press, "Shift", 4);

@@ -1,6 +1,7 @@
 import type { ActionTraits } from "./action-catalog.ts";
 import { parseByPath, type AnyDocument } from "./formats.ts";
 import { serializeDocument, type Diagnostic, type DiagnosticQuickFix } from "./model.ts";
+import { legacyMainBankContext } from "./legacy-zone-format2.ts";
 import type { SettingsSchema } from "./settings-schema.ts";
 import { suggestSimilarStrings } from "./string-distance.ts";
 import { convertHashCommentLine, convertSingleSlashCommentLine } from "./text.ts";
@@ -92,6 +93,23 @@ function replaceUnknownZoneAction(context: QuickFixContext, fix: DiagnosticQuick
     return serializeDocument(context.document);
 }
 
+function commentOutDiagnosticLine(context: QuickFixContext): string {
+    const line = context.diagnostic.line ? context.document.lines[context.diagnostic.line - 1] : undefined;
+    if (!line || line.kind === "comment") throw new QuickFixError("quick-fix.line", "The diagnostic line is no longer available");
+    line.text = line.text.replace(/^(\s*)/, "$1// ");
+    return serializeDocument(context.document);
+}
+
+function commentOutDocument(context: QuickFixContext): string {
+    for (const line of context.document.lines) if (line.text.trim() && line.kind !== "comment") line.text = line.text.replace(/^(\s*)/, "$1// ");
+    return serializeDocument(context.document);
+}
+
+export interface QuickFixDocumentSource {
+    path: string;
+    source: string;
+}
+
 function bindingActionAtDiagnosticLine(context: QuickFixContext): string | undefined {
     if (context.document.format !== "zone" || !context.diagnostic.line) return undefined;
     return (context.document.semantic as ZoneSemantic).bindings.find((binding) => binding.line === context.diagnostic.line)?.action;
@@ -122,6 +140,142 @@ function makeZoneLayer(context: QuickFixContext): string {
     return serializeDocument(context.document);
 }
 
+function addZoneLayerRelationship(homeDocument: AnyDocument, zoneName: string): string {
+    if (homeDocument.format !== "zone" || homeDocument.version !== "2" || (homeDocument.semantic as ZoneSemantic).role !== "Home") throw new QuickFixError("quick-fix.context", "The related Home Zone is no longer available");
+    const semantic = homeDocument.semantic as ZoneSemantic;
+    const matchingBindings = semantic.bindings.filter((binding) => ["GoZone", "EnterZoneLayer"].includes(binding.action) && binding.params[0]?.toLowerCase() === zoneName.toLowerCase());
+    if (!matchingBindings.length) throw new QuickFixError("quick-fix.context", `Home has no navigation binding for ${zoneName}`);
+    for (const binding of matchingBindings.filter((candidate) => candidate.action === "GoZone")) {
+        const line = homeDocument.lines[binding.line - 1];
+        const bindingMatch = line?.text.match(/^(\s*\S+\s+)GoZone(\s+.*)$/);
+        if (!line || !bindingMatch) throw new QuickFixError("quick-fix.source", `The GoZone binding for ${zoneName} is no longer available`);
+        line.text = bindingMatch[1] + "EnterZoneLayer" + bindingMatch[2];
+    }
+    if (semantic.subZones.some((name) => name.toLowerCase() === zoneName.toLowerCase())) return serializeDocument(homeDocument);
+    const relationStartIdx = homeDocument.lines.findIndex((line) => line.tokens[0] === "ZoneLayers");
+    if (relationStartIdx >= 0) {
+        const relationStart = homeDocument.lines[relationStartIdx];
+        const openBraceIdx = relationStart.text.indexOf("{");
+        const closeBraceIdx = relationStart.text.lastIndexOf("}");
+        if (closeBraceIdx > openBraceIdx) relationStart.text = relationStart.text.slice(0, closeBraceIdx).trimEnd() + ` ${zoneName} ` + relationStart.text.slice(closeBraceIdx);
+        else {
+            const relationEndIdx = homeDocument.lines.findIndex((line, lineIdx) => lineIdx > relationStartIdx && line.text.trim() === "}");
+            if (relationEndIdx < 0) throw new QuickFixError("quick-fix.source", "The ZoneLayers block has no closing brace");
+            const lineEnding = homeDocument.lines[relationEndIdx].ending || homeDocument.lines.find((line) => line.ending)?.ending || "\n";
+            homeDocument.lines.splice(relationEndIdx, 0, { ending: lineEnding, kind: "entry", lineNumber: relationEndIdx + 1, text: `  ${zoneName}`, tokens: [zoneName] });
+        }
+        return serializeDocument(homeDocument);
+    }
+    const metadataEndIdx = homeDocument.lines.findIndex((line, lineIdx) => lineIdx > 0 && line.kind !== "format" && line.kind !== "block-end");
+    const insertIdx = metadataEndIdx < 0 ? homeDocument.lines.length : metadataEndIdx;
+    const lineEnding = homeDocument.lines.find((line) => line.ending)?.ending || "\n";
+    const relationLines = [`ZoneLayers {`, `  ${zoneName}`, "}", ""].map((text, lineIdx) => ({ ending: lineEnding, kind: lineIdx === 0 ? "block-start" as const : lineIdx === 2 ? "block-end" as const : lineIdx === 3 ? "blank" as const : "entry" as const, lineNumber: insertIdx + lineIdx + 1, text, tokens: [] }));
+    homeDocument.lines.splice(insertIdx, 0, ...relationLines);
+    return serializeDocument(homeDocument);
+}
+
+export function addLegacyExitLayerQuickFixes(documents: AnyDocument[]): void {
+    const selectedHomes = documents.filter((document) => document.format === "zone" && (document.semantic as ZoneSemantic).role === "Home");
+    for (const targetDocument of documents.filter((document) => document.format === "zone")) {
+        const zoneName = (targetDocument.semantic as ZoneSemantic).name;
+        if (!zoneName || !targetDocument.path) continue;
+        const matchingHomes = selectedHomes.filter((homeDocument) => (homeDocument.semantic as ZoneSemantic).bindings.some((binding) => ["GoZone", "EnterZoneLayer"].includes(binding.action) && binding.params[0]?.toLowerCase() === zoneName.toLowerCase()));
+        const homePath = matchingHomes.length === 1 ? matchingHomes[0].path : undefined;
+        if (!homePath) continue;
+        for (const diagnostic of targetDocument.diagnostics.filter((candidate) => candidate.code === "legacy.zone.exit.context")) {
+            diagnostic.fixes = [...(diagnostic.fixes ?? []), { data: { homePath, targetPath: targetDocument.path, zoneName }, id: "zone.relationship.make-layer", label: `Make ${zoneName} a linked Layer` }];
+        }
+    }
+}
+
+export function addLegacyBankContextQuickFixes(documents: AnyDocument[]): void {
+    for (const sourceDocument of documents.filter((document) => document.format === "zone" && document.path)) {
+        const semantic = sourceDocument.semantic as ZoneSemantic;
+        for (const diagnostic of sourceDocument.diagnostics.filter((candidate) => candidate.code === "legacy.zone.bank.context" && candidate.line)) {
+            const binding = semantic.bindings.find((candidate) => candidate.line === diagnostic.line && candidate.action === "Bank" && candidate.params.length === 2);
+            const targetName = binding?.params[0];
+            if (!targetName) continue;
+            const requiredContext = legacyMainBankContext(targetName);
+            const destinations = documents.filter((document) => {
+                if (!requiredContext || !document.path || document.path === sourceDocument.path || document.format !== "zone") return false;
+                const destination = document.semantic as ZoneSemantic;
+                return destination.name?.toLowerCase() === targetName.toLowerCase() && destination.target === requiredContext.target && destination.bankTarget === requiredContext.bankTarget;
+            });
+            const destinationPath = destinations.length === 1 ? destinations[0].path : undefined;
+            if (!destinationPath) continue;
+            diagnostic.related = [{ line: 1, path: destinationPath }];
+            diagnostic.fixes = [...(diagnostic.fixes ?? []), { data: { destinationPath, sourcePath: sourceDocument.path!, targetName }, id: "zone.bank.move-to-context", label: `Move this Bank binding to ${targetName}` }];
+        }
+    }
+}
+
+function applyBankContextMove(documents: QuickFixDocumentSource[], knownActions: Set<string>, request: QuickFixRequest): { changes: QuickFixDocumentSource[] } {
+    const sourcePath = request.fix.data?.sourcePath;
+    const destinationPath = request.fix.data?.destinationPath;
+    const targetName = request.fix.data?.targetName;
+    if (!sourcePath || !destinationPath || !targetName || !request.diagnostic.line) throw new QuickFixError("quick-fix.data", "The Bank move fix is missing a required path, target, or line");
+    const source = documents.find((document) => document.path.toLowerCase() === sourcePath.toLowerCase());
+    const destination = documents.find((document) => document.path.toLowerCase() === destinationPath.toLowerCase());
+    if (!source || !destination) throw new QuickFixError("quick-fix.source", "The Bank source or destination Zone is no longer available");
+    const sourceDocument = parseByPath(source.source, source.path, knownActions);
+    const destinationDocument = parseByPath(destination.source, destination.path, knownActions);
+    const binding = (sourceDocument.semantic as ZoneSemantic).bindings.find((candidate) => candidate.line === request.diagnostic.line && candidate.action === "Bank" && candidate.params[0]?.toLowerCase() === targetName.toLowerCase() && /^-?\d+$/.test(candidate.params[1] ?? ""));
+    const sourceLineIdx = request.diagnostic.line - 1;
+    const sourceLine = sourceDocument.lines[sourceLineIdx];
+    const bindingMatch = sourceLine?.text.match(/^(\s*\S+\s+Bank\s+)\S+\s+(-?\d+.*)$/);
+    if (!binding || !sourceLine || !bindingMatch) throw new QuickFixError("quick-fix.source", "The named Bank binding is no longer available");
+    const movedLine = { ...sourceLine, lineNumber: destinationDocument.lines.length + 1, text: bindingMatch[1] + bindingMatch[2] };
+    sourceDocument.lines.splice(sourceLineIdx, 1);
+    let destinationIdx = destinationDocument.lines.length;
+    while (destinationIdx > 0 && !destinationDocument.lines[destinationIdx - 1].text.trim()) destinationIdx--;
+    destinationDocument.lines.splice(destinationIdx, 0, movedLine);
+    return { changes: [{ path: source.path, source: serializeDocument(sourceDocument) }, { path: destination.path, source: serializeDocument(destinationDocument) }] };
+}
+
+export function applyQuickFixSet(documents: QuickFixDocumentSource[], knownActions: Set<string>, request: QuickFixRequest): { changes: QuickFixDocumentSource[] } {
+    if (request.fix.id === "zone.bank.move-to-context") return applyBankContextMove(documents, knownActions, request);
+    if (request.fix.id !== "zone.relationship.make-layer") throw new QuickFixError("quick-fix.unknown", `Unknown multi-file quick fix: ${request.fix.id}`);
+    const homePath = request.fix.data?.homePath;
+    const targetPath = request.fix.data?.targetPath;
+    const zoneName = request.fix.data?.zoneName;
+    if (!homePath || !targetPath || !zoneName) throw new QuickFixError("quick-fix.data", "The Layer relationship fix is missing a required path or Zone name");
+    const targetSource = documents.find((document) => document.path.toLowerCase() === targetPath.toLowerCase());
+    const homeSource = documents.find((document) => document.path.toLowerCase() === homePath.toLowerCase());
+    if (!targetSource || !homeSource) throw new QuickFixError("quick-fix.source", "The Layer relationship files are no longer available");
+    const targetDocument = parseByPath(targetSource.source, targetSource.path, knownActions);
+    const targetDiagnostic: Diagnostic = { ...request.diagnostic, path: targetSource.path, severity: "error" };
+    if (bindingActionAtDiagnosticLine({ diagnostic: targetDiagnostic, document: targetDocument, knownActions }) !== "LeaveSubZone") throw new QuickFixError("quick-fix.source", "The LeaveSubZone binding is no longer available");
+    const fixedTargetSource = makeZoneLayer({ diagnostic: targetDiagnostic, document: targetDocument, knownActions });
+    const fixedHomeSource = addZoneLayerRelationship(parseByPath(homeSource.source, homeSource.path, knownActions), zoneName);
+    return { changes: [{ path: homeSource.path, source: fixedHomeSource }, { path: targetSource.path, source: fixedTargetSource }] };
+}
+
+function legacyNamedBankAtDiagnosticLine(context: QuickFixContext): { amount: string; bankTarget: string; target: string } | undefined {
+    if (context.document.format !== "zone" || context.document.version !== "2" || !context.diagnostic.line) return undefined;
+    const binding = (context.document.semantic as ZoneSemantic).bindings.find((candidate) => candidate.line === context.diagnostic.line && candidate.action === "Bank" && candidate.params.length === 2 && /^-?\d+$/.test(candidate.params[1]));
+    if (!binding) return undefined;
+    const bankContext = legacyMainBankContext(binding.params[0]);
+    if (!bankContext) return undefined;
+    const semantic = context.document.semantic as ZoneSemantic;
+    if (semantic.role || (semantic.target && semantic.target !== bankContext.target) || (semantic.bankTarget && semantic.bankTarget !== bankContext.bankTarget)) return undefined;
+    return { amount: binding.params[1], ...bankContext };
+}
+
+function convertLegacyNamedBank(context: QuickFixContext): string {
+    const bank = legacyNamedBankAtDiagnosticLine(context);
+    if (!bank) throw new QuickFixError("quick-fix.source", "The legacy named Bank action is no longer available");
+    const line = context.document.lines[context.diagnostic.line! - 1];
+    const bindingMatch = line?.text.match(/^(\s*\S+\s+Bank\s+)\S+\s+-?\d+(.*)$/);
+    if (!line || !bindingMatch) throw new QuickFixError("quick-fix.source", "The legacy named Bank parameters are no longer available");
+    line.text = bindingMatch[1] + bank.amount + bindingMatch[2];
+    const metadataStartIdx = context.document.lines.findIndex((candidate) => candidate.text.trimStart().startsWith("@Meta"));
+    const metadataLine = metadataStartIdx >= 0 ? context.document.lines.slice(metadataStartIdx).find((candidate) => candidate.text.includes("}")) : undefined;
+    if (!metadataLine) throw new QuickFixError("quick-fix.source", "The Zone metadata block is not available");
+    const additions = [!(context.document.semantic as ZoneSemantic).target ? `Target=${bank.target}` : "", !(context.document.semantic as ZoneSemantic).bankTarget ? `BankTarget=${bank.bankTarget}` : ""].filter(Boolean).join(" ");
+    if (additions) metadataLine.text = metadataLine.text.replace(/\s*\}(\s*(?:\/\/.*)?)$/, ` ${additions} }$1`);
+    return serializeDocument(context.document);
+}
+
 const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
     {
         apply: (context) => convertSingleSlashComment(context),
@@ -147,6 +301,18 @@ const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
             return suggestSimilarStrings(originalAction, context.knownActions).map((replacementAction) => ({ data: { originalAction, replacementAction }, id: "zone.action.replace", label: replacementAction }));
         },
         id: "zone.action.replace",
+    },
+    {
+        acceptsSetDiagnostic: true,
+        apply: (context) => commentOutDiagnosticLine(context),
+        fixes: (context) => context.diagnostic.code === "zone.action.unknown" && context.diagnostic.line ? [{ id: "zone.action.comment-out", label: "Comment out this line" }] : [],
+        id: "zone.action.comment-out",
+    },
+    {
+        acceptsSetDiagnostic: true,
+        apply: (context) => commentOutDocument(context),
+        fixes: (context) => context.diagnostic.code === "legacy.learn-fx.source.duplicate" ? [{ id: "legacy.learn-fx.duplicate.comment-out", label: "Comment out this duplicate file" }] : [],
+        id: "legacy.learn-fx.duplicate.comment-out",
     },
     {
         acceptsSetDiagnostic: true,
@@ -179,6 +345,17 @@ const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
         fixes: (context) => context.diagnostic.code === "format2.zone.action.layer-only" && bindingActionAtDiagnosticLine(context) === "ExitZoneLayer" ? [{ id: "zone.navigation.exit-to-home", label: "Use GoHome instead" }] : [],
         id: "zone.navigation.exit-to-home",
     },
+    {
+        acceptsSetDiagnostic: true,
+        apply: (context) => replaceBindingAction(context, "LeaveSubZone", "GoHome"),
+        fixes: (context) => context.diagnostic.code === "legacy.zone.exit.context" && bindingActionAtDiagnosticLine(context) === "LeaveSubZone" ? [{ id: "legacy.zone.exit.use-go-home", label: "Use GoHome instead" }] : [],
+        id: "legacy.zone.exit.use-go-home",
+    },
+    {
+        apply: (context) => convertLegacyNamedBank(context),
+        fixes: (context) => context.diagnostic.code === "format2.zone.action.bank-amount" && legacyNamedBankAtDiagnosticLine(context) ? [{ id: "zone.bank.convert-legacy-target", label: "Move the Bank target to @Meta" }] : [],
+        id: "zone.bank.convert-legacy-target",
+    },
 ];
 
 function fixesForDiagnostic(document: AnyDocument, diagnostic: Diagnostic, knownActions: Set<string>): DiagnosticQuickFix[] {
@@ -198,7 +375,8 @@ export function diagnosticsWithQuickFixes(document: AnyDocument, knownActions: S
 export function diagnosticWithQuickFixes(document: AnyDocument, diagnostic: Diagnostic, knownActions: Set<string>, writable: boolean): Diagnostic {
     if (!writable) return diagnostic;
     const fixes = fixesForDiagnostic(document, diagnostic, knownActions);
-    return fixes.length ? { ...diagnostic, fixes } : diagnostic;
+    const combinedFixes = [...(diagnostic.fixes ?? []), ...fixes];
+    return combinedFixes.length ? { ...diagnostic, fixes: combinedFixes } : diagnostic;
 }
 
 export function applyQuickFix(source: string, relativePath: string, knownActions: Set<string>, request: QuickFixRequest, settingsSchema?: SettingsSchema, actionTraits?: ReadonlyMap<string, ActionTraits>): { document: AnyDocument; source: string } {

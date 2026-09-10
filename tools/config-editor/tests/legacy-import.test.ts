@@ -212,8 +212,11 @@ WidgetEnd
         expect(diagnostic?.related?.map((location) => location.path)).toEqual(["Zones/FXWidgetLayout.zon", "Zones/LearnZones/FXWidgetLayout.zon"]);
         const duplicateSource = preview.sources.find((item) => item.sourcePath === "Zones/LearnZones/FXWidgetLayout.zon");
         expect(duplicateSource?.source).toContain("Rotary FXParam");
-        const fixedPreview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, preview.selectedZonePaths, [], false, [{ originalSourceHash: duplicateSource!.originalSourceHash, source: "// duplicate disabled\n", sourcePath: duplicateSource!.sourcePath }]);
+        expect(duplicateSource).toMatchObject({ kind: "learn-fx", targetPath: "Zones/User/faderportv2/LearnFX.fxzon" });
+        expect(diagnostic?.fixes?.map((fix) => fix.label)).toContain("Comment out this duplicate file");
+        const fixedPreview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, [...preview.selectedZonePaths, duplicateSource!.sourcePath], [], false, [{ originalSourceHash: duplicateSource!.originalSourceHash, source: "// duplicate disabled\n", sourcePath: duplicateSource!.sourcePath }]);
         expect(fixedPreview.diagnostics.some((candidate) => candidate.code === "legacy.learn-fx.source.duplicate")).toBeFalse();
+        expect(fixedPreview.selectedZonePaths).not.toContain(duplicateSource!.sourcePath);
     });
 
     test("preserves prefix presses, press-only buttons, and seven-bit values", () => {
@@ -730,7 +733,7 @@ WidgetEnd
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
         const diagnostic = preview.diagnostics.find((candidate) => candidate.code === "zone.action.unknown");
 
-        expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["TrackPan", "TrackPanL", "TrackPanR"]);
+        expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["TrackPan", "TrackPanL", "TrackPanR", "Comment out this line"]);
         expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.diagnostics.find((candidate) => candidate.code === "zone.action.unknown")?.fixes).toEqual(diagnostic?.fixes);
     });
 
@@ -767,6 +770,16 @@ WidgetEnd
         expect(diagnostic?.related).toEqual([{ line: 1, path: "Zones/GoZones/Transport.zon" }]);
     });
 
+    test("converts legacy modifier Blink declarations and modifier source bindings", () => {
+        const source = "Zone Home\n  Section Nudge Blink\n  Nudge SendMIDIMessage \"90 3c 7f\"\n  Nudge+Touch Reaper 41228\n  DoublePress+Nudge ToggleOSK\nZoneEnd\n";
+        const conversion = convertLegacyZoneToFormat2(source, { isLayer: false, profile: "Main", targetPath: "Zones/User/test/Main/Home.zon" });
+
+        expect(conversion.source).toContain("Section Modifier Nudge Blink\n");
+        expect(conversion.source).toContain('[Nudge] SendMIDIMessage "90 3c 7f"\n');
+        expect(conversion.source).toContain("[Nudge]+Touch Reaper 41228\n");
+        expect(conversion.source).toContain("(DoublePress)+[Nudge] ToggleOSK\n");
+    });
+
     test("explains that a selected dependency is invalid and links Bank context zones", async () => {
         const surfaceRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2");
         await writeFile(path.join(surfaceRoot, "Zones", "HomeZones", "Home.zon"), "Zone Home\n  SubZones\n    LinkLock\n  SubZonesEnd\n  Link GoSubZone LinkLock\nZoneEnd\n", "utf8");
@@ -779,8 +792,14 @@ WidgetEnd
 
         expect(dependency?.message).toContain("selected but invalid");
         expect(preview.diagnostics.some((diagnostic) => diagnostic.code === "format2.zone.action.bank-amount" && diagnostic.line === bankContext?.line && diagnostic.path === bankContext?.path)).toBeFalse();
-        expect(bankContext?.related?.map((related) => related.path)).toContain("Zones/GoZones/SelectedTrackFXMenu.zon");
-        expect(bankContext?.related?.map((related) => related.path)).toContain("Zones/HomeZones/Home.zon");
+        expect(bankContext?.line).toBe(preview.items.find((item) => item.zoneName === "LinkLock")?.source.split("\n").findIndex((line) => line.includes("Bank SelectedTrackFXMenu"))! + 1);
+        expect(bankContext?.related?.map((related) => related.path)).toEqual(["Zones/User/faderportv2/Main/GoZones/SelectedTrackFXMenu.zon"]);
+        expect(bankContext?.fixes?.map((fix) => fix.label)).toContain("Move this Bank binding to SelectedTrackFXMenu");
+        const linkLock = preview.items.find((item) => item.zoneName === "LinkLock")!;
+        const draftPreview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, preview.selectedZonePaths, [], false, [{ originalSourceHash: linkLock.originalSourceHash, source: linkLock.source, sourcePath: linkLock.sourcePath }]);
+        const draftBankContext = draftPreview.diagnostics.find((diagnostic) => diagnostic.code === "legacy.zone.bank.context" && diagnostic.path === linkLock.targetPath);
+        expect(draftBankContext?.fixes?.map((fix) => fix.label)).toContain("Move this Bank binding to SelectedTrackFXMenu");
+        expect(draftPreview.diagnostics.some((diagnostic) => diagnostic.code === "format2.zone.action.bank-amount" && diagnostic.line === draftBankContext?.line && diagnostic.path === draftBankContext?.path)).toBeFalse();
     });
 
     test("resolves an import dependency from the active target profile", async () => {

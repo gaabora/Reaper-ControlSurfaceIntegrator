@@ -71,7 +71,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Use `this` when accessing class members from class methods.
 - never ever use Em dash `—` but use `-` instead
 - in C++ never create nameless namespace { ... } in the middle of code, use coresponding helper files
-- Before you change code or documentation, briefly describe the planned changes. Make changes only after approval.
+- Before changing code or documentation, ask for approval only when the requested change is ambiguous or requires behavior that the user did not explicitly request. Briefly describe the unclear choices, assumptions, and proposed changes, then wait for approval. If the user has already described the required change clearly, proceed without asking again.
 - do not build anything and run tests until asked, and do not notify that you not going to build or run tests but if needed just ask to allow build or run
 - no need for backward compatibility, app is not yet released
 - when writing md plans, mark incomplete items/stages/phases with `[ ]` so user can easily find them using global search

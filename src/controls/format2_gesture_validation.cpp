@@ -59,7 +59,7 @@ std::vector<Format2Diagnostic> ValidateFormat2GestureBindings(const std::vector<
             const ActionInputEvent otherEvent = other.gesture.inputEvent;
             std::string reason;
             if (binding.changesModifier && other.changesModifier) reason = "More than one action changes modifier state on the same physical Widget";
-            else if (binding.changesModifier || other.changesModifier) reason = "A modifier action and a normal action share the same physical Widget";
+            else if ((binding.changesModifier || other.changesModifier) && !binding.terminalModifierSource && !other.terminalModifierSource) reason = "A modifier action and a normal action share the same physical Widget";
             else if (event == ActionInputEvent::Press && IsHoldEvent(otherEvent) && !Format2ActionChangesContext(binding.actionName)) reason = "Press and hold actions are additive";
             else if (otherEvent == ActionInputEvent::Press && IsHoldEvent(event) && !Format2ActionChangesContext(other.actionName)) reason = "Press and hold actions are additive";
             else if (exclusiveDoublePress && ((event == ActionInputEvent::Tap && otherEvent == ActionInputEvent::DoublePress) || (otherEvent == ActionInputEvent::Tap && event == ActionInputEvent::DoublePress))) reason = "Tap is delayed until the exclusive DoublePress window expires";

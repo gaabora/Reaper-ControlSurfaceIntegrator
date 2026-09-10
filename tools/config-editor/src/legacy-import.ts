@@ -5,11 +5,11 @@ import { parseByPath, type AnyDocument } from "./formats.ts";
 import { addDiagnostic, serializeDocument, type Diagnostic } from "./model.ts";
 import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
 import { EditorOperationError } from "./store.ts";
-import { diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
+import { addLegacyBankContextQuickFixes, addLegacyExitLayerQuickFixes, diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
 import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy-surface-format2.ts";
 import { convertLegacyLearnFxToFormat2, type LegacyLearnFxSource } from "./legacy-learn-fx.ts";
 import { validateLearnFxSurface } from "./learn-fx-surface.ts";
-import { convertLegacyZoneToFormat2 } from "./legacy-zone-format2.ts";
+import { convertLegacyZoneToFormat2, legacyMainBankContext } from "./legacy-zone-format2.ts";
 import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
 import { migrateLegacySce24StateColors } from "./legacy-sce24-state.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
@@ -73,9 +73,11 @@ export interface LegacyImportItem {
 }
 
 export interface LegacyImportSource {
+    kind: LegacyImportKind;
     originalSourceHash: string;
     source: string;
     sourcePath: string;
+    targetPath: string;
 }
 
 export interface LegacyImportPreview {
@@ -509,7 +511,7 @@ export class LegacyCsiSource {
         if (learnLayout) defaultSelectedPaths.push(learnLayout.sourcePath);
         const selectedPaths = new Set(selectedZonePaths ?? defaultSelectedPaths);
         const availableZonePaths = new Set([...normalZones.map((zone) => zone.sourcePath), ...(learnLayout ? [learnLayout.sourcePath] : [])]);
-        for (const selectedPath of selectedPaths) if (!availableZonePaths.has(selectedPath)) throw new EditorOperationError("legacy.zone.missing", `Legacy zone is not available in ${surfaceName}: ${selectedPath}`);
+        for (const selectedPath of selectedPaths) if (!availableZonePaths.has(selectedPath)) selectedPaths.delete(selectedPath);
 
         const targetPathMap = new Map<string, string>();
         for (const target of requestedTargetPaths) {
@@ -573,6 +575,19 @@ export class LegacyCsiSource {
             zoneMigrationDiagnostics.get(zone.sourcePath)!.push(...conversion.diagnostics);
             migratedZoneSources.set(zone.sourcePath, migratedSource);
             const zoneDocument = store.parseDocument(targetPath, migratedSource);
+            if (draftMap.has(zone.sourcePath) && preparedSource.trimStart().startsWith("@Meta")) {
+                const semantic = zoneDocument.semantic as ZoneSemantic;
+                for (const binding of semantic.bindings) {
+                    if (binding.action === "LeaveSubZone" && !layerNames.has(zoneName.toLowerCase())) addDiagnostic(zoneMigrationDiagnostics.get(zone.sourcePath)!, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Choose whether this binding returns Home or the Zone becomes a Layer.`, binding.line, targetPath);
+                    if (binding.action !== "Bank" || binding.params.length < 2) continue;
+                    const requiredContext = legacyMainBankContext(binding.params[0]);
+                    const sameContext = zone.profile === "Main" && requiredContext && bankContexts?.length && bankContexts.every((context) => {
+                        const contextMetadata = legacyMainBankContext(context);
+                        return contextMetadata?.target === requiredContext.target && contextMetadata.bankTarget === requiredContext.bankTarget;
+                    });
+                    if (!sameContext && requiredContext) addDiagnostic(zoneMigrationDiagnostics.get(zone.sourcePath)!, "error", "legacy.zone.bank.context", `This Zone runs in ${bankContexts?.join(", ") || "an unknown"} context, but Bank ${binding.params[0]} needs that Zone's Target and BankTarget. Move this Bank binding to ${binding.params[0]}.`, binding.line, targetPath);
+                }
+            }
             zoneDocument.diagnostics.push(...zoneMigrationDiagnostics.get(zone.sourcePath)!);
             zoneDocuments.set(zone.sourcePath, zoneDocument);
             zoneTargetPaths.set(zone.sourcePath, targetPath);
@@ -594,12 +609,13 @@ export class LegacyCsiSource {
                 if (diagnostic.path) zoneDocuments.get(diagnostic.path)?.diagnostics.push(diagnostic);
             }
         }
+        addLegacyExitLayerQuickFixes([...zoneDocuments].filter(([sourcePath]) => selectedPaths.has(sourcePath)).map(([, document]) => document));
 
         let learnFxDocument: AnyDocument | undefined;
         let migratedLearnFx = "";
         let learnFxTargetPath = "";
         const learnFxDiagnostics: Diagnostic[] = [];
-        for (const [zoneName, matchingZones] of learnZonesByName) if (matchingZones.length > 1) addDiagnostic(learnFxDiagnostics, "error", "legacy.learn-fx.source.duplicate", `More than one legacy ${zoneName} zone was found. Keep one before import (or comment out content of the one to abandon by selecting all text and pressing ctrl+/ or cmd+/)`, undefined, matchingZones[1].sourcePath, matchingZones.map((zone) => ({ path: zone.sourcePath })));
+        for (const [zoneName, matchingZones] of learnZonesByName) if (matchingZones.length > 1) addDiagnostic(learnFxDiagnostics, "error", "legacy.learn-fx.source.duplicate", `More than one legacy ${zoneName} file was found. Keep one and comment out each duplicate file.`, undefined, matchingZones[1].sourcePath, matchingZones.map((zone) => ({ path: zone.sourcePath })));
         if (learnLayout) {
             learnFxTargetPath = targetPathMap.get(learnLayout.sourcePath) || `Zones/User/${targetProfileId}/LearnFX.fxzon`;
             this.validateTargetScope("learn-fx", learnFxTargetPath, targetProfileId);
@@ -623,16 +639,7 @@ export class LegacyCsiSource {
             matches.push(sourcePath);
             matchesByName.set(semantic.name.toLowerCase(), matches);
         }
-        for (const document of zoneDocuments.values()) {
-            const semantic = document.semantic as ZoneSemantic;
-            const parentNames = semantic.name ? layerParents.get(semantic.name.toLowerCase()) ?? [] : [];
-            for (const diagnostic of document.diagnostics) {
-                if (diagnostic.code !== "legacy.zone.bank.context") continue;
-                const bankTargetName = diagnostic.message.match(/^Bank\s+(\S+)\s+cannot/)?.[1];
-                const relatedPaths = [...(bankTargetName ? matchesByName.get(bankTargetName.toLowerCase()) ?? [] : []), ...parentNames.flatMap((parentName) => matchesByName.get(parentName.toLowerCase()) ?? [])];
-                diagnostic.related = [...new Set(relatedPaths)].map((sourcePath) => ({ line: legacyZoneDocuments.get(sourcePath)?.lines.find((line) => line.kind === "header")?.lineNumber, path: sourcePath }));
-            }
-        }
+        addLegacyBankContextQuickFixes([...zoneDocuments].filter(([sourcePath]) => selectedPaths.has(sourcePath)).map(([, document]) => document));
         const dependenciesByKey = new Map<string, LegacyImportDependency>();
         for (const [sourcePath, document] of zoneDocuments) for (const dependency of collectDependencies(sourcePath, document.semantic as ZoneSemantic, matchesByName, selectedPaths)) dependenciesByKey.set(dependencyKey(dependency), dependency);
 
@@ -701,7 +708,7 @@ export class LegacyCsiSource {
             root: this.root,
             recommendedSourceMode,
             selectedZonePaths: [...selectedPaths].sort(),
-            sources: [...sourceFiles].map(([sourcePath, sourceFile]) => ({ originalSourceHash: sourceFile.originalSourceHash, source: draftMap.get(sourcePath)?.source ?? sourceFile.source, sourcePath })),
+            sources: [...sourceFiles].map(([sourcePath, sourceFile]) => ({ kind: sourcePath === files.surface.sourcePath ? "surface" as const : zoneTargetPaths.has(sourcePath) ? "zone" as const : "learn-fx" as const, originalSourceHash: sourceFile.originalSourceHash, source: draftMap.get(sourcePath)?.source ?? sourceFile.source, sourcePath, targetPath: sourcePath === files.surface.sourcePath ? surfaceTargetPath : zoneTargetPaths.get(sourcePath) ?? (learnFxTargetPath || `Zones/User/${targetProfileId}/LearnFX.fxzon`) })),
             surfaceName: files.name,
             surfaceStableId: files.stableId,
             targetProfileId,

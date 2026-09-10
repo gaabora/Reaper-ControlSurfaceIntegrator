@@ -10,6 +10,7 @@ export interface ZoneBinding {
     inputSelectors: string[];
     line: number;
     modifierKind?: "pseudo" | "standard";
+    modifierSource?: string;
     modifiers: string[];
     params: string[];
     properties: Map<string, string>;
@@ -24,6 +25,7 @@ export interface ZoneDependencyReference {
 
 export interface ZoneSemantic {
     alias?: string;
+    bankTarget?: string;
     bindings: ZoneBinding[];
     dependencyReferences: ZoneDependencyReference[];
     dependencies: string[];
@@ -83,7 +85,7 @@ function format2MetadataEntries(text: string): Array<{ key: string; value: strin
     return entries;
 }
 
-function parseFormat2BindingExpression(expression: string): { inputSelectors: string[]; modifiers: string[]; widget: string } {
+function parseFormat2BindingExpression(expression: string): { inputSelectors: string[]; modifierSource?: string; modifiers: string[]; widget: string } {
     const inputSelectors: string[] = [];
     const modifiers: string[] = [];
     let remaining = expression;
@@ -100,7 +102,8 @@ function parseFormat2BindingExpression(expression: string): { inputSelectors: st
             remaining = remaining.slice(input[0].length);
             continue;
         }
-        return { inputSelectors, modifiers, widget: remaining };
+        const modifierSource = remaining.match(/^\[([^\]]+)\]$/)?.[1];
+        return { inputSelectors, modifierSource, modifiers, widget: modifierSource ? "" : remaining };
     }
 }
 
@@ -246,24 +249,26 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         const properties = parseProperties(actionTokens);
         const params = actionTokens.filter((token) => !token.includes("="));
         line.kind = "entry";
-        if (!/^[A-Za-z][A-Za-z0-9_-]*#?$/.test(expression.widget)) addDiagnostic(diagnostics, "error", "format2.zone.widget.selector", `Widget selector must be an exact ID or one terminal # channel family: ${expression.widget}`, line.lineNumber, documentPath);
+        if (!expression.modifierSource && !/^[A-Za-z][A-Za-z0-9_-]*#?$/.test(expression.widget)) addDiagnostic(diagnostics, "error", "format2.zone.widget.selector", `Widget selector must be an exact ID, one terminal # channel family, or one declared [Modifier]: ${expression.widget}`, line.lineNumber, documentPath);
         if (action === "Modifier" || action === "PseudoModifier") {
-            if (expression.inputSelectors.length || expression.modifiers.length) addDiagnostic(diagnostics, "error", "format2.zone.modifier.selector", "A modifier declaration cannot have binding selectors", line.lineNumber, documentPath);
+            if (expression.inputSelectors.length || expression.modifiers.length || expression.modifierSource) addDiagnostic(diagnostics, "error", "format2.zone.modifier.selector", "A modifier declaration cannot have binding selectors", line.lineNumber, documentPath);
             if (expression.widget.endsWith("#")) addDiagnostic(diagnostics, "error", "format2.zone.modifier.widget", "A modifier declaration requires one exact Widget", line.lineNumber, documentPath);
             const standard = action === "Modifier";
-            if ((standard && params.length !== 1) || (!standard && params.length)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.argument", standard ? "Modifier requires one standard modifier name" : "PseudoModifier does not accept a separate modifier name", line.lineNumber, documentPath);
+            const hasBareBlink = standard && params.length === 2 && params[1] === "Blink";
+            if ((standard && params.length !== 1 && !hasBareBlink) || (!standard && params.length)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.argument", standard ? "Modifier requires one standard modifier name and accepts an optional Blink" : "PseudoModifier does not accept a separate modifier name", line.lineNumber, documentPath);
             const modifierName = standard ? params[0] : expression.widget;
             if (standard && modifierName && !standardModifiers.has(modifierName)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.name", `Unknown standard modifier name: ${modifierName}`, line.lineNumber, documentPath);
             if (!standard && modifierName && contextSelectors.has(modifierName)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.name.reserved", `PseudoModifier cannot use reserved selector name ${modifierName}`, line.lineNumber, documentPath);
             if (!standard) addDiagnostic(diagnostics, "error", "format2.zone.runtime.pseudo-modifier", "PseudoModifier declarations are not part of the format 2 runtime yet", line.lineNumber, documentPath);
             for (const [propertyName, value] of properties) {
-                if (propertyName !== "Mode") addDiagnostic(diagnostics, "error", "format2.zone.modifier.property", `Unknown modifier declaration property: ${propertyName}`, line.lineNumber, documentPath);
-                else if (!["Momentary", "Latch", "Hybrid"].includes(value)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.mode", `Unknown modifier Mode: ${value}`, line.lineNumber, documentPath);
+                if (propertyName === "Mode" && !["Momentary", "Latch", "Hybrid"].includes(value)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.mode", `Unknown modifier Mode: ${value}`, line.lineNumber, documentPath);
+                else if (propertyName === "Blink" && (!/^\d+$/.test(value) || Number(value) < 1)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.blink", "Modifier Blink must be one positive integer interval in milliseconds", line.lineNumber, documentPath);
+                else if (propertyName !== "Mode" && propertyName !== "Blink") addDiagnostic(diagnostics, "error", "format2.zone.modifier.property", `Unknown modifier declaration property: ${propertyName}`, line.lineNumber, documentPath);
             }
             if (modifierName) semantic.modifierDeclarations.push({ action: modifierName, inputSelectors: ["Modifier"], line: line.lineNumber, modifierKind: standard ? "standard" : "pseudo", modifiers: [], params: [], properties, widget: expression.widget });
             continue;
         }
-        semantic.bindings.push({ action, inputSelectors: expression.inputSelectors, line: line.lineNumber, modifiers: expression.modifiers, params, properties, widget: expression.widget });
+        semantic.bindings.push({ action, inputSelectors: expression.inputSelectors, line: line.lineNumber, modifierSource: expression.modifierSource, modifiers: expression.modifiers, params, properties, widget: expression.widget });
         validateAction(text.slice(expressionText.length).trimStart(), line.lineNumber);
         for (const propertyName of ["DelayMs", "RepeatIntervalMs", "RunCount"]) if (new RegExp(`(?:^|\\s)${propertyName}\\s*=\\s*"`).test(text)) addDiagnostic(diagnostics, "error", "format2.zone.gesture.integer-property", `${propertyName} must be one complete unquoted integer`, line.lineNumber, documentPath);
         const selectedButtonEvents = expression.inputSelectors.filter((selector) => buttonEvents.has(selector));
@@ -283,13 +288,23 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
     if (lifecycleDepth > 0) addDiagnostic(diagnostics, "error", "format2.zone.lifecycle.unclosed", "Lifecycle block has no closing brace", undefined, documentPath);
     const modifierNames = new Set<string>();
     const modifierWidgets = new Set<string>();
+    const modifierDeclarationsByName = new Map<string, ZoneBinding>();
     for (const declaration of semantic.modifierDeclarations) {
         const modifierName = declaration.action.toLowerCase();
         const widgetName = declaration.widget.toLowerCase();
         if (modifierNames.has(modifierName)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.name.duplicate", `Modifier name is declared more than once: ${declaration.action}`, declaration.line, documentPath);
-        else modifierNames.add(modifierName);
+        else {
+            modifierNames.add(modifierName);
+            modifierDeclarationsByName.set(declaration.action, declaration);
+        }
         if (modifierWidgets.has(widgetName)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.widget.duplicate", `Widget is used by more than one modifier declaration: ${declaration.widget}`, declaration.line, documentPath);
         else modifierWidgets.add(widgetName);
+    }
+    for (const binding of semantic.bindings) {
+        if (!binding.modifierSource) continue;
+        const declaration = modifierDeclarationsByName.get(binding.modifierSource);
+        if (declaration) binding.widget = declaration.widget;
+        else addDiagnostic(diagnostics, "error", "format2.zone.binding.modifier-source", `Unknown or incorrectly cased modifier source: ${binding.modifierSource}`, binding.line, documentPath);
     }
     const version = metadata.get("Version");
     if (!version || version.value !== "2") addDiagnostic(diagnostics, "error", "format2.metadata.version", "@Meta requires Version=2", version?.line ?? metadataLine, documentPath);
@@ -298,6 +313,7 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         for (const entry of layerActions) addDiagnostic(diagnostics, "error", "format2.zone.action.layer-only", `${entry.action} is valid only in a Main zone with Role=Layer`, entry.line, documentPath);
     }
     semantic.target = metadata.get("Target")?.value;
+    semantic.bankTarget = metadata.get("BankTarget")?.value;
     semantic.alias = metadata.get("Alias")?.value;
     const matchFx = metadata.get("MatchFX")?.value;
     if (semantic.role && semantic.target) addDiagnostic(diagnostics, "error", "format2.metadata.role-target", "Role and Target cannot be used together", metadata.get("Target")?.line, documentPath);

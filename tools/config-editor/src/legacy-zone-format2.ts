@@ -47,6 +47,13 @@ const MAGIC_MAIN_METADATA = new Map<string, string[]>([
     ["selectedtrackfxmenu", ["Target=SelectedTrack", "BankTarget=FX"]],
     ["mastertrackfxmenu", ["Target=MasterTrack", "BankTarget=FX"]],
 ]);
+
+export function legacyMainBankContext(zoneName: string): { bankTarget: string; target: string } | undefined {
+    const metadata = MAGIC_MAIN_METADATA.get(zoneName.toLowerCase()) ?? [];
+    const target = metadata.find((entry) => entry.startsWith("Target="))?.slice("Target=".length);
+    const bankTarget = metadata.find((entry) => entry.startsWith("BankTarget="))?.slice("BankTarget=".length);
+    return target && bankTarget ? { bankTarget, target } : undefined;
+}
 const NAVIGATOR_TARGETS = new Map([
     ["track", "Tracks"],
     ["tracknavigator", "Tracks"],
@@ -177,9 +184,10 @@ function normalizeProperty(token: string): string {
     return token;
 }
 
-function convertWidgetExpression(expression: string, inferHold: boolean): string {
+function convertWidgetExpression(expression: string, inferHold: boolean, declaredModifiers?: ReadonlySet<string>): string {
     const parts = expression.split("+").filter(Boolean);
-    const widget = (parts.pop() ?? "").replace(/\|$/, "#");
+    const widgetName = (parts.pop() ?? "").replace(/\|$/, "#");
+    const widget = declaredModifiers?.has(widgetName) ? `[${widgetName}]` : widgetName;
     let prefix = "";
     if (inferHold && !parts.includes("Hold") && !parts.includes("LongHold")) prefix += "(Hold)+";
     for (const selector of parts) {
@@ -215,6 +223,10 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
     const zoneName = header?.tokens[1] ?? fallbackName;
     if (!header) addDiagnostic(diagnostics, "error", "legacy.zone.header.missing", "Legacy Zone has no Zone header.", undefined, options.targetPath);
     const metadata = metadataFor(zoneName, header?.tokens.slice(2) ?? [], options, diagnostics, header?.lineNumber);
+    const declaredModifiers = new Set(lines.flatMap((line) => {
+        initializeLine(line);
+        return MODIFIER_ACTIONS.has(line.tokens[1]) ? [line.tokens[1]] : [];
+    }));
     const output: string[] = [`@Meta { Version=2${metadata.length ? ` ${metadata.join(" ")}` : ""} }`, ""];
     let section: "included" | "layers" | undefined;
     let sectionStart = 0;
@@ -277,6 +289,8 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         const action = sourceTokens.tokens[1];
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics);
         let convertedAction = action;
+        const invalidLayerExit = action === "LeaveSubZone" && !options.isLayer;
+        let invalidBankContextMessage = "";
         if (action === "GoZone" && actionTokens[0] === "SelectedTrackFX") {
             convertedAction = "ToggleSelectedTrackFX";
             actionTokens = actionTokens.slice(1);
@@ -286,24 +300,28 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         } else if (action === "GoSubZone") convertedAction = "EnterZoneLayer";
         else if (action === "LeaveSubZone") {
             if (options.isLayer) convertedAction = "ExitZoneLayer";
-            else addDiagnostic(diagnostics, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Use GoHome to return home, or declare it in SubZones and enter it with GoSubZone before import.`, line.lineNumber, options.targetPath);
         }
         if (action === "Bank" && actionTokens.length >= 2 && !actionTokens[0].includes("=")) {
             const bankTarget = MAGIC_MAIN_METADATA.get(actionTokens[0].toLowerCase());
             const contexts = options.bankContexts ?? (options.isLayer ? [] : [zoneName]);
             const sameContext = options.profile === "Main" && bankTarget && contexts.length > 0 && contexts.every((context) => MAGIC_MAIN_METADATA.get(context.toLowerCase())?.join(" ") === bankTarget.join(" "));
             if (sameContext) actionTokens = actionTokens.slice(1);
-            else addDiagnostic(diagnostics, "error", "legacy.zone.bank.context", `Bank ${actionTokens[0]} cannot use this zone's context (${contexts.join(", ") || "unknown parent"}). Move this binding to a zone with the matching Target and BankTarget before import. Removing the target name would change its behavior.`, line.lineNumber, options.targetPath);
+            else invalidBankContextMessage = `This Zone runs in ${contexts.join(", ") || "an unknown"} context, but Bank ${actionTokens[0]} needs that Zone's Target and BankTarget. Move this Bank binding to ${actionTokens[0]}.`;
         }
         const actionText = [convertedAction, ...actionTokens].filter(Boolean).join(" ");
         if (lifecycle) {
             appendBlank();
+            if (invalidLayerExit) addDiagnostic(diagnostics, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Choose whether this binding returns Home or the Zone becomes a Layer.`, output.length + 2, options.targetPath);
+            if (invalidBankContextMessage) addDiagnostic(diagnostics, "error", "legacy.zone.bank.context", invalidBankContextMessage, output.length + 2, options.targetPath);
             output.push(`On ${lifecycle} {`, `  ${actionText}`, "}", "");
             continue;
         }
         const inferHold = sourceTokens.tokens.slice(2).some((token) => token.startsWith("HoldDelay=") || token.startsWith("HoldRepeatInterval="));
-        const widget = convertWidgetExpression(sourceTokens.tokens[0], inferHold);
-        const binding = MODIFIER_ACTIONS.has(action) && sourceTokens.tokens.length === 2 ? `${widget} Modifier ${action}` : `${widget} ${actionText}`;
+        const modifierDeclaration = MODIFIER_ACTIONS.has(action);
+        const widget = convertWidgetExpression(sourceTokens.tokens[0], inferHold, modifierDeclaration ? undefined : declaredModifiers);
+        const binding = modifierDeclaration ? `${widget} Modifier ${action}${actionTokens.length ? ` ${actionTokens.join(" ")}` : ""}` : `${widget} ${actionText}`;
+        if (invalidLayerExit) addDiagnostic(diagnostics, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Choose whether this binding returns Home or the Zone becomes a Layer.`, output.length + 1, options.targetPath);
+        if (invalidBankContextMessage) addDiagnostic(diagnostics, "error", "legacy.zone.bank.context", invalidBankContextMessage, output.length + 1, options.targetPath);
         output.push(comment ? `${binding} ${comment}` : binding);
     }
     while (output.length > 1 && output.at(-1) === "") output.pop();

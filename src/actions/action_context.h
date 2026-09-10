@@ -126,6 +126,8 @@ public:
         blink_.blinkIntervalMs = value;
     }
     int GetBlinkInterval();
+    bool IsBlinkSet() const { return this->blink_.blinkSet; }
+    int GetConfiguredBlinkInterval() const { return this->blink_.blinkIntervalMs; }
 
     void SetDoublePress() { timing_.isDoublePress = true; }
     bool IsDoublePress() { return timing_.isDoublePress; }
