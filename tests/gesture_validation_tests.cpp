@@ -45,7 +45,8 @@ int main() {
     Require(!ValidateFormat2GestureBindings({Binding(ActionInputEvent::Tap, "GoHome", 4), Binding(ActionInputEvent::Tap, "Play", 5)}, 400, true).empty(), "action after context change rejected");
     Require(!HasFormat2DiagnosticErrors(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Tap, "Play", 5), Binding(ActionInputEvent::Tap, "GoHome", 4)}, 400, true)), "context change last in macro allowed");
     Require(!HasFormat2DiagnosticErrors(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Press, "Reaper", 4), Binding(ActionInputEvent::Hold, "Play", 5, 1000)}, 400, true)), "opaque Reaper action has no inferred context effect");
-    Require(!ValidateFormat2GestureBindings({Binding(ActionInputEvent::Tap, "Play", 4), Binding(ActionInputEvent::Tap, "Play", 5)}, 400, true).empty(), "exact duplicate rejected");
+    const auto duplicateDiagnostics = ValidateFormat2GestureBindings({Binding(ActionInputEvent::Tap, "Play", 4), Binding(ActionInputEvent::Tap, "Play", 5)}, 400, true);
+    Require(!HasFormat2DiagnosticErrors(duplicateDiagnostics) && HasWarning(duplicateDiagnostics, "format2.zone.gesture.action.duplicate"), "exact duplicate ignored with warning");
     Format2GestureBinding differentParameter = Binding(ActionInputEvent::Tap, "Play", 5);
     differentParameter.actionIdentity = std::string("Play") + '\x1f' + "B2";
     Require(!HasFormat2DiagnosticErrors(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Tap, "Play", 4), differentParameter}, 400, true)), "different parameters are not exact duplicates");
@@ -66,11 +67,11 @@ int main() {
     Format2GestureBinding zeroRepeat = Binding(ActionInputEvent::Hold, "Play", 4, 1000);
     zeroRepeat.repeatSpecified = true;
     Require(HasFormat2DiagnosticErrors(ValidateFormat2GestureBindings({zeroRepeat}, 400, true)), "non-positive repeat rejected");
-    Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Press, "Play", 4), Binding(ActionInputEvent::Hold, "Stop", 5, 1000)}, 400, true), "format2.zone.gesture.additive"), "additive Press and Hold warning");
-    Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Tap, "Play", 4), Binding(ActionInputEvent::DoublePress, "Stop", 5)}, 400, true), "format2.zone.gesture.additive"), "delayed Tap warning");
-    Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Hold, "Play", 4, 1000), Binding(ActionInputEvent::LongHold, "Stop", 5, 2000)}, 400, true), "format2.zone.gesture.additive"), "Hold and LongHold warning");
-    Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Hold, "Play", 4, 1000), Binding(ActionInputEvent::Release, "Stop", 5)}, 400, true), "format2.zone.gesture.additive"), "release after Hold warning");
-    Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Press, "Play", 4), Binding(ActionInputEvent::DoublePress, "Stop", 5)}, 400, true), "format2.zone.gesture.additive"), "DoublePress with Press warning");
+    Require(!HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Press, "Play", 4), Binding(ActionInputEvent::Hold, "Stop", 5, 1000)}, 400, true), "format2.zone.gesture.additive"), "normal Press and Hold combination is quiet");
+    Require(!HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Tap, "Play", 4), Binding(ActionInputEvent::DoublePress, "Stop", 5)}, 400, true), "format2.zone.gesture.additive"), "normal Tap and DoublePress combination is quiet");
+    Require(!HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Hold, "Play", 4, 1000), Binding(ActionInputEvent::LongHold, "Stop", 5, 2000)}, 400, true), "format2.zone.gesture.additive"), "normal Hold and LongHold combination is quiet");
+    Require(!HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Hold, "Play", 4, 1000), Binding(ActionInputEvent::Release, "Stop", 5)}, 400, true), "format2.zone.gesture.additive"), "normal Hold and Release combination is quiet");
+    Require(!HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Press, "Play", 4), Binding(ActionInputEvent::DoublePress, "Stop", 5)}, 400, true), "format2.zone.gesture.additive"), "normal Press and DoublePress combination is quiet");
     Require(HasWarning(ValidateFormat2GestureBindings({Binding(ActionInputEvent::Modifier, "Shift", 4), Binding(ActionInputEvent::DoublePress, "Play", 5)}, 400, true), "format2.zone.gesture.additive"), "modifier source with DoublePress warning");
     Format2GestureBinding terminalModifierSource = Binding(ActionInputEvent::DoublePress, "Play", 5);
     terminalModifierSource.terminalModifierSource = true;

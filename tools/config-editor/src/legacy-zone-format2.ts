@@ -287,7 +287,7 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         if (!sourceTokens) continue;
         initializeLine(sourceTokens);
         const action = sourceTokens.tokens[1];
-        let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics);
+        let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
         let convertedAction = action;
         const invalidLayerExit = action === "LeaveSubZone" && !options.isLayer;
         let invalidBankContextMessage = "";

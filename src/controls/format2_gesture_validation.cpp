@@ -23,7 +23,7 @@ std::vector<Format2Diagnostic> ValidateFormat2GestureBindings(const std::vector<
             const Format2GestureBinding& other = bindings[otherIdx];
             if (event != other.gesture.inputEvent) continue;
             if (!binding.actionIdentity.empty() && binding.actionIdentity == other.actionIdentity) {
-                AddRelatedDiagnostics(diagnostics, "format2.zone.gesture.action.duplicate", "The event group contains the same action, parameters, and properties more than once", binding, other);
+                AddRelatedDiagnostics(diagnostics, "format2.zone.gesture.action.duplicate", "The duplicate action is ignored", binding, other, Format2DiagnosticSeverity::Warning);
             } else if (binding.actionName == "NoAction" || other.actionName == "NoAction") {
                 AddRelatedDiagnostics(diagnostics, "format2.zone.gesture.no-action", "NoAction must be the only action in an event group", binding, other);
             }
@@ -55,23 +55,9 @@ std::vector<Format2Diagnostic> ValidateFormat2GestureBindings(const std::vector<
         const Format2GestureBinding& binding = bindings[bindingIdx];
         for (std::size_t otherIdx = bindingIdx + 1; otherIdx < bindings.size(); otherIdx++) {
             const Format2GestureBinding& other = bindings[otherIdx];
-            const ActionInputEvent event = binding.gesture.inputEvent;
-            const ActionInputEvent otherEvent = other.gesture.inputEvent;
             std::string reason;
             if (binding.changesModifier && other.changesModifier) reason = "More than one action changes modifier state on the same physical Widget";
             else if ((binding.changesModifier || other.changesModifier) && !binding.terminalModifierSource && !other.terminalModifierSource) reason = "A modifier action and a normal action share the same physical Widget";
-            else if (event == ActionInputEvent::Press && IsHoldEvent(otherEvent) && !Format2ActionChangesContext(binding.actionName)) reason = "Press and hold actions are additive";
-            else if (otherEvent == ActionInputEvent::Press && IsHoldEvent(event) && !Format2ActionChangesContext(other.actionName)) reason = "Press and hold actions are additive";
-            else if (exclusiveDoublePress && ((event == ActionInputEvent::Tap && otherEvent == ActionInputEvent::DoublePress) || (otherEvent == ActionInputEvent::Tap && event == ActionInputEvent::DoublePress))) reason = "Tap is delayed until the exclusive DoublePress window expires";
-            else if (IsHoldEvent(event) && IsHoldEvent(otherEvent) && event != otherEvent) {
-                const bool bindingBlocksOther = Format2ActionChangesContext(binding.actionName) && binding.gesture.delayMs <= other.gesture.delayMs;
-                const bool otherBlocksBinding = Format2ActionChangesContext(other.actionName) && other.gesture.delayMs <= binding.gesture.delayMs;
-                if (!bindingBlocksOther && !otherBlocksBinding) reason = "LongHold runs after Hold when both are declared";
-            }
-            else if ((event == ActionInputEvent::Release && IsHoldEvent(otherEvent)) || (otherEvent == ActionInputEvent::Release && IsHoldEvent(event))) reason = "Release also runs after a Hold or LongHold milestone";
-            else if (event == ActionInputEvent::DoublePress && otherEvent == ActionInputEvent::Press && !Format2ActionChangesContext(other.actionName)) reason = "DoublePress is additive with Press";
-            else if (otherEvent == ActionInputEvent::DoublePress && event == ActionInputEvent::Press && !Format2ActionChangesContext(binding.actionName)) reason = "DoublePress is additive with Press";
-            else if ((event == ActionInputEvent::DoublePress && otherEvent == ActionInputEvent::Release) || (otherEvent == ActionInputEvent::DoublePress && event == ActionInputEvent::Release)) reason = "DoublePress is additive with Release";
             if (!reason.empty()) AddRelatedDiagnostics(diagnostics, "format2.zone.gesture.additive", reason, binding, other, Format2DiagnosticSeverity::Warning);
         }
     }

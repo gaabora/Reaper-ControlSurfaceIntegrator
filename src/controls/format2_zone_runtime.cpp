@@ -8,6 +8,7 @@
 #include <array>
 #include <limits>
 #include <set>
+#include <tuple>
 
 struct Format2PreparedActionContext {
     Widget* widget = nullptr;
@@ -33,6 +34,7 @@ struct Format2PreparedActionContext {
     std::vector<double> stepValues;
     std::vector<double> accelerationDeltas;
     std::vector<int> ticksPerStep;
+    std::string actionIdentity;
 };
 
 static ActionModifierMode ResolveFormat2ModifierMode(ControlSurface* surface, Format2ModifierMode mode) {
@@ -188,10 +190,15 @@ static std::string SerializeFormat2PropertyValue(const Format2ValueSyntax& value
     return serialized + " ]";
 }
 
-static std::vector<std::string> MakeFormat2ActionParameters(const Format2ZoneAction& action) {
+static std::string ExpandFormat2ChannelArgument(const std::string& argument, const std::optional<int>& surfaceChannelOffset) {
+    if (!surfaceChannelOffset || argument.empty() || (argument.back() != '#' && argument.back() != '|')) return argument;
+    return argument.substr(0, argument.size() - 1) + std::to_string(*surfaceChannelOffset + 1);
+}
+
+static std::vector<std::string> MakeFormat2ActionParameters(const Format2ZoneAction& action, const std::optional<int>& surfaceChannelOffset = std::nullopt) {
     std::vector<std::string> parameters;
     parameters.push_back(action.action);
-    for (const Format2ScalarSyntax& argument : action.arguments) parameters.push_back(argument.text);
+    for (const Format2ScalarSyntax& argument : action.arguments) parameters.push_back(ExpandFormat2ChannelArgument(argument.text, surfaceChannelOffset));
     const std::set<std::string> runtimeOwnedProperties = {"AccelerationDeltas", "DelayMs", "Delta", "Range", "RepeatIntervalMs", "StepValues", "TicksPerStep"};
     for (const Format2PropertySyntax& property : action.properties) if (runtimeOwnedProperties.find(property.name) == runtimeOwnedProperties.end()) parameters.push_back(property.name + "=" + SerializeFormat2PropertyValue(property.value));
     return parameters;
@@ -297,6 +304,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.widget = widget;
         prepared.navigator = zone->GetNavigator();
         prepared.actionName = declaration.name;
+        prepared.actionIdentity = "Modifier:" + declaration.name;
         prepared.parameters = {declaration.name};
         prepared.inputEvent = ActionInputEvent::Modifier;
         prepared.modifierMode = ResolveFormat2ModifierMode(zoneManager->GetSurface(), declaration.mode);
@@ -325,6 +333,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
             prepared.widget = widget;
             prepared.navigator = zone->GetNavigator();
             prepared.actionName = action.action;
+            prepared.actionIdentity = MakeFormat2ActionIdentity(action);
             prepared.parameters = MakeFormat2ActionParameters(action);
             preparedContexts.push_back(std::move(prepared));
         }
@@ -352,11 +361,13 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
             continue;
         }
         Format2PreparedActionContext prepared;
+        const std::size_t bindingDiagnosticStart = result.diagnostics.size();
         prepared.widget = widget;
         prepared.navigator = ResolveFormat2BindingNavigator(zoneManager, zone, runtimeMetadata, spec.surfaceChannelOffset);
         prepared.surfaceChannelOffset = spec.surfaceChannelOffset ? *spec.surfaceChannelOffset : -1;
         prepared.actionName = binding.action.action;
-        prepared.parameters = MakeFormat2ActionParameters(binding.action);
+        prepared.actionIdentity = MakeFormat2ActionIdentity(binding.action);
+        prepared.parameters = MakeFormat2ActionParameters(binding.action, spec.surfaceChannelOffset);
         PrepareFormat2Selectors(zoneManager, binding, prepared, result);
         if (prepared.inputEvent == ActionInputEvent::Legacy && !prepared.increase && !prepared.decrease && widget->GetIsTwoState()) prepared.inputEvent = zoneManager->GetSurface()->GetSettings().GetString("DefaultButtonTrigger") == "Tap" ? ActionInputEvent::Tap : ActionInputEvent::Press;
         if (prepared.inputEvent != ActionInputEvent::Legacy && !widget->GetIsTwoState()) {
@@ -375,7 +386,9 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         if (prepared.inputEvent != ActionInputEvent::Legacy && integerPropertiesValid) {
             gestureGroups[{widget, prepared.modifier}].push_back({{prepared.inputEvent, prepared.modifierMode, prepared.eventDelayMs, prepared.repeatIntervalMs, prepared.modifierTapWindowMs}, prepared.actionName, binding.location, MakeFormat2ActionIdentity(binding.action), HasFormat2Property(binding.action, "DelayMs"), HasFormat2Property(binding.action, "RepeatIntervalMs"), runCount, Format2ActionChangesModifier(prepared.actionName), binding.modifierSource.has_value()});
         }
-        if (!prepared.navigator) AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.navigator.missing", "No Navigator is available for Widget: " + spec.widgetId, binding.widget.location);
+        if (!prepared.navigator) AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.navigator.missing", "This binding is ignored because no Navigator is available for Widget: " + spec.widgetId, binding.widget.location);
+        const bool bindingHasErrors = std::any_of(result.diagnostics.begin() + bindingDiagnosticStart, result.diagnostics.end(), [](const Format2Diagnostic& diagnostic) { return diagnostic.severity == Format2DiagnosticSeverity::Error; });
+        if (bindingHasErrors) continue;
         preparedContexts.push_back(std::move(prepared));
     }
 
@@ -383,7 +396,6 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         const auto diagnostics = ValidateFormat2GestureBindings(group.second, zoneManager->GetSurface()->GetDoublePressTime(), zoneManager->GetSurface()->GetSettings().GetString("DoublePressPolicy") == "Exclusive");
         result.diagnostics.insert(result.diagnostics.end(), diagnostics.begin(), diagnostics.end());
     }
-    if (!result.IsValid()) return result;
     if (selection) {
         if (selection->channelFamilyBaseName.empty()) {
             Widget* selectedWidget = zoneManager->GetSurface()->GetWidgetByName(selection->widgetId);
@@ -395,7 +407,10 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
             }
         }
     }
+    std::set<std::tuple<Widget*, int, ActionInputEvent, std::string>> addedContexts;
     for (Format2PreparedActionContext& prepared : preparedContexts) {
+        const auto contextKey = std::make_tuple(prepared.widget, prepared.modifier, prepared.inputEvent, prepared.actionIdentity);
+        if (!prepared.actionIdentity.empty() && !addedContexts.insert(contextKey).second) continue;
         zone->AddWidget(prepared.widget);
         ActionContext* context = zone->AddActionContext(prepared.widget, prepared.modifier, zone, prepared.actionName.c_str(), prepared.parameters, prepared.navigator, prepared.surfaceChannelOffset);
         context->SetInputEvent(prepared.inputEvent);

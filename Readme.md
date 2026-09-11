@@ -1,6 +1,8 @@
 # ReaControlSurface
 
-ReaControlSurface is rewritten fork of the Control Surface Integrator ((CSI)[https://github.com/GeoffAWaddington/CSICode]) plugin for Reaper, designed to help you integrate hardware control surfaces with the DAW. 
+Huge thanks to Geoff Waddington and contributors! It would not be possible without their hard work.
+
+ReaControlSurface is rewritten fork of the Control Surface Integrator ((CSI)[https://github.com/GeoffAWaddington/CSICode]) plugin for Reaper made by Geoff Waddington, designed to help you integrate hardware control surfaces with the DAW.
 The purpose of this separated fork is to make control surfaces in REAPER much more user friendly, intuitive, feature rich, accessible and configurable without need to have a degree in any kind of science, and ultimately without need to read/watch any docs/tutorials.
 Since then, many issues have been fixed and new capabilities like functional snippets, OSK (interactive configurable on-screen "keyboard"/surface), and OSD (on-screen display) was added, together with dozens of other features, performance optimizations, and ReaPack support with automated builds for Windows, macOS, and Linux (linux is yet untested). You can view the latest updates in the [releases](/releases).
 

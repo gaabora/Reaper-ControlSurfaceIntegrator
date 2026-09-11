@@ -56,10 +56,11 @@ static string Format2ZoneIssue(const string& sourcePath, const Format2Diagnostic
 }
 
 static void LogFormat2ProfileDiagnostic(const vector<Format2ZoneSource>& sources, const Format2ZoneProfileDiagnostic& diagnostic) {
+    const char* level = diagnostic.severity == Format2DiagnosticSeverity::Warning ? "WARNING" : "ERROR";
     string sourcePath;
     if (!diagnostic.sourceIndices.empty() && diagnostic.sourceIndices.front() < sources.size()) sourcePath = sources[diagnostic.sourceIndices.front()].sourcePath;
-    if (sourcePath.empty()) LogToConsole("[ERROR] %s: %s\n", diagnostic.code.c_str(), diagnostic.message.c_str());
-    else LogToConsole("[ERROR] %s:%d:%d: %s: %s\n", GetRelativePath(sourcePath.c_str()).c_str(), diagnostic.location.line, diagnostic.location.column, diagnostic.code.c_str(), diagnostic.message.c_str());
+    if (sourcePath.empty()) LogToConsole("[%s] %s: %s\n", level, diagnostic.code.c_str(), diagnostic.message.c_str());
+    else LogToConsole("[%s] %s:%d:%d: %s: %s\n", level, GetRelativePath(sourcePath.c_str()).c_str(), diagnostic.location.line, diagnostic.location.column, diagnostic.code.c_str(), diagnostic.message.c_str());
 }
 
 static string FoldFormat2RuntimeId(const string& value) {
@@ -110,16 +111,16 @@ static bool AddFormat2ZoneRelations(ZoneManager* zoneManager, Zone* zone, size_t
     const Format2ZoneDocument& zoneDocument = loaded.documents[sourceIndex].parsed.zone;
     for (const Format2ZoneReference& reference : zoneDocument.includedZones) {
         const auto target = activeMainSources.find(FoldFormat2RuntimeId(reference.id));
-        if (target == activeMainSources.end()) return false;
+        if (target == activeMainSources.end()) continue;
         unique_ptr<Zone> includedZone = CreateFormat2RelatedZone(zoneManager, loaded, activeMainSources, target->second, nullptr, false, effectiveMetadata);
-        if (!includedZone) return false;
+        if (!includedZone) continue;
         zone->AddIncludedZone(std::move(includedZone));
     }
     for (const Format2ZoneReference& reference : zoneDocument.zoneLayers) {
         const auto target = activeMainSources.find(FoldFormat2RuntimeId(reference.id));
-        if (target == activeMainSources.end()) return false;
+        if (target == activeMainSources.end()) continue;
         unique_ptr<Zone> zoneLayer = CreateFormat2RelatedZone(zoneManager, loaded, activeMainSources, target->second, zone, true, effectiveMetadata);
-        if (!zoneLayer) return false;
+        if (!zoneLayer) continue;
         zone->AddZoneLayer(std::move(zoneLayer));
     }
     return true;
@@ -139,7 +140,6 @@ static unique_ptr<Zone> CreateFormat2RelatedZone(ZoneManager* zoneManager, const
     zone->ConfigureFormat2Runtime(GetFormat2ZoneRuntimeTarget(effectiveMetadata), GetFormat2ZoneRuntimeBankTarget(effectiveMetadata), deactivatesOnTrackLoss, isLayer ? parentZone : nullptr);
     const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(zoneManager, zone.get(), document.parsed, isLayer ? &effectiveMetadata : nullptr);
     for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
-    if (!runtimeResult.IsValid()) return nullptr;
     if (!AddFormat2ZoneRelations(zoneManager, zone.get(), sourceIndex, loaded, activeMainSources, effectiveMetadata)) return nullptr;
     return zone;
 }
@@ -232,14 +232,6 @@ ZoneManager::Format2InitializationState ZoneManager::InitializeFormat2() {
         zone->ConfigureFormat2Runtime(GetFormat2ZoneRuntimeTarget(effectiveMetadata), GetFormat2ZoneRuntimeBankTarget(effectiveMetadata), metadata.target == Format2ZoneTarget::SelectedTrack);
         const Format2ZoneRuntimeResult runtimeResult = LoadFormat2ZoneRuntimeBindings(this, zone.get(), document.parsed);
         for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) LogFormat2ZoneDiagnostic(document.parsed.document.lexical.sourcePath, diagnostic);
-        if (!runtimeResult.IsValid()) {
-            if (this->initializationIssue_.empty()) for (const Format2Diagnostic& diagnostic : runtimeResult.diagnostics) if (diagnostic.severity == Format2DiagnosticSeverity::Error) {
-                this->initializationIssue_ = Format2ZoneIssue(document.parsed.document.lexical.sourcePath, diagnostic);
-                break;
-            }
-            loaded.sources[sourceIndex].valid = false;
-            continue;
-        }
         if (activeZone.collection == Format2ZoneCollection::Main) preparedMainZones[sourceIndex] = std::move(zone);
     }
 

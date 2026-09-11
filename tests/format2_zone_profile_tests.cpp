@@ -65,14 +65,14 @@ static void TestStructuralCycle() {
     Require(HasDiagnostic(ResolveFormat2ZoneProfile("test", sources), "format2.zone-profile.reference.cycle"), "structural cycle");
 }
 
-static void TestInvalidOptionalUserOverrideDoesNotDisableProfile() {
+static void TestPartiallyInvalidUserOverrideRemainsAvailable() {
     std::vector<Format2ZoneSource> sources;
     sources.push_back(ParseSource("@Meta { Version=2 Role=Home }\n\nPlay Play\n", "Home.zon"));
     sources.push_back(ParseSource("@Meta { Version=2 Target=Tracks }\n\nFader# TrackVolume\n", "Track.zon"));
     sources.push_back(ParseSource("@Meta { Version=2 Target=Tracks }\n\nFader#\n", "Track.zon", Format2ZoneSourceLayer::User));
     const Format2ZoneProfileResolveResult result = ResolveFormat2ZoneProfile("test", sources);
-    Require(result.IsValid(), "invalid optional User override is skipped");
-    for (const Format2ActiveZoneSource& activeZone : result.activeZones) if (activeZone.canonicalId == "track") Require(!activeZone.available, "invalid User override blocks Vendor fallback");
+    Require(result.IsValid(), "partially invalid User override keeps profile usable");
+    for (const Format2ActiveZoneSource& activeZone : result.activeZones) if (activeZone.canonicalId == "track") Require(activeZone.available, "partially invalid User override loads its valid bindings");
 }
 
 static void TestMissingNavigationTarget() {
@@ -237,7 +237,7 @@ int main() {
     TestHomeRules();
     TestReferenceRules();
     TestStructuralCycle();
-    TestInvalidOptionalUserOverrideDoesNotDisableProfile();
+    TestPartiallyInvalidUserOverrideRemainsAvailable();
     TestMissingNavigationTarget();
     TestNavigationRoleRules();
     TestDeclaredLayerNavigation();

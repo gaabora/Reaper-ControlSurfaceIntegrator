@@ -69,13 +69,13 @@ describe("legacy Zone readiness", () => {
         const home = parseByPath("@Meta { Version=2 Role=Home }\nOn SurfaceInitialization {\nGoZone SelectedTracks\n}\n", profileRoot + "Home.zon");
         const tracks = parseByPath("@Meta { Version=2 Target=SelectedTracks }\nPrev GoZone Home\n", profileRoot + "SelectedTracks.zon");
         expect(validateDocumentSet([home, tracks], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "format2.zone-profile.navigation.home", path: tracks.path, line: 2 }));
-        expect(validateDocumentSet([home], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "zones.dependency.missing", severity: "error", line: 3 }));
+        expect(validateDocumentSet([home], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "zones.dependency.missing", severity: "warning", line: 3 }));
     });
 
     test("a broken destination is unavailable even when its name exists", () => {
         const home = parseByPath("@Meta { Version=2 Role=Home }\nButton GoZone SelectedTracks\n", profileRoot + "Home.zon");
         const tracks = parseByPath("@Meta { Version=2 Target=SelectedTracks }\nPrev Bank SelectedTracks -8\n", profileRoot + "SelectedTracks.zon");
-        expect(validateDocumentSet([home, tracks], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "zones.dependency.missing", severity: "error", path: home.path }));
+        expect(validateDocumentSet([home, tracks], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "zones.dependency.missing", severity: "warning", path: home.path }));
     });
 
     test("reports a missing Home only when validating a complete profile", () => {

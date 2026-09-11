@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -43,6 +44,7 @@ struct Format2ZoneProfileDiagnostic {
     std::string message;
     Format2SourceLocation location;
     std::vector<std::size_t> sourceIndices;
+    Format2DiagnosticSeverity severity = Format2DiagnosticSeverity::Error;
 };
 
 struct Format2ZoneProfileResolveResult {
@@ -50,7 +52,7 @@ struct Format2ZoneProfileResolveResult {
     std::vector<Format2ActiveZoneSource> activeZones;
     std::vector<Format2ZoneProfileDiagnostic> diagnostics;
 
-    bool IsValid() const { return this->diagnostics.empty(); }
+    bool IsValid() const { return !std::any_of(this->diagnostics.begin(), this->diagnostics.end(), [](const Format2ZoneProfileDiagnostic& diagnostic) { return diagnostic.severity == Format2DiagnosticSeverity::Error; }); }
 };
 
 Format2ZoneSource MakeFormat2ZoneSource(Format2ZoneCollection collection, Format2ZoneSourceLayer layer, const Format2ZoneParseResult& parsed);

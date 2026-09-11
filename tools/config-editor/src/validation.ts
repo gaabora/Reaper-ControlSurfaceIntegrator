@@ -242,7 +242,8 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
             for (const reference of semantic.dependencyReferences) {
                 const target = zonesByKey.get(`${zoneScope(document)}\0main\0${reference.name.toLowerCase()}`);
                 if (!target || duplicateZoneKeys.has(zoneKey(target, reference.name)) || target.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
-                    addDiagnostic(diagnostics, options.completeProfiles || target ? "error" : "warning", "zones.dependency.missing", `Zone "${semantic.name}" references unavailable Main zone "${reference.name}". Fix or import that zone.`, reference.line, document.path, target?.path ? [{ path: target.path, line: zoneHeaderLine(target) }] : undefined);
+                    const navigationOnly = reference.type === "GoZone" || reference.type === "EnterZoneLayer";
+                    addDiagnostic(diagnostics, "warning", "zones.dependency.missing", navigationOnly ? `Zone "${semantic.name}" references unavailable Main zone "${reference.name}". This navigation binding does nothing until the target is available.` : `Zone "${semantic.name}" references unavailable Main zone "${reference.name}". This relation is ignored until the target is available.`, reference.line, document.path, target?.path ? [{ path: target.path, line: zoneHeaderLine(target) }] : undefined);
                     continue;
                 }
                 const role = (target.semantic as ZoneSemantic).role;

@@ -780,6 +780,13 @@ WidgetEnd
         expect(conversion.source).toContain("(DoublePress)+[Nudge] ToggleOSK\n");
     });
 
+    test("converts legacy channel placeholders in action arguments", () => {
+        const source = "Zone SelectedTrackFXMenu\n  RotaryPush| Reaper _S&M_FLOATFX|\nZoneEnd\n";
+        const conversion = convertLegacyZoneToFormat2(source, { isLayer: false, profile: "Main", targetPath: "Zones/User/test/Main/SelectedTrackFXMenu.zon" });
+
+        expect(conversion.source).toContain("RotaryPush# Reaper _S&M_FLOATFX#\n");
+    });
+
     test("explains that a selected dependency is invalid and links Bank context zones", async () => {
         const surfaceRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2");
         await writeFile(path.join(surfaceRoot, "Zones", "HomeZones", "Home.zon"), "Zone Home\n  SubZones\n    LinkLock\n  SubZonesEnd\n  Link GoSubZone LinkLock\nZoneEnd\n", "utf8");

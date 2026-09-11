@@ -121,7 +121,7 @@ describe("configuration formats", () => {
         const surface = parseByPath("@Meta { Version=2 Protocol=MIDI Channels=1 }\nWidget Play1 {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
         const duplicateZone = parseByPath("@Meta { Version=2 Role=Home }\nPlay# Play\n(Press)+Play1 Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
         const duplicateDiagnostics = validateDocumentSet([config, surface, duplicateZone], { actionTraits, settingsSchema });
-        expect(duplicateDiagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.action.duplicate", severity: "error" }));
+        expect(duplicateDiagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.action.duplicate", severity: "warning" }));
         const policyZone = parseByPath("@Meta { Version=2 Role=Home }\n(Tap)+Play# GoHome\n(DoublePress)+Play# Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
         const policyDiagnostics = validateDocumentSet([config, surface, policyZone], { actionTraits, settingsSchema });
         expect(policyDiagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.unreachable", line: 2, severity: "error" }));
