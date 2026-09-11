@@ -5,11 +5,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { actionNameSet, actionTraitsByName, loadActionCatalog, writeActionCatalog } from "./action-catalog.ts";
 import { isSupportedConfigPath, parseByPath, type AnyDocument } from "./formats.ts";
+import { isIgnoredLegacyAction, renameLegacyAction } from "./legacy-action-renames.ts";
 import { analyzeLegacySurfaceCoverage } from "./legacy-surface-coverage.ts";
 import type { Diagnostic } from "./model.ts";
 import { loadSettingsSchema } from "./settings-schema.ts";
 import { loadSurfaceIoSchema } from "./surface-io-schema.ts";
 import { validateDocumentSet } from "./validation.ts";
+import { parseSurface } from "./surface.ts";
+import { parseZone } from "./zone.ts";
 
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -17,6 +20,7 @@ function printUsage(): void {
     console.log("Usage:");
     console.log("  bun run src/cli.ts validate [--json] <file-or-directory> [...]");
     console.log("  bun run src/cli.ts actions [--output <catalog.json>]");
+    console.log("  bun run src/cli.ts legacy-actions [--all] [legacy-surfaces-directory]");
     console.log("  bun run src/cli.ts surface-coverage [legacy-surfaces-directory]");
 }
 
@@ -81,6 +85,63 @@ async function actionsCommand(args: string[]): Promise<number> {
     return 0;
 }
 
+interface LegacyActionUsage {
+    action: string;
+    count: number;
+    examples: string[];
+    replacement?: string;
+    status: "current" | "ignored" | "renamed" | "unknown";
+}
+
+async function legacyActionsCommand(args: string[]): Promise<number> {
+    const showAll = args.includes("--all");
+    const inputs = args.filter((arg) => arg !== "--all" && arg !== "--");
+    if (inputs.length > 1) throw new Error("legacy-actions accepts zero or one legacy Surfaces directory");
+    const legacySurfacesRoot = path.resolve(inputs[0] ?? path.join(repositoryRoot, "CSI", "Surfaces"));
+    const knownActions = actionNameSet(await loadActionCatalog(repositoryRoot));
+    const zonePaths = (await collectConfigPaths(legacySurfacesRoot)).filter((configPath) => configPath.toLowerCase().endsWith(".zon"));
+    const widgetsBySurface = new Map<string, Set<string>>();
+    const usages = new Map<string, LegacyActionUsage>();
+    for (const zonePath of zonePaths) {
+        const relativePath = path.relative(legacySurfacesRoot, zonePath);
+        if (relativePath.split(path.sep).some((segment) => segment.toLowerCase() === "learnzones") || path.basename(zonePath).toLowerCase() === "gozones.zon") continue;
+        const surfaceDirectory = relativePath.split(path.sep)[0];
+        let surfaceWidgets = widgetsBySurface.get(surfaceDirectory);
+        if (!surfaceWidgets) {
+            const surfacePath = path.join(legacySurfacesRoot, surfaceDirectory, "Surface.txt");
+            surfaceWidgets = new Set(parseSurface(await readFile(surfacePath, "utf8"), surfacePath).semantic.widgets.map((widget) => widget.name));
+            widgetsBySurface.set(surfaceDirectory, surfaceWidgets);
+        }
+        const source = (await readFile(zonePath, "utf8")).replace(/^(\s*)\/(?!\/)/gm, "$1//").replace(/^(\s*)#/gm, "$1//");
+        const document = parseZone(source, zonePath, knownActions);
+        for (const binding of document.semantic.bindings) {
+            const renamed = renameLegacyAction(binding.action, binding.params, { isLayer: true });
+            const replacement = renamed.action === binding.action ? undefined : renamed.action;
+            const status = isIgnoredLegacyAction(binding.action) ? "ignored" : replacement ? "renamed" : knownActions.has(binding.action) ? "current" : "unknown";
+            if (status === "unknown" && (!/^[A-Za-z][A-Za-z0-9_]*$/.test(binding.action) || binding.action.includes("="))) continue;
+            const possibleWidget = binding.action.split("+").at(-1)?.replace(/[|#]$/, "") ?? "";
+            if (status === "unknown" && [...surfaceWidgets].some((widget) => widget === possibleWidget || widget.startsWith(possibleWidget) && /^\d+$/.test(widget.slice(possibleWidget.length)))) continue;
+            const key = `${status}\0${binding.action}\0${replacement ?? ""}`;
+            const usage = usages.get(key) ?? { action: binding.action, count: 0, examples: [], replacement, status };
+            usage.count++;
+            if (usage.examples.length < 3) usage.examples.push(`${relativePath.split(path.sep).join("/")}:${binding.line}`);
+            usages.set(key, usage);
+        }
+    }
+    const entries = [...usages.values()].sort((left, right) => left.status.localeCompare(right.status) || right.count - left.count || left.action.localeCompare(right.action));
+    for (const entry of entries) {
+        if (!showAll && entry.status === "current") continue;
+        const replacement = entry.replacement ? ` -> ${entry.replacement}` : "";
+        console.log(`${entry.status.padEnd(9)} ${String(entry.count).padStart(5)}  ${entry.action}${replacement}  ${entry.examples.join(", ")}`);
+    }
+    const currentCount = entries.filter((entry) => entry.status === "current").reduce((sum, entry) => sum + entry.count, 0);
+    const ignoredCount = entries.filter((entry) => entry.status === "ignored").reduce((sum, entry) => sum + entry.count, 0);
+    const renamedCount = entries.filter((entry) => entry.status === "renamed").reduce((sum, entry) => sum + entry.count, 0);
+    const unknownCount = entries.filter((entry) => entry.status === "unknown").reduce((sum, entry) => sum + entry.count, 0);
+    console.log(`Legacy Zone actions: ${currentCount} current occurrences, ${renamedCount} renamed occurrences, ${ignoredCount} ignored compatibility occurrences, ${unknownCount} unknown occurrences in ${zonePaths.length} files`);
+    return unknownCount ? 1 : 0;
+}
+
 async function surfaceCoverageCommand(args: string[]): Promise<number> {
     if (args.length > 1) throw new Error("surface-coverage accepts zero or one legacy Surfaces directory");
     const legacySurfacesRoot = path.resolve(args[0] ?? path.join(repositoryRoot, "CSI", "Surfaces"));
@@ -100,6 +161,7 @@ async function main(): Promise<number> {
     const args = process.argv.slice(3);
     if (command === "validate") return validateCommand(args);
     if (command === "actions") return actionsCommand(args);
+    if (command === "legacy-actions") return legacyActionsCommand(args);
     if (command === "surface-coverage") return surfaceCoverageCommand(args);
     printUsage();
     return command ? 1 : 0;

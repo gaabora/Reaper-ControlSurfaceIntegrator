@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { missingLegacyActionRenameDestinations, renameLegacyAction } from "../src/legacy-action-renames.ts";
+import { isIgnoredLegacyAction, missingLegacyActionRenameDestinations, renameLegacyAction } from "../src/legacy-action-renames.ts";
 import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
 import { parseByPath } from "../src/formats.ts";
 import { convertLegacyLearnFxToFormat2 } from "../src/legacy-learn-fx.ts";
@@ -77,8 +77,12 @@ describe("legacy CSI import", () => {
         expect(renameLegacyAction("GoSubZone", ["Pan"], { isLayer: false })).toEqual({ action: "EnterZoneLayer", arguments: ["Pan"] });
         expect(renameLegacyAction("LeaveSubZone", [], { isLayer: true })).toEqual({ action: "ExitZoneLayer", arguments: [] });
         expect(renameLegacyAction("LeaveSubZone", [], { isLayer: false })).toEqual({ action: "LeaveSubZone", arguments: [] });
+        expect(renameLegacyAction("MCUTrackPan", [], { isLayer: false })).toEqual({ action: "TrackPan", arguments: [] });
+        expect(renameLegacyAction("TrackSendBank", ["-1"], { isLayer: false })).toEqual({ action: "Bank", arguments: ["-1"] });
+        expect(isIgnoredLegacyAction("NullDisplay")).toBeTrue();
+        expect(isIgnoredLegacyAction("NoFeedback")).toBeTrue();
         expect(missingLegacyActionRenameDestinations(knownActions)).toEqual([]);
-        expect(missingLegacyActionRenameDestinations(new Set(["GoHome"]))).toEqual(["EnterZoneLayer", "ExitZoneLayer", "ToggleSelectedTrackFX"]);
+        expect(missingLegacyActionRenameDestinations(new Set(["GoHome"]))).toEqual(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "Reaper", "ToggleSelectedTrackFX", "TrackMute", "TrackPan"]);
     });
 
     test("converts a legacy MIDI Surface and creates a fader-aware OSK layout", () => {

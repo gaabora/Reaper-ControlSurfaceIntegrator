@@ -1,5 +1,5 @@
 import path from "node:path";
-import { renameLegacyAction } from "./legacy-action-renames.ts";
+import { isIgnoredLegacyAction, renameLegacyAction } from "./legacy-action-renames.ts";
 import { addDiagnostic, type Diagnostic } from "./model.ts";
 import { analysisText, initializeLine, splitSourceLines } from "./text.ts";
 
@@ -288,6 +288,7 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         if (!sourceTokens) continue;
         initializeLine(sourceTokens);
         const action = sourceTokens.tokens[1];
+        if (isIgnoredLegacyAction(action)) continue;
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
         const invalidLayerExit = action === "LeaveSubZone" && !options.isLayer;
         let invalidBankContextMessage = "";

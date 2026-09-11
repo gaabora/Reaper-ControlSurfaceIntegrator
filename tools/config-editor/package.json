@@ -5,6 +5,7 @@
   "scripts": {
     "actions": "bun run src/cli.ts actions",
     "actions:generate": "bun run src/cli.ts actions --output generated/action-catalog.json",
+    "legacy-actions": "bun run src/cli.ts legacy-actions",
     "compile:linux-arm64": "bun run scripts/compile.ts bun-linux-arm64",
     "compile:linux-x64": "bun run scripts/compile.ts bun-linux-x64",
     "compile:local": "bun run scripts/compile.ts",

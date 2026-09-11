@@ -1789,6 +1789,7 @@ The current priority is the first end-to-end migration test with FaderPortV2 and
 
 - ✅ Cover one atomic FaderPortV2 Bun import containing a Surface, selected Main and FX zones, and `LearnFX.fxzon`, then parse every written output as format 2. C++ runtime loading remains a separate manual REAPER check.
 - ✅ Cover one atomic eight-channel XTouchMiniMC Bun import containing a Surface, its Home and Channel zones, and one FX zone. Verify `Widget|` conversion, inferred channel count, OSK control targets, and format 2 parsing of every written file.
+- ✅ Add a read-only legacy Zone action inventory that separates current actions, declarative migration renames, and unknown names with source locations.
 
 Public legacy Surface conversion has one completion gate:
 
@@ -1872,6 +1873,7 @@ The initial conversion matrix is:
 | Hash-prefixed Learn FX directives and Learn FX pseudo-zones | `LearnFX.fxzon` plus normal generated FX bindings; `FXRowLayout` is dropped |
 | Legacy single-slash comment lines | `//` comments when the line is recognized as a legacy comment; OSC address tokens remain data |
 | Any renamed action | New action name and transformed parameters from the Bun-only action rename registry |
+| Legacy `NullDisplay` or standalone `NoFeedback` action | Binding removed because the legacy runtime created no action context; `NoFeedback` after a real action becomes `Feedback=No` |
 
 Action renames live in one declarative Bun-only registry separate from the general importer. Each entry identifies the legacy action, the new action, and any parameter transformation or context restriction. Runtime C++ does not keep old action aliases. The importer validates that every registry destination exists in the current generated action catalog.
 
@@ -1890,6 +1892,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - ✅ Add lossless format 2 parsing, validation, syntax highlighting, quick fixes, and cross-file references.
 - [ ] Replace semantic snippet slots, explicit capability fields, application IDs, conflict actions, and saved marker comments with direct zone-fragment parsing and token-aware widget plus modifier mapping. Derive compatibility from the normal action, binding, and Surface catalogs, and insert only into the unsaved destination draft.
 - ✅ Create the declarative Bun-only action rename registry and validate its destinations against the current action catalog.
+- [ ] Review the public action catalog before runtime cutover. Group inconsistent, branded, abbreviated, and redundant names by behavior, approve each canonical name, add its legacy conversion to the registry, then regenerate the editor catalog and Actions reference. Do not rename an action only because another spelling looks shorter.
 - ✅ Keep the conversion matrix and golden fixture pairs synchronized with every later format or action rename.
 - [ ] Show a Zone Layer badge, all current parent references, and context-valid navigation actions in the editor. Offer `ExitZoneLayer` only for zone layers.
 - [ ] Add safe User-zone rename with complete-profile reference updates, case-only filesystem handling, hash checks, and focused User overrides for Vendor referrers.

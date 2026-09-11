@@ -16,11 +16,26 @@ export interface LegacyActionRenameResult {
 }
 
 export const LEGACY_ACTION_RENAMES: readonly LegacyActionRenameDefinition[] = [
+    { legacyAction: "FixedTexDislay", newAction: "FixedTextDisplay" },
+    { legacyAction: "MCUTrackPan", newAction: "TrackPan" },
+    { legacyAction: "Raper", newAction: "Reaper" },
+    { legacyAction: "TackMute", newAction: "TrackMute" },
+    { legacyAction: "TackPan", newAction: "TrackPan" },
     { legacyAction: "GoZone", legacyFirstArgument: "Home", newAction: "GoHome", removeFirstArgument: true },
     { legacyAction: "GoZone", legacyFirstArgument: "SelectedTrackFX", newAction: "ToggleSelectedTrackFX", removeFirstArgument: true },
+    { legacyAction: "GoSelectedTrackFX", newAction: "ToggleSelectedTrackFX" },
     { legacyAction: "GoSubZone", newAction: "EnterZoneLayer" },
     { legacyAction: "LeaveSubZone", newAction: "ExitZoneLayer", requiresLayer: true },
+    { legacyAction: "SelectedTrackBank", newAction: "Bank" },
+    { legacyAction: "TrackReceiveBank", newAction: "Bank" },
+    { legacyAction: "TrackSendBank", newAction: "Bank" },
 ];
+
+export const LEGACY_IGNORED_ACTIONS: ReadonlySet<string> = new Set(["NoFeedback", "NullDisplay"]);
+
+export function isIgnoredLegacyAction(action: string): boolean {
+    return LEGACY_IGNORED_ACTIONS.has(action);
+}
 
 export function renameLegacyAction(action: string, actionArguments: string[], context: LegacyActionRenameContext): LegacyActionRenameResult {
     const definition = LEGACY_ACTION_RENAMES.find((candidate) => candidate.legacyAction === action
