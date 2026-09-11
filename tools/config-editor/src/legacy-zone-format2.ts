@@ -1,4 +1,5 @@
 import path from "node:path";
+import { renameLegacyAction } from "./legacy-action-renames.ts";
 import { addDiagnostic, type Diagnostic } from "./model.ts";
 import { analysisText, initializeLine, splitSourceLines } from "./text.ts";
 
@@ -288,19 +289,11 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         initializeLine(sourceTokens);
         const action = sourceTokens.tokens[1];
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
-        let convertedAction = action;
         const invalidLayerExit = action === "LeaveSubZone" && !options.isLayer;
         let invalidBankContextMessage = "";
-        if (action === "GoZone" && actionTokens[0] === "SelectedTrackFX") {
-            convertedAction = "ToggleSelectedTrackFX";
-            actionTokens = actionTokens.slice(1);
-        } else if (action === "GoZone" && actionTokens[0]?.toLowerCase() === "home") {
-            convertedAction = "GoHome";
-            actionTokens = actionTokens.slice(1);
-        } else if (action === "GoSubZone") convertedAction = "EnterZoneLayer";
-        else if (action === "LeaveSubZone") {
-            if (options.isLayer) convertedAction = "ExitZoneLayer";
-        }
+        const renamedAction = renameLegacyAction(action, actionTokens, { isLayer: options.isLayer ?? false });
+        const convertedAction = renamedAction.action;
+        actionTokens = renamedAction.arguments;
         if (action === "Bank" && actionTokens.length >= 2 && !actionTokens[0].includes("=")) {
             const bankTarget = MAGIC_MAIN_METADATA.get(actionTokens[0].toLowerCase());
             const contexts = options.bankContexts ?? (options.isLayer ? [] : [zoneName]);

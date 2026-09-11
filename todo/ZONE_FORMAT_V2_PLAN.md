@@ -1792,7 +1792,7 @@ The current priority is the first end-to-end migration test with FaderPortV2 and
 
 Public legacy Surface conversion has one completion gate:
 
-- [ ] Every processor used by `CSI/Surfaces/*/Surface.txt` is classified. Each supported processor must preserve every required address, byte, channel, profile, curve, display field, color, ring, meter, SysEx field, and meaningful option. Each unsupported or ambiguous processor must produce a blocking diagnostic at its source line. The importer must never silently omit a processor or one of its parameters.
+- ✅ Every processor used by `CSI/Surfaces/*/Surface.txt` is classified. Each supported processor must preserve every required address, byte, channel, profile, curve, display field, color, ring, meter, SysEx field, and meaningful option. Each unsupported or ambiguous processor must produce a blocking diagnostic at its source line. The importer must never silently omit a processor or one of its parameters.
   - ✅ Add a TypeScript reader for the canonical `surface_io_schema.conf` primitive and representation catalog.
   - ✅ Add `bun run surface-coverage` to inventory every processor occurrence inside legacy Widget blocks in the public Surface files, ignore OSK layout entries, report malformed Widget boundaries separately, and verify that each declared conversion target exists in the canonical catalog. Distinguish processors that wait for an approved runtime from unknown processor types.
   - ✅ Classify generic legacy OSC `Control` and `FB_Processor` as planned until the format 2 OSC runtime and explicit value-type conversion are implemented; do not report them as supported before then.
@@ -1889,8 +1889,8 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 
 - ✅ Add lossless format 2 parsing, validation, syntax highlighting, quick fixes, and cross-file references.
 - [ ] Replace semantic snippet slots, explicit capability fields, application IDs, conflict actions, and saved marker comments with direct zone-fragment parsing and token-aware widget plus modifier mapping. Derive compatibility from the normal action, binding, and Surface catalogs, and insert only into the unsaved destination draft.
-- [ ] Create the declarative Bun-only action rename registry and validate its destinations against the current action catalog.
-- [ ] Keep the conversion matrix and golden fixture pairs synchronized with every later format or action rename.
+- ✅ Create the declarative Bun-only action rename registry and validate its destinations against the current action catalog.
+- ✅ Keep the conversion matrix and golden fixture pairs synchronized with every later format or action rename.
 - [ ] Show a Zone Layer badge, all current parent references, and context-valid navigation actions in the editor. Offer `ExitZoneLayer` only for zone layers.
 - [ ] Add safe User-zone rename with complete-profile reference updates, case-only filesystem handling, hash checks, and focused User overrides for Vendor referrers.
 - [ ] Replace whole-profile Main cloning with `Create User override` for one zone. Show a clear override confirmation when import or copy selects an existing Vendor ID.
@@ -1898,7 +1898,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - ✅ Convert legacy `FB_Encoder` output to one reusable `RotaryRing` profile and explicit `Feedback Ring`, including the historical output-address offset and style bits.
 - ✅ Convert legacy `Widget|` channel placeholders to `Widget#` and include exact, missing-family, and rejected-wildcard golden fixtures.
 - ✅ Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
-- [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
+- ✅ Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
   - ✅ Route legacy Surface preview and import through a separate format 2 converter. Cover the FaderPortV2 processor set (`Press`, `Touch`, `Fader14Bit`, `FB_Fader14Bit`, `Encoder`, `FB_TwoState`, and `FB_FaderportRGB`), encoder profiles, color calibration, explicit legacy OSK rows, and generated fader-aware OSK layout. Keep the parent item open until every catalog processor and protocol conversion is implemented.
   - ✅ Convert `AnyPress` to its real two-byte `MIDIPrefix` behavior, preserve an ordinary `Press` without an `Off` message, and convert `Fader7Bit` plus `FB_Fader7Bit` to universal MIDI7 Value primitives.
   - ✅ Convert generic OSC `Control` and `FB_Processor` without guessing from Widget names or zones. Preserve their number, text, and legacy HexRGBA color transports as separate typed primitives.
@@ -1907,7 +1907,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Preserve legacy Widget aliases as quoted format 2 Widget properties, including the XTouchMiniMC transport labels used by OSK.
   - ✅ Convert MCU, MCUXT, and C4 upper and lower seven-character displays to one shared TextProfile and explicit MIDISysEx payloads without retaining device-specific runtime processor names.
   - ✅ Convert MCU time characters, time-mode lights, and assignment letters to universal MIDICharacters and MIDIExact State feedback with all device bytes in Surface metadata.
-- [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
+- ✅ Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
   - ✅ Convert X-Touch palette and iCON RGB7 shared track-color display packets to Surface FeedbackGroup blocks with explicit display channels and complete slot membership.
   - ✅ Compare complete generated Surface output with executable golden fixtures for X-Touch palette, iCON RGB7, and FaderPort scribble-strip mode conversion.
   - ✅ Compare complete generated Surface output with executable golden fixtures for MCU time and assignment displays, FaderPort Classic split values, and FaderPort scribble text.
@@ -1919,11 +1919,11 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - ✅ Convert legacy TextAlign and TextInvert to typed Text properties.
   - ✅ Normalize legacy alignment names and convert `TextInvert=Yes|No` to Boolean `TextInvert=true|false` in import drafts without guessing invalid values.
   - ✅ Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue, remove the repeated imported zone lines, and report differing per-zone modes as unresolved.
-- [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
+- ✅ Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
 - ✅ Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.
 - ✅ Move the surface-channel count from product Device blocks to required Surface `@Meta Channels=N`. Derive legacy imports from the numbered widget families with a fallback of one, remove the field from I/O forms, and reject reuse of one Device with conflicting Surface channel counts.
   - ✅ Ensure inferred `Channels` is not smaller than an explicit Widget `Channel` extracted from trusted legacy processor metadata.
-- [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
+- ✅ Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - ✅ Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
   - ✅ Read recognized long navigator names both from deprecated `GoZones.zon` entries and directly beside the legacy Zone ID, including `Zone Channel TrackNavigator` to `Target=Tracks`.
   - ✅ Convert legacy `Bank Target Amount` to `Bank Amount` when the target matches the converted zone context. Report a migration conflict when it does not match, so the user can move that binding to an included zone with the required context.

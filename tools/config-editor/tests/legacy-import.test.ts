@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { missingLegacyActionRenameDestinations, renameLegacyAction } from "../src/legacy-action-renames.ts";
 import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
 import { parseByPath } from "../src/formats.ts";
 import { convertLegacyLearnFxToFormat2 } from "../src/legacy-learn-fx.ts";
@@ -22,7 +23,7 @@ const identity: EditorProductIdentity = {
     productId: "test-product",
     resourceDirectory: "TestProduct",
 };
-const knownActions = new Set(["FXParam", "GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackVolume", "TrackVolumeDisplay"]);
+const knownActions = new Set(["EnterZoneLayer", "ExitZoneLayer", "FXParam", "GoHome", "GoZone", "Play", "ToggleSelectedTrackFX", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackVolume", "TrackVolumeDisplay"]);
 const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
@@ -70,6 +71,16 @@ afterEach(async () => {
 });
 
 describe("legacy CSI import", () => {
+    test("uses one validated declarative action rename registry", () => {
+        expect(renameLegacyAction("GoZone", ["Home"], { isLayer: false })).toEqual({ action: "GoHome", arguments: [] });
+        expect(renameLegacyAction("GoZone", ["SelectedTrackFX"], { isLayer: false })).toEqual({ action: "ToggleSelectedTrackFX", arguments: [] });
+        expect(renameLegacyAction("GoSubZone", ["Pan"], { isLayer: false })).toEqual({ action: "EnterZoneLayer", arguments: ["Pan"] });
+        expect(renameLegacyAction("LeaveSubZone", [], { isLayer: true })).toEqual({ action: "ExitZoneLayer", arguments: [] });
+        expect(renameLegacyAction("LeaveSubZone", [], { isLayer: false })).toEqual({ action: "LeaveSubZone", arguments: [] });
+        expect(missingLegacyActionRenameDestinations(knownActions)).toEqual([]);
+        expect(missingLegacyActionRenameDestinations(new Set(["GoHome"]))).toEqual(["EnterZoneLayer", "ExitZoneLayer", "ToggleSelectedTrackFX"]);
+    });
+
     test("converts a legacy MIDI Surface and creates a fader-aware OSK layout", () => {
         const legacySurface = `StepSize
   RotaryWidgetClass 0.003

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import { missingLegacyActionRenameDestinations } from "./legacy-action-renames.ts";
 import { parseByPath, type AnyDocument } from "./formats.ts";
 import { addDiagnostic, serializeDocument, type Diagnostic } from "./model.ts";
 import type { ConfigurationStore, OperationReport, SaveChange } from "./store.ts";
@@ -696,7 +697,8 @@ export class LegacyCsiSource {
             }
             return result;
         });
-        const allDiagnostics = profileDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, !document.path?.startsWith("Zones/Vendor/"))).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics);
+        const actionRenameDiagnostics = missingLegacyActionRenameDestinations(knownActions).map((action): Diagnostic => ({ code: "legacy.action-rename.destination.missing", message: `Legacy action rename target is missing from the current action catalog: ${action}`, severity: "error" }));
+        const allDiagnostics = profileDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, !document.path?.startsWith("Zones/Vendor/"))).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics, actionRenameDiagnostics);
         const bankContextLocations = new Set(allDiagnostics.filter((diagnostic) => diagnostic.code === "legacy.zone.bank.context").map((diagnostic) => `${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`));
         const diagnostics = allDiagnostics.filter((diagnostic) => diagnostic.code !== "format2.zone.action.bank-amount" || !bankContextLocations.has(`${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`));
         const selectedTargetPaths = new Map<string, string>();

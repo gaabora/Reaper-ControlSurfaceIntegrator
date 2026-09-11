@@ -49,6 +49,7 @@
 - Reject automatic recovery when the source hash changed after draft creation. Require an explicit Use draft or Discard draft choice.
 - Show field errors directly below their related path controls with semantic `danger` styling. Show other operation messages as dismissible notifications outside the workflow header. Route structured validation details into All found and keep notifications short instead of printing diagnostic JSON. Remove success notifications after five seconds, and keep info, warning, and danger notifications until the user closes them. Use `primary`, `secondary`, `success`, `warning`, `danger`, and `info` for visual state names, and keep operation reports inside their workflow instead of a global status footer.
 - Read action names from `src/shared/types.h` `ACTION_TYPE_LIST`. Do not add a manual action-name list.
+- Keep legacy action renames in one declarative Bun-only registry. Validate every destination against the generated current action catalog before import.
 - Return the generated action catalog from `/api/status` and use it for CodeMirror action completion in both the normal configuration editor and the legacy import draft editor.
 - Read optional `//! @feedback_shape` values with the other action documentation metadata. Do not infer a shape from an action name.
 - Read context-changing and modifier action names from their lists in `src/controls/format2_action_metadata.h`. Include both traits in the generated action catalog and reject a listed name that is absent from `ACTION_TYPE_LIST`.
