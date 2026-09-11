@@ -1727,6 +1727,7 @@ The static codec audit intentionally excludes device names that do not select a 
     - ✅ Replace the transitional per-`ActionContext` timers and shared Widget flags with one deterministic recognizer per active physical Widget context. Capture the selected action contexts on press, preserve them through modifier changes, order Hold and LongHold milestones by effective delay, run repeats from the same timeline, delay or suppress Tap for exclusive DoublePress, cancel state on zone deactivation, and recover a missing release before a new press. The recognizer accepts an explicit timestamp for deterministic tests.
     - ✅ Add standalone CTest targets for button gestures and resolved gesture reachability. Cover event timing, double-press policies and deadline, repeat cancellation and 32-bit clock wrap, modifier dispatches, missing releases, reset phases, and source-linked context-change conflicts. Keep the recognizer independent from REAPER and WDL headers.
     - ✅ Validate context-changing button event combinations before constructing runtime contexts, using resolved physical Widgets, normalized modifier masks, effective timing, and the shared action-metadata trait. Reject unreachable events, repeated context changes, and invalid same-event action order. Report both conflicting source lines.
+    - ✅ Load format 2 zones best effort. Keep valid bindings active when another line has a syntax or runtime error, ignore unavailable relations and navigation targets locally, and execute exact duplicate actions once with a warning.
     - ✅ Run the new gesture CTest targets successfully.
     - [ ] Verify cancellation plus captured modifier contexts in REAPER. Pure recognizer tests do not verify Zone or ModifierManager integration.
     - ✅ Complete multi-action and modifier-source validation, then provide equivalent diagnostics in Bun and OSK live editing.
@@ -1883,23 +1884,24 @@ XTouch display migration uses the complete selected Surface. Every recognized XT
 
 If one legacy file is referenced both as a SubZone and as an independent zone, the importer cannot silently assign one format 2 `Role`. The preview reports both reference locations and asks the user to keep one role or create a renamed copy for one use. A file referenced as a SubZone by several parents is not ambiguous and converts to one reusable `Role=Layer` document.
 
-- [ ] Add lossless format 2 parsing, validation, syntax highlighting, quick fixes, and cross-file references.
+- ✅ Add lossless format 2 parsing, validation, syntax highlighting, quick fixes, and cross-file references.
 - [ ] Replace semantic snippet slots, explicit capability fields, application IDs, conflict actions, and saved marker comments with direct zone-fragment parsing and token-aware widget plus modifier mapping. Derive compatibility from the normal action, binding, and Surface catalogs, and insert only into the unsaved destination draft.
 - [ ] Create the declarative Bun-only action rename registry and validate its destinations against the current action catalog.
 - [ ] Keep the conversion matrix and golden fixture pairs synchronized with every later format or action rename.
 - [ ] Show a Zone Layer badge, all current parent references, and context-valid navigation actions in the editor. Offer `ExitZoneLayer` only for zone layers.
 - [ ] Add safe User-zone rename with complete-profile reference updates, case-only filesystem handling, hash checks, and focused User overrides for Vendor referrers.
 - [ ] Replace whole-profile Main cloning with `Create User override` for one zone. Show a clear override confirmation when import or copy selects an existing Vendor ID.
-- [ ] Convert old `Zone ... ZoneEnd`, `BlockName ... BlockNameEnd`, and surface blocks during legacy import.
+- ✅ Convert old `Zone ... ZoneEnd`, `BlockName ... BlockNameEnd`, and surface blocks during legacy import.
 - ✅ Convert legacy `FB_Encoder` output to one reusable `RotaryRing` profile and explicit `Feedback Ring`, including the historical output-address offset and style bits.
-- [ ] Convert legacy `Widget|` channel placeholders to `Widget#` and include exact, missing-family, and rejected-wildcard golden fixtures.
-- [ ] Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
+- ✅ Convert legacy `Widget|` channel placeholders to `Widget#` and include exact, missing-family, and rejected-wildcard golden fixtures.
+- ✅ Convert every legacy anonymous zone value group to `Range`, `Delta`, `StepValues`, `AccelerationDeltas`, and `TicksPerStep` according to the conversion matrix.
 - [ ] Convert legacy Surface Widget blocks through the completed universal Input and Feedback catalog. Move recognized device-specific messages, curves, display fields, colors, rings, meters, and SysEx values into the new metadata. Convert WidgetClass, `StepSize`, and `AccelerationValues` to EncoderProfile references. Convert the exact unclassified standard signed-bit range, remove ignored redundant ranges with a notice, and report other ranges as unresolved.
   - ✅ Route legacy Surface preview and import through a separate format 2 converter. Cover the FaderPortV2 processor set (`Press`, `Touch`, `Fader14Bit`, `FB_Fader14Bit`, `Encoder`, `FB_TwoState`, and `FB_FaderportRGB`), encoder profiles, color calibration, explicit legacy OSK rows, and generated fader-aware OSK layout. Keep the parent item open until every catalog processor and protocol conversion is implemented.
   - ✅ Convert `AnyPress` to its real two-byte `MIDIPrefix` behavior, preserve an ordinary `Press` without an `Off` message, and convert `Fader7Bit` plus `FB_Fader7Bit` to universal MIDI7 Value primitives.
   - ✅ Convert generic OSC `Control` and `FB_Processor` without guessing from Widget names or zones. Preserve their number, text, and legacy HexRGBA color transports as separate typed primitives.
   - ✅ Convert legacy OSC `AnyPress`, `Touch`, and `FB_IntProcessor` to typed Press, Touch, and OSCInt Value primitives, and compare the complete converted Surface with an executable golden fixture.
   - ✅ Convert ordinary `FB_X32IntProcessor` addresses to OSCInt Value feedback. Block its conditional `/-stat/selidx/<n>` address rewrite and the combined numeric/color `FB_X32Processor` with focused source diagnostics instead of guessing.
+  - ✅ Preserve legacy Widget aliases as quoted format 2 Widget properties, including the XTouchMiniMC transport labels used by OSK.
   - ✅ Convert MCU, MCUXT, and C4 upper and lower seven-character displays to one shared TextProfile and explicit MIDISysEx payloads without retaining device-specific runtime processor names.
   - ✅ Convert MCU time characters, time-mode lights, and assignment letters to universal MIDICharacters and MIDIExact State feedback with all device bytes in Surface metadata.
 - [ ] Add explicit Channel metadata from the legacy processor channel argument when present, otherwise from the Widget numeric suffix only for processors that currently depend on it. Convert supported ring color-configuration output to nested Configure and supported shared XTouch track-color output to FeedbackGroup. Report conflicting, missing, or ambiguous channel and group membership instead of inferring it at runtime.
@@ -1911,7 +1913,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Compare complete generated Surface output with executable golden fixtures for QCon master meters, both Icon display variants, FaderPort value bars, and both FaderPort peak-meter status ranges.
   - ✅ Compare complete generated Surface output with executable golden fixtures for X32 fader and rotary conversion, MIDI and OSC OSK layouts, and ColorCalibration.
 - ✅ Convert FaderPort value bars to Feedback Bar and MIDI Fighter Twister palette output to MIDIPalette with Companion. Report legacy command-shaped MFT color values as unresolved.
-- [ ] Convert legacy TextAlign and TextInvert to typed Text properties.
+- ✅ Convert legacy TextAlign and TextInvert to typed Text properties.
   - ✅ Normalize legacy alignment names and convert `TextInvert=Yes|No` to Boolean `TextInvert=true|false` in import drafts without guessing invalid values.
   - ✅ Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue, remove the repeated imported zone lines, and report differing per-zone modes as unresolved.
 - [ ] Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
@@ -1919,15 +1921,15 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - ✅ Move the surface-channel count from product Device blocks to required Surface `@Meta Channels=N`. Derive legacy imports from the numbered widget families with a fallback of one, remove the field from I/O forms, and reject reuse of one Device with conflicting Surface channel counts.
   - ✅ Ensure inferred `Channels` is not smaller than an explicit Widget `Channel` extracted from trusted legacy processor metadata.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
-- [ ] Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
-  - [ ] Convert legacy `Bank Target Amount` to `Bank Amount` when the target matches the converted zone context. Report a migration conflict when it does not match, so the user can move that binding to an included zone with the required context.
-- [ ] Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
+- ✅ Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
+  - ✅ Convert legacy `Bank Target Amount` to `Bank Amount` when the target matches the converted zone context. Report a migration conflict when it does not match, so the user can move that binding to an included zone with the required context.
+- ✅ Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
 - ✅ Convert Learn FX pseudo-zones into `LearnFX.fxzon`, derive supported entry defaults, report ambiguous display/default targets, validate resolved Surface capabilities, and do not convert `FXRowLayout`.
-- [ ] Convert brace-based `IncludedZones`, convert `SubZones` to the reusable `ZoneLayers` relation, and mark every referenced file with `Role=Layer`.
-- [ ] Convert `GoZone SelectedTrackFX`, `GoSubZone`, `LeaveSubZone`, and all lifecycle pseudo-widgets to their explicit format 2 actions or blocks.
+- ✅ Convert brace-based `IncludedZones`, convert `SubZones` to the reusable `ZoneLayers` relation, and mark every referenced file with `Role=Layer`.
+- ✅ Convert `GoZone SelectedTrackFX`, `GoSubZone`, `LeaveSubZone`, and all lifecycle pseudo-widgets to their explicit format 2 actions or blocks.
 - ✅ Replace development product-config parsing, serialization, diagnostics, fixtures, drafts, and editor support with the new unversioned `.conf` model and Product plus Device settings scopes.
 - [ ] Convert old `CSI.ini` only through the Bun legacy importer and do not add runtime fallback.
-- [ ] Report ambiguous legacy content before import and keep the source unchanged.
+- ✅ Report ambiguous legacy content before import and keep the source unchanged.
 
 Ready when old public CSI examples can be imported into format 2 without runtime legacy parsing.
 

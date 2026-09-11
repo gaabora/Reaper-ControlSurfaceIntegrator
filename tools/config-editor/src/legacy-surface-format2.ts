@@ -826,6 +826,14 @@ function inferredChannelCount(document: ReturnType<typeof parseSurface>): number
     return channels;
 }
 
+function legacyWidgetAlias(sourceLines: ReturnType<typeof splitSourceLines>, widget: SurfaceWidget): string | undefined {
+    const sourceLine = sourceLines[widget.line - 1];
+    if (!sourceLine) return undefined;
+    const aliasToken = tokenizeLine(analysisText(sourceLine)).slice(2).find((token) => /^Alias=/i.test(token));
+    const alias = aliasToken?.slice(aliasToken.indexOf("=") + 1);
+    return alias || undefined;
+}
+
 export function convertLegacySurfaceToFormat2(source: string, surfaceName: string, documentPath: string, meterMode: LegacyMcuMeterMode = "XTouch", scribbleStripMode?: number): LegacySurfaceConversion {
     if (/^\s*(?:\uFEFF)?@Meta\s*\{[^}]*\bVersion=2\b/i.test(source)) {
         const currentDocument = parseSurface(source, documentPath);
@@ -833,10 +841,13 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     }
     const document = parseSurface(source, documentPath);
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
+    const sourceLines = splitSourceLines(source);
     const blocks = legacyBlocks(source);
     const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     for (const widget of document.semantic.widgets) {
         output.push(`Widget ${widget.name} {`);
+        const alias = legacyWidgetAlias(sourceLines, widget);
+        if (alias) output.push(`  Alias=${JSON.stringify(alias)}`);
         const channel = legacyWidgetChannel(widget);
         if (channel) output.push(`  Channel=${channel}`);
         else {

@@ -873,7 +873,7 @@ WidgetEnd
             return `Widget Rotary${channel} RotaryWidgetClass\n  Encoder b0 ${controller} 7f\n  FB_Encoder b0 ${controller} 7f\nWidgetEnd\n\nWidget RotaryPush${channel}\n  Press 90 ${pushNote} 7f 90 ${pushNote} 00\nWidgetEnd\n`;
         }).join("\n");
         const layoutWidgets = Array.from({ length: 8 }, (_, channelIdx) => `    Widget Rotary${channelIdx + 1} Shape=Round PressTarget=RotaryPush${channelIdx + 1}`).join("\n");
-        const xTouchSurface = `StepSize\n  RotaryWidgetClass 0.003\nStepSizeEnd\n\n${channelWidgets}\nWidget Fader\n  Fader14Bit e8 7f 7f\nWidgetEnd\n\nWidget LayerA\n  Press 90 54 7f 90 54 00\nWidgetEnd\n\nWidget ButtonB7\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n\nOSKLayout Version=1\n  Row\n${layoutWidgets}\n    Widget Fader Shape=Fader Height=3\n  RowEnd\n  Row\n    Widget LayerA\n    Widget ButtonB7\n  RowEnd\nOSKLayoutEnd\n`;
+        const xTouchSurface = `StepSize\n  RotaryWidgetClass 0.003\nStepSizeEnd\n\n${channelWidgets}\nWidget Fader\n  Fader14Bit e8 7f 7f\nWidgetEnd\n\nWidget LayerA\n  Press 90 54 7f 90 54 00\nWidgetEnd\n\nWidget ButtonB7 Alias=Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n\nOSKLayout Version=1\n  Row\n${layoutWidgets}\n    Widget Fader Shape=Fader Height=3\n  RowEnd\n  Row\n    Widget LayerA\n    Widget ButtonB7\n  RowEnd\nOSKLayoutEnd\n`;
         await writeFile(path.join(surfaceRoot, "Surface.txt"), xTouchSurface, "utf8");
         await writeFile(path.join(zoneRoot, "Home.zon"), "Zone Home\n  IncludedZones\n    Channel\n  IncludedZonesEnd\n  LayerA Control\n  ButtonB7 Play\nZoneEnd\n", "utf8");
         await writeFile(path.join(zoneRoot, "Channel.zon"), "Zone Channel TrackNavigator\n  Rotary| TrackVolume\n  RotaryPush| TrackSelect\nZoneEnd\n", "utf8");
@@ -884,6 +884,7 @@ WidgetEnd
         const preview = await source.preview(store, knownActions, "XTouchMiniMC", true);
         expect(preview.valid).toBeTrue();
         expect(preview.items.find((item) => item.kind === "surface")?.source).toStartWith('@Meta { Version=2 Protocol=MIDI Channels=8 Name="XTouchMiniMC" }');
+        expect(preview.items.find((item) => item.kind === "surface")?.source).toContain('Widget ButtonB7 {\n  Alias="Play"');
         expect(preview.items.find((item) => item.sourcePath === "Zones/Channel.zon")?.source).toContain("Rotary# TrackVolume");
         expect(preview.items.find((item) => item.sourcePath === "Zones/Channel.zon")?.source).toContain("RotaryPush# TrackSelect");
 
