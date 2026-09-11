@@ -310,6 +310,17 @@ const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
     },
     {
         acceptsSetDiagnostic: true,
+        apply: (context) => commentOutDiagnosticLine(context),
+        fixes: (context) => {
+            if (!context.diagnostic.line) return [];
+            if (context.diagnostic.code === "format2.zone.gesture.action.duplicate") return [{ id: "zone.gesture.comment-out", label: "Comment out this duplicate binding" }];
+            if (context.diagnostic.code === "format2.zone.gesture.unreachable") return [{ id: "zone.gesture.comment-out", label: "Comment out this conflicting binding" }];
+            return [];
+        },
+        id: "zone.gesture.comment-out",
+    },
+    {
+        acceptsSetDiagnostic: true,
         apply: (context) => commentOutDocument(context),
         fixes: (context) => context.diagnostic.code === "legacy.learn-fx.source.duplicate" ? [{ id: "legacy.learn-fx.duplicate.comment-out", label: "Comment out this duplicate file" }] : [],
         id: "legacy.learn-fx.duplicate.comment-out",

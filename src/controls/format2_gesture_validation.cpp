@@ -6,8 +6,8 @@ static bool IsHoldEvent(ActionInputEvent event) {
 }
 
 static void AddRelatedDiagnostics(std::vector<Format2Diagnostic>& diagnostics, const std::string& code, const std::string& reason, const Format2GestureBinding& first, const Format2GestureBinding& second, Format2DiagnosticSeverity severity = Format2DiagnosticSeverity::Error) {
-    diagnostics.push_back({code, reason + "; related binding at line " + std::to_string(second.location.line), first.location, severity});
-    diagnostics.push_back({code, reason + "; related binding at line " + std::to_string(first.location.line), second.location, severity});
+    diagnostics.push_back({code, reason + ". See line " + std::to_string(second.location.line), first.location, severity});
+    diagnostics.push_back({code, reason + ". See line " + std::to_string(first.location.line), second.location, severity});
 }
 
 std::vector<Format2Diagnostic> ValidateFormat2GestureBindings(const std::vector<Format2GestureBinding>& bindings, int doublePressWindowMs, bool exclusiveDoublePress) {
@@ -23,7 +23,7 @@ std::vector<Format2Diagnostic> ValidateFormat2GestureBindings(const std::vector<
             const Format2GestureBinding& other = bindings[otherIdx];
             if (event != other.gesture.inputEvent) continue;
             if (!binding.actionIdentity.empty() && binding.actionIdentity == other.actionIdentity) {
-                AddRelatedDiagnostics(diagnostics, "format2.zone.gesture.action.duplicate", "The duplicate action is ignored", binding, other, Format2DiagnosticSeverity::Warning);
+                AddRelatedDiagnostics(diagnostics, "format2.zone.gesture.action.duplicate", "The same " + binding.actionName + " action is assigned twice to this button event. Remove either line", binding, other, Format2DiagnosticSeverity::Warning);
             } else if (binding.actionName == "NoAction" || other.actionName == "NoAction") {
                 AddRelatedDiagnostics(diagnostics, "format2.zone.gesture.no-action", "NoAction must be the only action in an event group", binding, other);
             }
@@ -40,8 +40,8 @@ std::vector<Format2Diagnostic> ValidateFormat2GestureBindings(const std::vector<
             if (event == otherEvent) {
                 if (Format2ActionChangesContext(other.actionName)) {
                     if (otherIdx < bindingIdx) continue;
-                    reason = "One event group cannot contain two context-changing actions";
-                } else if (otherIdx > bindingIdx) reason = "An action cannot follow a context-changing action in the same event group";
+                    reason = "Both " + binding.actionName + " and " + other.actionName + " change the active zone or FX for the same button event. Keep only one";
+                } else if (otherIdx > bindingIdx) reason = binding.actionName + " changes the active zone or FX before " + other.actionName + " can run. Move " + other.actionName + " before it, or use another button event";
             } else if (event == ActionInputEvent::Press) reason = "Press changes context before the other button event can complete";
             else if (event == ActionInputEvent::Release && otherEvent == ActionInputEvent::DoublePress) reason = "Release changes context before DoublePress can complete";
             else if (event == ActionInputEvent::Tap && otherEvent == ActionInputEvent::DoublePress && !exclusiveDoublePress) reason = "Tap changes context before additive DoublePress can complete";

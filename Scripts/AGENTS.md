@@ -51,6 +51,7 @@
 - Do not silently persist settings that are intended to remain session-only.
 - Track unapplied editor changes separately from live unsaved changes, and request C++ revert when an editor with live changes closes.
 - Keep the binding editor's structured columns, pseudo-modifiers, generated titles, and color controls backed by the same serialized raw action line used by `ConfigApplyLive`.
+- Read and write format 2 binding colors as `StateColors=[ #RRGGBB, ... ]`. The widget editor must not convert them back to anonymous legacy color blocks.
 - Preserve the standard Modifier declaration marker and its `Default`, `Momentary`, `Latch`, or `Hybrid` mode in every OSK binding model copy and serialized request. Show Modifier mode only for a Modifier source and keep `Default` linked to the Device setting.
 - Treat an OSK configuration `WARN` status as a successful Apply Live result, keep its concise shared-gesture diagnostic visible after the automatic Query, and continue queued preview or Save behavior.
 - Keep config color-picker swatches compact: empty saved/recent slots use checker/transparent swatches, left-click uses a stored color, and right-clicking a saved slot overwrites it with the current picker color.

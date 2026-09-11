@@ -13,7 +13,6 @@ import { convertLegacyZoneToFormat2, legacyMainBankContext } from "./legacy-zone
 import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
 import { migrateLegacySce24StateColors } from "./legacy-sce24-state.ts";
 import { analysisText, convertHashCommentLine, convertSingleSlashCommentLine, initializeLine, isStableId, splitSourceLines } from "./text.ts";
-import { validateDocumentSet } from "./validation.ts";
 import { isCompatible, normalizedWidgetName, surfaceWidgetSlots, type WidgetCapability } from "./widget-capabilities.ts";
 import type { SurfaceSemantic, SurfaceWidget } from "./surface.ts";
 import type { ZoneBinding, ZoneSemantic } from "./zone.ts";
@@ -608,6 +607,14 @@ export class LegacyCsiSource {
             for (const diagnostic of collectMftCommandDiagnostics(legacyZoneDocuments, zoneDocuments, selectedPaths, targetSurface, widgetMappingResult.validMappings)) {
                 if (diagnostic.path) zoneDocuments.get(diagnostic.path)?.diagnostics.push(diagnostic);
             }
+            for (const [sourcePath, document] of zoneDocuments) {
+                if (!selectedPaths.has(sourcePath)) continue;
+                const existingDiagnostics = new Set(document.diagnostics.map((diagnostic) => `${diagnostic.code}\0${diagnostic.line}\0${diagnostic.message}`));
+                for (const diagnostic of store.validateZoneGesturesForSurface(document, targetSurface)) {
+                    const diagnosticKey = `${diagnostic.code}\0${diagnostic.line}\0${diagnostic.message}`;
+                    if (!existingDiagnostics.has(diagnosticKey)) document.diagnostics.push(diagnostic);
+                }
+            }
         }
         addLegacyExitLayerQuickFixes([...zoneDocuments].filter(([sourcePath]) => selectedPaths.has(sourcePath)).map(([, document]) => document));
 
@@ -626,7 +633,7 @@ export class LegacyCsiSource {
             const conversion = convertLegacyLearnFxToFormat2({ epilogue: learnSource("fxepilogue"), layout: { source: draftMap.get(learnLayout.sourcePath)?.source ?? preparedZoneSources.get(learnLayout.sourcePath)!, sourcePath: learnLayout.sourcePath }, prologue: learnSource("fxprologue") });
             migratedLearnFx = conversion.source;
             learnFxDiagnostics.push(...conversion.diagnostics);
-            learnFxDocument = parseByPath(migratedLearnFx, learnFxTargetPath, knownActions);
+            learnFxDocument = store.parseDocument(learnFxTargetPath, migratedLearnFx);
             learnFxDocument.diagnostics.push(...learnFxDiagnostics);
             if (targetSurface) learnFxDocument.diagnostics.push(...validateLearnFxSurface(learnFxDocument, targetSurface));
         }
@@ -661,7 +668,7 @@ export class LegacyCsiSource {
         const mappingSurfaceDiagnostics = mappingSurfaceDocuments.flatMap((document) => document.diagnostics).filter((diagnostic) => diagnostic.code !== "surface.format.missing" && diagnostic.code !== "zone.format.missing");
         const selectedDocumentsByPath = new Map<string, AnyDocument>(selectedDocuments.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document] as const));
         const profileDocuments = selectedPaths.size ? await store.zoneProfileDocuments(targetProfileId, selectedDocuments, recommendedSourceMode === "User" ? new Set(["User"]) : undefined) : selectedDocuments;
-        const setDiagnostics = validateDocumentSet(profileDocuments, { completeProfiles: true }).flatMap((diagnostic) => {
+        const setDiagnostics = store.validateDocuments(profileDocuments, true).flatMap((diagnostic) => {
             const document = diagnostic.path ? selectedDocumentsByPath.get(diagnostic.path.toLowerCase()) : undefined;
             let contextualDiagnostic = diagnostic;
             if (document && diagnostic.code === "zones.dependency.missing") {
@@ -755,7 +762,7 @@ export class LegacyCsiSource {
         for (const resolution of request.resolutions) if (!preview.items.some((item) => item.selected && item.id === resolution.id)) throw new EditorOperationError("legacy.resolution.unknown", `Import resolution does not match a selected source: ${resolution.id}`);
         if (!changes.length) return { changed: [], created: [], failed: [], restored: [], skipped };
         const finalDocuments = await store.zoneProfileDocuments(preview.targetProfileId, changes.map((change) => store.parseDocument(change.path, change.source)), preview.recommendedSourceMode === "User" ? new Set(["User"]) : undefined);
-        const finalDiagnostics = finalDocuments.flatMap((document) => document.diagnostics).concat(validateDocumentSet(finalDocuments, { completeProfiles: true }));
+        const finalDiagnostics = finalDocuments.flatMap((document) => document.diagnostics).concat(store.validateDocuments(finalDocuments, true));
         if (finalDiagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", "The final import profile contains errors after Replace, Rename, or Skip. No files were imported.", finalDiagnostics);
         const report = await store.saveTransaction(changes);
         report.skipped.push(...skipped);
@@ -779,7 +786,7 @@ export class LegacyCsiSource {
             const state = await store.fileState(targetPath);
             if (!state.exists) continue;
             const opened = await store.openDocument(targetPath);
-            return parseByPath(opened.source, targetPath, knownActions);
+            return store.parseDocument(targetPath, opened.source);
         }
         return undefined;
     }

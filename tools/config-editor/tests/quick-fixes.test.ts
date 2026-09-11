@@ -100,6 +100,24 @@ describe("diagnostic quick fix registry", () => {
         expect(applyQuickFix(source, relativePath, knownActions, { diagnostic, fix }).source).toContain("  // the");
     });
 
+    test("offers safe fixes for duplicate and unreachable gesture bindings", () => {
+        const relativePath = "Zones/User/test/Main/Home.zon";
+        const source = "@Meta { Version=2 Role=Home }\n(Press)+Play TrackPan\n(Press)+Play TrackPan\n(Press)+Stop GoZone Mixer\n(Press)+Stop Play\n";
+        const actionTraits = new Map([
+            ["GoZone", { changesContext: true, changesModifier: false }],
+            ["Play", { changesContext: false, changesModifier: false }],
+            ["TrackPan", { changesContext: false, changesModifier: false }],
+        ]);
+        const document = parseByPath(source, relativePath, knownActions, undefined, actionTraits);
+        const duplicate = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "format2.zone.gesture.action.duplicate")!;
+        const unreachable = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "format2.zone.gesture.unreachable" && candidate.line === 5)!;
+
+        expect(duplicate.fixes).toContainEqual({ id: "zone.gesture.comment-out", label: "Comment out this duplicate binding" });
+        expect(unreachable.fixes).toContainEqual({ id: "zone.gesture.comment-out", label: "Comment out this conflicting binding" });
+        expect(applyQuickFix(source, relativePath, knownActions, { diagnostic: duplicate, fix: duplicate.fixes![0] }, undefined, actionTraits).source).toContain("// (Press)+Play TrackPan");
+        expect(applyQuickFix(source, relativePath, knownActions, { diagnostic: unreachable, fix: unreachable.fixes![0] }, undefined, actionTraits).source).toContain("// (Press)+Stop Play");
+    });
+
     test("offers independent navigation and layer fixes for an invalid EnterZoneLayer target", () => {
         const homePath = "Zones/User/test/Main/Home.zon";
         const homeSource = "@Meta { Version=2 Role=Home }\nButton EnterZoneLayer Metronome\n";

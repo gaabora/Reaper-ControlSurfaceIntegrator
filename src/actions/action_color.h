@@ -21,9 +21,10 @@ struct ActionColorState {
     // Index of the currently active color (toggled by UpdateColorValue).
     int currentColorIndex = 0;
 
-    // Parse color parameters from an action param list and populate this state.
-    // Looks for a { … } block containing R G B triplets, #RRGGBB hex strings, or "Track".
+    // Parse a legacy anonymous color block from an action param list.
     void ParseColors(const vector<string>& params);
+    // Parse the format 2 StateColors property.
+    void ParseStateColors(const char* value);
 
     bool HasConfiguredColor() const { return supportsColor || supportsTrackColor; }
 
@@ -93,4 +94,32 @@ inline void ActionColorState::ParseColors(const vector<string>& params) {
             colorValues.push_back(color);
         }
     }
+}
+
+inline void ActionColorState::ParseStateColors(const char* value) {
+    if (!value) return;
+    string source = value;
+    ReplaceAllWith(source, "[", "");
+    ReplaceAllWith(source, "]", "");
+    ReplaceAllWith(source, "\"", "");
+    vector<string> colors;
+    size_t start = 0;
+    while (start <= source.size()) {
+        const size_t separator = source.find(',', start);
+        string item = source.substr(start, separator == string::npos ? string::npos : separator - start);
+        item.erase(0, item.find_first_not_of(" \t"));
+        const size_t lastText = item.find_last_not_of(" \t");
+        if (lastText != string::npos) item.erase(lastText + 1);
+        if (item == "Track") {
+            this->supportsTrackColor = true;
+            return;
+        }
+        if (!item.empty()) colors.push_back(item);
+        if (separator == string::npos) break;
+        start = separator + 1;
+    }
+    if (colors.empty()) return;
+    this->colorValues.clear();
+    this->GetColorValues(this->colorValues, colors);
+    this->supportsColor = !this->colorValues.empty();
 }

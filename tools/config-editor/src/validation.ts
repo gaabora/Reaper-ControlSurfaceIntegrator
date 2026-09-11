@@ -121,6 +121,15 @@ function resolveZoneBindings(document: AnyDocument, surfaceDocument: AnyDocument
     return resolved;
 }
 
+export function validateZoneDocumentGesturesForSurface(document: AnyDocument, surfaceDocument: AnyDocument, actionTraits: ReadonlyMap<string, ActionTraits>, settingsSchema?: SettingsSchema, effectiveSettings: EffectiveGestureSettings = {}): Diagnostic[] {
+    if (document.format !== "zone" || document.version !== "2" || surfaceDocument.format !== "surface") return [];
+    const resolutionDiagnostics: Diagnostic[] = [];
+    const diagnostics: Diagnostic[] = [];
+    const resolvedBindings = resolveZoneBindings(document, surfaceDocument, resolutionDiagnostics, effectiveSettings);
+    validateFormat2ZoneGestures(resolvedBindings, actionTraits, diagnostics, settingsSchema, document.path, effectiveSettings);
+    return diagnostics;
+}
+
 function diagnosticIdentity(diagnostic: Diagnostic): string {
     const related = (diagnostic.related ?? []).map((location) => `${location.path}:${location.line ?? ""}`).sort().join("|");
     return `${diagnostic.code}\0${diagnostic.severity}\0${diagnostic.line ?? ""}\0${diagnostic.message}\0${related}`;
@@ -206,6 +215,7 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
         }
         const contextsByProfile = new Map<string, Array<{ assignment: ProductConfigRecord; configPath?: string; device: ProductConfigRecord; surface: AnyDocument }>>();
         for (const assignment of assignments) {
+            const templateId = assignment.record.properties.get("Template");
             const deviceId = assignment.record.properties.get("Device")?.toLowerCase();
             const surface = surfaceForAssignment(assignment.record);
             const device = deviceId ? devices.get(deviceId) : undefined;

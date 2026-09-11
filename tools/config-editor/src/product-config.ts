@@ -357,7 +357,7 @@ export function parseProductConfig(source: string, documentPath?: string, settin
                 const template = child.properties.get("Template")?.value ?? "";
                 if (!isStableId(template)) addDiagnostic(diagnostics, "error", "product.surface.template", "Template must contain a stable surface ID", child.line, documentPath);
                 const templateSource = child.properties.get("TemplateSource")?.value;
-                if (templateSource && !["Vendor", "User"].includes(templateSource)) addDiagnostic(diagnostics, "error", "product.surface.template-source", "TemplateSource must be Vendor or User", child.line, documentPath);
+                if (templateSource && !["Vendor", "User"].includes(templateSource)) addDiagnostic(diagnostics, "error", "product.surface.template-source", "Choose Vendor or User as the Surface template source", child.properties.get("TemplateSource")?.line, documentPath);
                 for (const name of ["MainProfile", "FXProfile"]) {
                     const profile = child.properties.get(name)?.value;
                     if (profile && !isStableId(profile)) addDiagnostic(diagnostics, "error", "product.surface.profile", `${name} must contain a stable profile ID`, child.line, documentPath);

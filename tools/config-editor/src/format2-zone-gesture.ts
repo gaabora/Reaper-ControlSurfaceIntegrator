@@ -46,8 +46,8 @@ function usesMatchingTerminalModifierSource(binding: ZoneBinding, other: ZoneBin
 function addRelatedDiagnostics(diagnostics: Diagnostic[], severity: "error" | "warning", code: string, message: string, first: ZoneBinding, second: ZoneBinding, documentPath?: string): void {
     const firstRelated = documentPath ? [{ line: second.line, path: documentPath }] : undefined;
     const secondRelated = documentPath ? [{ line: first.line, path: documentPath }] : undefined;
-    addDiagnostic(diagnostics, severity, code, `${message}; related binding at line ${second.line}`, first.line, documentPath, firstRelated);
-    addDiagnostic(diagnostics, severity, code, `${message}; related binding at line ${first.line}`, second.line, documentPath, secondRelated);
+    addDiagnostic(diagnostics, severity, code, `${message}. See line ${second.line}`, first.line, documentPath, firstRelated);
+    addDiagnostic(diagnostics, severity, code, `${message}. See line ${first.line}`, second.line, documentPath, secondRelated);
 }
 
 function readIntegerProperty(binding: ZoneBinding, propertyName: string, diagnostics: Diagnostic[], documentPath?: string): number | undefined {
@@ -110,7 +110,7 @@ export function validateFormat2ZoneGestures(bindings: ZoneBinding[], actionTrait
                 const binding = eventBindings[bindingIdx];
                 for (let otherIdx = bindingIdx + 1; otherIdx < eventBindings.length; otherIdx++) {
                     const other = eventBindings[otherIdx];
-                    if (actionIdentity(binding) === actionIdentity(other)) addRelatedDiagnostics(diagnostics, "warning", "format2.zone.gesture.action.duplicate", "The duplicate action is ignored", binding, other, documentPath);
+                    if (actionIdentity(binding) === actionIdentity(other)) addRelatedDiagnostics(diagnostics, "warning", "format2.zone.gesture.action.duplicate", `The same ${binding.action} action is assigned twice to this button event. Remove either line`, binding, other, documentPath);
                     else if (binding.action === "NoAction" || other.action === "NoAction") addRelatedDiagnostics(diagnostics, "error", "format2.zone.gesture.no-action", "NoAction must be the only action in an event group", binding, other, documentPath);
                 }
             }
@@ -119,7 +119,7 @@ export function validateFormat2ZoneGestures(bindings: ZoneBinding[], actionTrait
                 const first = eventBindings[firstContextChangeIdx];
                 for (let bindingIdx = firstContextChangeIdx + 1; bindingIdx < eventBindings.length; bindingIdx++) {
                     const other = eventBindings[bindingIdx];
-                    const message = actionTraits.get(other.action)?.changesContext ? "One event group cannot contain two context-changing actions" : "An action cannot follow a context-changing action in the same event group";
+                    const message = actionTraits.get(other.action)?.changesContext ? `Both ${first.action} and ${other.action} change the active zone or FX for the same button event. Keep only one` : `${first.action} changes the active zone or FX before ${other.action} can run. Move ${other.action} before it, or use another button event`;
                     addRelatedDiagnostics(diagnostics, "error", "format2.zone.gesture.unreachable", message, first, other, documentPath);
                 }
             }

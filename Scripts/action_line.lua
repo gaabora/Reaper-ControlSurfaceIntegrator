@@ -84,6 +84,7 @@ function M.Parse(line)
         params = {},
         properties = {},
         colorTokens = nil,
+        colorSyntax = nil,
     }
 
     local tokenIdx = 2
@@ -103,6 +104,21 @@ function M.Parse(line)
                 for _, colorToken in ipairs(colorTokens) do
                     parts.params[#parts.params + 1] = colorToken
                 end
+            end
+        elseif token == "StateColors=[" then
+            local colorTokens = {}
+            tokenIdx = tokenIdx + 1
+            while tokenIdx <= #tokens and tokens[tokenIdx] ~= "]" do
+                local colorToken = tokens[tokenIdx]:gsub(",+$", "")
+                if colorToken ~= "" then colorTokens[#colorTokens + 1] = colorToken end
+                tokenIdx = tokenIdx + 1
+            end
+            if tokenIdx <= #tokens and tokens[tokenIdx] == "]" then
+                parts.colorTokens = colorTokens
+                parts.colorSyntax = "StateColors"
+            else
+                parts.params[#parts.params + 1] = "StateColors=["
+                for _, colorToken in ipairs(colorTokens) do parts.params[#parts.params + 1] = colorToken end
             end
         else
             local key, value = token:match("^(.-)=(.+)$")
@@ -129,11 +145,15 @@ function M.Build(parts)
     end
 
     if parts.colorTokens and #parts.colorTokens > 0 then
-        out[#out + 1] = "{"
-        for _, colorToken in ipairs(parts.colorTokens) do
-            out[#out + 1] = tostring(colorToken)
+        if parts.colorSyntax == "StateColors" then
+            out[#out + 1] = "StateColors=["
+            for colorIdx, colorToken in ipairs(parts.colorTokens) do out[#out + 1] = tostring(colorToken) .. (colorIdx < #parts.colorTokens and "," or "") end
+            out[#out + 1] = "]"
+        else
+            out[#out + 1] = "{"
+            for _, colorToken in ipairs(parts.colorTokens) do out[#out + 1] = tostring(colorToken) end
+            out[#out + 1] = "}"
         end
-        out[#out + 1] = "}"
     end
 
     local used = {}
@@ -214,16 +234,16 @@ end
 
 function M.SetColors(parts, colors)
     parts.colorTokens = {}
+    parts.colorSyntax = "StateColors"
     for _, color in ipairs(colors or {}) do
         local red, green, blue = M.UnpackRgb(color)
-        parts.colorTokens[#parts.colorTokens + 1] = tostring(red)
-        parts.colorTokens[#parts.colorTokens + 1] = tostring(green)
-        parts.colorTokens[#parts.colorTokens + 1] = tostring(blue)
+        parts.colorTokens[#parts.colorTokens + 1] = string.format("#%02X%02X%02X", red, green, blue)
     end
 end
 
 function M.ClearColors(parts)
     parts.colorTokens = nil
+    parts.colorSyntax = nil
 end
 
 function M.RunSelfChecks()
@@ -240,6 +260,12 @@ function M.RunSelfChecks()
     local colors = M.ParseColors(colorParts)
     assertEqual(#colors, 2, "parsed color count")
     assertEqual(colors[1], M.PackRgb(255, 0, 0), "first parsed color")
+    local stateColorParts = M.Parse('TrackAutoMode 2 StateColors=[ #141400, #FFFF00 ]')
+    local stateColors = M.ParseColors(stateColorParts)
+    assertEqual(#stateColors, 2, "parsed StateColors count")
+    assertEqual(M.Build(stateColorParts), 'TrackAutoMode 2 StateColors=[ #141400, #FFFF00 ]', "StateColors round-trip")
+    M.SetColors(stateColorParts, { M.PackRgb(1, 2, 3), M.PackRgb(4, 5, 6) })
+    assertEqual(M.Build(stateColorParts), 'TrackAutoMode 2 StateColors=[ #010203, #040506 ]', "StateColors edit")
     return true
 end
 

@@ -13,6 +13,7 @@ import { ProductRootGuard } from "../src/paths.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { ConfigurationStore, EditorOperationError } from "../src/store.ts";
 import { parseSurface } from "../src/surface.ts";
+import type { ActionTraits } from "../src/action-catalog.ts";
 
 const identity: EditorProductIdentity = {
     configFilename: "TestProduct.conf",
@@ -39,9 +40,9 @@ function normalizeTrimLineEnd(source: string): string {
     return source.replace(/\r\n/g, "\n").trimEnd();
 }
 
-async function createStore(): Promise<ConfigurationStore> {
+async function createStore(actionTraits: ReadonlyMap<string, ActionTraits> = new Map()): Promise<ConfigurationStore> {
     const guard = await ProductRootGuard.create(productRoot, identity);
-    return new ConfigurationStore(guard, knownActions);
+    return new ConfigurationStore(guard, knownActions, {}, undefined, actionTraits);
 }
 
 beforeEach(async () => {
@@ -1009,6 +1010,24 @@ WidgetEnd
         await source.import(store, knownActions, { drafts, includeSurface: true, resolutions, selectedZonePaths, surfaceName: "FaderPortV2", targetPaths, targetProfileId: "custom-profile", widgetMappings: [] });
         expect(await readFile(path.join(productRoot, "Zones", "User", "custom-profile", "Main", "Transport", "Home.zon"), "utf8")).toContain("Play GoZone Transport\n");
         expect(await readFile(path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon"), "utf8")).toBe(homeSource);
+    });
+
+    test("reports gesture conflicts and quick fixes in the import preview", async () => {
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const actionTraits = new Map([...knownActions].map((actionName) => [actionName, { changesContext: actionName === "GoZone", changesModifier: false }]));
+        const store = await createStore(actionTraits);
+        const homePath = "Zones/HomeZones/Home.zon";
+        const selectedZonePaths = [homePath, "Zones/GoZones/Transport.zon"];
+        const initial = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths);
+        const initialZone = initial.items.find((item) => item.sourcePath === homePath)!;
+        const draftSource = "@Meta { Version=2 Role=Home }\n(Press)+Play GoZone Transport\n(Press)+Play TrackVolume\n(Press)+Play TrackPan\n(Press)+Play TrackPan\n";
+        const drafts = [{ originalSourceHash: initialZone.originalSourceHash, source: draftSource, sourcePath: initialZone.sourcePath }];
+        const preview = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths, [], false, drafts);
+        const unreachable = preview.diagnostics.find((diagnostic) => diagnostic.code === "format2.zone.gesture.unreachable" && diagnostic.line === 3);
+        const duplicate = preview.diagnostics.find((diagnostic) => diagnostic.code === "format2.zone.gesture.action.duplicate");
+
+        expect(unreachable?.fixes).toContainEqual({ id: "zone.gesture.comment-out", label: "Comment out this conflicting binding" });
+        expect(duplicate?.fixes).toContainEqual({ id: "zone.gesture.comment-out", label: "Comment out this duplicate binding" });
     });
 
     test("reports when two selected zones use the same import target", async () => {

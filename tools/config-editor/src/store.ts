@@ -8,7 +8,7 @@ import type { Diagnostic } from "./model.ts";
 import type { ProductRootGuard, ProductTreeEntry } from "./paths.ts";
 import type { SettingsSchema } from "./settings-schema.ts";
 import { applyQuickFix as applyRegisteredQuickFix, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, type QuickFixRequest } from "./quick-fixes.ts";
-import { validateDocumentSet } from "./validation.ts";
+import { validateDocumentSet, validateZoneDocumentGesturesForSurface } from "./validation.ts";
 
 export interface DocumentView {
     diagnostics: Diagnostic[];
@@ -165,6 +165,14 @@ export class ConfigurationStore {
         return parseByPath(source, relativePath, this.knownActions, this.settingsSchema, this.actionTraits);
     }
 
+    validateDocuments(documents: AnyDocument[], completeProfiles = false): Diagnostic[] {
+        return validateDocumentSet(documents, { actionTraits: this.actionTraits, completeProfiles, settingsSchema: this.settingsSchema });
+    }
+
+    validateZoneGesturesForSurface(document: AnyDocument, surfaceDocument: AnyDocument): Diagnostic[] {
+        return validateZoneDocumentGesturesForSurface(document, surfaceDocument, this.actionTraits, this.settingsSchema);
+    }
+
     async zoneProfileDocuments(profileId: string, replacements: AnyDocument[], sources?: ReadonlySet<"User" | "Vendor">): Promise<AnyDocument[]> {
         const documents = new Map(replacements.filter((document) => document.path).map((document) => [document.path!.toLowerCase(), document]));
         for (const entry of flattenFileEntries(await this.tree())) {
@@ -244,7 +252,7 @@ export class ConfigurationStore {
         }
 
         const documents = changes.map((change) => parseByPath(change.source, change.path, this.knownActions, this.settingsSchema, this.actionTraits));
-        const diagnostics = documents.flatMap((document) => document.diagnostics).concat(validateDocumentSet(documents, { actionTraits: this.actionTraits, settingsSchema: this.settingsSchema }));
+        const diagnostics = documents.flatMap((document) => document.diagnostics).concat(this.validateDocuments(documents));
         if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", "Transaction contains configuration errors", diagnostics);
 
         const preparedChanges: PreparedChange[] = [];

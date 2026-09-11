@@ -206,7 +206,7 @@ M.OSD_SCHEMA = {
 }
 
 M.NOTIFICATIONS_SCHEMA = {
-    opacity = { type = "number", default = 0.8, min = 0.2, max = 1.0, label = "Notification opacity", format = "%.2f" },
+    opacity = { type = "number", default = 1.0, min = 0.2, max = 1.0, label = "Notification opacity", format = "%.2f" },
 }
 
 M.OSK_ORDER = { "zoom", "font_size", "font_family", "line_height", "label_case", "aspect", "pad_h", "pad_v", "transparency", "btn_transparency", "inactive_led_boost", "arrow_angle", "titlebar_enabled", "allow_docking", "interactive_controls", "invert_scroll", "tooltip_delay", "label_replacements" }

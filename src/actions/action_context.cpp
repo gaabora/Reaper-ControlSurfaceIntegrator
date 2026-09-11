@@ -93,6 +93,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
 
     if (params.size() > 0)
         color_.ParseColors(params);
+    color_.ParseStateColors(widgetProperties_.get_prop(PropertyType_StateColors));
 
     if ((actionName == "Reaper" || actionName == "ReaperDec" || actionName == "ReaperInc") && params.size() > 1) {
         if (isdigit(static_cast<unsigned char>(params[1][0]))) {
