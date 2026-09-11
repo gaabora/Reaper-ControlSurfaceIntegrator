@@ -2,7 +2,7 @@
 
 ## Goal
 
-The proposed Vendor only, Vendor + User changes, and User only selection is tracked in [IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md](IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md). It is not implemented. The per-zone overlay rules below describe the combined mode; the follow-up also covers import validation gaps and runtime diagnostics.
+Surface assignments store explicit Surface template and Main and FX profile sources. Main and FX support Vendor only, Vendor plus User per-zone overrides, and User only. Remaining manual runtime checks are tracked in [IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md](IMPORT_AND_DEVICE_DIAGNOSTICS_PLAN.md).
 
 Replace the legacy zone and surface syntax and name-based runtime behavior with one explicit, validated model. Use the same lexical rules for `.zon`, surface `.txt`, `.fxzon`, and `.snippet` files. Keep legacy CSI parsing only in the Bun importer. The current runtime does not need backward compatibility after all bundled and user test data is converted.
 
@@ -529,8 +529,11 @@ Each Page contains at least one `Surface` block and zero or more `Link` blocks. 
 |---|---|---|
 | `Device` | Yes | Existing Device ID |
 | `Template` | Yes | Existing Surface template stable ID |
+| `TemplateSource` | No | `Vendor` or `User`; the Devices panel writes the selected source explicitly |
 | `MainProfile` | No | Zone profile stable ID; defaults to `Template` |
+| `MainSource` | No | `Vendor`, `VendorAndUser`, or `User`; default `VendorAndUser` |
 | `FXProfile` | No | Zone profile stable ID; defaults to `MainProfile` |
+| `FXSource` | No | `Vendor`, `VendorAndUser`, or `User`; defaults to `MainSource` |
 | `StartChannel` | No | Non-negative integer; default `0` |
 
 The same Device can be assigned on more than one Page. `StartChannel` is the zero-based starting channel of this Surface inside the Page. It does not change the surface-local numbering used by `#`. A missing template or required Main profile skips only that Surface instance. A missing or empty FX profile is valid.
@@ -1922,6 +1925,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Ensure inferred `Channels` is not smaller than an explicit Widget `Channel` extracted from trusted legacy processor metadata.
 - [ ] Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - ✅ Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
+  - ✅ Read recognized long navigator names both from deprecated `GoZones.zon` entries and directly beside the legacy Zone ID, including `Zone Channel TrackNavigator` to `Target=Tracks`.
   - ✅ Convert legacy `Bank Target Amount` to `Bank Amount` when the target matches the converted zone context. Report a migration conflict when it does not match, so the user can move that binding to an included zone with the required context.
 - ✅ Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
 - ✅ Convert Learn FX pseudo-zones into `LearnFX.fxzon`, derive supported entry defaults, report ambiguous display/default targets, validate resolved Surface capabilities, and do not convert `FXRowLayout`.

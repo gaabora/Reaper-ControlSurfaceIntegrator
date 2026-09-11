@@ -98,9 +98,9 @@ Format2ZoneProfileResolveResult ResolveFormat2ZoneProfile(const std::string& pro
     }
 
     if (homeSources.empty()) {
-        AddFormat2ZoneProfileDiagnostic(result, "format2.zone-profile.home.missing", "Zone profile '" + profileId + "' requires exactly one valid Main zone with Role=Home", {}, {});
+        AddFormat2ZoneProfileDiagnostic(result, "format2.zone-profile.home.missing", "Zone profile '" + profileId + "' requires exactly one Main zone with Role=Home", {}, {});
     } else if (homeSources.size() > 1) {
-        AddFormat2ZoneProfileDiagnostic(result, "format2.zone-profile.home.duplicate", "Zone profile '" + profileId + "' has more than one valid Main zone with Role=Home: " + JoinFormat2ZoneSourcePaths(sources, homeSources), sources[homeSources.front()].location, homeSources);
+        AddFormat2ZoneProfileDiagnostic(result, "format2.zone-profile.home.duplicate", "Zone profile '" + profileId + "' has more than one Main zone with Role=Home: " + JoinFormat2ZoneSourcePaths(sources, homeSources), sources[homeSources.front()].location, homeSources);
     }
 
     auto validateReference = [&](std::size_t sourceIndex, const Format2ZoneReference& reference, bool layerReference) {

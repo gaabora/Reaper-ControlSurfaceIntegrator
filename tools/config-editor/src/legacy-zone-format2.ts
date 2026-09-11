@@ -203,7 +203,7 @@ function metadataFor(zoneName: string, headerTokens: string[], options: LegacyZo
     if (options.profile === "FX") return [`MatchFX=${JSON.stringify(zoneName)}`];
     const metadata = [...(MAGIC_MAIN_METADATA.get(zoneName.toLowerCase()) ?? [])];
     const navigatorProperty = headerTokens.find((token) => /^NavType=/i.test(token));
-    const navigator = navigatorProperty?.slice(navigatorProperty.indexOf("=") + 1);
+    const navigator = navigatorProperty?.slice(navigatorProperty.indexOf("=") + 1) ?? headerTokens.find((token) => STANDALONE_NAVIGATORS.has(token));
     const target = navigator ? NAVIGATOR_TARGETS.get(navigator.toLowerCase()) : undefined;
     if (target && !metadata.some((entry) => entry.startsWith("Role=") || entry.startsWith("Target="))) metadata.push(`Target=${target}`);
     else if (navigator && !target && !metadata.length) addDiagnostic(diagnostics, "error", "legacy.zone.navigator.unsupported", `Legacy navigator cannot be converted to a format 2 Target: ${navigator}`, lineNumber, options.targetPath);

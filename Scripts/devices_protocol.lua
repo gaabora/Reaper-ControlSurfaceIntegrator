@@ -39,6 +39,9 @@ local function parseSettingOverrides(properties, prefix)
 end
 
 local function parseSurface(properties, prefix)
+    local templateSource = properties[prefix .. "TemplateSource"] or "Missing"
+    local surfaceSourceMode = properties[prefix .. "TemplateSourceMode"] or templateSource
+    if surfaceSourceMode == "VendorAndUser" and (templateSource == "Vendor" or templateSource == "User") then surfaceSourceMode = templateSource end
     return {
         active = boolean(properties, prefix .. "Active"),
         deviceId = properties[prefix .. "DeviceId"] or "",
@@ -55,7 +58,8 @@ local function parseSurface(properties, prefix)
         runtimeIssue = properties[prefix .. "RuntimeIssue"] or "",
         startChannel = number(properties, prefix .. "StartChannel"),
         surfaceId = properties[prefix .. "SurfaceId"] or "",
-        templateSource = properties[prefix .. "TemplateSource"] or "Missing",
+        surfaceSourceMode = surfaceSourceMode,
+        templateSource = templateSource,
         useDifferentFx = (properties[prefix .. "FxProfile"] or "") ~= (properties[prefix .. "MainProfile"] or "") or (properties[prefix .. "FxSourceMode"] or "VendorAndUser") ~= (properties[prefix .. "MainSourceMode"] or "VendorAndUser"),
         zoneReady = boolean(properties, prefix .. "ZoneReady"),
     }
@@ -105,7 +109,7 @@ function module.ParseResponse(source)
     end
     for profileIdx = 1, number(properties, "ProfileOptionCount") do
         local prefix = "ProfileOption." .. profileIdx .. "."
-        response.profileOptions[#response.profileOptions + 1] = { fxSource = properties[prefix .. "FxSource"] or "Missing", id = properties[prefix .. "Id"] or "", mainSource = properties[prefix .. "MainSource"] or "Missing", userMain = boolean(properties, prefix .. "UserMain"), vendorMain = boolean(properties, prefix .. "VendorMain") }
+        response.profileOptions[#response.profileOptions + 1] = { fxSource = properties[prefix .. "FxSource"] or "Missing", id = properties[prefix .. "Id"] or "", mainSource = properties[prefix .. "MainSource"] or "Missing", userFx = boolean(properties, prefix .. "UserFx"), userMain = boolean(properties, prefix .. "UserMain"), vendorFx = boolean(properties, prefix .. "VendorFx"), vendorMain = boolean(properties, prefix .. "VendorMain") }
     end
     return response
 end

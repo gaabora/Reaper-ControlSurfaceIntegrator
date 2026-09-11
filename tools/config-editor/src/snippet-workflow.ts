@@ -243,8 +243,9 @@ function flattenSurfacePaths(entries: ProductTreeEntry[], paths: string[] = []):
     return paths;
 }
 
-async function existingSurfacePath(store: ConfigurationStore, surfaceId: string): Promise<string | undefined> {
-    for (const owner of ["User", "Vendor"]) {
+async function existingSurfacePath(store: ConfigurationStore, surfaceId: string, requestedOwner?: string): Promise<string | undefined> {
+    const owners = requestedOwner === "Vendor" || requestedOwner === "User" ? [requestedOwner] : ["User", "Vendor"];
+    for (const owner of owners) {
         const surfacePath = `Surfaces/${owner}/${surfaceId}.txt`;
         try {
             await store.openDocument(surfacePath);
@@ -264,8 +265,10 @@ export async function snippetSurfaceContext(store: ConfigurationStore, knownActi
     const productConfig = await store.openDocument(configFilename);
     const document = parseByPath(productConfig.source, configFilename, knownActions);
     const records = (document.semantic as ProductConfigSemantic).records.filter((record) => record.kind === "surface-assignment" && record.properties.get(profileProperty) === profileId);
-    const configuredIds = [...new Set(records.map((record) => record.properties.get("Template")).filter((surfaceId): surfaceId is string => Boolean(surfaceId)))];
-    const configuredPaths = (await Promise.all(configuredIds.map((surfaceId) => existingSurfacePath(store, surfaceId)))).filter((surfacePath): surfacePath is string => Boolean(surfacePath));
+    const configuredPaths = [...new Set((await Promise.all(records.map((record) => {
+        const surfaceId = record.properties.get("Template");
+        return surfaceId ? existingSurfacePath(store, surfaceId, record.properties.get("TemplateSource")) : undefined;
+    }))).filter((surfacePath): surfacePath is string => Boolean(surfacePath)))];
     if (configuredPaths.length) return { automatic: configuredPaths.length === 1, surfaces: configuredPaths.map((surfacePath) => ({ path: surfacePath })) };
     const availablePaths = flattenSurfacePaths(await store.tree());
     const preferredPaths = new Map<string, string>();

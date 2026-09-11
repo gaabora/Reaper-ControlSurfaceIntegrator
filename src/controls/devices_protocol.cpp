@@ -129,6 +129,23 @@ static string SurfaceSourceStatus(const ProductPaths& productPaths, const string
     }
 }
 
+static bool SurfaceSourceAvailable(const ProductPaths& productPaths, const SurfaceAssignmentConfig& surface) {
+    try {
+        if (surface.surfaceSourceMode == ZoneProfileSourceMode::Vendor) return filesystem::is_regular_file(productPaths.SurfaceFile(SurfaceSource::Vendor, surface.surfaceId));
+        if (surface.surfaceSourceMode == ZoneProfileSourceMode::User) return filesystem::is_regular_file(productPaths.SurfaceFile(SurfaceSource::User, surface.surfaceId));
+        return productPaths.FindSurfaceFile(surface.surfaceId).has_value();
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+static string SelectedSurfaceSourceStatus(const ProductPaths& productPaths, const SurfaceAssignmentConfig& surface) {
+    if (!SurfaceSourceAvailable(productPaths, surface)) return "Missing";
+    if (surface.surfaceSourceMode == ZoneProfileSourceMode::Vendor) return "Vendor";
+    if (surface.surfaceSourceMode == ZoneProfileSourceMode::User) return "User";
+    return SurfaceSourceStatus(productPaths, surface.surfaceId);
+}
+
 static string MainProfileSourceStatus(const ProductPaths& productPaths, const string& profileId) {
     try {
         const std::optional<filesystem::path> path = productPaths.FindMainZones(profileId);
@@ -354,10 +371,7 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
             return false;
         }
         pageNames[page.name] = true;
-        if (page.surfaces.empty()) {
-            errorMessage = "Assign at least one Surface to Page " + page.name;
-            return false;
-        }
+
         map<string, bool> surfaceNames;
         for (const SurfaceAssignmentConfig& surface : page.surfaces) {
             if (surface.surfaceName.empty() || surfaceNames.count(surface.surfaceName) > 0) {
@@ -369,8 +383,8 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
                 errorMessage = "Surface assignment " + page.name + " / " + surface.surfaceName + " references an unknown Device: " + surface.deviceId;
                 return false;
             }
-            if (SurfaceSourceStatus(productPaths, surface.surfaceId) == "Missing" || SurfaceSourceStatus(productPaths, surface.surfaceId) == "Invalid") {
-                errorMessage = "Surface assignment " + page.name + " / " + surface.surfaceName + " has no valid Surface template";
+            if (!SurfaceSourceAvailable(productPaths, surface)) {
+                errorMessage = "Surface assignment " + page.name + " / " + surface.surfaceName + " has no Surface template in the selected source " + ZoneProfileSourceModeName(surface.surfaceSourceMode);
                 return false;
             }
             if (!MainProfileSourceAvailable(productPaths, surface)) {
@@ -547,6 +561,7 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
             AppendDevicesProperty(body, surfacePrefix + "Name", surface.surfaceName);
             AppendDevicesProperty(body, surfacePrefix + "DeviceId", surface.deviceId);
             AppendDevicesProperty(body, surfacePrefix + "SurfaceId", surface.surfaceId);
+            AppendDevicesProperty(body, surfacePrefix + "TemplateSourceMode", ZoneProfileSourceModeName(surface.surfaceSourceMode));
             AppendDevicesProperty(body, surfacePrefix + "MainProfile", surface.mainZoneProfileId);
             AppendDevicesProperty(body, surfacePrefix + "MainSourceMode", ZoneProfileSourceModeName(surface.mainZoneSourceMode));
             AppendDevicesProperty(body, surfacePrefix + "FxProfile", surface.fxZoneProfileId);
@@ -557,7 +572,7 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
             AppendDevicesProperty(body, surfacePrefix + "RuntimeIssue", runtimeSurface ? runtimeSurface->GetZoneManager()->GetInitializationIssue() : "Surface assignment did not start");
             AppendDevicesProperty(body, surfacePrefix + "IoType", ConfiguredIoType(config, surface.deviceId));
             AppendDevicesProperty(body, surfacePrefix + "IoActive", HasRuntimeIo(this->midiSurfacesIO_, this->oscSurfacesIO_, surface.deviceId) ? 1 : 0);
-            AppendDevicesProperty(body, surfacePrefix + "TemplateSource", SurfaceSourceStatus(productPaths, surface.surfaceId));
+            AppendDevicesProperty(body, surfacePrefix + "TemplateSource", SelectedSurfaceSourceStatus(productPaths, surface));
             AppendDevicesProperty(body, surfacePrefix + "MainSource", MainProfileSourceStatus(productPaths, surface.mainZoneProfileId));
             AppendDevicesProperty(body, surfacePrefix + "FxSource", FxProfileSourceStatus(productPaths, surface.fxZoneProfileId));
         }
@@ -604,12 +619,16 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         AppendDevicesProperty(body, prefix + "Port", midiOutputOptions[optionIdx].first);
         AppendDevicesProperty(body, prefix + "Name", midiOutputOptions[optionIdx].second);
     }
-    const vector<string> surfaceIds = productPaths.ListSurfaceIds();
-    AppendDevicesProperty(body, "SurfaceOptionCount", static_cast<int>(surfaceIds.size()));
-    for (size_t surfaceIdx = 0; surfaceIdx < surfaceIds.size(); ++surfaceIdx) {
+    vector<std::pair<string, string>> surfaceOptions;
+    for (const string& surfaceId : productPaths.ListSurfaceIds()) {
+        if (filesystem::is_regular_file(productPaths.SurfaceFile(SurfaceSource::Vendor, surfaceId))) surfaceOptions.push_back({surfaceId, "Vendor"});
+        if (filesystem::is_regular_file(productPaths.SurfaceFile(SurfaceSource::User, surfaceId))) surfaceOptions.push_back({surfaceId, "User"});
+    }
+    AppendDevicesProperty(body, "SurfaceOptionCount", static_cast<int>(surfaceOptions.size()));
+    for (size_t surfaceIdx = 0; surfaceIdx < surfaceOptions.size(); ++surfaceIdx) {
         const string prefix = "SurfaceOption." + to_string(surfaceIdx + 1) + ".";
-        AppendDevicesProperty(body, prefix + "Id", surfaceIds[surfaceIdx]);
-        AppendDevicesProperty(body, prefix + "Source", SurfaceSourceStatus(productPaths, surfaceIds[surfaceIdx]));
+        AppendDevicesProperty(body, prefix + "Id", surfaceOptions[surfaceIdx].first);
+        AppendDevicesProperty(body, prefix + "Source", surfaceOptions[surfaceIdx].second);
     }
     const vector<string> profileIds = ListZoneProfileIds(productPaths);
     AppendDevicesProperty(body, "ProfileOptionCount", static_cast<int>(profileIds.size()));
@@ -620,6 +639,8 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
         AppendDevicesProperty(body, prefix + "FxSource", FxProfileSourceStatus(productPaths, profileIds[profileIdx]));
         AppendDevicesProperty(body, prefix + "VendorMain", DirectoryExists(productPaths.MainZones(ZoneSource::Vendor, profileIds[profileIdx])) ? 1 : 0);
         AppendDevicesProperty(body, prefix + "UserMain", DirectoryExists(productPaths.MainZones(ZoneSource::User, profileIds[profileIdx])) ? 1 : 0);
+        AppendDevicesProperty(body, prefix + "VendorFx", DirectoryExists(productPaths.FxZones(ZoneSource::Vendor, profileIds[profileIdx])) ? 1 : 0);
+        AppendDevicesProperty(body, prefix + "UserFx", DirectoryExists(productPaths.FxZones(ZoneSource::User, profileIds[profileIdx])) ? 1 : 0);
     }
     PublishDevicesResponse(request.requestId, true, body);
 }

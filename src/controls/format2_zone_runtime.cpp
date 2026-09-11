@@ -306,6 +306,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.actionName = declaration.name;
         prepared.actionIdentity = "Modifier:" + declaration.name;
         prepared.parameters = {declaration.name};
+        for (const Format2PropertySyntax& property : declaration.feedbackProperties) prepared.parameters.push_back(property.name + "=" + SerializeFormat2PropertyValue(property.value));
         prepared.inputEvent = ActionInputEvent::Modifier;
         prepared.modifierMode = ResolveFormat2ModifierMode(zoneManager->GetSurface(), declaration.mode);
         prepared.modifierModeUsesDefault = declaration.mode == Format2ModifierMode::Default;

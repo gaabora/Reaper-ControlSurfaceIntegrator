@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { userInfo } from "node:os";
 import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { actionNameSet, actionTraitsByName } from "./action-catalog.ts";
@@ -33,6 +34,10 @@ export interface RunningEditorServer {
 }
 
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
+
+function profileAuthorId(): string {
+    return userInfo().username.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^[-_]+|[-_]+$/g, "") || "user";
+}
 
 interface LegacySourceSelection {
     path: string;
@@ -285,7 +290,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
         const requestOrigin = request.headers.get("origin");
         if (requestOrigin && requestOrigin !== origin) return jsonResponse({ error: { code: "auth.origin", message: "Invalid request origin" } }, 403);
         try {
-            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ actions: options.actions.map((action) => ({ detail: action.brief || action.params || "", label: action.name })), candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity, legacy: legacySelection, settingsSchema: options.settingsSchema });
+            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ actions: options.actions.map((action) => ({ detail: action.brief || action.params || "", label: action.name })), candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity, legacy: legacySelection, profileAuthor: profileAuthorId(), settingsSchema: options.settingsSchema });
             if (requestUrl.pathname === "/api/select-data-path" && request.method === "POST") {
                 const body = await requestBody(request);
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);

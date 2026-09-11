@@ -11,12 +11,14 @@ static void LogConfigIssue(const string& configPath, const IntegratorConfigIssue
 static unique_ptr<ControlSurface> CreateConfiguredSurface(CSurfIntegrator* integrator, Page* page, const SurfaceAssignmentConfig& config, const ProductPaths& productPaths, const vector<unique_ptr<Midi_ControlSurfaceIO>>& midiIo, const vector<unique_ptr<OSC_ControlSurfaceIO>>& oscIo, string& errorMessage) {
     std::optional<filesystem::path> surfaceFile;
     try {
-        surfaceFile = productPaths.FindSurfaceFile(config.surfaceId);
+        if (config.surfaceSourceMode == ZoneProfileSourceMode::Vendor) surfaceFile = productPaths.SurfaceFile(SurfaceSource::Vendor, config.surfaceId);
+        else if (config.surfaceSourceMode == ZoneProfileSourceMode::User) surfaceFile = productPaths.SurfaceFile(SurfaceSource::User, config.surfaceId);
+        else surfaceFile = productPaths.FindSurfaceFile(config.surfaceId);
     } catch (const std::exception& error) {
         errorMessage = "Invalid SurfaceFolder '" + config.surfaceId + "': " + error.what();
         return nullptr;
     }
-    if (!surfaceFile) {
+    if (!surfaceFile || !filesystem::is_regular_file(*surfaceFile)) {
         errorMessage = "Missing surface '" + config.surfaceId + "'. Expected " + GetRelativePath((productPaths.UserSurfacesRoot() / (config.surfaceId + ".txt")).string().c_str()) + " or " + GetRelativePath((productPaths.VendorSurfacesRoot() / (config.surfaceId + ".txt")).string().c_str());
         return nullptr;
     }

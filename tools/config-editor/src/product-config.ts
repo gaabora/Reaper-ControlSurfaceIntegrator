@@ -352,10 +352,12 @@ export function parseProductConfig(source: string, documentPath?: string, settin
                     surfaceIds.add(canonicalId);
                 }
                 requireProperties(child, ["Device", "Template"], diagnostics, documentPath);
-                rejectUnknownProperties(child, new Set(["Device", "Template", "MainProfile", "FXProfile", "MainSource", "FXSource", "StartChannel"]), diagnostics, documentPath);
+                rejectUnknownProperties(child, new Set(["Device", "Template", "TemplateSource", "MainProfile", "FXProfile", "MainSource", "FXSource", "StartChannel"]), diagnostics, documentPath);
                 validateIntegerProperty(child, "StartChannel", 0, 1000000, diagnostics, documentPath);
                 const template = child.properties.get("Template")?.value ?? "";
                 if (!isStableId(template)) addDiagnostic(diagnostics, "error", "product.surface.template", "Template must contain a stable surface ID", child.line, documentPath);
+                const templateSource = child.properties.get("TemplateSource")?.value;
+                if (templateSource && !["Vendor", "User"].includes(templateSource)) addDiagnostic(diagnostics, "error", "product.surface.template-source", "TemplateSource must be Vendor or User", child.line, documentPath);
                 for (const name of ["MainProfile", "FXProfile"]) {
                     const profile = child.properties.get(name)?.value;
                     if (profile && !isStableId(profile)) addDiagnostic(diagnostics, "error", "product.surface.profile", `${name} must contain a stable profile ID`, child.line, documentPath);

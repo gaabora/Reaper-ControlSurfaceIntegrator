@@ -7,7 +7,7 @@ local theme = require("theme_settings")
 local ui = require("ui_components")
 
 local module = {}
-local state = { afterQueryKind = "", data = nil, deleteIo = nil, editIo = nil, editPage = nil, editSurface = nil, error = "", initialized = false, listenerIndex = 1, pageIndex = 1, pendingDraft = nil, pendingKind = "", requestId = nil, requestStarted = 0, savedData = nil, savedSignature = "", status = "", surfaceIndex = 1 }
+local state = { afterQueryKind = "", data = nil, deleteIo = nil, editPage = nil, editSurface = nil, error = "", expandedIoName = "", initialized = false, listenerIndex = 1, pageIndex = 1, pendingDraft = nil, pendingKind = "", requestId = nil, requestStarted = 0, savedData = nil, savedSignature = "", status = "", surfaceIndex = 1 }
 
 local function sectionHeader(ctx, label, fonts)
     if fonts and fonts.section then imgui.PushFont(ctx, fonts.section) end
@@ -52,7 +52,6 @@ end
 local STATUS_ACTIVE_COLOR = 0x40c060ff
 local STATUS_INACTIVE_COLOR = 0xff5050ff
 local EDITOR_BUTTON_COLORS = { active = 0xb85c10ff, button = 0xd97718ff, hovered = 0xf08a27ff }
-local ZONE_SOURCE_MODES = { { label = "Vendor only", value = "Vendor" }, { label = "Vendor + User changes", value = "VendorAndUser" }, { label = "User only", value = "User" } }
 local LIST_CHILD_HEIGHT = 260
 local LISTENER_LIST_WIDTH = 210
 local PAGE_LIST_WIDTH = 210
@@ -221,7 +220,6 @@ local function removeIoAndReferences(data, kind, deviceIdx)
         end
     end
     table.remove(devices, deviceIdx)
-    state.editIo = nil
     state.surfaceIndex = 1
     state.listenerIndex = 1
 end
@@ -242,10 +240,10 @@ end
 local function addIoDefinition(data, kind)
     if kind == "MIDI" then
         data.midi[#data.midi + 1] = { active = false, inputName = "", inputOpen = false, inputPort = -1, maxMessages = 200, name = uniqueIoName(data, "MIDI"), outputName = "", outputOpen = false, outputPort = -1, refreshRate = 15, runtimeIssue = "", settingOverrides = {} }
-        state.editIo = { creating = true, index = #data.midi, kind = "MIDI" }
+        return data.midi[#data.midi]
     else
         data.osc[#data.osc + 1] = { active = false, address = "127.0.0.1", maxPackets = 200, name = uniqueIoName(data, "OSC"), receivePort = "8000", runtimeIssue = "", settingOverrides = {}, transmitPort = "9000", type = "OSC" }
-        state.editIo = { creating = true, index = #data.osc, kind = "OSC" }
+        return data.osc[#data.osc]
     end
 end
 
@@ -310,19 +308,29 @@ local function assignmentIoItems(data, page, currentSurface)
 end
 
 local function templateItems(data)
-    local items = {}
-    for templateIdx, template in ipairs(data.surfaceOptions) do items[#items + 1] = { label = template.id .. " - " .. template.source, value = template.id } end
+    local items = { { label = "Select a Surface template", value = "" } }
+    for templateIdx, template in ipairs(data.surfaceOptions) do items[#items + 1] = { label = template.id .. " (" .. template.source .. ")", value = template.id .. "\31" .. template.source } end
     return items
 end
 
-local function profileItems(data)
+local function profileItems(data, profileKind)
     local items = { { label = "Select a Zone profile", value = "" } }
-    for profileIdx, profile in ipairs(data.profileOptions) do items[#items + 1] = { label = profile.id, value = profile.id } end
+    for profileIdx, profile in ipairs(data.profileOptions) do
+        local vendorAvailable = profileKind == "FX" and profile.vendorFx or profile.vendorMain
+        local userAvailable = profileKind == "FX" and profile.userFx or profile.userMain
+        if vendorAvailable then items[#items + 1] = { label = profile.id .. " (Vendor)", value = profile.id .. "\31Vendor" } end
+        if userAvailable then
+            local sourceMode = vendorAvailable and "VendorAndUser" or "User"
+            local baseId, author = profile.id:match("^(.-)%-by%-([a-z0-9_-]+)$")
+            local label = vendorAvailable and (profile.id .. " (User override)") or author and (baseId .. " (by " .. author .. ")") or (profile.id .. " (User)")
+            items[#items + 1] = { label = label, value = profile.id .. "\31" .. sourceMode }
+        end
+    end
     return items
 end
 
-local function findTemplate(data, surfaceId)
-    for templateIdx, template in ipairs(data.surfaceOptions) do if template.id == surfaceId then return template end end
+local function findTemplate(data, surfaceId, source)
+    for templateIdx, template in ipairs(data.surfaceOptions) do if template.id == surfaceId and (not source or template.source == source) then return template end end
 end
 
 local function findProfile(data, profileId)
@@ -331,6 +339,28 @@ end
 
 local function defaultProfileId(data, surfaceId)
     return findProfile(data, surfaceId) and surfaceId or ""
+end
+
+local function defaultProfileSourceMode(data, profileId, profileKind, templateSource)
+    local profile = findProfile(data, profileId)
+    if not profile then return "VendorAndUser" end
+    local vendorAvailable = profileKind == "FX" and profile.vendorFx or profile.vendorMain
+    local userAvailable = profileKind == "FX" and profile.userFx or profile.userMain
+    if templateSource == "Vendor" and vendorAvailable then return "Vendor" end
+    if templateSource == "User" and userAvailable then return vendorAvailable and "VendorAndUser" or "User" end
+    if vendorAvailable then return "Vendor" end
+    return userAvailable and "User" or "VendorAndUser"
+end
+
+local function selectionKey(id, sourceMode)
+    if not id or id == "" then return "" end
+    return id .. "\31" .. (sourceMode or "VendorAndUser")
+end
+
+local function splitSelection(value)
+    local separator = value:find("\31", 1, true)
+    if not separator then return value, "" end
+    return value:sub(1, separator - 1), value:sub(separator + 1)
 end
 
 local function uniqueSurfaceName(page, baseName)
@@ -345,11 +375,12 @@ end
 local function newSurface(data, page)
     local templates = templateItems(data)
     local deviceId = ""
-    local surfaceId = templates[1] and templates[1].value or ""
+    local surfaceId, surfaceSourceMode = splitSelection(templates[2] and templates[2].value or "")
     local profileId = defaultProfileId(data, surfaceId)
-    local template = findTemplate(data, surfaceId)
+    local template = findTemplate(data, surfaceId, surfaceSourceMode)
     local profile = findProfile(data, profileId)
-    return { active = false, deviceId = deviceId, fxProfile = profileId, fxSource = profile and profile.fxSource or "Missing", fxSourceMode = "VendorAndUser", ioActive = false, ioType = "", mainProfile = profileId, mainSource = profile and profile.mainSource or "Missing", mainSourceMode = "VendorAndUser", name = uniqueSurfaceName(page, deviceId ~= "" and deviceId or "Surface"), startChannel = 0, surfaceId = surfaceId, templateSource = template and template.source or "Missing", useDifferentFx = false }
+    local profileSourceMode = defaultProfileSourceMode(data, profileId, "Main", surfaceSourceMode)
+    return { active = false, deviceId = deviceId, fxProfile = profileId, fxSource = profile and profile.fxSource or "Missing", fxSourceMode = profileSourceMode, ioActive = false, ioType = "", mainProfile = profileId, mainSource = profile and profile.mainSource or "Missing", mainSourceMode = profileSourceMode, name = uniqueSurfaceName(page, deviceId ~= "" and deviceId or "Surface"), startChannel = 0, surfaceId = surfaceId, surfaceSourceMode = surfaceSourceMode, templateSource = template and template.source or "Missing", useDifferentFx = false }
 end
 
 local function removePage(data, pageIdx)
@@ -487,21 +518,22 @@ local function surfaceEditorError(data, page, surface)
     if not ioDefinition then return "Select an I/O definition, or add a new MIDI or OSC definition" end
     local ioError = ioDefinitionError(data, ioKind, ioIndex, ioDefinition)
     if ioError ~= "" then return "Edit the selected I/O definition: " .. ioError end
-    if not findTemplate(data, surface.surfaceId) then return "Select an existing Surface template" end
+    if not findTemplate(data, surface.surfaceId, surface.surfaceSourceMode == "VendorAndUser" and surface.templateSource or surface.surfaceSourceMode) then return "Select an existing Surface template" end
     local mainProfile = findProfile(data, surface.mainProfile)
-    if not mainProfile or mainProfile.mainSource == "Missing" or mainProfile.mainSource == "Invalid" then return "Select an existing Zone profile" end
+    if not mainProfile then return "Select an existing Zone profile" end
     if surface.mainSourceMode == "Vendor" and not mainProfile.vendorMain then return "The selected Zone profile has no Vendor source" end
-    if surface.mainSourceMode == "User" and not mainProfile.userMain then return "The selected Zone profile has no User source" end
+    if surface.mainSourceMode ~= "Vendor" and not mainProfile.userMain then return "The selected Zone profile has no User source" end
     if surface.useDifferentFx then
         local fxProfile = findProfile(data, surface.fxProfile)
-        if not fxProfile or fxProfile.fxSource == "Missing" or fxProfile.fxSource == "Invalid" then return "Select an existing FX Zone profile" end
+        if not fxProfile then return "Select an existing FX Zone profile" end
+        if surface.fxSourceMode == "Vendor" and not fxProfile.vendorFx then return "The selected FX Zone profile has no Vendor source" end
+        if surface.fxSourceMode ~= "Vendor" and not fxProfile.userFx then return "The selected FX Zone profile has no User source" end
     end
     return ""
 end
 
 local function renderAssignmentEditor(ctx, data, page, surface)
     local changed
-    local openedIoEditor = false
     if beginForm(ctx, "##AssignmentMasterForm") then
         fieldRow(ctx, "Surface ID", function() changed, surface.name = textField(ctx, "AssignmentName", surface.name) end)
         fieldRow(ctx, "I/O definition", function()
@@ -509,50 +541,42 @@ local function renderAssignmentEditor(ctx, data, page, surface)
             changed, selectedIo = ui.ComboEnum(ctx, "##AssignmentIo", surface.deviceId, assignmentIoItems(data, page, surface), { width = 145 })
             if changed then
                 if selectedIo == "__ADD_MIDI__" or selectedIo == "__ADD_OSC__" then
-                    local returnSurface = state.editSurface
-                    addIoDefinition(data, selectedIo == "__ADD_MIDI__" and "MIDI" or "OSC")
-                    local devices = state.editIo.kind == "MIDI" and data.midi or data.osc
-                    surface.deviceId = devices[state.editIo.index].name
-                    state.editIo.returnSurface = returnSurface
-                    state.editSurface = nil
-                    openedIoEditor = true
+                    local device = addIoDefinition(data, selectedIo == "__ADD_MIDI__" and "MIDI" or "OSC")
+                    surface.deviceId = device.name
+                    state.expandedIoName = device.name
                 else surface.deviceId = selectedIo end
             end
-            imgui.SameLine(ctx)
-            local ioKind, ioIndex = findIo(data, surface.deviceId)
-            local actionSize = theme.NOTIFICATIONS.close_button_size
-            ui.Disabled(ctx, not ioKind or openedIoEditor, function()
-                if imgui.Button(ctx, "✎##EditSurfaceIo", actionSize, actionSize) then
-                    state.editIo = { index = ioIndex, kind = ioKind, returnSurface = state.editSurface }
-                    state.editSurface = nil
-                    openedIoEditor = true
-                end
-            end)
-            ui.ItemTooltip(ctx, ioKind and ("Edit " .. surface.deviceId) or "Select or add an I/O definition")
         end)
         fieldRow(ctx, "Surface template", function()
-            changed, surface.surfaceId = ui.ComboEnum(ctx, "##AssignmentTemplate", surface.surfaceId, templateItems(data))
+            local selectedTemplate
+            changed, selectedTemplate = ui.ComboEnum(ctx, "##AssignmentTemplate", selectionKey(surface.surfaceId, surface.surfaceSourceMode == "VendorAndUser" and surface.templateSource or surface.surfaceSourceMode), templateItems(data))
             if changed then
-                local template = findTemplate(data, surface.surfaceId)
+                surface.surfaceId, surface.surfaceSourceMode = splitSelection(selectedTemplate)
+                local template = findTemplate(data, surface.surfaceId, surface.surfaceSourceMode)
                 local matchingProfileId = defaultProfileId(data, surface.surfaceId)
                 surface.templateSource = template and template.source or "Missing"
                 if matchingProfileId ~= "" then
                     local profile = findProfile(data, matchingProfileId)
                     surface.mainProfile = matchingProfileId
+                    surface.mainSourceMode = defaultProfileSourceMode(data, matchingProfileId, "Main", surface.surfaceSourceMode)
                     surface.mainSource = profile and profile.mainSource or "Missing"
                 end
             end
         end)
         fieldRow(ctx, "Zone profile", function()
-            changed, surface.mainProfile = ui.ComboEnum(ctx, "##AssignmentMain", surface.mainProfile, profileItems(data))
-            if changed then local profile = findProfile(data, surface.mainProfile) surface.mainSource = profile and profile.mainSource or "Missing" end
+            local selectedProfile
+            changed, selectedProfile = ui.ComboEnum(ctx, "##AssignmentMain", selectionKey(surface.mainProfile, surface.mainSourceMode), profileItems(data, "Main"))
+            if changed then surface.mainProfile, surface.mainSourceMode = splitSelection(selectedProfile) local profile = findProfile(data, surface.mainProfile) surface.mainSource = profile and profile.mainSource or "Missing" end
         end)
-        fieldRow(ctx, "Zone source", function() changed, surface.mainSourceMode = ui.ComboEnum(ctx, "##AssignmentMainSource", surface.mainSourceMode or "VendorAndUser", ZONE_SOURCE_MODES) end)
         imgui.EndTable(ctx)
     end
-    if openedIoEditor then
-        imgui.CloseCurrentPopup(ctx)
-        return true
+    local ioKind, ioIndex, ioDefinition = findIo(data, surface.deviceId)
+    if ioDefinition then
+        if state.expandedIoName == surface.deviceId then imgui.SetNextItemOpen(ctx, true) state.expandedIoName = "" end
+        if imgui.CollapsingHeader(ctx, "I/O definition: " .. surface.deviceId .. "##AssignmentIoDetails") then
+            if ioKind == "MIDI" then renderMidiEditor(ctx, data, ioDefinition, ioIndex) else renderOscEditor(ctx, data, ioDefinition, ioIndex) end
+            if imgui.Button(ctx, "Remove I/O definition##AssignmentRemoveIo", 160, 0) then requestIoRemoval(data, ioKind, ioIndex) end
+        end
     end
     if imgui.CollapsingHeader(ctx, "Advanced##SurfaceAssignmentAdvanced") then
         if beginForm(ctx, "##AssignmentAdvancedForm") then
@@ -562,10 +586,10 @@ local function renderAssignmentEditor(ctx, data, page, surface)
         changed, surface.useDifferentFx = imgui.Checkbox(ctx, "Use a different FX profile", surface.useDifferentFx == true)
         if surface.useDifferentFx and beginForm(ctx, "##AssignmentFxForm") then
             fieldRow(ctx, "FX Zone profile", function()
-                changed, surface.fxProfile = ui.ComboEnum(ctx, "##AssignmentFx", surface.fxProfile, profileItems(data))
-                if changed then local profile = findProfile(data, surface.fxProfile) surface.fxSource = profile and profile.fxSource or "Missing" end
+                local selectedProfile
+                changed, selectedProfile = ui.ComboEnum(ctx, "##AssignmentFx", selectionKey(surface.fxProfile, surface.fxSourceMode), profileItems(data, "FX"))
+                if changed then surface.fxProfile, surface.fxSourceMode = splitSelection(selectedProfile) local profile = findProfile(data, surface.fxProfile) surface.fxSource = profile and profile.fxSource or "Missing" end
             end)
-            fieldRow(ctx, "FX Zone source", function() changed, surface.fxSourceMode = ui.ComboEnum(ctx, "##AssignmentFxSource", surface.fxSourceMode or "VendorAndUser", ZONE_SOURCE_MODES) end)
             imgui.EndTable(ctx)
         end
     end
@@ -577,7 +601,6 @@ local function renderAssignmentEditor(ctx, data, page, surface)
     end
     localError(ctx, surfaceEditorError(data, page, surface))
     if surface.active then renderRuntime(ctx, surface.zoneReady, surface.runtimeIssue, surface.zoneReady and "The Surface and Zone profile are ready." or "The device is connected, but its Zone profile cannot run.") end
-    return openedIoEditor
 end
 
 local function renderAssignmentsSection(ctx, data, fonts)
@@ -791,7 +814,7 @@ end
 local function refreshDraftResourceStatus(data)
     for pageIdx, page in ipairs(data.pages) do
         for surfaceIdx, surface in ipairs(page.surfaces) do
-            local template = findTemplate(data, surface.surfaceId)
+            local template = findTemplate(data, surface.surfaceId, surface.surfaceSourceMode == "VendorAndUser" and surface.templateSource or surface.surfaceSourceMode)
             local mainProfile = findProfile(data, surface.mainProfile)
             local fxProfile = findProfile(data, surface.fxProfile)
             surface.templateSource = template and template.source or "Missing"
@@ -897,7 +920,6 @@ function module.Validate()
     local source, serializationError = model.Serialize(state.data)
     if not source then return false, serializationError end
     if #state.data.pages == 0 then return false, "At least one Page is required" end
-    for pageIdx, page in ipairs(state.data.pages) do if #page.surfaces == 0 then return false, "Assign at least one Surface to Page " .. page.name end end
     return true
 end
 
@@ -936,56 +958,6 @@ function module.RenderPage(ctx, fonts)
 end
 
 function module.RenderModal(ctx, fonts)
-    local ioPopupTitle = state.editIo and state.editIo.creating and ("Add " .. state.editIo.kind .. " I/O##DevicesIoEditor") or "Edit I/O definition##DevicesIoEditor"
-    if state.editIo and state.data then
-        local devices = state.editIo.kind == "MIDI" and state.data.midi or state.data.osc
-        if devices[state.editIo.index] then imgui.OpenPopup(ctx, ioPopupTitle) else state.editIo = nil end
-    end
-    local ioEditorVisible = imgui.BeginPopupModal(ctx, ioPopupTitle, nil, imgui.WindowFlags_AlwaysAutoResize)
-    if ioEditorVisible then
-        local editIo = state.editIo
-        local devices = editIo and editIo.kind == "MIDI" and state.data.midi or (editIo and state.data.osc or {})
-        local device = editIo and devices[editIo.index] or nil
-        if device then
-            if editIo.kind == "MIDI" then renderMidiEditor(ctx, state.data, device, editIo.index, fonts) else renderOscEditor(ctx, state.data, device, editIo.index, fonts) end
-            local returnSurface = editIo.returnSurface
-            if editIo.creating then
-                local ioError = ioDefinitionError(state.data, editIo.kind, editIo.index, device)
-                ui.Disabled(ctx, ioError ~= "", function()
-                    if imgui.Button(ctx, "Add", 100, 0) then
-                        state.editIo = nil
-                        state.editSurface = returnSurface
-                        imgui.CloseCurrentPopup(ctx)
-                    end
-                end)
-                imgui.SameLine(ctx)
-                if imgui.Button(ctx, "Cancel", 100, 0) then
-                    local deviceName = device.name
-                    table.remove(devices, editIo.index)
-                    local page = returnSurface and state.data.pages[returnSurface.page] or nil
-                    local surface = page and page.surfaces[returnSurface.surface] or nil
-                    if surface and surface.deviceId == deviceName then surface.deviceId = "" end
-                    state.editIo = nil
-                    state.editSurface = returnSurface
-                    imgui.CloseCurrentPopup(ctx)
-                end
-            else
-                if imgui.Button(ctx, "Remove", 100, 0) then
-                    requestIoRemoval(state.data, editIo.kind, editIo.index)
-                    if state.deleteIo then state.deleteIo.returnSurface = returnSurface end
-                    state.editIo = nil
-                    imgui.CloseCurrentPopup(ctx)
-                end
-                imgui.SameLine(ctx)
-                if imgui.Button(ctx, "Close", 100, 0) then
-                    state.editIo = nil
-                    state.editSurface = returnSurface
-                    imgui.CloseCurrentPopup(ctx)
-                end
-            end
-        end
-        imgui.EndPopup(ctx)
-    end
     if state.editPage and state.data then
         if state.data.pages[state.editPage] then imgui.OpenPopup(ctx, "Edit Page##DevicesPageEditor") else state.editPage = nil end
     end
@@ -1010,28 +982,26 @@ function module.RenderModal(ctx, fonts)
         local page = surfaceEdit and state.data.pages[surfaceEdit.page] or nil
         local surface = page and page.surfaces[surfaceEdit.surface] or nil
         if surface then
-            local openedIoEditor = renderAssignmentEditor(ctx, state.data, page, surface)
+            renderAssignmentEditor(ctx, state.data, page, surface)
             local creating = surfaceEdit.creating == true
             local editorError = surfaceEditorError(state.data, page, surface)
-            if not openedIoEditor then
-                if creating then
-                    ui.Disabled(ctx, editorError ~= "", function()
-                        if imgui.Button(ctx, "Add", 100, 0) then
-                            state.editSurface = nil
-                            imgui.CloseCurrentPopup(ctx)
-                        end
-                    end)
-                    imgui.SameLine(ctx)
-                    if imgui.Button(ctx, "Cancel", 100, 0) then
-                        local surfaceIdx = surfaceEdit.surface
+            if creating then
+                ui.Disabled(ctx, editorError ~= "", function()
+                    if imgui.Button(ctx, "Add", 100, 0) then
                         state.editSurface = nil
-                        removeSurface(page, surfaceIdx)
                         imgui.CloseCurrentPopup(ctx)
                     end
-                elseif imgui.Button(ctx, "Close", 100, 0) then
+                end)
+                imgui.SameLine(ctx)
+                if imgui.Button(ctx, "Cancel", 100, 0) then
+                    local surfaceIdx = surfaceEdit.surface
                     state.editSurface = nil
+                    removeSurface(page, surfaceIdx)
                     imgui.CloseCurrentPopup(ctx)
                 end
+            elseif imgui.Button(ctx, "Close", 100, 0) then
+                state.editSurface = nil
+                imgui.CloseCurrentPopup(ctx)
             end
         elseif imgui.Button(ctx, "Close", 100, 0) then
             state.editSurface = nil
@@ -1052,7 +1022,6 @@ function module.RenderModal(ctx, fonts)
         end
         imgui.SameLine(ctx)
         if imgui.Button(ctx, "Cancel", 100, 0) then
-            state.editSurface = state.deleteIo.returnSurface
             state.deleteIo = nil
             imgui.CloseCurrentPopup(ctx)
         end
@@ -1064,7 +1033,6 @@ function module.Shutdown()
     if state.requestId then protocol.Cancel(state.requestId) end
     state.requestId = nil
     state.deleteIo = nil
-    state.editIo = nil
     state.editPage = nil
     state.editSurface = nil
 end

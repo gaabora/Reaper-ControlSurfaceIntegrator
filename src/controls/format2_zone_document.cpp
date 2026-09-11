@@ -377,6 +377,8 @@ private:
                     declaration.blink = true;
                     declaration.blinkIntervalMs = blinkIntervalMs;
                 }
+            } else if (property.name == "StateColors") {
+                declaration.feedbackProperties.push_back(property);
             } else if (property.name != "Mode") {
                 this->AddDiagnostic("format2.zone.modifier.property", "Unknown modifier declaration property: " + property.name, property.nameLocation);
                 continue;

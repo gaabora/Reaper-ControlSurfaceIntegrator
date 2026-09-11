@@ -118,6 +118,7 @@ static bool AppendSerializedSurface(std::ostringstream& stream, const SurfaceAss
     stream << "  Surface " << surface.surfaceName << " {\n";
     if (!AppendSerializedIdProperty(stream, "    ", "Device", surface.deviceId, errorMessage)) return false;
     if (!AppendSerializedProperty(stream, "    ", "Template", surface.surfaceId, errorMessage)) return false;
+    if (surface.surfaceSourceMode != ZoneProfileSourceMode::VendorAndUser && !AppendSerializedProperty(stream, "    ", "TemplateSource", ZoneProfileSourceModeName(surface.surfaceSourceMode), errorMessage)) return false;
     if (!AppendSerializedProperty(stream, "    ", "MainProfile", surface.mainZoneProfileId, errorMessage)) return false;
     if (!AppendSerializedProperty(stream, "    ", "MainSource", ZoneProfileSourceModeName(surface.mainZoneSourceMode), errorMessage)) return false;
     if (!AppendSerializedProperty(stream, "    ", "FXProfile", surface.fxZoneProfileId, errorMessage)) return false;

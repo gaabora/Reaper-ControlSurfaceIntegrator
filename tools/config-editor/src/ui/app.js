@@ -117,7 +117,7 @@ const state = {
     current: null,
     draftConflicts: new Set(),
     globalProblems: [],
-    legacy: { activeDraftPath: "", collapsedFolders: new Set(), drafts: new Map(), originalSources: new Map(), originalTargetPaths: new Map(), preview: null, resolutions: new Map(), selectedZonePaths: new Set(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
+    legacy: { activeDraftPath: "", collapsedFolders: new Set(), drafts: new Map(), originalSources: new Map(), originalTargetPaths: new Map(), preview: null, profileAuthor: "user", resolutions: new Map(), selectedZonePaths: new Set(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
     problemFiles: new Map(),
     snippet: { choices: new Map(), conflictAction: "", insertionLine: 1, preview: null, treeEntries: [] },
     renderedDocumentPath: "",
@@ -1434,6 +1434,7 @@ function renderLegacySource(selection, selectedSurfaceName = "") {
         const option = document.createElement("option");
         option.value = surface.name;
         option.textContent = translate("legacy.surface.option", { count: surface.zoneCount, fxCount: surface.fxZoneCount, name: surface.name });
+        option.dataset.targetProfileId = surface.stableId + "-by-" + state.legacy.profileAuthor;
         elements.legacySurface.append(option);
         if (surface.name === selectedSurfaceName) selectedSurfaceAvailable = true;
     }
@@ -1499,6 +1500,7 @@ async function initialize(initialRoute) {
             return;
         }
         const status = await api("/api/status");
+        state.legacy.profileAuthor = status.profileAuthor || "user";
         codeEditor.setActionCompletions(status.actions);
         legacyDraftEditor.setActionCompletions(status.actions);
         const title = translate("app.title", { product: status.identity.displayName });
@@ -1619,6 +1621,8 @@ elements.legacySurface.addEventListener("change", async () => {
         elements.legacyTargetProfile.value = "";
         state.legacy.widgetMappings.clear();
         if (elements.legacySurface.value) {
+            state.legacy.targetProfileId = elements.legacySurface.selectedOptions[0]?.dataset.targetProfileId || "";
+            elements.legacyTargetProfile.value = state.legacy.targetProfileId;
             await refreshLegacyPreview();
             await restoreLegacyDrafts();
         }

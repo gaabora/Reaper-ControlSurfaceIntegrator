@@ -787,6 +787,16 @@ WidgetEnd
         expect(conversion.source).toContain("RotaryPush# Reaper _S&M_FLOATFX#\n");
     });
 
+    test("converts a bare TrackNavigator and keeps modifier state colors", () => {
+        const source = "Zone Channel TrackNavigator\n  Link Control Blink { 40 20 0 120 120 0 }\n  Rotary| TrackVolume\nZoneEnd\n";
+        const conversion = convertLegacyZoneToFormat2(source, { profile: "Main", targetPath: "Zones/User/test/Main/Channel.zon" });
+
+        expect(conversion.source).toStartWith("@Meta { Version=2 Target=Tracks }");
+        expect(conversion.source).toContain("Link Modifier Control Blink StateColors=[ #281400, #787800 ]");
+        const document = parseByPath(conversion.source, "/config/Zones/User/test/Main/Channel.zon");
+        expect(document.diagnostics).not.toContainEqual(expect.objectContaining({ code: "format2.zone.modifier.property" }));
+    });
+
     test("explains that a selected dependency is invalid and links Bank context zones", async () => {
         const surfaceRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2");
         await writeFile(path.join(surfaceRoot, "Zones", "HomeZones", "Home.zon"), "Zone Home\n  SubZones\n    LinkLock\n  SubZonesEnd\n  Link GoSubZone LinkLock\nZoneEnd\n", "utf8");

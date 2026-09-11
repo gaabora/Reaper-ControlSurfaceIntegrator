@@ -121,6 +121,9 @@ function module.Serialize(data)
             lines[#lines + 1] = "  Surface " .. surface.name .. " {"
             lines[#lines + 1] = "    Device=" .. surface.deviceId
             lines[#lines + 1] = "    Template=" .. template
+            local templateSourceMode = zoneSourceMode(surface.surfaceSourceMode or "VendorAndUser")
+            if not templateSourceMode or templateSourceMode == "VendorAndUser" then return nil, "Surface template source must be Vendor or User" end
+            lines[#lines + 1] = "    TemplateSource=" .. templateSourceMode
             lines[#lines + 1] = "    MainProfile=" .. mainProfile
             local mainSourceMode = zoneSourceMode(surface.mainSourceMode)
             local fxSourceMode = zoneSourceMode(surface.fxSourceMode)
@@ -159,8 +162,9 @@ function module.RunSelfChecks()
     assert(source, serializationError)
     assert(source:find("ShowLogInReaperConsole=false", 1, true), "false Boolean setting serialization")
     assert(source:find("WriteLogFile=true", 1, true), "true Boolean setting serialization")
-    local deviceSource, deviceError = module.Serialize({ midi = { { inputPort = 0, maxMessages = 100, name = "fp2", outputPort = 1, refreshRate = 15 } }, osc = {}, pages = { { followsMcp = true, listeners = {}, name = "Home", scrollLink = false, scrollSynch = false, surfaces = { { deviceId = "fp2", fxProfile = "faderportv2", fxSourceMode = "User", mainProfile = "faderportv2", mainSourceMode = "VendorAndUser", name = "fp2", startChannel = 0, surfaceId = "faderportv2" } }, synchPages = true } } })
+    local deviceSource, deviceError = module.Serialize({ midi = { { inputPort = 0, maxMessages = 100, name = "fp2", outputPort = 1, refreshRate = 15 } }, osc = {}, pages = { { followsMcp = true, listeners = {}, name = "Home", scrollLink = false, scrollSynch = false, surfaces = { { deviceId = "fp2", fxProfile = "faderportv2", fxSourceMode = "User", mainProfile = "faderportv2", mainSourceMode = "VendorAndUser", name = "fp2", startChannel = 0, surfaceId = "faderportv2", surfaceSourceMode = "Vendor" } }, synchPages = true } } })
     assert(deviceSource, deviceError)
+    assert(deviceSource:find("TemplateSource=Vendor", 1, true), "Vendor Surface template source serialization")
     assert(deviceSource:find("MainSource=VendorAndUser", 1, true), "combined Main Zone source serialization")
     assert(deviceSource:find("FXSource=User", 1, true), "User-only FX Zone source serialization")
     local invalidSource = module.Serialize({ midi = { { inputPort = 0, maxMessages = 100, name = "fp2", outputPort = 1, refreshRate = 15 } }, osc = {}, pages = { { followsMcp = true, listeners = {}, name = "Home", scrollLink = false, scrollSynch = false, surfaces = { { deviceId = "fp2", fxProfile = "faderportv2", fxSourceMode = "Automatic", mainProfile = "faderportv2", mainSourceMode = "Vendor", name = "fp2", startChannel = 0, surfaceId = "faderportv2" } }, synchPages = true } } })

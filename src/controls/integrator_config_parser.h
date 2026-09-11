@@ -42,6 +42,7 @@ struct SurfaceAssignmentConfig {
     std::string surfaceName;
     std::string deviceId;
     std::string surfaceId;
+    ZoneProfileSourceMode surfaceSourceMode = ZoneProfileSourceMode::VendorAndUser;
     std::string mainZoneProfileId;
     std::string fxZoneProfileId;
     ZoneProfileSourceMode mainZoneSourceMode = ZoneProfileSourceMode::VendorAndUser;

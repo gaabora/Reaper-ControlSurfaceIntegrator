@@ -64,6 +64,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+- User First: make things best effort and as user-friendly as possible, even when user inputs are imperfect or invalid. Handle errors gracefully instead of pushing debugging work onto users. We build software to make people’s lives easier, not to make them debug our mistakes.
 - write in ASD-STE100 Simplified Technical English
 - speak in simplified english please, so even a foreigner without tech background can understand what you mean, without fancy metaphors but using simple practical examples
 - no newlines between params in methods and conditions if line <250 symbols

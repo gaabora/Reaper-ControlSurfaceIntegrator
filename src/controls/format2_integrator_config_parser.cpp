@@ -256,7 +256,6 @@ private:
             else if (child.positionalTokens[0].text == "Link") this->ParseLink(child, page);
             else this->AddIssue(child.location.line, "Unknown Page child block: " + child.positionalTokens[0].text);
         }
-        if (page.surfaces.empty()) this->AddIssue(block.location.line, "Page requires at least one valid Surface block");
         this->config_.pages.push_back(std::move(page));
     }
 
@@ -268,12 +267,14 @@ private:
             this->AddIssue(block.location.line, "Surface ID is duplicated case-insensitively on Page " + page.name + ": " + id);
             return;
         }
-        const PropertyMap properties = this->CollectProperties(block, {"Device", "Template", "MainProfile", "FXProfile", "MainSource", "FXSource", "StartChannel"});
+        const PropertyMap properties = this->CollectProperties(block, {"Device", "Template", "TemplateSource", "MainProfile", "FXProfile", "MainSource", "FXSource", "StartChannel"});
         SurfaceAssignmentConfig surface;
         surface.lineNumber = block.location.line;
         surface.surfaceName = id;
         surface.startChannel = 0;
         if (!this->ReadScalar(this->RequireProperty(properties, "Device", block.location.line), surface.deviceId) || !this->ReadScalar(this->RequireProperty(properties, "Template", block.location.line), surface.surfaceId)) return;
+        std::string templateSourceMode;
+        if (properties.count("TemplateSource") && this->ReadScalar(properties.at("TemplateSource"), templateSourceMode) && (!ParseZoneProfileSourceMode(templateSourceMode, surface.surfaceSourceMode) || surface.surfaceSourceMode == ZoneProfileSourceMode::VendorAndUser)) this->AddIssue(properties.at("TemplateSource")->nameLocation.line, "TemplateSource must be Vendor or User");
         surface.mainZoneProfileId = surface.surfaceId;
         if (properties.count("MainProfile")) this->ReadScalar(properties.at("MainProfile"), surface.mainZoneProfileId);
         surface.fxZoneProfileId = surface.mainZoneProfileId;

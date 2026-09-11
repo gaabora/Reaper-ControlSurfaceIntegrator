@@ -131,24 +131,30 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
     const zonesByKey = new Map<string, AnyDocument>();
     const zonesByLayer = new Map<string, AnyDocument>();
     const duplicateZoneKeys = new Set<string>();
-    const activeSurfaces = new Map<string, { document: AnyDocument; user: boolean }>();
+    const surfacesById = new Map<string, { User?: AnyDocument; Vendor?: AnyDocument }>();
     for (const document of documents) {
         if (document.format !== "surface" || !document.path) continue;
         const match = document.path.replaceAll("\\", "/").match(/(?:^|\/)Surfaces\/(Vendor|User)\/([^/]+)\.txt$/i);
         if (!match) continue;
         const surfaceId = match[2].toLowerCase();
-        const user = match[1].toLowerCase() === "user";
-        const existing = activeSurfaces.get(surfaceId);
-        if (!existing || user || !existing.user) activeSurfaces.set(surfaceId, { document, user });
+        const source = match[1].toLowerCase() === "user" ? "User" : "Vendor";
+        const sources = surfacesById.get(surfaceId) ?? {};
+        sources[source] = document;
+        surfacesById.set(surfaceId, sources);
     }
+    const surfaceForAssignment = (assignment: ProductConfigRecord): AnyDocument | undefined => {
+        const templateId = assignment.properties.get("Template")?.toLowerCase();
+        const sources = templateId ? surfacesById.get(templateId) : undefined;
+        const source = assignment.properties.get("TemplateSource");
+        return source === "Vendor" ? sources?.Vendor : source === "User" ? sources?.User : sources?.User ?? sources?.Vendor;
+    };
     for (const document of documents) {
         if (document.format !== "product-config") continue;
         const assignments = (document.semantic as ProductConfigSemantic).records.filter((record): record is ProductConfigRecord => record.kind === "surface-assignment");
         const channelsByDevice = new Map<string, { channels: number; record: ProductConfigRecord }>();
         for (const assignment of assignments) {
             const deviceId = assignment.properties.get("Device")?.toLowerCase();
-            const templateId = assignment.properties.get("Template")?.toLowerCase();
-            const surfaceDocument = templateId ? activeSurfaces.get(templateId)?.document : undefined;
+            const surfaceDocument = surfaceForAssignment(assignment);
             const channels = surfaceDocument ? (surfaceDocument.semantic as SurfaceSemantic).channels : undefined;
             if (!deviceId || !channels) continue;
             const existing = channelsByDevice.get(deviceId);
@@ -200,9 +206,8 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
         }
         const contextsByProfile = new Map<string, Array<{ assignment: ProductConfigRecord; configPath?: string; device: ProductConfigRecord; surface: AnyDocument }>>();
         for (const assignment of assignments) {
-            const templateId = assignment.record.properties.get("Template")?.toLowerCase();
             const deviceId = assignment.record.properties.get("Device")?.toLowerCase();
-            const surface = templateId ? activeSurfaces.get(templateId)?.document : undefined;
+            const surface = surfaceForAssignment(assignment.record);
             const device = deviceId ? devices.get(deviceId) : undefined;
             if (!templateId || !surface || !device) continue;
             const mainProfile = (assignment.record.properties.get("MainProfile") ?? templateId).toLowerCase();
@@ -281,8 +286,8 @@ export function validateDocumentSet(documents: AnyDocument[], options: Validatio
         }
         for (const [profile, entries] of mainProfiles) {
             if (!entries.some((document) => document.version === "2")) continue;
-            const homeZones = entries.filter((document) => (document.semantic as ZoneSemantic).role === "Home" && !duplicateZoneKeys.has(zoneKey(document, (document.semantic as ZoneSemantic).name!)) && !document.diagnostics.some((diagnostic) => diagnostic.severity === "error"));
-            if (homeZones.length !== 1) addDiagnostic(diagnostics, "error", `format2.zone-profile.home.${homeZones.length ? "duplicate" : "missing"}`, `Zone profile '${profile}' requires exactly one valid Main zone with Role=Home. Fix the Home zone errors or import a Home zone.`, undefined, entries[0].path, homeZones.flatMap((document) => document.path ? [{ path: document.path, line: zoneHeaderLine(document) }] : []));
+            const homeZones = entries.filter((document) => (document.semantic as ZoneSemantic).role === "Home" && !duplicateZoneKeys.has(zoneKey(document, (document.semantic as ZoneSemantic).name!)));
+            if (homeZones.length !== 1) addDiagnostic(diagnostics, "error", `format2.zone-profile.home.${homeZones.length ? "duplicate" : "missing"}`, `Zone profile '${profile}' requires exactly one Main zone with Role=Home.`, undefined, entries[0].path, homeZones.flatMap((document) => document.path ? [{ path: document.path, line: zoneHeaderLine(document) }] : []));
         }
     }
 

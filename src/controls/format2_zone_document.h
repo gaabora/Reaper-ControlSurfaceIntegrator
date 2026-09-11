@@ -54,6 +54,7 @@ struct Format2ModifierDeclaration {
     Format2ModifierMode mode = Format2ModifierMode::Default;
     bool blink = false;
     int blinkIntervalMs = -1;
+    std::vector<Format2PropertySyntax> feedbackProperties;
 };
 
 struct Format2ZoneReference {
