@@ -42,4 +42,10 @@ On ZoneDeactivation {
 
 ButtonA ToggleSelectedTrackFX
 ButtonB GoZone Mixer
+ButtonC TrackPan
+ButtonD Reaper 40045
+ButtonE TrackMute
+ButtonF TrackPan
+Display FixedTextDisplay "Legacy typo"
+ButtonG ToggleSelectedTrackFX
 Rotary TrackAutoMode Range=[0.0, 1.0] StepValues=[0.0, 0.5, 1.0] TicksPerStep=[4, 2, 1]

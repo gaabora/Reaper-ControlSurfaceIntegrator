@@ -7,6 +7,7 @@ import { actionNameSet, actionTraitsByName, loadActionCatalog, writeActionCatalo
 import { isSupportedConfigPath, parseByPath, type AnyDocument } from "./formats.ts";
 import { isIgnoredLegacyAction, renameLegacyAction } from "./legacy-action-renames.ts";
 import { analyzeLegacySurfaceCoverage } from "./legacy-surface-coverage.ts";
+import { legacyMainTargetContext } from "./legacy-zone-format2.ts";
 import type { Diagnostic } from "./model.ts";
 import { loadSettingsSchema } from "./settings-schema.ts";
 import { loadSurfaceIoSchema } from "./surface-io-schema.ts";
@@ -114,8 +115,9 @@ async function legacyActionsCommand(args: string[]): Promise<number> {
         }
         const source = (await readFile(zonePath, "utf8")).replace(/^(\s*)\/(?!\/)/gm, "$1//").replace(/^(\s*)#/gm, "$1//");
         const document = parseZone(source, zonePath, knownActions);
+        const targetContext = legacyMainTargetContext(document.semantic.name ?? path.basename(zonePath, path.extname(zonePath)));
         for (const binding of document.semantic.bindings) {
-            const renamed = renameLegacyAction(binding.action, binding.params, { isLayer: true });
+            const renamed = renameLegacyAction(binding.action, binding.params, { ...targetContext, isLayer: true });
             const replacement = renamed.action === binding.action ? undefined : renamed.action;
             const status = isIgnoredLegacyAction(binding.action) ? "ignored" : replacement ? "renamed" : knownActions.has(binding.action) ? "current" : "unknown";
             if (status === "unknown" && (!/^[A-Za-z][A-Za-z0-9_]*$/.test(binding.action) || binding.action.includes("="))) continue;

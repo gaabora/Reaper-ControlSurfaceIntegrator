@@ -11,5 +11,13 @@ Zone Track
   OnZoneDeactivation Reaper 40044
   ButtonA GoZone SelectedTrackFX
   ButtonB GoZone Mixer
+  ButtonC MCUTrackPan
+  ButtonD Raper 40045
+  ButtonE TackMute
+  ButtonF TackPan
+  Display FixedTexDislay "Legacy typo"
+  ButtonG GoSelectedTrackFX
+  EmptyDisplay NullDisplay
+  EmptyButton NoFeedback
   Rotary TrackAutoMode [ 0.00>1.00 (4,2,1) 0.0 0.5 1.0 ]
 ZoneEnd

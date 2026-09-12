@@ -23,7 +23,7 @@ const identity: EditorProductIdentity = {
     productId: "test-product",
     resourceDirectory: "TestProduct",
 };
-const knownActions = new Set(["EnterZoneLayer", "ExitZoneLayer", "FXParam", "GoHome", "GoZone", "Play", "ToggleSelectedTrackFX", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackVolume", "TrackVolumeDisplay"]);
+const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "FXParam", "GoHome", "GoZone", "Play", "Reaper", "ToggleSelectedTrackFX", "TrackMute", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackVolume", "TrackVolumeDisplay"]);
 const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
@@ -78,7 +78,8 @@ describe("legacy CSI import", () => {
         expect(renameLegacyAction("LeaveSubZone", [], { isLayer: true })).toEqual({ action: "ExitZoneLayer", arguments: [] });
         expect(renameLegacyAction("LeaveSubZone", [], { isLayer: false })).toEqual({ action: "LeaveSubZone", arguments: [] });
         expect(renameLegacyAction("MCUTrackPan", [], { isLayer: false })).toEqual({ action: "TrackPan", arguments: [] });
-        expect(renameLegacyAction("TrackSendBank", ["-1"], { isLayer: false })).toEqual({ action: "Bank", arguments: ["-1"] });
+        expect(renameLegacyAction("TrackSendBank", ["-1"], { bankTarget: "Sends", isLayer: false, target: "Tracks" })).toEqual({ action: "Bank", arguments: ["-1"] });
+        expect(renameLegacyAction("TrackSendBank", ["-1"], { isLayer: false, target: "SelectedTrack" })).toEqual({ action: "TrackSendBank", arguments: ["-1"] });
         expect(isIgnoredLegacyAction("NullDisplay")).toBeTrue();
         expect(isIgnoredLegacyAction("NoFeedback")).toBeTrue();
         expect(missingLegacyActionRenameDestinations(knownActions)).toEqual([]);
@@ -742,9 +743,20 @@ WidgetEnd
         expect(locations).toContainEqual({ line: 2, path: "Zones/GoZones/Transport.zon" });
     });
 
-    test("offers similar action fixes in an import draft", async () => {
+    test("automatically renames a known legacy action in an import draft", async () => {
         const sourcePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
         await writeFile(sourcePath, "Zone Home\n  Play MCUTrackPan\nZoneEnd\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const zone = preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon");
+
+        expect(zone?.source).toContain("Play TrackPan");
+        expect(preview.diagnostics).not.toContainEqual(expect.objectContaining({ code: "zone.action.unknown" }));
+    });
+
+    test("offers similar action fixes for an unknown action in an import draft", async () => {
+        const sourcePath = path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "HomeZones", "Home.zon");
+        await writeFile(sourcePath, "Zone Home\n  Play TrakPan\nZoneEnd\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
         const diagnostic = preview.diagnostics.find((candidate) => candidate.code === "zone.action.unknown");

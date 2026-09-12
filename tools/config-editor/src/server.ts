@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { userInfo } from "node:os";
 import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
@@ -454,17 +454,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             return errorResponse(error);
         }
     };
-    let server: ReturnType<typeof Bun.serve> | undefined;
-    const automaticPort = !options.port;
-    for (let attemptIdx = 0; attemptIdx < 20 && !server; attemptIdx++) {
-        const port = automaticPort ? randomInt(20000, 65536) : options.port;
-        try {
-            server = Bun.serve({ fetch: fetchRequest, hostname: "127.0.0.1", port });
-        } catch (error) {
-            if (!automaticPort || (error as NodeJS.ErrnoException).code !== "EADDRINUSE" || attemptIdx === 19) throw error;
-        }
-    }
-    if (!server) throw new Error("Unable to allocate a local editor port");
+    const server = Bun.serve({ fetch: fetchRequest, hostname: "127.0.0.1", port: options.port ?? 0 });
     origin = `http://127.0.0.1:${server.port}`;
     return { server, token, url: `${origin}/` };
 }

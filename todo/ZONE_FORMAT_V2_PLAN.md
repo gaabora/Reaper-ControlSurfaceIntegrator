@@ -1892,6 +1892,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - ✅ Add lossless format 2 parsing, validation, syntax highlighting, quick fixes, and cross-file references.
 - [ ] Replace semantic snippet slots, explicit capability fields, application IDs, conflict actions, and saved marker comments with direct zone-fragment parsing and token-aware widget plus modifier mapping. Derive compatibility from the normal action, binding, and Surface catalogs, and insert only into the unsaved destination draft.
 - ✅ Create the declarative Bun-only action rename registry and validate its destinations against the current action catalog.
+- ✅ Cover the action rename registry, common public typos, and ignored no-context bindings with an executable full-source golden migration.
 - [ ] Review the public action catalog before runtime cutover. Group inconsistent, branded, abbreviated, and redundant names by behavior, approve each canonical name, add its legacy conversion to the registry, then regenerate the editor catalog and Actions reference. Do not rename an action only because another spelling looks shorter.
 - ✅ Keep the conversion matrix and golden fixture pairs synchronized with every later format or action rename.
 - [ ] Show a Zone Layer badge, all current parent references, and context-valid navigation actions in the editor. Offer `ExitZoneLayer` only for zone layers.

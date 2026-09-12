@@ -215,28 +215,29 @@ enum PropertyType {
   D(Font) \
   D(TopMargin) \
   D(BottomMargin) \
+  D(Foreground) \
+  D(Background) \
   D(BackgroundColorOff) \
-  D(TextColorOff) \
   D(BackgroundColorOn) \
-  D(TextColorOn) \
-  D(DisplayText) \
   D(BackgroundColor) \
+  D(OffColor) \
+  D(OnColor) \
+  D(TextColorOff) \
+  D(TextColorOn) \
   D(TextColor) \
-  D(RingStyle) \
-  D(Push) \
-  D(PushColor) \
+  D(StateColors) \
+  D(RingColors) \
   D(LEDRingColor) \
   D(LEDRingColors) \
-  D(RingColors) \
-  D(StateColors) \
+  D(RingStyle) \
   D(BarStyle) \
+  D(DisplayText) \
+  D(Push) \
+  D(PushColor) \
   D(TextAlign) \
   D(TextInvert) \
   D(Mode) \
-  D(OffColor) \
-  D(OnColor) \
-  D(Background) \
-  D(Foreground) \
+  D(MeterMode) \
   D(Feedback) \
   D(Blink) \
   D(HoldDelay) \
@@ -244,12 +245,13 @@ enum PropertyType {
   D(RunCount) \
   D(OSD) \
   D(Version) \
+  D(Surface) \
   D(SurfaceType) \
   D(SurfaceName) \
   D(SurfaceChannelCount) \
+  D(MIDISurfaceRefreshRate) \
   D(MidiInput) \
   D(MidiOutput) \
-  D(MIDISurfaceRefreshRate) \
   D(MaxMIDIMesssagesPerRun) \
   D(ReceiveOnPort) \
   D(TransmitToPort) \
@@ -262,11 +264,9 @@ enum PropertyType {
   D(ScrollSynch) \
   D(Broadcaster) \
   D(Listener) \
-  D(Surface) \
   D(StartChannel) \
-  D(GoHome) \
-  D(Modifiers) \
   D(FXMenu) \
+  D(Modifiers) \
   D(SelectedTrackFX) \
   D(SelectedTrackSends) \
   D(SelectedTrackReceives) \
@@ -274,7 +274,7 @@ enum PropertyType {
   D(ZoneFolder) \
   D(FXZoneFolder) \
   D(NavType) \
-  D(MeterMode) \
+  D(GoHome) \
   D(KeyLabel) \
 
   PropertyType_Unknown = 0, // in this case, string is type=value pair

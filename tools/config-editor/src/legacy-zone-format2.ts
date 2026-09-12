@@ -50,10 +50,15 @@ const MAGIC_MAIN_METADATA = new Map<string, string[]>([
 ]);
 
 export function legacyMainBankContext(zoneName: string): { bankTarget: string; target: string } | undefined {
+    const context = legacyMainTargetContext(zoneName);
+    return context.target && context.bankTarget ? { bankTarget: context.bankTarget, target: context.target } : undefined;
+}
+
+export function legacyMainTargetContext(zoneName: string): { bankTarget?: string; target?: string } {
     const metadata = MAGIC_MAIN_METADATA.get(zoneName.toLowerCase()) ?? [];
     const target = metadata.find((entry) => entry.startsWith("Target="))?.slice("Target=".length);
     const bankTarget = metadata.find((entry) => entry.startsWith("BankTarget="))?.slice("BankTarget=".length);
-    return target && bankTarget ? { bankTarget, target } : undefined;
+    return { bankTarget, target };
 }
 const NAVIGATOR_TARGETS = new Map([
     ["track", "Tracks"],
@@ -224,6 +229,8 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
     const zoneName = header?.tokens[1] ?? fallbackName;
     if (!header) addDiagnostic(diagnostics, "error", "legacy.zone.header.missing", "Legacy Zone has no Zone header.", undefined, options.targetPath);
     const metadata = metadataFor(zoneName, header?.tokens.slice(2) ?? [], options, diagnostics, header?.lineNumber);
+    const target = metadata.find((entry) => entry.startsWith("Target="))?.slice("Target=".length);
+    const bankTarget = metadata.find((entry) => entry.startsWith("BankTarget="))?.slice("BankTarget=".length);
     const declaredModifiers = new Set(lines.flatMap((line) => {
         initializeLine(line);
         return MODIFIER_ACTIONS.has(line.tokens[1]) ? [line.tokens[1]] : [];
@@ -292,7 +299,7 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
         const invalidLayerExit = action === "LeaveSubZone" && !options.isLayer;
         let invalidBankContextMessage = "";
-        const renamedAction = renameLegacyAction(action, actionTokens, { isLayer: options.isLayer ?? false });
+        const renamedAction = renameLegacyAction(action, actionTokens, { bankTarget, isLayer: options.isLayer ?? false, target });
         const convertedAction = renamedAction.action;
         actionTokens = renamedAction.arguments;
         if (action === "Bank" && actionTokens.length >= 2 && !actionTokens[0].includes("=")) {
