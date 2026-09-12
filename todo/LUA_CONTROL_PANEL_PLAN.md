@@ -143,8 +143,8 @@ The GUI must not assume that every Surface template has a matching Vendor profil
 
 [`../src/ui/config_dialog.cpp`](../src/ui/config_dialog.cpp) now contains only the launcher required by the REAPER Control/OSC/Web configuration callback. C++ format 2 parsing, validation, serialization, atomic writing, and runtime reload remain outside the dialog.
 
-- ✅ Phase A: add an `Open Control Panel` button to the native dialog. Launch or focus Lua first, then close the REAPER-owned parent dialog as Cancel so it does not remain modal and unfinished native edits are not applied.
-- [ ] Manually verify that `Open Control Panel` closes the native parent dialog on macOS and does not save unfinished native edits.
+- ✅ Phase A: replace the old native editor with one `Open Control Panel` button. Keep the native window open while the button launches or focuses Lua, and let the user confirm the selected control surface through REAPER.
+- [ ] Manually verify on macOS that `Open Control Panel` opens or focuses Lua without closing the native window, and that confirming the REAPER dialog adds the selected control surface.
 - ✅ Phase B: add a C++ read-only query that returns the complete parsed device, Page, assignment, listener, issue, and active-state model.
 - ✅ Phase C: make the Lua Devices tab the preferred read-only view while all editing remains native.
 - ✅ Phase D: add C++ draft validation and transactional Save for the complete configuration model.
@@ -345,7 +345,7 @@ If code is copied instead of reimplemented, verify its MIT license notice and at
 - ✅ Add stable C++ registration for the Control Panel action.
 - ✅ Open the Control Panel from the native configuration dialog without removing current controls.
 - [ ] Manually verify in REAPER that the stable action opens a closed panel, closes an open panel, shows the dirty-draft close prompt, and follows the Lua lifecycle state.
-- [ ] Manually verify that the native button opens or focuses Lua, closes the blocking native parent, and does not apply unfinished native edits.
+- [ ] Manually verify that the native button opens or focuses Lua without closing the native parent, and that confirming the REAPER dialog adds the selected control surface.
 
 Ready when REAPER can toggle one Control Panel window, programmatic callers can open or focus it, and its action state is correct.
 

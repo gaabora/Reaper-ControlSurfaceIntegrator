@@ -19,8 +19,8 @@
 - UI callbacks operate under REAPER/WDL/SWELL conventions and must preserve dialog lifetime and localization behavior.
 - The `_REACTRLSURF_OPEN_CONTROL_PANEL` user action opens or closes the Lua window and reports On only while Lua publishes the Open lifecycle state. `ControlPanelAction::OpenOrFocus` remains non-toggle behavior for native and programmatic callers.
 - The `_REACTRLSURF_TOGGLE_NOTIFICATIONS` action starts or stops `Notifications.lua` and reports On only while its Lua lifecycle state is Open.
-- The native `Open Control Panel` button launches or focuses Lua, then posts `IDCANCEL` to the REAPER-owned parent configuration window so that parent does not remain modal and unfinished native edits are not applied.
-- REAPER's native configuration callback immediately launches or focuses the Control Panel and closes its own temporary dialog. It does not parse or write the product configuration.
+- REAPER's native configuration callback shows a small native window with only the `Open Control Panel` button. The window stays open until the user closes or confirms the REAPER-owned parent dialog.
+- The native `Open Control Panel` button launches or focuses Lua. It does not close or confirm the REAPER-owned parent dialog, and it does not parse or write the product configuration.
 
 ## Work Guidance
 
