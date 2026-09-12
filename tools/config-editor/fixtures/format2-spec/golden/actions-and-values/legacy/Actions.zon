@@ -17,6 +17,8 @@ Zone Track
   ButtonF TackPan
   Display FixedTexDislay "Legacy typo"
   ButtonG GoSelectedTrackFX
+  ButtonH GoAssociatedZone Mixer
+  ButtonI ToggleEnableFocusedFXParamMapping
   EmptyDisplay NullDisplay
   EmptyButton NoFeedback
   Rotary TrackAutoMode [ 0.00>1.00 (4,2,1) 0.0 0.5 1.0 ]

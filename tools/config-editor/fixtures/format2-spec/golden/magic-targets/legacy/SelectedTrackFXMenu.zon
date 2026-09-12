@@ -1,2 +1,4 @@
 Zone SelectedTrackFXMenu
+  BankLeft SelectedTrackFXMenuBank -1
+  BankRight SelectedTrackFXMenuBank 1
 ZoneEnd

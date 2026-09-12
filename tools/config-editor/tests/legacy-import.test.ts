@@ -23,7 +23,7 @@ const identity: EditorProductIdentity = {
     productId: "test-product",
     resourceDirectory: "TestProduct",
 };
-const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "FXParam", "GoHome", "GoZone", "Play", "Reaper", "ToggleSelectedTrackFX", "TrackMute", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackVolume", "TrackVolumeDisplay"]);
+const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "FXParam", "GoHome", "GoZone", "Play", "Reaper", "ToggleEnableLastTouchedFXParamMapping", "ToggleSelectedTrackFX", "TrackMute", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackVolume", "TrackVolumeDisplay"]);
 const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
@@ -78,12 +78,16 @@ describe("legacy CSI import", () => {
         expect(renameLegacyAction("LeaveSubZone", [], { isLayer: true })).toEqual({ action: "ExitZoneLayer", arguments: [] });
         expect(renameLegacyAction("LeaveSubZone", [], { isLayer: false })).toEqual({ action: "LeaveSubZone", arguments: [] });
         expect(renameLegacyAction("MCUTrackPan", [], { isLayer: false })).toEqual({ action: "TrackPan", arguments: [] });
+        expect(renameLegacyAction("GoAssociatedZone", ["Mixer"], { isLayer: false })).toEqual({ action: "GoZone", arguments: ["Mixer"] });
         expect(renameLegacyAction("TrackSendBank", ["-1"], { bankTarget: "Sends", isLayer: false, target: "Tracks" })).toEqual({ action: "Bank", arguments: ["-1"] });
         expect(renameLegacyAction("TrackSendBank", ["-1"], { isLayer: false, target: "SelectedTrack" })).toEqual({ action: "TrackSendBank", arguments: ["-1"] });
+        expect(renameLegacyAction("SelectedTrackFXMenuBank", ["1"], { bankTarget: "FX", isLayer: false, target: "SelectedTrack" })).toEqual({ action: "Bank", arguments: ["1"] });
+        expect(renameLegacyAction("SelectedTrackFXMenuBank", ["1"], { bankTarget: "FX", isLayer: false, target: "Tracks" })).toEqual({ action: "SelectedTrackFXMenuBank", arguments: ["1"] });
+        expect(renameLegacyAction("ToggleEnableFocusedFXParamMapping", [], { isLayer: false })).toEqual({ action: "ToggleEnableLastTouchedFXParamMapping", arguments: [] });
         expect(isIgnoredLegacyAction("NullDisplay")).toBeTrue();
         expect(isIgnoredLegacyAction("NoFeedback")).toBeTrue();
         expect(missingLegacyActionRenameDestinations(knownActions)).toEqual([]);
-        expect(missingLegacyActionRenameDestinations(new Set(["GoHome"]))).toEqual(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "Reaper", "ToggleSelectedTrackFX", "TrackMute", "TrackPan"]);
+        expect(missingLegacyActionRenameDestinations(new Set(["GoHome"]))).toEqual(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "GoZone", "Reaper", "ToggleEnableLastTouchedFXParamMapping", "ToggleSelectedTrackFX", "TrackMute", "TrackPan"]);
     });
 
     test("converts a legacy MIDI Surface and creates a fader-aware OSK layout", () => {
@@ -166,6 +170,14 @@ WidgetEnd
         const legacyZone = await readGoldenFixture("actions-and-values", "legacy", "Actions.zon");
         const expectedZone = await readGoldenFixture("actions-and-values", "expected", "Actions.zon");
         const conversion = convertLegacyZoneToFormat2(legacyZone, { profile: "Main", targetPath: "Zones/User/test/Main/Track.zon" });
+        expect(conversion.diagnostics).toEqual([]);
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedZone));
+    });
+
+    test("matches the selected-track FX bank golden file", async () => {
+        const legacyZone = await readGoldenFixture("magic-targets", "legacy", "SelectedTrackFXMenu.zon");
+        const expectedZone = await readGoldenFixture("magic-targets", "expected", "SelectedTrackFXMenu.zon");
+        const conversion = convertLegacyZoneToFormat2(legacyZone, { profile: "Main", targetPath: "Zones/User/test/Main/SelectedTrackFXMenu.zon" });
         expect(conversion.diagnostics).toEqual([]);
         expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedZone));
     });

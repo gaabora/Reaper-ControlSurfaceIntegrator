@@ -25,14 +25,17 @@ export const LEGACY_ACTION_RENAMES: readonly LegacyActionRenameDefinition[] = [
     { legacyAction: "Raper", newAction: "Reaper" },
     { legacyAction: "TackMute", newAction: "TrackMute" },
     { legacyAction: "TackPan", newAction: "TrackPan" },
+    { legacyAction: "GoAssociatedZone", newAction: "GoZone" },
     { legacyAction: "GoZone", legacyFirstArgument: "Home", newAction: "GoHome", removeFirstArgument: true },
     { legacyAction: "GoZone", legacyFirstArgument: "SelectedTrackFX", newAction: "ToggleSelectedTrackFX", removeFirstArgument: true },
     { legacyAction: "GoSelectedTrackFX", newAction: "ToggleSelectedTrackFX" },
     { legacyAction: "GoSubZone", newAction: "EnterZoneLayer" },
     { legacyAction: "LeaveSubZone", newAction: "ExitZoneLayer", requiresLayer: true },
     { legacyAction: "SelectedTrackBank", newAction: "Bank", requiredTarget: "SelectedTrack" },
+    { legacyAction: "SelectedTrackFXMenuBank", newAction: "Bank", requiredBankTarget: "FX", requiredTarget: "SelectedTrack" },
     { legacyAction: "TrackReceiveBank", newAction: "Bank", requiredBankTarget: "Receives", requiredTarget: "Tracks" },
     { legacyAction: "TrackSendBank", newAction: "Bank", requiredBankTarget: "Sends", requiredTarget: "Tracks" },
+    { legacyAction: "ToggleEnableFocusedFXParamMapping", newAction: "ToggleEnableLastTouchedFXParamMapping" },
 ];
 
 export const LEGACY_IGNORED_ACTIONS: ReadonlySet<string> = new Set(["NoFeedback", "NullDisplay"]);

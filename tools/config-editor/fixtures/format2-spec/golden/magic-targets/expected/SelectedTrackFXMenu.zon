@@ -1,1 +1,4 @@
 @Meta { Version=2 Target=SelectedTrack BankTarget=FX }
+
+BankLeft Bank -1
+BankRight Bank 1
