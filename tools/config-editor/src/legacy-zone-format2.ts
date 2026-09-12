@@ -1,5 +1,5 @@
 import path from "node:path";
-import { isIgnoredLegacyAction, renameLegacyAction } from "./legacy-action-renames.ts";
+import { conflictingLegacyActionRename, isIgnoredLegacyAction, renameLegacyAction } from "./legacy-action-renames.ts";
 import { addDiagnostic, type Diagnostic } from "./model.ts";
 import { analysisText, initializeLine, splitSourceLines } from "./text.ts";
 
@@ -299,10 +299,16 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
         const invalidLayerExit = action === "LeaveSubZone" && !options.isLayer;
         let invalidBankContextMessage = "";
-        const renamedAction = renameLegacyAction(action, actionTokens, { bankTarget, isLayer: options.isLayer ?? false, target });
-        const convertedAction = renamedAction.action;
+        const renameContext = { bankTarget, isLayer: options.isLayer ?? false, target };
+        const renameConflict = conflictingLegacyActionRename(action, actionTokens, renameContext);
+        const renamedAction = renameLegacyAction(action, actionTokens, renameContext);
+        let convertedAction = renamedAction.action;
         actionTokens = renamedAction.arguments;
-        if (action === "Bank" && actionTokens.length >= 2 && !actionTokens[0].includes("=")) {
+        if (renameConflict?.newAction === "Bank" && renameConflict.requiredZoneName) {
+            convertedAction = "Bank";
+            actionTokens = [renameConflict.requiredZoneName, ...actionTokens];
+        }
+        if (convertedAction === "Bank" && actionTokens.length >= 2 && !actionTokens[0].includes("=")) {
             const bankTarget = MAGIC_MAIN_METADATA.get(actionTokens[0].toLowerCase());
             const contexts = options.bankContexts ?? (options.isLayer ? [] : [zoneName]);
             const sameContext = options.profile === "Main" && bankTarget && contexts.length > 0 && contexts.every((context) => MAGIC_MAIN_METADATA.get(context.toLowerCase())?.join(" ") === bankTarget.join(" "));

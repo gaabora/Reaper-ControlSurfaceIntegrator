@@ -20,6 +20,14 @@ describe("legacy Zone readiness", () => {
         expect(conversion.source).toContain("Bank SelectedTrackFXMenu -1");
     });
 
+    test("reports a legacy named Bank action that targets another Zone", () => {
+        const conversion = convertLegacyZoneToFormat2("Zone TrackFXMenu\nLeft SelectedTrackFXMenuBank -1\nZoneEnd\n", { profile: "Main", targetPath: profileRoot + "TrackFXMenu.zon" });
+
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.zone.bank.context", line: 3, severity: "error" }));
+        expect(conversion.source).toContain("Left Bank SelectedTrackFXMenu -1");
+        expect(parseByPath(conversion.source, profileRoot + "TrackFXMenu.zon").diagnostics).not.toContainEqual(expect.objectContaining({ code: "zone.action.unknown" }));
+    });
+
     test("requires every parent of a reusable layer to have the matching bank context", () => {
         const source = "Zone SendLayer\nPrev Bank SelectedTrackSend -1\nZoneEnd\n";
         const options = { isLayer: true, profile: "Main" as const, targetPath: profileRoot + "SendLayer.zon" };

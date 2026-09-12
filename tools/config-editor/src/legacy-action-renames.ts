@@ -11,6 +11,7 @@ export interface LegacyActionRenameDefinition {
     removeFirstArgument?: boolean;
     requiredBankTarget?: string;
     requiredTarget?: string;
+    requiredZoneName?: string;
     requiresLayer?: boolean;
 }
 
@@ -31,10 +32,10 @@ export const LEGACY_ACTION_RENAMES: readonly LegacyActionRenameDefinition[] = [
     { legacyAction: "GoSelectedTrackFX", newAction: "ToggleSelectedTrackFX" },
     { legacyAction: "GoSubZone", newAction: "EnterZoneLayer" },
     { legacyAction: "LeaveSubZone", newAction: "ExitZoneLayer", requiresLayer: true },
-    { legacyAction: "SelectedTrackBank", newAction: "Bank", requiredTarget: "SelectedTrack" },
-    { legacyAction: "SelectedTrackFXMenuBank", newAction: "Bank", requiredBankTarget: "FX", requiredTarget: "SelectedTrack" },
-    { legacyAction: "TrackReceiveBank", newAction: "Bank", requiredBankTarget: "Receives", requiredTarget: "Tracks" },
-    { legacyAction: "TrackSendBank", newAction: "Bank", requiredBankTarget: "Sends", requiredTarget: "Tracks" },
+    { legacyAction: "SelectedTrackBank", newAction: "Bank", requiredTarget: "SelectedTrack", requiredZoneName: "SelectedTrack" },
+    { legacyAction: "SelectedTrackFXMenuBank", newAction: "Bank", requiredBankTarget: "FX", requiredTarget: "SelectedTrack", requiredZoneName: "SelectedTrackFXMenu" },
+    { legacyAction: "TrackReceiveBank", newAction: "Bank", requiredBankTarget: "Receives", requiredTarget: "Tracks", requiredZoneName: "TrackReceive" },
+    { legacyAction: "TrackSendBank", newAction: "Bank", requiredBankTarget: "Sends", requiredTarget: "Tracks", requiredZoneName: "TrackSend" },
     { legacyAction: "ToggleEnableFocusedFXParamMapping", newAction: "ToggleEnableLastTouchedFXParamMapping" },
 ];
 
@@ -52,6 +53,12 @@ export function renameLegacyAction(action: string, actionArguments: string[], co
         && (!candidate.requiresLayer || context.isLayer));
     if (!definition) return { action, arguments: actionArguments };
     return { action: definition.newAction, arguments: definition.removeFirstArgument ? actionArguments.slice(1) : actionArguments };
+}
+
+export function conflictingLegacyActionRename(action: string, actionArguments: string[], context: LegacyActionRenameContext): LegacyActionRenameDefinition | undefined {
+    return LEGACY_ACTION_RENAMES.find((candidate) => candidate.legacyAction === action
+        && (!candidate.legacyFirstArgument || candidate.legacyFirstArgument.toLowerCase() === actionArguments[0]?.toLowerCase())
+        && (Boolean(candidate.requiredTarget && candidate.requiredTarget !== context.target) || Boolean(candidate.requiredBankTarget && candidate.requiredBankTarget !== context.bankTarget)));
 }
 
 export function missingLegacyActionRenameDestinations(knownActions: ReadonlySet<string>): string[] {
