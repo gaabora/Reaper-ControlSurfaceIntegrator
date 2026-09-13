@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { readdir, stat } from "node:fs/promises";
 import { userInfo } from "node:os";
 import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
@@ -22,6 +23,7 @@ export interface EditorServerOptions {
     candidates: ReaperDataPathCandidate[];
     editorJavascript: string;
     identity: EditorProductIdentity;
+    logDirectory?: string;
     settingsSchema: SettingsSchema;
     port?: number;
     settings?: EditorSettingsStore;
@@ -285,12 +287,37 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
         if (requestUrl.pathname === "/app.css" && request.method === "GET") return contentResponse(EDITOR_CSS, "text/css; charset=utf-8");
         if (requestUrl.pathname === "/app.js" && request.method === "GET") return contentResponse(options.editorJavascript, "text/javascript; charset=utf-8");
         if (requestUrl.pathname === "/app-translations.json" && request.method === "GET") return contentResponse(createEditorTranslationsJson(), "application/json; charset=utf-8");
+        if (requestUrl.pathname === "/health" && request.method === "GET") return jsonResponse({ productId: options.identity.productId });
         if (!requestUrl.pathname.startsWith("/api/")) return jsonResponse({ error: { code: "not-found", message: "Not found" } }, 404);
         if (!tokenMatches(request.headers.get("x-session-token"), token)) return jsonResponse({ error: { code: "auth.token", message: "Invalid session token" } }, 401);
         const requestOrigin = request.headers.get("origin");
         if (requestOrigin && requestOrigin !== origin) return jsonResponse({ error: { code: "auth.origin", message: "Invalid request origin" } }, 403);
         try {
             if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ actions: options.actions.map((action) => ({ detail: action.brief || action.params || "", label: action.name })), candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity, legacy: legacySelection, profileAuthor: profileAuthorId(), settingsSchema: options.settingsSchema });
+            if (requestUrl.pathname === "/api/log" && request.method === "GET") {
+                if (!options.logDirectory) return jsonResponse({ available: false, files: [], message: "Open Configuration Editor from the Control Panel to locate runtime logs.", source: "" });
+                const files: string[] = [];
+                try {
+                    for (const directoryEntry of await readdir(options.logDirectory, { withFileTypes: true })) {
+                        if (!directoryEntry.isDirectory()) continue;
+                        const directoryPath = path.join(options.logDirectory, directoryEntry.name);
+                        for (const fileEntry of await readdir(directoryPath, { withFileTypes: true })) if (fileEntry.isFile() && fileEntry.name.endsWith(".log")) files.push(path.posix.join(directoryEntry.name, fileEntry.name));
+                    }
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+                }
+                files.sort((left, right) => right.localeCompare(left));
+                const requestedFile = requestUrl.searchParams.get("file") ?? "";
+                const selectedFile = requestedFile && files.includes(requestedFile) ? requestedFile : files[0];
+                if (!selectedFile) return jsonResponse({ available: false, files, message: "No runtime log files were found. Enable Write log file in Control Panel > Logging.", source: "" });
+                const logPath = path.resolve(options.logDirectory, ...selectedFile.split("/"));
+                const logStats = await stat(logPath);
+                if (!logStats.isFile()) throw new EditorOperationError("log.unavailable", "The current runtime log is not a file");
+                const maximumBytes = 1024 * 1024;
+                const truncated = logStats.size > maximumBytes;
+                const source = await Bun.file(logPath).slice(truncated ? logStats.size - maximumBytes : 0).text();
+                return jsonResponse({ available: true, files, path: logPath, selectedFile, source, truncated });
+            }
             if (requestUrl.pathname === "/api/select-data-path" && request.method === "POST") {
                 const body = await requestBody(request);
                 const guard = await ProductRootGuard.createFromReaperDataPath(stringField(body, "path"), options.identity);

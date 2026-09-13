@@ -240,12 +240,13 @@ function module.GetStatus()
     if general.HasError() then return general.GetStatus() end
     if appearance.HasError() then return appearance.GetStatus() end
     if logging.HasError() then return logging.GetStatus() end
+    local devicesStatus = devices.GetStatus()
+    if devicesStatus == "Configuration Editor opened" then return devicesStatus end
     if state.status ~= "" then return state.status end
     local generalStatus = general.GetStatus()
     if generalStatus ~= "" then return generalStatus end
     local loggingStatus = logging.GetStatus()
     if loggingStatus ~= "" then return loggingStatus end
-    local devicesStatus = devices.GetStatus()
     if devicesStatus ~= "" then return devicesStatus end
     return appearance.GetStatus()
 end

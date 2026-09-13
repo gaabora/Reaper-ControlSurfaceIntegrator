@@ -136,7 +136,6 @@ private:
             else if (name == "Page") this->ParsePage(node);
             else this->AddIssue(node.location.line, "Unknown product configuration block: " + name);
         }
-        if (this->config_.midiIo.empty() && this->config_.oscIo.empty()) this->AddIssue(1, "Product configuration requires at least one Device block");
         if (this->config_.pages.empty()) this->AddIssue(1, "Product configuration requires at least one Page block");
     }
 

@@ -547,6 +547,17 @@ local function renderAssignmentEditor(ctx, data, page, surface)
                 else surface.deviceId = selectedIo end
             end
         end)
+        imgui.EndTable(ctx)
+    end
+    local ioKind, ioIndex, ioDefinition = findIo(data, surface.deviceId)
+    if ioDefinition then
+        if state.expandedIoName == surface.deviceId then imgui.SetNextItemOpen(ctx, true) state.expandedIoName = "" end
+        if imgui.CollapsingHeader(ctx, "I/O definition##AssignmentIoDetails") then
+            if ioKind == "MIDI" then renderMidiEditor(ctx, data, ioDefinition, ioIndex) else renderOscEditor(ctx, data, ioDefinition, ioIndex) end
+            if imgui.Button(ctx, "Remove I/O definition##AssignmentRemoveIo", 160, 0) then requestIoRemoval(data, ioKind, ioIndex) end
+        end
+    end
+    if beginForm(ctx, "##AssignmentResourceForm") then
         fieldRow(ctx, "Surface template", function()
             local selectedTemplate
             changed, selectedTemplate = ui.ComboEnum(ctx, "##AssignmentTemplate", selectionKey(surface.surfaceId, surface.surfaceSourceMode == "VendorAndUser" and surface.templateSource or surface.surfaceSourceMode), templateItems(data))
@@ -569,14 +580,6 @@ local function renderAssignmentEditor(ctx, data, page, surface)
             if changed then surface.mainProfile, surface.mainSourceMode = splitSelection(selectedProfile) local profile = findProfile(data, surface.mainProfile) surface.mainSource = profile and profile.mainSource or "Missing" end
         end)
         imgui.EndTable(ctx)
-    end
-    local ioKind, ioIndex, ioDefinition = findIo(data, surface.deviceId)
-    if ioDefinition then
-        if state.expandedIoName == surface.deviceId then imgui.SetNextItemOpen(ctx, true) state.expandedIoName = "" end
-        if imgui.CollapsingHeader(ctx, "I/O definition: " .. surface.deviceId .. "##AssignmentIoDetails") then
-            if ioKind == "MIDI" then renderMidiEditor(ctx, data, ioDefinition, ioIndex) else renderOscEditor(ctx, data, ioDefinition, ioIndex) end
-            if imgui.Button(ctx, "Remove I/O definition##AssignmentRemoveIo", 160, 0) then requestIoRemoval(data, ioKind, ioIndex) end
-        end
     end
     if imgui.CollapsingHeader(ctx, "Advanced##SurfaceAssignmentAdvanced") then
         if beginForm(ctx, "##AssignmentAdvancedForm") then
@@ -729,19 +732,19 @@ local function openStandaloneEditor()
     end
 end
 
-local function resetDevices()
+local function reloadDevices()
     if state.requestId or not state.data then return end
     state.pendingDraft = model.Clone(state.data)
-    state.afterQueryKind = "ResetDevices"
-    reaper.Main_OnCommand(42348, 0)
+    state.afterQueryKind = "ReloadDevices"
+    reaper.Main_OnCommand(42348, 0) -- Reset all MIDI control surface devices
     startQuery()
 end
 
 local function renderDevicesToolbar(ctx)
     local actionSize = 26
     local remainingWidth = imgui.GetContentRegionAvail(ctx)
-    local resetWidth = 105
-    imgui.SetCursorPosX(ctx, imgui.GetCursorPosX(ctx) + math.max(0, remainingWidth - actionSize - resetWidth - theme.common.item_spacing))
+    local reloadWidth = 82
+    imgui.SetCursorPosX(ctx, imgui.GetCursorPosX(ctx) + math.max(0, remainingWidth - actionSize - reloadWidth - theme.common.item_spacing))
     local editorClicked = false
     ui.Disabled(ctx, state.data == nil or state.requestId ~= nil, function()
         imgui.PushStyleColor(ctx, imgui.Col_Button, EDITOR_BUTTON_COLORS.button)
@@ -753,8 +756,8 @@ local function renderDevicesToolbar(ctx)
     ui.ItemTooltip(ctx, state.data and state.data.editorAvailable and "Open standalone configuration editor" or "Install standalone configuration editor with ReaPack")
     if editorClicked then openStandaloneEditor() end
     imgui.SameLine(ctx)
-    ui.Disabled(ctx, state.requestId ~= nil or state.data == nil, function() if imgui.Button(ctx, "Reset devices", resetWidth, actionSize) then resetDevices() end end)
-    ui.ItemTooltip(ctx, "Run REAPER Reset all MIDI control surface devices, then refresh connection status without discarding this draft")
+    ui.Disabled(ctx, state.requestId ~= nil or state.data == nil, function() if imgui.Button(ctx, "↻ Reload", reloadWidth, actionSize) then reloadDevices() end end)
+    ui.ItemTooltip(ctx, "Reload MIDI ports, Surface templates, Zone profiles, and connection status without discarding this draft")
 end
 
 local function mergeRuntimeStatus(draft, response)
@@ -860,9 +863,9 @@ function module.Update()
             if state.afterQueryKind == "Apply" then
                 local inactiveCount = inactiveRuntimeCount(response)
                 state.status = inactiveCount == 0 and "Devices saved and reconnected" or ("Devices saved, but " .. inactiveCount .. " runtime item(s) are inactive or unavailable")
-            elseif state.afterQueryKind == "ResetDevices" then
+            elseif state.afterQueryKind == "ReloadDevices" then
                 local inactiveCount = inactiveRuntimeCount(state.data)
-                state.status = inactiveCount == 0 and "Devices reset; connection status refreshed" or ("Devices reset; " .. inactiveCount .. " runtime item(s) are inactive or unavailable")
+                state.status = inactiveCount == 0 and "Devices and resources reloaded" or ("Devices and resources reloaded; " .. inactiveCount .. " runtime item(s) are inactive or unavailable")
             end
             state.afterQueryKind = ""
         elseif completedKind == "OpenEditor" then
@@ -881,7 +884,7 @@ function module.Update()
         protocol.Cancel(state.requestId)
         state.requestId = nil
         state.pendingKind = ""
-        state.error = "Devices query timed out"
+        state.error = "The plugin did not respond. Make sure ReaControlSurface is added and enabled in REAPER Preferences > Control/OSC/web, then reopen the Control Panel."
     end
 end
 
@@ -915,7 +918,6 @@ function module.Validate()
     local homeFound = false
     for pageIdx, page in ipairs(state.data.pages) do if page.name == "Home" then homeFound = true break end end
     if not homeFound then return false, "The required Home Page is missing" end
-    if #state.data.midi == 0 and #state.data.osc == 0 then return false, "Add at least one I/O Device" end
     for midiIdx, device in ipairs(state.data.midi) do if device.inputPort < 0 or device.outputPort < 0 then return false, "Select input and output ports for MIDI I/O " .. device.name end end
     local source, serializationError = model.Serialize(state.data)
     if not source then return false, serializationError end

@@ -6,6 +6,9 @@
 #include <sstream>
 
 #include "format2_surface_document.h"
+static void AddConfiguredChannelIssue(IntegratorConfig& config, int lineNumber, const std::string& message) {
+    config.issues.push_back({lineNumber, message, false});
+}
 
 static std::string FoldConfiguredDeviceId(const std::string& value) {
     std::string folded = value;
@@ -37,22 +40,25 @@ void ResolveConfiguredDeviceChannels(IntegratorConfig& config, const ProductPath
             try {
                 surfacePath = productPaths.FindSurfaceFile(surface.surfaceId);
             } catch (const std::exception& error) {
-                config.issues.push_back({surface.lineNumber, "Cannot resolve Surface template " + surface.surfaceId + ": " + error.what(), false});
+                AddConfiguredChannelIssue(config, surface.lineNumber, "Configuration " + productPaths.ConfigFile().string() + ":" + std::to_string(surface.lineNumber) + " cannot resolve Surface template '" + surface.surfaceId + "': " + error.what());
                 continue;
             }
             if (!surfacePath) {
-                config.issues.push_back({surface.lineNumber, "Cannot derive Channels because Surface template is missing: " + surface.surfaceId, false});
+                AddConfiguredChannelIssue(config, surface.lineNumber, "Configuration " + productPaths.ConfigFile().string() + ":" + std::to_string(surface.lineNumber) + " uses missing Surface template '" + surface.surfaceId + "'. Install or select that template, then reload Devices.");
                 continue;
             }
             std::string source;
             if (!ReadConfiguredSurfaceSource(*surfacePath, source)) {
-                config.issues.push_back({surface.lineNumber, "Cannot read Surface template to derive Channels: " + surfacePath->string(), false});
+                AddConfiguredChannelIssue(config, surface.lineNumber, "Cannot read Surface template " + surfacePath->string() + ". Check file permissions, then reload Devices.");
                 continue;
             }
             const Format2SurfaceParseResult parsed = ParseFormat2SurfaceSource(source, surfacePath->string());
             if (!parsed.IsValid() || !parsed.document.metadata.channels) {
-                const std::string details = parsed.document.lexical.diagnostics.empty() ? "Surface metadata has no valid Channels value" : parsed.document.lexical.diagnostics.front().message;
-                config.issues.push_back({surface.lineNumber, "Cannot derive Channels from Surface template " + surface.surfaceId + ": " + details, false});
+                const Format2Diagnostic* diagnostic = parsed.document.lexical.diagnostics.empty() ? nullptr : &parsed.document.lexical.diagnostics.front();
+                std::string details = diagnostic ? diagnostic->message : "Surface metadata must contain a positive Channels value";
+                if (diagnostic && diagnostic->code == "format2.surface.widget.header") details = "Widget declaration must have one name, for example: Widget Fader1 { ... }";
+                const std::string location = surfacePath->string() + (diagnostic ? ":" + std::to_string(diagnostic->location.line) : "");
+                AddConfiguredChannelIssue(config, surface.lineNumber, "Surface template " + location + " is invalid. " + details + ". Fix this file in Configuration Editor, then reload Devices.");
                 continue;
             }
             const int channels = *parsed.document.metadata.channels;

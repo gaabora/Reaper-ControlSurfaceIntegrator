@@ -30,6 +30,7 @@
 - Shared headers have broad compile impact; avoid adding heavyweight dependencies without need.
 - Keep runtime Surface and Zone parsing compatible with OSC address tokens that start with `/`. In these formats, only `//` starts a comment, including after another token. `IsCommentedOrEmpty` must not classify a single leading `/` or `#` as a comment.
 - Resolve product-owned paths through `ProductPaths`; the product root is `REAPER/Data/<ProductResourceDirectory>`, the optional standalone editor uses `Tools/config-editor-<ProductId>[.exe]`, surface files use `Surfaces/Vendor/<surface-id>.txt` or `Surfaces/User/<surface-id>.txt`, zone profiles use matching `Zones/Vendor` and `Zones/User` roots, and stable surface, profile, and operation IDs use lowercase ASCII and must remain inside their typed roots.
+- Create the product `Surfaces/User`, `Zones/User`, `Snippets/User`, and `Backups` directories when the plugin loads so the base package does not depend on optional ReaPack resource packages.
 - Resolve bundled ReaScript command IDs through `ReaScriptAction::ResolveCommandId`. Reuse only one unique matching Main-section action when REAPER reports that the script is already registered.
 
 ## Work Guidance

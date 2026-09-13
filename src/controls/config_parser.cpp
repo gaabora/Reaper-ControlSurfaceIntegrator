@@ -211,10 +211,7 @@ void CSurfIntegrator::Init() {
     }
 
     const string configPath = productPaths.ConfigFile().string();
-    if (!filesystem::is_regular_file(configPath)) {
-        LogToConsole("[ERROR] Missing %s. Please check your installation, cannot find %s\n", ProductIdentity::ConfigFilename, GetRelativePath(configPath.c_str()).c_str());
-        return;
-    }
+    if (!filesystem::is_regular_file(configPath)) return;
 
     IntegratorConfig config;
     try {

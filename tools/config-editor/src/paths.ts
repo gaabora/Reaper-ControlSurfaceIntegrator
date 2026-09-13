@@ -109,8 +109,6 @@ export class ProductRootGuard {
         if (!stats.isDirectory()) throw new ProductPathError("Configuration folder is not a directory");
         const resolvedRoot = path.resolve(selectedRoot);
         if (path.basename(resolvedRoot) !== identity.resourceDirectory) throw new ProductPathError(`Selected directory must be named ${identity.resourceDirectory}`);
-        const entries = new Set((await readdir(resolvedRoot)).map((name) => name));
-        if (!entries.has(identity.configFilename) && ![...TOP_LEVEL_DIRECTORIES].some((name) => entries.has(name))) throw new ProductPathError("The app configuration folder is empty or invalid");
         return new ProductRootGuard(identity, resolvedRoot);
     }
 

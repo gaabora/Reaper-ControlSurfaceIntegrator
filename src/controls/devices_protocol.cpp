@@ -3,11 +3,18 @@
 #include "configured_device_channels.h"
 #include "integrator_config_parser.h"
 #include "settings_config_editor.h"
+#include "../shared/product_log.h"
 #include "../shared/product_paths.h"
 
 #include <cctype>
 #include <cstdint>
+#include <cstring>
 #include <utility>
+
+#ifndef _WIN32
+#include <spawn.h>
+extern char** environ;
+#endif
 
 extern HWND g_hwnd;
 
@@ -176,23 +183,31 @@ static bool OpenConfigurationEditor(const ProductPaths& productPaths, string& er
     const filesystem::path editorPath = productPaths.ConfigurationEditorExecutable();
     std::error_code fileError;
     if (!filesystem::is_regular_file(editorPath, fileError)) {
-        errorMessage = "The standalone configuration editor is not installed";
+        errorMessage = fileError ? "Cannot inspect Configuration Editor at " + editorPath.string() + ": " + fileError.message() : "Configuration Editor was not found at " + editorPath.string() + ". Install the separate Configuration Editor package or fix the link target.";
         return false;
     }
 #ifndef _WIN32
     filesystem::permissions(editorPath, filesystem::perms::owner_exec | filesystem::perms::group_exec, filesystem::perm_options::add, fileError);
     if (fileError) {
-        errorMessage = "Cannot make the standalone configuration editor executable: " + fileError.message();
+        errorMessage = "Cannot make Configuration Editor executable at " + editorPath.string() + ": " + fileError.message();
         return false;
     }
 #endif
+    const string dataPath = (productPaths.ReaperResourceRoot() / "Data").string();
+    const string logsPath = productPaths.TemporaryLogsRoot().string();
 #ifdef _WIN32
-    const HINSTANCE result = ::ShellExecute(g_hwnd, "open", editorPath.string().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    const string parameters = "--data-path \"" + dataPath + "\" --logs-path \"" + logsPath + "\"";
+    const HINSTANCE result = ::ShellExecute(g_hwnd, "open", editorPath.string().c_str(), parameters.c_str(), nullptr, SW_SHOWNORMAL);
     if (reinterpret_cast<std::intptr_t>(result) > 32) return true;
+    errorMessage = "Cannot start Configuration Editor at " + editorPath.string() + ". Windows ShellExecute error code: " + std::to_string(reinterpret_cast<std::intptr_t>(result));
 #else
-    if (::ShellExecute(g_hwnd, "open", editorPath.string().c_str(), "", "", SW_SHOWNORMAL) != FALSE) return true;
+    const string editorPathString = editorPath.string();
+    char* arguments[] = { const_cast<char*>(editorPathString.c_str()), const_cast<char*>("--data-path"), const_cast<char*>(dataPath.c_str()), const_cast<char*>("--logs-path"), const_cast<char*>(logsPath.c_str()), nullptr };
+    pid_t processId = 0;
+    const int spawnResult = posix_spawn(&processId, editorPathString.c_str(), nullptr, nullptr, arguments, environ);
+    if (spawnResult == 0) return true;
+    errorMessage = "Cannot start Configuration Editor at " + editorPathString + ". Operating system error " + std::to_string(spawnResult) + ": " + std::strerror(spawnResult);
 #endif
-    errorMessage = "Cannot start the standalone configuration editor";
     return false;
 }
 
@@ -234,6 +249,10 @@ static void AppendSettingOverrides(string& body, const string& prefix, const Set
 
 static void PublishDevicesResponse(const string& requestId, bool success, const string& body) {
     if (requestId.empty()) return;
+    if (!success && !body.empty()) {
+        const string logMessage = "[ERROR] Devices: " + SanitizeDevicesValue(body) + "\n";
+        ProductLog::Write(logMessage.c_str());
+    }
     const string response = "Version=1\nStatus=" + string(success ? "OK" : "ERROR") + "\n" + (success ? body : "Message=" + SanitizeDevicesValue(body) + "\n");
     ::SetExtState(ProductIdentity::ExtStateDevices, ("Response_" + requestId).c_str(), response.c_str(), false);
 }
@@ -333,10 +352,6 @@ static bool ValidateDevicesConfig(const IntegratorConfig& config, const ProductP
         errorMessage = issue ? "Line " + to_string(issue->lineNumber) + ": " + issue->message : "The device configuration contains invalid entries";
         return false;
     }
-    if (config.midiIo.empty() && config.oscIo.empty()) {
-        errorMessage = "Add at least one I/O Device";
-        return false;
-    }
     if (config.pages.empty()) {
         errorMessage = "Add at least one Page";
         return false;
@@ -427,7 +442,7 @@ void CSurfIntegrator::PollAndHandleDevicesCommands() {
     const ProductPaths productPaths = ProductPaths::FromReaperResourcePath();
     if (request.command == "OpenEditor") {
         const bool success = OpenConfigurationEditor(productPaths, errorMessage);
-        PublishDevicesResponse(request.requestId, success, success ? "Message=Standalone configuration editor opened\n" : errorMessage);
+        PublishDevicesResponse(request.requestId, success, success ? "Message=Configuration Editor opened\n" : errorMessage);
         return;
     }
     if (request.command == "CreateProfile") {

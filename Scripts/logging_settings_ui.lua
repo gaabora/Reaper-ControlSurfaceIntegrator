@@ -109,7 +109,7 @@ local function pollRequest()
     if not response and not responseError then
         if reaper.time_precise() - state.requestStartedAt >= 3 then
             protocol.Cancel(state.requestId)
-            state.error = "No active C++ Logging settings response"
+            state.error = "The plugin did not respond. Make sure ReaControlSurface is added and enabled in REAPER Preferences > Control/OSC/web, then reopen the Control Panel."
             state.pendingKind = ""
             state.requestId = nil
         end

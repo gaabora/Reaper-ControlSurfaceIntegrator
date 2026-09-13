@@ -394,7 +394,6 @@ export function parseProductConfig(source: string, documentPath?: string, settin
         }
         if (!block.children.some((child) => child.name === "Surface")) addDiagnostic(diagnostics, "error", "product.page.surface.missing", "Page requires at least one Surface block", block.line, documentPath);
     }
-    if (!devices.size) addDiagnostic(diagnostics, "error", "product.device.missing", "Product configuration requires at least one Device block", 1, documentPath);
     if (!pages.size) addDiagnostic(diagnostics, "error", "product.page.missing", "Product configuration requires at least one Page block", 1, documentPath);
     for (const record of records.filter((candidate) => candidate.kind === "surface-assignment")) {
         const deviceId = record.properties.get("Device");

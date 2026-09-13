@@ -89,7 +89,9 @@ The first release can show these sections as read-only diagnostics. Editing star
 - ✅ Use compact master-detail lists so only the selected I/O definition, Page assignment, or listener opens for editing.
 - ✅ Use three columns for Pages and Surface assignments: Pages, assignments on the selected Page, and the selected assignment editor.
 - ✅ Keep runtime state outside the editable draft form and use `Reload saved configuration` for an explicit saved-state reload.
-- ✅ Put the standalone editor and square `↻` reload actions at the right edge of the internal section row.
+- ✅ Put the standalone editor and labeled `↻ Reload` action at the right edge of the internal section row. Reload MIDI ports, Surface templates, Zone profiles, and runtime status without discarding the current draft.
+- ✅ Pass the exact REAPER Data path and runtime log directory to the standalone editor, show selectable daily files in the Logs bottom tab, and make supported product file paths open their file and line in the editor.
+- ✅ Launch the standalone editor with real command-line arguments on macOS and Linux, report its exact executable path and operating-system failure, and keep a missing first configuration quiet during project resets.
 - ✅ Render I/O definitions, Pages, Surface assignments, and Relationships in rounded bordered lists with row-local Duplicate and `×` Remove actions.
 - ✅ Show one green `●` or red `×` runtime state with a beginner-facing recovery instruction instead of repeating MIDI input and output status text.
 
@@ -100,6 +102,7 @@ The first release can show these sections as read-only diagnostics. Editing star
 - ✅ Show whether each configured port is currently available.
 - ✅ List only named REAPER MIDI ports, keep `Not selected` first, and preserve only the selected unavailable port as `Unavailable (#X)`.
 - ✅ Provide Add, Duplicate, Edit, and Remove operations in the draft.
+- ✅ Put the selected I/O definition disclosure immediately below its selector and keep it open while its name is edited.
 - ✅ Detect duplicate names and invalid numeric ranges before Save.
 - ✅ Confirm Save when a change will disconnect and reconnect an active device.
 - ✅ Return a clear C++ error if a configured MIDI or OSC endpoint cannot open.

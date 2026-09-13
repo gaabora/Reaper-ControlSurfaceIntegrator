@@ -129,6 +129,7 @@
         <div class="bottom-panel">
           <div class="bottom-tabs">
             <button class="bottom-tab active" data-bottom-tab="problems">{{problems.title}} <span id="problem-count" class="badge">0</span></button>
+            <button class="bottom-tab" data-bottom-tab="logs">{{logs.title}}</button>
             <button class="bottom-tab" data-bottom-tab="details">{{details.title}}</button>
           </div>
           <div id="bottom-panel-content" class="bottom-panel-content">
@@ -136,6 +137,7 @@
               <section class="problem-group"><h3>{{problems.currentFile}} <span id="current-problem-count" class="badge">0</span></h3><div id="diagnostics" class="secondary">{{problems.none}}</div></section>
               <details id="all-problems-group" class="problem-group"><summary>{{problems.allFound}} <span id="all-problem-count" class="badge">0</span></summary><div id="all-diagnostics" class="secondary">{{problems.none}}</div></details>
             </div>
+            <div id="logs-panel" hidden><div class="logs-toolbar"><select id="log-file" aria-label="{{logs.select}}"></select><span id="log-path" class="secondary"></span><button id="reload-log">{{logs.reload}}</button></div><pre id="log-content" class="log-content">{{logs.empty}}</pre></div>
             <div id="details-panel" hidden><pre id="semantic">{}</pre></div>
           </div>
         </div>

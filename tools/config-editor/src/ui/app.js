@@ -75,6 +75,10 @@ const elements = {
     legacyWidgetMappings: requiredElement("legacy-widget-mappings"),
     legacyWidgetMappingsSection: requiredElement("legacy-widget-mappings-section"),
     legacyZones: requiredElement("legacy-zones"),
+    logContent: requiredElement("log-content"),
+    logFile: requiredElement("log-file"),
+    logPath: requiredElement("log-path"),
+    logsPanel: requiredElement("logs-panel"),
     homeHeader: requiredElement("home-header"),
     openDataPath: requiredElement("open-data-path"),
     openLegacy: requiredElement("open-legacy"),
@@ -82,6 +86,7 @@ const elements = {
     problemCount: requiredElement("problem-count"),
     problemsPanel: requiredElement("problems-panel"),
     rawEditor: requiredElement("raw-editor"),
+    reloadLog: requiredElement("reload-log"),
     save: requiredElement("save"),
     saveAll: requiredElement("save-all"),
     semantic: requiredElement("semantic"),
@@ -117,6 +122,7 @@ const state = {
     current: null,
     draftConflicts: new Set(),
     globalProblems: [],
+    identity: null,
     legacy: { activeDraftPath: "", collapsedFolders: new Set(), drafts: new Map(), originalSources: new Map(), originalTargetPaths: new Map(), preview: null, profileAuthor: "user", resolutions: new Map(), selectedZonePaths: new Set(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
     problemFiles: new Map(),
     snippet: { choices: new Map(), conflictAction: "", insertionLine: 1, preview: null, treeEntries: [] },
@@ -370,8 +376,60 @@ function renderBottomPanel() {
     const activePanel = state.bottomPanel;
     elements.bottomPanelContent.hidden = !activePanel;
     elements.problemsPanel.hidden = activePanel !== "problems";
+    elements.logsPanel.hidden = activePanel !== "logs";
     elements.detailsPanel.hidden = activePanel !== "details";
     for (const button of document.querySelectorAll(".bottom-tab")) button.classList.toggle("active", button.dataset.bottomTab === activePanel);
+}
+
+function appendLogLine(container, line) {
+    const resourceDirectory = state.identity?.resourceDirectory || "";
+    const escapedDirectory = resourceDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedConfigFilename = (state.identity?.configFilename || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pathPattern = new RegExp(`(?:[^\\s]*[\\\\/])?${escapedDirectory}[\\\\/](${escapedConfigFilename}|(?:Surfaces|Zones|Snippets)[\\\\/][^\\s:]+\\.(?:txt|zon|snippet))(?::(\\d+))?`, "g");
+    let offset = 0;
+    for (const match of line.matchAll(pathPattern)) {
+        container.append(document.createTextNode(line.slice(offset, match.index)));
+        const logicalPath = match[1].replaceAll("\\", "/");
+        const lineNumber = match[2] ? Number(match[2]) : undefined;
+        const link = document.createElement("button");
+        link.className = "log-path-link";
+        link.textContent = match[0];
+        link.addEventListener("click", async () => {
+            if (await openDocument(logicalPath, lineNumber, false)) {
+                state.bottomPanel = "logs";
+                updateEditorRoute({ file: logicalPath, line: lineNumber, panel: "logs", view: "edit" });
+            }
+        });
+        container.append(link);
+        offset = match.index + match[0].length;
+    }
+    container.append(document.createTextNode(line.slice(offset) + "\n"));
+}
+
+async function reloadRuntimeLog() {
+    try {
+        const selectedFile = elements.logFile.value;
+        const result = await api("/api/log" + (selectedFile ? "?file=" + encodeURIComponent(selectedFile) : ""));
+        const previousSelection = selectedFile;
+        elements.logFile.replaceChildren();
+        for (const file of result.files || []) {
+            const option = document.createElement("option");
+            option.value = file;
+            option.textContent = file;
+            elements.logFile.append(option);
+        }
+        elements.logFile.value = result.selectedFile || previousSelection;
+        elements.logFile.disabled = !(result.files || []).length;
+        elements.logPath.textContent = result.path || result.message || "";
+        elements.logContent.replaceChildren();
+        if (!result.source) {
+            elements.logContent.textContent = result.message || translate("logs.empty");
+            return;
+        }
+        for (const line of result.source.split(/\r?\n/)) appendLogLine(elements.logContent, line);
+    } catch (error) {
+        elements.logContent.textContent = error.message;
+    }
 }
 
 function renderDraftConflict() {
@@ -1500,6 +1558,7 @@ async function initialize(initialRoute) {
             return;
         }
         const status = await api("/api/status");
+        state.identity = status.identity;
         state.legacy.profileAuthor = status.profileAuthor || "user";
         codeEditor.setActionCompletions(status.actions);
         legacyDraftEditor.setActionCompletions(status.actions);
@@ -1847,8 +1906,11 @@ elements.discardConfirm.addEventListener("click", async () => {
 for (const button of document.querySelectorAll(".bottom-tab")) button.addEventListener("click", () => {
     state.bottomPanel = state.bottomPanel === button.dataset.bottomTab ? "" : button.dataset.bottomTab;
     renderBottomPanel();
+    if (state.bottomPanel === "logs") void reloadRuntimeLog();
     if (state.task === "edit") writeEditorRoute({}, true);
 });
+elements.reloadLog.addEventListener("click", () => { void reloadRuntimeLog(); });
+elements.logFile.addEventListener("change", () => { void reloadRuntimeLog(); });
 
 elements.snippetSource.addEventListener("change", () => {
     state.snippet.preview = null;

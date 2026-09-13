@@ -3,9 +3,13 @@
 
 #include "shared/reaper_plugin_functions.h"
 #include "shared/product_log.h"
+#include "shared/product_paths.h"
 #include "ui/control_panel_action.h"
 #include "ui/notifications_action.h"
 #include "resource.h"
+
+#include <exception>
+#include <string>
 
 extern reaper_csurf_reg_t csurf_integrator_reg;
 extern void localize_init(void* (*GetFunc)(const char* name));
@@ -37,6 +41,12 @@ extern "C" REAPER_PLUGIN_DLL_EXPORT int REAPER_PLUGIN_ENTRYPOINT(REAPER_PLUGIN_H
 
     localize_init(reaper_plugin_info->GetFunc);
     ProductLog::Initialize();
+    try {
+        ProductPaths::FromReaperResourcePath().EnsureUserDirectories();
+    } catch (const std::exception& error) {
+        const std::string message = std::string("[WARNING] Could not create product data folders: ") + error.what() + "\n";
+        ProductLog::Write(message.c_str());
+    }
 
     reaper_plugin_info->Register("csurf", &csurf_integrator_reg);
     ControlPanelAction::Register();

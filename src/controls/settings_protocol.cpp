@@ -2,6 +2,7 @@
 
 #include "integrator_config_parser.h"
 #include "settings_config_editor.h"
+#include "../shared/product_log.h"
 
 #include <cctype>
 
@@ -134,6 +135,10 @@ static string SettingsProtocolErrorMessage(const string& message) {
 }
 
 static void PublishSettingsResponse(const string& requestId, bool success, const string& body) {
+    if (!success && !body.empty()) {
+        const string logMessage = "[ERROR] Settings: " + SettingsProtocolErrorMessage(body) + "\n";
+        ProductLog::Write(logMessage.c_str());
+    }
     const string responseKey = IsValidSettingsRequestId(requestId) ? "Response_" + requestId : "Response";
     string response = "Version=1\nStatus=" + string(success ? "OK" : "ERROR") + "\n";
     if (!body.empty()) response += success ? body : "Message=" + SettingsProtocolErrorMessage(body) + "\n";

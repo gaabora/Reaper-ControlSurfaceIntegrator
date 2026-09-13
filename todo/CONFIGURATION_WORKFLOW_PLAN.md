@@ -173,6 +173,7 @@ Ready when valid files round-trip without data loss and malformed fixtures produ
 - ✅ Route fixed UI text through a typed i18n catalog and use beginner-facing labels.
 - [ ] Build, verify, sign, and publish standalone executables for supported operating systems so users do not install Bun.
 - ✅ Add plugin-triggered editor launch and a separate platform-specific ReaPack Configuration Editor package.
+- ✅ Reuse the active local editor server when the plugin launch action is pressed again instead of creating another process on a new automatic port.
 - ✅ Run the Bun tests and local HTTP checks.
 - [ ] Run the standalone build after the planned interface changes.
 
