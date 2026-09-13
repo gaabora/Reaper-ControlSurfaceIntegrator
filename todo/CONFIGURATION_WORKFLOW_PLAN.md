@@ -174,6 +174,7 @@ Ready when valid files round-trip without data loss and malformed fixtures produ
 - [ ] Build, verify, sign, and publish standalone executables for supported operating systems so users do not install Bun.
 - ✅ Add plugin-triggered editor launch and a separate platform-specific ReaPack Configuration Editor package.
 - ✅ Reuse the active local editor server when the plugin launch action is pressed again instead of creating another process on a new automatic port.
+- ✅ Keep the REAPER Data path centered in a persistent header on the home, configuration edit, and legacy import views.
 - ✅ Run the Bun tests and local HTTP checks.
 - [ ] Run the standalone build after the planned interface changes.
 
@@ -183,6 +184,7 @@ Ready when a user can safely inspect and edit the new configuration structure fr
 
 - ✅ Let the editor open an old CSI root at any time without changing it.
 - ✅ Import one surface, one zone, or a selected set of zones from `Surface.txt` and `Zones/**/*.zon`.
+- ✅ Show `Surface.txt` as the first editable import draft above the Zone folder tree.
 - ✅ Show `GoZone`, `GoSubZone`, `SubZones`, and `IncludedZones` dependencies before import.
 - ✅ Select single unambiguous dependencies by default when the user selects a zone, but allow the user to exclude them.
 - ✅ Import legacy surfaces into `Surfaces/User` unless a vendor package is selected separately.
@@ -237,6 +239,30 @@ Format 2 replaces this completed Version 1 semantic-slot workflow with direct zo
 - Verify the C++ build, Lua self-checks, and focused OSK creation cases after explicit approval.
 
 Ready when OSK can safely create any supported one-file zone scaffold without becoming a second full configuration editor.
+
+### [ ] Phase 9. Visual Surface editor
+
+Use one separate Surface design page inside the Bun editor. Open it from a selected Surface file and add a third task to the home page. Keep `view=surface` and the Surface file path in browser history so Back returns to the text editor.
+
+- ✅ Use the Surface text document as the only source of truth. Visual changes produce normal lossless draft edits and use the existing validation, recovery, Save, and Save all workflow. No second JSON layout format exists.
+- ✅ Show an `OSKLayout` grid in the center, only Widgets not yet added to the layout in a left panel, and properties for the selected layout cell or Widget in a right sidebar.
+- ✅ Let the user drag an existing Widget into the grid, move it between cells or rows, change Width and Height, add rows, and remove a layout reference without deleting its Widget definition.
+- ✅ Let the right sidebar edit supported Input, Feedback, referenced profile, and layout properties from `surface_io_schema.conf`. The browser does not own a second property catalog.
+- ✅ Keep a Code view on the same page. Visual and code edits update the same unsaved CodeMirror draft, share Undo and Redo history, and preserve source lines that the visual operation did not change.
+- ✅ If code has a blocking syntax error, keep the text editable, highlight the exact problem, and temporarily disable structural visual operations. Never replace invalid source with a regenerated document.
+- ✅ Require Make editable copy before changing a Vendor Surface. Keep the visual page read-only while a Vendor file is selected.
+- ✅ Add keyboard insertion and Alt plus Arrow-key movement for drag operations, clear drop targets, and a compact layout for narrow screens.
+- ✅ Replace the separate Home and workflow headers with one persistent header, add the three-page navigation drawer with a local server stop action, and remove the Back button.
+- ✅ Make the legacy import preview column collapsible and automatically remove short success and information notifications after four seconds.
+- ✅ Clear legacy file and folder selection recursively without waiting for preview refresh, do not let an unselected draft target block selection changes, and open `Surface.txt` through the same converted import-draft flow as Zone files.
+- ✅ Remove per-row action buttons from Surface Designer, render controls close to Lua OSK shapes, and show each same-Row `Group` such as Rotary plus RotaryPush as one movable combined control without changing the Surface file format.
+- ✅ Give Surface Designer cells fixed Lua OSK proportions from button height, button aspect, Width, Height, and Top instead of stretching them across each web row. Size the visible body of a round control separately from its aspect-wide layout slot.
+- ✅ Match Lua OSK Spacer defaults and round-button geometry, detect rotary controls from their Widget input, and reserve occupied columns below multi-row faders so later rows align with the Lua layout.
+- ✅ Limit the visual Surface Designer inspector to `OSKLayout` placement and appearance properties. Keep Widget definitions, Input, Feedback, names, and profiles in Code view only.
+- ✅ Make Surface Designer Properties context-aware from the shared Surface schema, including dropdowns for fixed choices and capability-filtered Widget target dropdowns.
+- [ ] Add focused checks for text-to-grid mapping, grid-to-text edits, shared draft history, comments and unknown blocks, invalid source, Vendor files, and schema-driven property controls after approval to run checks.
+
+Ready when a Surface can move between Code and visual layout editing without losing source text or creating a second save model.
 
 ## Verification
 

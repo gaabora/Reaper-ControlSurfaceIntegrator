@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { ActionCatalogEntry } from "../src/action-catalog.ts";
 import type { SettingsSchema } from "../src/settings-schema.ts";
+import type { SurfaceIoSchema } from "../src/surface-io-schema.ts";
 import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { startEditorServer } from "../src/server.ts";
 import { bundleEditorJavascript } from "../src/ui.ts";
@@ -17,11 +18,12 @@ const identity: EditorProductIdentity = {
 };
 const actions: ActionCatalogEntry[] = [{ category: "Transport", enumName: "Play", name: "Play" }];
 const settingsSchema: SettingsSchema = { settings: [{ category: "Behavior", defaultValue: "Latch", enumValues: ["Momentary", "Latch", "Hybrid"], name: "DefaultModifierMode", scopes: ["Product", "Surface"], type: "enum" }], version: 1 };
+const surfaceIoSchema: SurfaceIoSchema = { primitives: [{ capabilities: ["Press"], direction: "Input", name: "Press" }], records: [{ kind: "SurfaceLine", line: 1, properties: new Map([["SurfaceLine", "Widget"], ["ParentBlock", "OSKRow"], ["Argument", "Identifier"], ["Required", "None"], ["Optional", "Width"], ["Rules", "Width:PositiveFinite"]]) }], representations: [{ direction: "Input", encoding: "MIDIExact", nested: [], optional: [], primitive: "Press", protocol: "MIDI", required: ["On"] }], version: 1 };
 const editorJavascript = await bundleEditorJavascript();
 
 describe("local editor server", () => {
     test("binds to loopback and protects API calls with its session token", async () => {
-        const running = startEditorServer({ actions, candidates: [], editorJavascript, identity, settingsSchema });
+        const running = startEditorServer({ actions, candidates: [], editorJavascript, identity, settingsSchema, surfaceIoSchema });
         try {
             expect(running.url.startsWith("http://127.0.0.1:")).toBeTrue();
             const page = await fetch(new URL("/", running.url));
@@ -29,6 +31,7 @@ describe("local editor server", () => {
             expect(pageText).toContain("Test Product Conf Editor");
             expect(pageText).toContain(`<meta name="config-editor-session-token" content="${running.token}">`);
             expect(running.url).not.toContain(running.token);
+            expect(await (await fetch(new URL("/health", running.url))).json()).toEqual({ editorApiVersion: 11, productId: identity.productId });
             const translations = await fetch(new URL("/app-translations.json", running.url));
             expect(translations.status).toBe(200);
             expect((await translations.json())["app.title"]).toBe("{product} Conf Editor");
@@ -38,6 +41,7 @@ describe("local editor server", () => {
             const status = await response.json();
             expect(status.identity.productId).toBe(identity.productId);
             expect(status.settingsSchema.settings[0].defaultValue).toBe("Latch");
+            expect(status.surfaceIoSchema.records[0].properties.Optional).toBe("Width");
         } finally {
             running.server.stop(true);
         }
@@ -60,7 +64,7 @@ describe("local editor server", () => {
         await writeFile(surfacePath, "// @format surface 1\nWidget Play\n  Press 90 5e 7f 90 5e 00\n  FB_TwoState 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
         await writeFile(zonePath, "// @format zone 1\nZone Home\n  Play Play\nZoneEnd\n", "utf8");
         await writeFile(legacySurfacePath, "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
-        const running = startEditorServer({ actions, candidates: [], editorJavascript, identity, settingsSchema });
+        const running = startEditorServer({ actions, candidates: [], editorJavascript, identity, settingsSchema, surfaceIoSchema });
         const headers = { "Content-Type": "application/json", "X-Session-Token": running.token };
         try {
             const selected = await fetch(new URL("/api/select-data-path", running.url), { body: JSON.stringify({ path: dataRoot }), headers, method: "POST" });

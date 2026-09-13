@@ -2,10 +2,11 @@ import path from "node:path";
 import type { ActionCatalogEntry } from "./action-catalog.ts";
 import { EditorSettingsStore } from "./editor-settings.ts";
 import type { SettingsSchema } from "./settings-schema.ts";
+import type { SurfaceIoSchema } from "./surface-io-schema.ts";
 import { t } from "./i18n.ts";
 import { discoverReaperDataPaths } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
-import { startEditorServer } from "./server.ts";
+import { EDITOR_API_VERSION, startEditorServer } from "./server.ts";
 import { bundleEditorJavascript } from "./ui.ts";
 
 export interface EditorLaunchOptions {
@@ -13,6 +14,7 @@ export interface EditorLaunchOptions {
     args: string[];
     identity: EditorProductIdentity;
     settingsSchema: SettingsSchema;
+    surfaceIoSchema: SurfaceIoSchema;
     editorJavascript?: string;
 }
 
@@ -37,8 +39,8 @@ async function findActiveServerUrl(settings: EditorSettingsStore, productId: str
         const healthUrl = new URL("health", activeServerUrl);
         const response = await fetch(healthUrl, { signal: AbortSignal.timeout(750) });
         if (!response.ok) return undefined;
-        const health = await response.json() as { productId?: unknown };
-        return health.productId === productId ? activeServerUrl : undefined;
+        const health = await response.json() as { editorApiVersion?: unknown; productId?: unknown };
+        return health.productId === productId && health.editorApiVersion === EDITOR_API_VERSION ? activeServerUrl : undefined;
     } catch {
         return undefined;
     }
@@ -75,7 +77,7 @@ export async function launchEditor(options: EditorLaunchOptions): Promise<void> 
     }
     const candidates = await discoverReaperDataPaths(explicitDataPath, await settings.readLastDataPath());
     const editorJavascript = options.editorJavascript ?? await bundleEditorJavascript();
-    const running = startEditorServer({ actions: options.actions, candidates, editorJavascript, identity: options.identity, logDirectory, port, settings, settingsSchema: options.settingsSchema });
+    const running = startEditorServer({ actions: options.actions, candidates, editorJavascript, identity: options.identity, logDirectory, port, settings, settingsSchema: options.settingsSchema, surfaceIoSchema: options.surfaceIoSchema });
     try {
         await settings.writeActiveServerUrl(running.url);
     } catch (error) {

@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadActionCatalog } from "../src/action-catalog.ts";
 import { loadSettingsSchema } from "../src/settings-schema.ts";
+import { loadSurfaceIoSchema } from "../src/surface-io-schema.ts";
 import { loadProductIdentity } from "../src/product-identity.ts";
 import { bundleEditorJavascript } from "../src/ui.ts";
 
@@ -18,6 +19,7 @@ if (target && !supportedTargets.has(target)) throw new Error(`Unsupported Bun co
 
 const identity = await loadProductIdentity(path.join(repositoryRoot, "Scripts", "product_identity.conf"));
 const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
+const surfaceIoSchema = await loadSurfaceIoSchema(path.join(repositoryRoot, "Scripts", "surface_io_schema.conf"));
 const actions = await loadActionCatalog(repositoryRoot);
 const editorJavascript = await bundleEditorJavascript();
 const generatedRoot = path.join(editorRoot, "generated");
@@ -30,9 +32,11 @@ const entrySource = [
     "import { launchEditor } from '../src/launch.ts';",
     `const identity = ${JSON.stringify(identity)};`,
     `const settingsSchema = ${JSON.stringify(settingsSchema)};`,
+    `const surfaceIoSchemaData = ${JSON.stringify(surfaceIoSchema, (_key, value) => value instanceof Map ? Object.fromEntries(value) : value)};`,
+    "const surfaceIoSchema = { ...surfaceIoSchemaData, records: surfaceIoSchemaData.records.map((record) => ({ ...record, properties: new Map(Object.entries(record.properties)) })) };",
     `const actions = ${JSON.stringify(actions)};`,
     `const editorJavascript = ${JSON.stringify(editorJavascript)};`,
-    "await launchEditor({ actions, args: process.argv.slice(2), editorJavascript, identity, settingsSchema });",
+    "await launchEditor({ actions, args: process.argv.slice(2), editorJavascript, identity, settingsSchema, surfaceIoSchema });",
     "",
 ].join("\n");
 await Bun.write(entryPath, entrySource);

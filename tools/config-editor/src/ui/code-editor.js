@@ -1,5 +1,5 @@
 import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap, indentWithTab, toggleLineComment } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab, redo, toggleLineComment, undo } from "@codemirror/commands";
 import { bracketMatching, HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState } from "@codemirror/state";
@@ -128,6 +128,7 @@ export function createConfigurationEditor(parent, onChange) {
     return {
         getCursorLine() { return view.state.doc.lineAt(view.state.selection.main.head).number; },
         getValue() { return view.state.doc.toString(); },
+        redo() { return redo(view); },
         goToLine(lineNumber) {
             const line = view.state.doc.line(Math.max(1, Math.min(Number(lineNumber) || 1, view.state.doc.lines)));
             view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: "center" }), selection: { anchor: line.from } });
@@ -157,5 +158,6 @@ export function createConfigurationEditor(parent, onChange) {
             parent.hidden = !visible;
             if (visible) requestAnimationFrame(() => view.requestMeasure());
         },
+        undo() { return undo(view); },
     };
 }

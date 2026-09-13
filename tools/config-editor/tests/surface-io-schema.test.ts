@@ -20,6 +20,9 @@ describe("Surface I/O schema", () => {
         expect(findSurfaceIoRepresentation(schema, "Feedback", "Ring", "OSC", "OSCInt")?.optional).toEqual(["StyleAddress"]);
         expect(findSurfaceIoRepresentation(schema, "Input", "Encoder", "OSC", "OSCFloat")?.nested).toEqual(["Acknowledge"]);
         expect(findSurfaceIoRepresentation(schema, "Feedback", "Color", "OSC", "OSCString")?.required).toEqual(["Address", "Format"]);
+        const oskWidget = schema.records.find((record) => record.kind === "SurfaceLine" && record.properties.get("ParentBlock") === "OSKRow" && record.properties.get("SurfaceLine") === "Widget");
+        expect(oskWidget?.properties.get("EditorChoices")).toContain("Shape:Rect|Round");
+        expect(oskWidget?.properties.get("EditorTargets")).toContain("ScrollTarget:Encoder");
     });
 
     test("rejects a representation whose primitive is not declared", () => {

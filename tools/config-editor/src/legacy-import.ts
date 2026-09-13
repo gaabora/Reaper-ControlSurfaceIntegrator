@@ -494,11 +494,11 @@ export class LegacyCsiSource {
             if (sourceFile.originalSourceHash !== draft.originalSourceHash) throw new EditorOperationError("conflict.legacy-source", `Legacy source changed after its import draft was opened: ${draft.sourcePath}`);
             draftMap.set(draft.sourcePath, draft);
         }
-        const effectiveZones = files.zones.map((zone) => ({ ...zone, source: draftMap.get(zone.sourcePath)?.source ?? zone.source })).filter((zone) => hasLegacyZoneContent(zone.source));
+        const effectiveZones = files.zones.map((zone) => ({ ...zone, legacyZoneName: legacyZoneName(zone.source), source: draftMap.get(zone.sourcePath)?.source ?? zone.source })).filter((zone) => hasLegacyZoneContent(zone.source));
         const learnZonesByName = new Map<string, LegacyZoneSourceFile[]>();
         const normalZones: LegacyZoneSourceFile[] = [];
         for (const zone of effectiveZones) {
-            const zoneName = (legacyZoneName(zone.source) ?? "").toLowerCase();
+            const zoneName = (zone.legacyZoneName ?? "").toLowerCase();
             if (!LEGACY_LEARN_ZONE_NAMES.has(zoneName)) normalZones.push(zone);
             else {
                 const matchingZones = learnZonesByName.get(zoneName) ?? [];
@@ -774,7 +774,7 @@ export class LegacyCsiSource {
     private validateTargetScope(kind: LegacyImportKind, targetPath: string, targetProfileId: string): void {
         if (kind === "surface" && targetPath !== `Surfaces/User/${targetProfileId}.txt`) throw new EditorOperationError("legacy.target.surface", `The surface target must be Surfaces/User/${targetProfileId}.txt`);
         if (kind === "learn-fx" && targetPath !== `Zones/User/${targetProfileId}/LearnFX.fxzon`) throw new EditorOperationError("legacy.target.learn-fx", `The Learn FX target must be Zones/User/${targetProfileId}/LearnFX.fxzon`);
-        if (kind === "zone" && (!targetPath.startsWith(`Zones/User/${targetProfileId}/`) || !targetPath.endsWith(".zon"))) throw new EditorOperationError("legacy.target.zone", `A zone target must be a .zon file below Zones/User/${targetProfileId}`);
+        if (kind === "zone" && (!targetPath.startsWith(`Zones/User/${targetProfileId}/`) || !targetPath.endsWith(".zon"))) throw new EditorOperationError("legacy.target.zone", `Set the target to a .zon file inside Zones/User/${targetProfileId}. Current target: ${targetPath || "(empty)"}`);
     }
 
     private validateRenameScope(item: LegacyImportItem, targetPath: string, targetProfileId: string): void {

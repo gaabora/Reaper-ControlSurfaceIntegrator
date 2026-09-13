@@ -222,6 +222,9 @@ WidgetEnd
         expect(preview.items.some((item) => /FX(?:Prologue|Epilogue|RowLayout)\.zon$/.test(item.sourcePath))).toBeFalse();
         expect(preview.sources.map((item) => item.sourcePath)).toContain("Zones/LearnZones/FXPrologue.zon");
 
+        const repeatedPreview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, preview.selectedZonePaths, [], false, [{ originalSourceHash: learnFx!.originalSourceHash, source: learnFx!.source, sourcePath: learnFx!.sourcePath }]);
+        expect(repeatedPreview.items.find((item) => item.sourcePath === learnFx!.sourcePath)).toMatchObject({ kind: "learn-fx", targetPath: "Zones/User/faderportv2/LearnFX.fxzon" });
+
         const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
         await source.import(await createStore(), knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });
         expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "LearnFX.fxzon"), "utf8")).toBe(learnFx?.source);

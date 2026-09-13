@@ -8,12 +8,19 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <header id="home-header">
-    <h1 id="title">{{title}}</h1>
-    <button class="icon-button home-help" data-open-help title="{{help.open}}" aria-label="{{help.open}}">?</button>
-  </header>
-  <section id="task-home" class="task-home">
-    <div class="data-path-field">
+  <div id="menu-backdrop" class="menu-backdrop"></div>
+  <aside id="app-menu" class="app-menu" aria-hidden="true" inert>
+    <button id="menu-home" class="menu-brand"><strong id="title">{{title}}</strong></button>
+    <nav class="menu-pages" aria-label="{{navigation.pages}}">
+      <button data-menu-task="edit">{{task.edit.title}}</button>
+      <button data-menu-task="surface">{{task.surface.title}}</button>
+      <button data-menu-task="legacy">{{task.legacy.title}}</button>
+    </nav>
+    <button id="stop-server" class="danger-button menu-stop">{{action.stopServer}}</button>
+  </aside>
+  <header id="app-header">
+    <div class="header-start"><button id="menu-toggle" class="icon-button menu-toggle" title="{{navigation.open}}" aria-label="{{navigation.open}}" aria-expanded="false">☰</button><h1 id="page-title">{{tasks.title}}</h1></div>
+    <div class="data-path-field header-data-path">
       <div class="data-path-controls">
         <input id="data-path" list="data-path-candidates" placeholder="{{reaperDataPath.placeholder}}">
         <datalist id="data-path-candidates"></datalist>
@@ -21,19 +28,18 @@
       </div>
       <div id="data-path-feedback" class="feedback danger" hidden></div>
     </div>
+    <div class="header-end"><div class="actions"><button id="check-all" hidden>{{action.checkAll}}</button><button id="legacy-check-all" disabled hidden>{{action.checkAll}}</button><button id="legacy-draft-discard-all" disabled hidden>{{action.discardAll}}</button><button id="save-all" class="primary" disabled hidden>{{action.saveAll}}</button></div><button class="help-button" data-open-help title="{{help.open}}" aria-label="{{help.open}}">?</button></div>
+  </header>
+  <section id="task-home" class="task-home">
     <h2>{{tasks.title}}</h2>
     <div id="task-load-status" class="feedback info task-load-status" role="status" aria-live="polite">{{tasks.loading}}</div>
     <div class="task-grid">
       <button class="task-card" data-task="edit" disabled><strong>{{task.edit.title}}</strong><span>{{task.edit.description}}</span></button>
+      <button class="task-card" data-task="surface" disabled><strong>{{task.surface.title}}</strong><span>{{task.surface.description}}</span></button>
       <button class="task-card" data-task="legacy" disabled><strong>{{task.legacy.title}}</strong><span>{{task.legacy.description}}</span></button>
     </div>
   </section>
   <main id="editor-main" hidden>
-    <div class="workflow-topbar">
-      <button id="back-to-tasks" class="back-button" title="{{action.backToTasks}}" aria-label="{{action.backToTasks}}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <div class="workflow-heading"><h2 id="workflow-title"></h2><p id="workflow-description" class="secondary"></p></div>
-      <div class="actions"><button class="icon-button" data-open-help title="{{help.open}}" aria-label="{{help.open}}">?</button><button id="check-all" hidden>{{action.checkAll}}</button><button id="legacy-check-all" disabled hidden>{{action.checkAll}}</button><button id="legacy-draft-discard-all" disabled hidden>{{action.discardAll}}</button><button id="save-all" class="primary" disabled hidden>{{action.saveAll}}</button></div>
-    </div>
     <div id="editor-body" class="editor-body">
       <aside id="file-panel" hidden>
         <div class="aside-title">{{files.title}}</div>
@@ -41,7 +47,7 @@
       </aside>
       <section id="workspace" class="workspace">
       <section id="workflow-legacy" class="workflow-panel legacy-workflow" hidden>
-        <div class="legacy-editor-layout">
+        <div id="legacy-editor-layout" class="legacy-editor-layout">
           <section class="legacy-draft-column">
             <div class="legacy-draft-workspace">
               <div class="legacy-zone-tree-panel">
@@ -67,6 +73,7 @@
             <section id="legacy-problems-panel" class="legacy-problems-panel"><h2>{{problems.title}}</h2><div id="legacy-diagnostics" class="secondary">{{problems.none}}</div></section>
           </section>
           <section class="legacy-preview-column">
+            <button id="legacy-preview-toggle" class="legacy-preview-toggle" title="{{legacy.panel.collapse}}" aria-label="{{legacy.panel.collapse}}" aria-expanded="true">›</button>
             <div class="legacy-steps">
               <details id="legacy-source-step" class="legacy-step-panel" open>
                 <summary><span class="step-number">1</span><span><strong>{{legacy.step.source.title}}</strong><small>{{legacy.step.source.description}}</small></span></summary>
@@ -111,6 +118,8 @@
             <span id="document-mode"></span>
           </div>
           <div class="actions">
+            <button id="surface-designer-open" hidden>{{surfaceDesigner.open}}</button>
+            <button id="surface-designer-code" hidden>{{surfaceDesigner.code}}</button>
             <button id="clone" hidden>{{action.makeEditable}}</button>
             <button id="discard-changes" disabled>{{action.discardChanges}}</button>
             <button id="save" disabled>{{action.save}}</button>
@@ -125,6 +134,19 @@
           <select id="snippet-source" aria-label="{{snippet.source}}" disabled><option value="">{{snippet.source.choose}}</option></select>
           <button id="snippet-open" disabled>{{action.insertSnippet}}</button>
         </div>
+        <section id="surface-designer" class="surface-designer" hidden>
+          <aside class="surface-widget-panel">
+            <div class="surface-panel-heading"><strong>{{surfaceDesigner.widgets}}</strong><div class="actions"><button id="surface-undo" title="{{help.shortcut.undo}}" aria-label="{{help.shortcut.undo}}">↶</button><button id="surface-redo" title="{{help.shortcut.redo}}" aria-label="{{help.shortcut.redo}}">↷</button></div></div>
+            <p class="secondary">{{surfaceDesigner.widgets.help}}</p>
+            <div id="surface-widget-list" class="surface-widget-list"></div>
+          </aside>
+          <div class="surface-canvas-panel">
+            <div class="surface-canvas-toolbar"><strong>{{surfaceDesigner.layout}}</strong><button id="surface-add-row">{{surfaceDesigner.addRow}}</button></div>
+            <div id="surface-designer-status" class="feedback info"></div>
+            <div id="surface-layout" class="surface-layout"></div>
+          </div>
+          <aside class="surface-inspector-panel"><strong>{{surfaceDesigner.properties}}</strong><div id="surface-inspector" class="surface-inspector secondary">{{surfaceDesigner.select}}</div></aside>
+        </section>
         <div id="raw-editor" class="code-editor"></div>
         <div class="bottom-panel">
           <div class="bottom-tabs">
@@ -177,6 +199,7 @@
     </div>
   </dialog>
   <div id="notifications" class="notification-stack" aria-live="polite"></div>
+  <div id="server-stopped" class="server-stopped" hidden><div><h2>{{server.stopped.title}}</h2><p>{{server.stopped.message}}</p></div></div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

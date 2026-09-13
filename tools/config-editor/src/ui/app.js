@@ -1,5 +1,6 @@
 import { createConfigurationEditor } from "./code-editor.js";
 import { editorRouteUrl, onEditorRouteChange, readEditorRoute, updateEditorRoute } from "./router.js";
+import { createSurfaceDesigner } from "./surface-designer.js";
 
 let translations = {};
 const sessionTokenElement = document.querySelector('meta[name="config-editor-session-token"]');
@@ -15,7 +16,7 @@ const elements = {
     allDiagnostics: requiredElement("all-diagnostics"),
     allProblemCount: requiredElement("all-problem-count"),
     allProblemsGroup: requiredElement("all-problems-group"),
-    backToTasks: requiredElement("back-to-tasks"),
+    appMenu: requiredElement("app-menu"),
     bottomPanelContent: requiredElement("bottom-panel-content"),
     clone: requiredElement("clone"),
     checkAll: requiredElement("check-all"),
@@ -61,7 +62,9 @@ const elements = {
     legacyOperationReport: requiredElement("legacy-operation-report"),
     legacyPath: requiredElement("legacy-path"),
     legacyPathFeedback: requiredElement("legacy-path-feedback"),
+    legacyEditorLayout: requiredElement("legacy-editor-layout"),
     legacyPreview: requiredElement("legacy-preview"),
+    legacyPreviewToggle: requiredElement("legacy-preview-toggle"),
     legacyProblemsPanel: requiredElement("legacy-problems-panel"),
     legacyProblemsResizer: requiredElement("legacy-problems-resizer"),
     legacyReload: requiredElement("legacy-reload"),
@@ -79,9 +82,12 @@ const elements = {
     logFile: requiredElement("log-file"),
     logPath: requiredElement("log-path"),
     logsPanel: requiredElement("logs-panel"),
-    homeHeader: requiredElement("home-header"),
+    menuBackdrop: requiredElement("menu-backdrop"),
+    menuHome: requiredElement("menu-home"),
+    menuToggle: requiredElement("menu-toggle"),
     openDataPath: requiredElement("open-data-path"),
     openLegacy: requiredElement("open-legacy"),
+    pageTitle: requiredElement("page-title"),
     notifications: requiredElement("notifications"),
     problemCount: requiredElement("problem-count"),
     problemsPanel: requiredElement("problems-panel"),
@@ -90,6 +96,7 @@ const elements = {
     save: requiredElement("save"),
     saveAll: requiredElement("save-all"),
     semantic: requiredElement("semantic"),
+    serverStopped: requiredElement("server-stopped"),
     snippetApplicationId: requiredElement("snippet-application-id"),
     snippetBindings: requiredElement("snippet-bindings"),
     snippetCancel: requiredElement("snippet-cancel"),
@@ -107,13 +114,22 @@ const elements = {
     snippetSurfaceField: requiredElement("snippet-surface-field"),
     snippetTargetPath: requiredElement("snippet-target-path"),
     snippetToolbar: requiredElement("snippet-toolbar"),
+    stopServer: requiredElement("stop-server"),
+    surfaceAddRow: requiredElement("surface-add-row"),
+    surfaceDesigner: requiredElement("surface-designer"),
+    surfaceDesignerCode: requiredElement("surface-designer-code"),
+    surfaceDesignerOpen: requiredElement("surface-designer-open"),
+    surfaceDesignerStatus: requiredElement("surface-designer-status"),
+    surfaceInspector: requiredElement("surface-inspector"),
+    surfaceLayout: requiredElement("surface-layout"),
+    surfaceRedo: requiredElement("surface-redo"),
+    surfaceUndo: requiredElement("surface-undo"),
+    surfaceWidgetList: requiredElement("surface-widget-list"),
     taskHome: requiredElement("task-home"),
     title: requiredElement("title"),
     tree: requiredElement("tree"),
-    workflowDescription: requiredElement("workflow-description"),
     workflowEdit: requiredElement("workflow-edit"),
     workflowLegacy: requiredElement("workflow-legacy"),
-    workflowTitle: requiredElement("workflow-title"),
     workspace: requiredElement("workspace"),
 };
 const state = {
@@ -126,6 +142,8 @@ const state = {
     legacy: { activeDraftPath: "", collapsedFolders: new Set(), drafts: new Map(), originalSources: new Map(), originalTargetPaths: new Map(), preview: null, profileAuthor: "user", resolutions: new Map(), selectedZonePaths: new Set(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
     problemFiles: new Map(),
     snippet: { choices: new Map(), conflictAction: "", insertionLine: 1, preview: null, treeEntries: [] },
+    surfaceDesigner: false,
+    surfaceIoSchema: null,
     renderedDocumentPath: "",
     task: "",
 };
@@ -149,6 +167,17 @@ const legacyDraftEditor = createConfigurationEditor(elements.legacyDraftEditor, 
 });
 legacyDraftEditor.setReadOnly(false);
 legacyDraftEditor.setVisible(false);
+const surfaceDesigner = createSurfaceDesigner({ addRow: elements.surfaceAddRow, inspector: elements.surfaceInspector, layout: elements.surfaceLayout, redo: elements.surfaceRedo, status: elements.surfaceDesignerStatus, undo: elements.surfaceUndo, widgetList: elements.surfaceWidgetList }, translate, {
+    async applySource(source) {
+        try {
+            codeEditor.setValue(source);
+            handleEditorChange(source);
+            await validateCurrent();
+        } catch (error) { showError(error); }
+    },
+    redo() { codeEditor.redo(); },
+    undo() { codeEditor.undo(); },
+});
 
 function translate(key, params = {}) {
     let text = translations[key] ?? key;
@@ -189,7 +218,11 @@ function showNotification(value, tone) {
     close.addEventListener("click", () => notification.remove());
     notification.append(message, close);
     elements.notifications.append(notification);
-    if (tone === "success") window.setTimeout(() => notification.remove(), 5000);
+    if (tone === "success" || tone === "info") {
+        notification.classList.add("transient");
+        notification.addEventListener("animationend", () => notification.remove(), { once: true });
+        window.setTimeout(() => notification.remove(), 4500);
+    }
 }
 
 function showReport(value, tone = "success") {
@@ -228,7 +261,7 @@ function mergeErrorDiagnostics(diagnostics) {
     elements.allProblemsGroup.open = true;
     renderProblems();
     renderBottomPanel();
-    if (state.task === "edit") writeEditorRoute({}, true);
+    if (state.task === "edit" || state.task === "surface") writeEditorRoute({}, true);
 }
 
 function showError(error, target) {
@@ -241,12 +274,13 @@ function showError(error, target) {
 
 function setTaskAvailability(available, status = "", tone = "info") {
     for (const button of document.querySelectorAll(".task-card")) button.disabled = !available;
+    for (const button of document.querySelectorAll("[data-menu-task]")) button.disabled = !available;
     setFeedback(elements.taskLoadStatus, status, tone);
 }
 
 function currentEditorRoute(overrides = {}) {
-    const view = state.task || "home";
-    const file = view === "edit" ? state.current?.path || "" : "";
+    const view = state.surfaceDesigner ? "surface" : state.task || "home";
+    const file = view === "edit" || view === "surface" ? state.current?.path || "" : "";
     const browserRoute = readEditorRoute();
     const line = browserRoute.view === "edit" && browserRoute.file === file ? browserRoute.line : undefined;
     return { file, line, panel: state.bottomPanel, view, ...overrides };
@@ -256,30 +290,65 @@ function writeEditorRoute(overrides = {}, replace = false) {
     updateEditorRoute(currentEditorRoute(overrides), replace);
 }
 
+function setMenuOpen(open) {
+    elements.appMenu.classList.toggle("open", open);
+    elements.menuBackdrop.classList.toggle("open", open);
+    elements.appMenu.setAttribute("aria-hidden", String(!open));
+    elements.appMenu.inert = !open;
+    elements.menuToggle.setAttribute("aria-expanded", String(open));
+}
+
+function updateMenuSelection(task) {
+    for (const button of document.querySelectorAll("[data-menu-task]")) {
+        const selected = button.dataset.menuTask === task;
+        button.classList.toggle("selected", selected);
+        button.setAttribute("aria-current", selected ? "page" : "false");
+    }
+}
+
+function setLegacyPreviewCollapsed(collapsed) {
+    elements.legacyEditorLayout.classList.toggle("preview-collapsed", collapsed);
+    elements.legacyPreviewToggle.textContent = collapsed ? "‹" : "›";
+    elements.legacyPreviewToggle.title = translate(collapsed ? "legacy.panel.expand" : "legacy.panel.collapse");
+    elements.legacyPreviewToggle.setAttribute("aria-label", elements.legacyPreviewToggle.title);
+    elements.legacyPreviewToggle.setAttribute("aria-expanded", String(!collapsed));
+}
+
+async function navigateToTask(task) {
+    await flushPendingDraft();
+    setMenuOpen(false);
+    showTask(task);
+}
+
 function showTask(task, updateRoute = true) {
-    const workflows = { edit: elements.workflowEdit, legacy: elements.workflowLegacy };
+    const workflows = { edit: elements.workflowEdit, legacy: elements.workflowLegacy, surface: elements.workflowEdit };
+    if (task === "surface" && state.current?.document.format !== "surface") state.current = null;
     state.task = task;
-    elements.homeHeader.hidden = true;
+    state.surfaceDesigner = task === "surface";
     elements.taskHome.hidden = true;
     elements.editorMain.hidden = false;
-    elements.filePanel.hidden = task !== "edit";
-    elements.checkAll.hidden = task !== "edit";
+    elements.filePanel.hidden = task !== "edit" && task !== "surface";
+    elements.checkAll.hidden = task !== "edit" && task !== "surface";
     elements.legacyCheckAll.hidden = task !== "legacy";
     elements.legacyDraftDiscardAll.hidden = task !== "legacy";
-    elements.saveAll.hidden = task !== "edit";
-    elements.editorBody.classList.toggle("file-task", task === "edit");
-    elements.workspace.classList.toggle("document-task", task === "edit");
+    elements.saveAll.hidden = task !== "edit" && task !== "surface";
+    elements.editorBody.classList.toggle("file-task", task === "edit" || task === "surface");
+    elements.workspace.classList.toggle("document-task", task === "edit" || task === "surface");
     elements.workspace.classList.toggle("legacy-task", task === "legacy");
     for (const workflow of Object.values(workflows)) workflow.hidden = workflow !== workflows[task];
-    elements.workflowTitle.textContent = translate(`task.${task}.title`);
-    elements.workflowDescription.textContent = translate(`task.${task}.description`);
+    elements.pageTitle.textContent = translate(`task.${task}.title`);
+    updateMenuSelection(task);
     codeEditor.setVisible(task === "edit");
+    if (task === "edit" || task === "surface") setSurfaceDesignerMode(task === "surface", false);
+    if (task === "edit" || task === "surface") void refreshTree();
     if (updateRoute) writeEditorRoute({ line: undefined, view: task });
 }
 
 function showTaskHome(updateRoute = true) {
     state.task = "";
-    elements.homeHeader.hidden = false;
+    state.surfaceDesigner = false;
+    elements.pageTitle.textContent = translate("task.home.title");
+    updateMenuSelection("");
     elements.editorMain.hidden = true;
     elements.checkAll.hidden = true;
     elements.legacyCheckAll.hidden = true;
@@ -287,6 +356,27 @@ function showTaskHome(updateRoute = true) {
     elements.saveAll.hidden = true;
     elements.taskHome.hidden = false;
     if (updateRoute) writeEditorRoute({ file: "", line: undefined, view: "home" });
+}
+
+function setSurfaceDesignerMode(enabled, updateRoute = true) {
+    const leavingSurfaceTask = !enabled && state.task === "surface";
+    if (leavingSurfaceTask) state.task = "edit";
+    const available = state.current?.document.format === "surface" && state.current.document.version === "2";
+    state.surfaceDesigner = Boolean(enabled);
+    if (state.surfaceDesigner) state.task = "surface";
+    elements.surfaceDesigner.hidden = !state.surfaceDesigner;
+    elements.rawEditor.hidden = state.surfaceDesigner;
+    elements.surfaceDesignerOpen.hidden = !available || state.surfaceDesigner;
+    elements.surfaceDesignerCode.hidden = !state.surfaceDesigner || !available;
+    const showFilePanel = (state.task === "edit" || state.task === "surface") && (!state.surfaceDesigner || !available);
+    elements.filePanel.hidden = !showFilePanel;
+    elements.editorBody.classList.toggle("file-task", showFilePanel);
+    elements.pageTitle.textContent = translate(state.surfaceDesigner ? "task.surface.title" : "task.edit.title");
+    updateMenuSelection(state.surfaceDesigner ? "surface" : "edit");
+    codeEditor.setVisible(!state.surfaceDesigner && state.task === "edit");
+    surfaceDesigner.render(state.surfaceDesigner && available ? state.current : null, state.surfaceIoSchema);
+    if (leavingSurfaceTask) void refreshTree();
+    if (updateRoute) writeEditorRoute({ file: state.current?.path || "", line: undefined, view: state.surfaceDesigner ? "surface" : "edit" });
 }
 
 function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDiagnostic) {
@@ -512,6 +602,7 @@ function renderDocument() {
     renderDraftConflict();
     renderSnippetToolbar();
     renderBottomPanel();
+    setSurfaceDesignerMode(state.surfaceDesigner, false);
 }
 
 async function validateCurrent() {
@@ -534,7 +625,7 @@ async function validateAllConfigurations() {
     state.bottomPanel = "problems";
     elements.allProblemsGroup.open = true;
     renderBottomPanel();
-    if (state.task === "edit") writeEditorRoute({}, true);
+    if (state.task === "edit" || state.task === "surface") writeEditorRoute({}, true);
     showReport(translate("status.checkedAll", { files: result.checkedPaths.length, problems: diagnosticsForAllFiles().length }), "info");
 }
 
@@ -573,7 +664,7 @@ async function openDocument(path, line, updateRoute = true) {
         updateTreeDraftState();
         renderDocument();
         if (line) requestAnimationFrame(() => codeEditor.goToLine(line));
-        if (updateRoute) updateEditorRoute(currentEditorRoute({ file: path, line, view: "edit" }));
+        if (updateRoute) updateEditorRoute(currentEditorRoute({ file: path, line, view: state.surfaceDesigner ? "surface" : "edit" }));
         return true;
     } catch (error) {
         showError(error);
@@ -596,12 +687,12 @@ async function restoreEditorRoute(route) {
         updateEditorRoute({ file: "", line: undefined, panel: state.bottomPanel, view: "legacy" }, true);
         return;
     }
-    if (route.view === "edit") {
-        showTask("edit", false);
+    if (route.view === "edit" || route.view === "surface") {
+        showTask(route.view === "surface" ? "surface" : "edit", false);
         renderBottomPanel();
         if (!route.file) {
             clearCurrentDocument();
-            updateEditorRoute({ file: "", line: undefined, panel: state.bottomPanel, view: "edit" }, true);
+            updateEditorRoute({ file: "", line: undefined, panel: state.bottomPanel, view: route.view }, true);
             return;
         }
         const opened = await openDocument(route.file, route.line, false);
@@ -610,7 +701,8 @@ async function restoreEditorRoute(route) {
             updateEditorRoute({ file: "", line: undefined, panel: state.bottomPanel, view: "edit" }, true);
             return;
         }
-        updateEditorRoute({ file: route.file, line: route.line, panel: state.bottomPanel, view: "edit" }, true);
+        setSurfaceDesignerMode(route.view === "surface", false);
+        updateEditorRoute({ file: route.file, line: route.line, panel: state.bottomPanel, view: state.surfaceDesigner ? "surface" : "edit" }, true);
         return;
     }
     showTaskHome(false);
@@ -727,6 +819,18 @@ function treeList(entries) {
     return list;
 }
 
+function surfaceTreeEntries(entries) {
+    const result = [];
+    for (const entry of entries) {
+        if (entry.kind === "file" && entry.type === "surface") result.push(entry);
+        else if (entry.kind === "directory") {
+            const children = surfaceTreeEntries(entry.children || []);
+            if (children.length) result.push({ ...entry, children });
+        }
+    }
+    return result;
+}
+
 function updateTreeSelection(selectedPath) {
     for (const button of elements.tree.querySelectorAll("button[data-path]")) {
         const selected = button.dataset.path === selectedPath;
@@ -740,7 +844,7 @@ async function refreshTree() {
     const result = await api("/api/tree");
     state.snippet.treeEntries = result.entries;
     elements.tree.className = "tree";
-    elements.tree.replaceChildren(treeList(result.entries));
+    elements.tree.replaceChildren(treeList(state.task === "surface" ? surfaceTreeEntries(result.entries) : result.entries));
     renderSnippetPathOptions();
 }
 
@@ -994,8 +1098,12 @@ function legacyDraftsForRequest() {
     return [...state.legacy.drafts].map(([sourcePath, draft]) => ({ originalSourceHash: draft.originalSourceHash, source: draft.source, sourcePath }));
 }
 
-function legacyTargetPathsForRequest() {
-    return [...state.legacy.targetPaths].map(([sourcePath, targetPath]) => ({ sourcePath, targetPath }));
+function legacyTargetPathsForRequest(selectedZonePaths = state.legacy.selectedZonePaths) {
+    return [...state.legacy.targetPaths].filter(([sourcePath]) => {
+        const item = legacySourceForPath(sourcePath);
+        if (item?.kind === "surface") return elements.legacyIncludeSurface.checked;
+        return selectedZonePaths.has(sourcePath);
+    }).map(([sourcePath, targetPath]) => ({ sourcePath, targetPath }));
 }
 
 function legacyDraftTargetPath(item) {
@@ -1155,6 +1263,8 @@ async function setLegacyZonesSelected(zones, selected) {
     if (selected) {
         for (const zone of zones) addLegacyZoneWithDependencies(zone.sourcePath, selectedPaths, preview);
     } else for (const zone of zones) selectedPaths.delete(zone.sourcePath);
+    state.legacy.selectedZonePaths = selectedPaths;
+    renderLegacyZones();
     await refreshLegacyPreview([...selectedPaths]);
 }
 
@@ -1173,12 +1283,29 @@ function updateLegacyZoneTreeSelection() {
 
 function renderLegacyZones() {
     const preview = state.legacy.preview;
-    const importItemsByPath = new Map((preview?.items || []).filter((item) => item.kind === "zone" || item.kind === "learn-fx").map((item) => [item.sourcePath, item]));
+    const importItemsByPath = new Map((preview?.items || []).map((item) => [item.sourcePath, item]));
+    const surfaceSource = (preview?.sources || []).find((source) => source.kind === "surface");
+    const surface = surfaceSource ? importItemsByPath.get(surfaceSource.sourcePath) || surfaceSource : undefined;
     const zones = (preview?.sources || []).filter((source) => /^(?:Zones|FXZones)\/.+\.zon$/i.test(source.sourcePath)).map((source) => importItemsByPath.get(source.sourcePath) || { ...source, auxiliary: true });
     elements.legacyZones.replaceChildren();
+    if (surface) {
+        const surfaceRow = document.createElement("div");
+        surfaceRow.className = "legacy-zone-row legacy-surface-row";
+        const spacer = document.createElement("span");
+        const button = document.createElement("button");
+        button.dataset.path = surface.sourcePath;
+        button.dataset.label = translate("legacy.source.surface");
+        button.title = surface.sourcePath;
+        button.addEventListener("click", () => openLegacyDraft(surface));
+        surfaceRow.append(spacer, button);
+        elements.legacyZones.append(surfaceRow);
+    }
     if (!zones.length) {
         elements.legacyZones.className = "legacy-zone-tree secondary";
-        elements.legacyZones.textContent = translate("legacy.zones.empty");
+        const empty = document.createElement("div");
+        empty.textContent = translate("legacy.zones.empty");
+        elements.legacyZones.append(empty);
+        updateLegacyZoneTreeSelection();
         return;
     }
     elements.legacyZones.className = "legacy-zone-tree";
@@ -1463,12 +1590,14 @@ function renderLegacyPreview() {
 
 async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = usesExistingLegacySurface()) {
     if (!elements.legacySurface.value) return;
-    const body = { drafts: legacyDraftsForRequest(), includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value, targetPaths: legacyTargetPathsForRequest(), targetProfileId: state.legacy.targetProfileId || undefined, useExistingSurface, widgetMappings: widgetMappingsForRequest() };
+    const requestedZonePaths = selectedZonePaths === undefined ? state.legacy.selectedZonePaths : new Set(selectedZonePaths);
+    const body = { drafts: legacyDraftsForRequest(), includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value, targetPaths: legacyTargetPathsForRequest(requestedZonePaths), targetProfileId: state.legacy.targetProfileId || undefined, useExistingSurface, widgetMappings: widgetMappingsForRequest() };
     if (selectedZonePaths !== undefined) body.selectedZonePaths = selectedZonePaths;
     const result = await api("/api/legacy/preview", { method: "POST", body: JSON.stringify(body) });
     state.legacy.preview = result.preview;
     state.legacy.surfaceName = elements.legacySurface.value;
-    for (const source of result.preview.sources || []) if (!state.legacy.originalSources.has(source.sourcePath)) state.legacy.originalSources.set(source.sourcePath, source.source);
+    const previewItemsByPath = new Map(result.preview.items.map((item) => [item.sourcePath, item]));
+    for (const source of result.preview.sources || []) if (!state.legacy.originalSources.has(source.sourcePath)) state.legacy.originalSources.set(source.sourcePath, previewItemsByPath.get(source.sourcePath)?.source ?? source.source);
     for (const item of result.preview.items) if (!state.legacy.originalTargetPaths.has(item.sourcePath) && !state.legacy.targetPaths.has(item.sourcePath)) state.legacy.originalTargetPaths.set(item.sourcePath, item.targetPath);
     state.legacy.selectedZonePaths = new Set(result.preview.selectedZonePaths);
     state.legacy.targetProfileId = result.preview.targetProfileId;
@@ -1559,11 +1688,13 @@ async function initialize(initialRoute) {
         }
         const status = await api("/api/status");
         state.identity = status.identity;
+        state.surfaceIoSchema = status.surfaceIoSchema;
         state.legacy.profileAuthor = status.profileAuthor || "user";
         codeEditor.setActionCompletions(status.actions);
         legacyDraftEditor.setActionCompletions(status.actions);
         const title = translate("app.title", { product: status.identity.displayName });
         elements.title.textContent = title;
+        elements.pageTitle.textContent = translate("task.home.title");
         document.title = title;
         for (const candidate of status.candidates) {
             const option = document.createElement("option");
@@ -1907,7 +2038,7 @@ for (const button of document.querySelectorAll(".bottom-tab")) button.addEventLi
     state.bottomPanel = state.bottomPanel === button.dataset.bottomTab ? "" : button.dataset.bottomTab;
     renderBottomPanel();
     if (state.bottomPanel === "logs") void reloadRuntimeLog();
-    if (state.task === "edit") writeEditorRoute({}, true);
+    if (state.task === "edit" || state.task === "surface") writeEditorRoute({}, true);
 });
 elements.reloadLog.addEventListener("click", () => { void reloadRuntimeLog(); });
 elements.logFile.addEventListener("change", () => { void reloadRuntimeLog(); });
@@ -1938,11 +2069,26 @@ elements.snippetInsert.addEventListener("click", async () => {
 });
 for (const button of [elements.snippetCancel, elements.snippetClose]) button.addEventListener("click", () => elements.snippetDialog.close());
 
+elements.surfaceDesignerOpen.addEventListener("click", () => setSurfaceDesignerMode(true));
+elements.surfaceDesignerCode.addEventListener("click", () => setSurfaceDesignerMode(false));
 for (const taskButton of document.querySelectorAll(".task-card")) taskButton.addEventListener("click", () => showTask(taskButton.dataset.task));
-elements.backToTasks.addEventListener("click", async () => {
+for (const menuTaskButton of document.querySelectorAll("[data-menu-task]")) menuTaskButton.addEventListener("click", () => { void navigateToTask(menuTaskButton.dataset.menuTask); });
+elements.menuToggle.addEventListener("click", () => setMenuOpen(!elements.appMenu.classList.contains("open")));
+elements.menuBackdrop.addEventListener("click", () => setMenuOpen(false));
+elements.menuHome.addEventListener("click", async () => {
     await flushPendingDraft();
+    setMenuOpen(false);
     showTaskHome();
 });
+elements.stopServer.addEventListener("click", async () => {
+    try {
+        await flushPendingDraft();
+        await api("/api/shutdown", { method: "POST" });
+        setMenuOpen(false);
+        elements.serverStopped.hidden = false;
+    } catch (error) { showError(error); }
+});
+elements.legacyPreviewToggle.addEventListener("click", () => setLegacyPreviewCollapsed(!elements.legacyEditorLayout.classList.contains("preview-collapsed")));
 elements.dataPath.addEventListener("input", () => setFeedback(elements.dataPathFeedback, ""));
 elements.legacyPath.addEventListener("input", () => setFeedback(elements.legacyPathFeedback, ""));
 elements.legacyTargetProfile.addEventListener("input", () => setFeedback(elements.legacyTargetFeedback, ""));
@@ -1950,6 +2096,9 @@ window.addEventListener("beforeunload", (event) => {
     if (!pendingDraft && !draftWriteActive) return;
     event.preventDefault();
     event.returnValue = "";
+});
+window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && elements.appMenu.classList.contains("open")) setMenuOpen(false);
 });
 setTaskAvailability(false, "Loading configuration files...");
 const initialRoute = readEditorRoute();

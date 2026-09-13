@@ -7,6 +7,7 @@ import { actionNameSet, actionTraitsByName } from "./action-catalog.ts";
 import { ConfigurationDraftStore } from "./draft-store.ts";
 import type { EditorSettingsStore } from "./editor-settings.ts";
 import type { SettingsSchema } from "./settings-schema.ts";
+import type { SurfaceIoSchema } from "./surface-io-schema.ts";
 import type { LegacyImportConflictAction, LegacyImportDraft, LegacyImportRequest, LegacyImportResolution, LegacyImportTargetPath, LegacySurfaceSummary, LegacyWidgetMapping } from "./legacy-import.ts";
 import { LegacyCsiSource } from "./legacy-import.ts";
 import type { ReaperDataPathCandidate } from "./paths.ts";
@@ -25,6 +26,7 @@ export interface EditorServerOptions {
     identity: EditorProductIdentity;
     logDirectory?: string;
     settingsSchema: SettingsSchema;
+    surfaceIoSchema: SurfaceIoSchema;
     port?: number;
     settings?: EditorSettingsStore;
 }
@@ -35,6 +37,7 @@ export interface RunningEditorServer {
     url: string;
 }
 
+export const EDITOR_API_VERSION = 11;
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
 
 function profileAuthorId(): string {
@@ -281,19 +284,24 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
     let legacyDraftStore: ConfigurationDraftStore | undefined;
     let store: ConfigurationStore | undefined;
     let origin = "";
+    let server: ReturnType<typeof Bun.serve> | undefined;
     const fetchRequest = async (request: Request): Promise<Response> => {
         const requestUrl = new URL(request.url);
         if (requestUrl.pathname === "/" && request.method === "GET") return contentResponse(createEditorHtml(options.identity.displayName, token), "text/html; charset=utf-8");
         if (requestUrl.pathname === "/app.css" && request.method === "GET") return contentResponse(EDITOR_CSS, "text/css; charset=utf-8");
         if (requestUrl.pathname === "/app.js" && request.method === "GET") return contentResponse(options.editorJavascript, "text/javascript; charset=utf-8");
         if (requestUrl.pathname === "/app-translations.json" && request.method === "GET") return contentResponse(createEditorTranslationsJson(), "application/json; charset=utf-8");
-        if (requestUrl.pathname === "/health" && request.method === "GET") return jsonResponse({ productId: options.identity.productId });
+        if (requestUrl.pathname === "/health" && request.method === "GET") return jsonResponse({ editorApiVersion: EDITOR_API_VERSION, productId: options.identity.productId });
         if (!requestUrl.pathname.startsWith("/api/")) return jsonResponse({ error: { code: "not-found", message: "Not found" } }, 404);
         if (!tokenMatches(request.headers.get("x-session-token"), token)) return jsonResponse({ error: { code: "auth.token", message: "Invalid session token" } }, 401);
         const requestOrigin = request.headers.get("origin");
         if (requestOrigin && requestOrigin !== origin) return jsonResponse({ error: { code: "auth.origin", message: "Invalid request origin" } }, 403);
         try {
-            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ actions: options.actions.map((action) => ({ detail: action.brief || action.params || "", label: action.name })), candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity, legacy: legacySelection, profileAuthor: profileAuthorId(), settingsSchema: options.settingsSchema });
+            if (requestUrl.pathname === "/api/shutdown" && request.method === "POST") {
+                setTimeout(() => { void server?.stop(true); }, 50);
+                return jsonResponse({ stopping: true });
+            }
+            if (requestUrl.pathname === "/api/status" && request.method === "GET") return jsonResponse({ actions: options.actions.map((action) => ({ detail: action.brief || action.params || "", label: action.name })), candidates: options.candidates, dataPath: store?.getReaperDataPath(), identity: options.identity, legacy: legacySelection, profileAuthor: profileAuthorId(), settingsSchema: options.settingsSchema, surfaceIoSchema: { primitives: options.surfaceIoSchema.primitives, records: options.surfaceIoSchema.records.map((record) => ({ kind: record.kind, line: record.line, properties: Object.fromEntries(record.properties) })), representations: options.surfaceIoSchema.representations, version: options.surfaceIoSchema.version } });
             if (requestUrl.pathname === "/api/log" && request.method === "GET") {
                 if (!options.logDirectory) return jsonResponse({ available: false, files: [], message: "Open Configuration Editor from the Control Panel to locate runtime logs.", source: "" });
                 const files: string[] = [];
@@ -481,7 +489,6 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             return errorResponse(error);
         }
     };
-    let server: ReturnType<typeof Bun.serve> | undefined;
     const automaticPort = !options.port;
     for (let attemptIdx = 0; attemptIdx < 20 && !server; attemptIdx++) {
         const port = automaticPort ? randomInt(20000, 65536) : options.port;
