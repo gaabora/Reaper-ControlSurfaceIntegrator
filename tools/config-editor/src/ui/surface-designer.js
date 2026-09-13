@@ -85,6 +85,23 @@ function serializeProperties(properties, propertyOrder, rules = "") {
     return names.filter((name) => properties[name] !== undefined && properties[name] !== "").map((name) => `${name}=${serializePropertyValue(name, String(properties[name]), rules)}`).join(" ");
 }
 
+function lineCommentSuffix(text) {
+    let insideQuote = false;
+    let escaped = false;
+    for (let characterIdx = 0; characterIdx + 1 < text.length; characterIdx++) {
+        const character = text[characterIdx];
+        if (character === '"' && !escaped) insideQuote = !insideQuote;
+        if (!insideQuote && character === "/" && text[characterIdx + 1] === "/") {
+            let suffixIdx = characterIdx;
+            while (suffixIdx > 0 && /[ \t]/.test(text[suffixIdx - 1])) suffixIdx--;
+            return text.slice(suffixIdx);
+        }
+        escaped = character === "\\" && !escaped;
+        if (character !== "\\") escaped = false;
+    }
+    return "";
+}
+
 function cellLineText(current, cell, nextProperties) {
     const sourceLine = current.document.lines.find((line) => line.lineNumber === cell.line)?.text || "";
     const indentation = sourceLine.match(/^\s*/)?.[0] || "    ";
@@ -92,7 +109,7 @@ function cellLineText(current, cell, nextProperties) {
     const record = layoutSchemaRecord(current.surfaceIoSchema, cell.type);
     const propertyOrder = schemaList(record?.properties.Optional);
     const serialized = serializeProperties(nextProperties, propertyOrder, record?.properties.Rules || "");
-    return indentation + prefix + (serialized ? " " + serialized : "");
+    return indentation + prefix + (serialized ? " " + serialized : "") + lineCommentSuffix(sourceLine);
 }
 
 function rowEndLine(current, row) {
@@ -235,12 +252,34 @@ function editorPropertyMap(record, metadataName) {
     return result;
 }
 
+function inspectorProperties(document, cell, record) {
+    const editorChoices = editorPropertyMap(record, "EditorChoices");
+    const editorApplies = editorPropertyMap(record, "EditorApplies");
+    const editorTargets = editorPropertyMap(record, "EditorTargets");
+    const role = layoutCellRole(document, cell);
+    return schemaList(record?.properties.Optional).filter((propertyName) => {
+        if (cell.properties[propertyName]) return true;
+        const roles = editorApplies[propertyName]?.split("|") || [];
+        return !roles.length || roles.includes("all") || roles.includes(role);
+    }).map((propertyName) => {
+        const targetInput = editorTargets[propertyName];
+        const choices = targetInput ? document.semantic.widgets.filter((widget) => widgetSupportsInput(widget, targetInput)).map((widget) => widget.name) : editorChoices[propertyName]?.split("|");
+        return { choices, propertyName };
+    });
+}
+
+function surfaceDesignerCanEdit(current) {
+    return Boolean(current?.writable && !current.document.diagnostics.some((diagnostic) => diagnostic.severity === "error"));
+}
+
+export const surfaceDesignerModel = { cellLineText, groupedRowCells, inspectorProperties, layoutCellMetrics, layoutCellRole, moveLines, replaceLine, surfaceDesignerCanEdit };
+
 export function createSurfaceDesigner(elements, translate, callbacks) {
     let current;
     let selectedPalette = "";
     let selectedCellLine = 0;
 
-    const canEdit = () => Boolean(current?.writable && !current.document.diagnostics.some((diagnostic) => diagnostic.severity === "error"));
+    const canEdit = () => surfaceDesignerCanEdit(current);
 
     const applySource = async (source, preserveSelection = false) => {
         if (!canEdit() || source === current.source) return;
@@ -286,18 +325,7 @@ export function createSurfaceDesigner(elements, translate, callbacks) {
                 section.append(groupMembers);
             }
             const record = layoutSchemaRecord(current.surfaceIoSchema, cell.type);
-            const editorChoices = editorPropertyMap(record, "EditorChoices");
-            const editorApplies = editorPropertyMap(record, "EditorApplies");
-            const editorTargets = editorPropertyMap(record, "EditorTargets");
-            const role = layoutCellRole(current.document, cell);
-            const propertyNames = schemaList(record?.properties.Optional).filter((propertyName) => {
-                if (cell.properties[propertyName]) return true;
-                const roles = editorApplies[propertyName]?.split("|") || [];
-                return !roles.length || roles.includes("all") || roles.includes(role);
-            });
-            for (const propertyName of propertyNames) {
-                const targetInput = editorTargets[propertyName];
-                const choices = targetInput ? current.document.semantic.widgets.filter((widget) => widgetSupportsInput(widget, targetInput)).map((widget) => widget.name) : editorChoices[propertyName]?.split("|");
+            for (const { choices, propertyName } of inspectorProperties(current.document, cell, record)) {
                 section.append(createField(propertyName, cell.properties[propertyName] || "", !canEdit(), async (value) => {
                     const nextProperties = { ...cell.properties };
                     if (value) nextProperties[propertyName] = value;

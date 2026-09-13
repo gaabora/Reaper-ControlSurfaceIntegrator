@@ -206,7 +206,7 @@ Ready when legacy content can be imported repeatedly without runtime legacy supp
 
 Ready when every vendor MIDI surface has an installable layout and ReaPack cannot overwrite user content.
 
-### Phase 7. Reusable functional snippets
+### ✅ Phase 7. Reusable functional snippets
 
 - ✅ Define semantic slots with required widget roles, inputs, feedback, and target surface widgets.
 - ✅ Keep only Edit configuration and Import old CSI as task entry points. Show the snippet selector only when an editable user zone is selected.
@@ -221,7 +221,7 @@ Ready when every vendor MIDI surface has an installable layout and ReaPack canno
 - ✅ Add a registry-based quick-fix workflow that changes only the current draft, starting with the missing zone format marker.
 - ✅ Keep the editor inside the viewport, add confirmed Discard changes, keep diagnostic text selectable, and use dismissible semantic notifications outside the workflow header.
 - ✅ Restore the selected task, open configuration file, diagnostic line, and bottom panel from a History API query route on reload and browser Back or Forward.
-- [ ] Verify the focused parser, workflow, draft recovery, server, and browser UI checks after explicit approval.
+- ✅ Verify the focused parser, workflow, draft recovery, server, and browser UI checks after explicit approval.
 
 Ready when a function group can move between compatible surfaces without fixed vendor widget names or partial file changes.
 
@@ -240,14 +240,14 @@ Format 2 replaces this completed Version 1 semantic-slot workflow with direct zo
 
 Ready when OSK can safely create any supported one-file zone scaffold without becoming a second full configuration editor.
 
-### [ ] Phase 9. Visual Surface editor
+### ✅ Phase 9. Visual Surface editor
 
 Use one separate Surface design page inside the Bun editor. Open it from a selected Surface file and add a third task to the home page. Keep `view=surface` and the Surface file path in browser history so Back returns to the text editor.
 
 - ✅ Use the Surface text document as the only source of truth. Visual changes produce normal lossless draft edits and use the existing validation, recovery, Save, and Save all workflow. No second JSON layout format exists.
-- ✅ Show an `OSKLayout` grid in the center, only Widgets not yet added to the layout in a left panel, and properties for the selected layout cell or Widget in a right sidebar.
+- ✅ Show an `OSKLayout` grid in the center, only Widgets not yet added to the layout in a left panel, and properties for the selected layout cell in a right sidebar.
 - ✅ Let the user drag an existing Widget into the grid, move it between cells or rows, change Width and Height, add rows, and remove a layout reference without deleting its Widget definition.
-- ✅ Let the right sidebar edit supported Input, Feedback, referenced profile, and layout properties from `surface_io_schema.conf`. The browser does not own a second property catalog.
+- ✅ Let the right sidebar edit only applicable `OSKLayout` properties from `surface_io_schema.conf`. Keep Input, Feedback, Widget names, and profiles in Code view. The browser does not own a second property catalog.
 - ✅ Keep a Code view on the same page. Visual and code edits update the same unsaved CodeMirror draft, share Undo and Redo history, and preserve source lines that the visual operation did not change.
 - ✅ If code has a blocking syntax error, keep the text editable, highlight the exact problem, and temporarily disable structural visual operations. Never replace invalid source with a regenerated document.
 - ✅ Require Make editable copy before changing a Vendor Surface. Keep the visual page read-only while a Vendor file is selected.
@@ -260,7 +260,7 @@ Use one separate Surface design page inside the Bun editor. Open it from a selec
 - ✅ Match Lua OSK Spacer defaults and round-button geometry, detect rotary controls from their Widget input, and reserve occupied columns below multi-row faders so later rows align with the Lua layout.
 - ✅ Limit the visual Surface Designer inspector to `OSKLayout` placement and appearance properties. Keep Widget definitions, Input, Feedback, names, and profiles in Code view only.
 - ✅ Make Surface Designer Properties context-aware from the shared Surface schema, including dropdowns for fixed choices and capability-filtered Widget target dropdowns.
-- [ ] Add focused checks for text-to-grid mapping, grid-to-text edits, shared draft history, comments and unknown blocks, invalid source, Vendor files, and schema-driven property controls after approval to run checks.
+- ✅ Add focused checks for text-to-grid mapping, grid-to-text edits, shared draft history, comments and unknown blocks, invalid source, Vendor files, and schema-driven property controls after approval to run checks.
 
 Ready when a Surface can move between Code and visual layout editing without losing source text or creating a second save model.
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createEditorHtml, EDITOR_CSS, EDITOR_JAVASCRIPT } from "../src/ui.ts";
 import codeEditorJavascript from "../src/ui/code-editor.js" with { type: "text" };
+import surfaceDesignerJavascript from "../src/ui/surface-designer.js" with { type: "text" };
 
 describe("browser UI bindings", () => {
     test("declares every used element and references an existing HTML ID", () => {
@@ -46,16 +47,16 @@ describe("browser UI bindings", () => {
         expect(html).toContain('id="legacy-preview-toggle"');
         expect(html).not.toContain('id="back-to-tasks"');
         expect(EDITOR_CSS).not.toContain(".surface-row-actions");
-        expect(EDITOR_JAVASCRIPT).toContain("groupedRowCells(row)");
-        expect(EDITOR_JAVASCRIPT).not.toContain("cellElement.style.flexGrow");
-        expect(EDITOR_JAVASCRIPT).toContain("OSK_BUTTON_ASPECT");
-        expect(EDITOR_JAVASCRIPT).toContain("layoutCellRole(current.document, cell)");
-        expect(EDITOR_JAVASCRIPT).toContain("const activeRowSpans = new Map()");
-        expect(EDITOR_JAVASCRIPT).toContain('cell.type === "spacer" ? 0.5 : 1');
-        expect(EDITOR_JAVASCRIPT).not.toContain("renderIoInspector");
-        expect(EDITOR_JAVASCRIPT).not.toContain("renderProfileInspector");
-        expect(EDITOR_JAVASCRIPT).toContain('editorPropertyMap(record, "EditorChoices")');
-        expect(EDITOR_JAVASCRIPT).toContain("widgetSupportsInput(widget, targetInput)");
+        expect(surfaceDesignerJavascript).toContain("groupedRowCells(row)");
+        expect(surfaceDesignerJavascript).not.toContain("cellElement.style.flexGrow");
+        expect(surfaceDesignerJavascript).toContain("OSK_BUTTON_ASPECT");
+        expect(surfaceDesignerJavascript).toContain("layoutCellRole(document, cell)");
+        expect(surfaceDesignerJavascript).toContain("const activeRowSpans = new Map()");
+        expect(surfaceDesignerJavascript).toContain('cell.type === "spacer" ? 0.5 : 1');
+        expect(surfaceDesignerJavascript).not.toContain("renderIoInspector");
+        expect(surfaceDesignerJavascript).not.toContain("renderProfileInspector");
+        expect(surfaceDesignerJavascript).toContain('editorPropertyMap(record, "EditorChoices")');
+        expect(surfaceDesignerJavascript).toContain("widgetSupportsInput(widget, inputName)");
         expect(EDITOR_JAVASCRIPT).toContain('translate("tasks.loading")');
         expect(EDITOR_JAVASCRIPT).toContain('translate("tasks.loadFailed"');
         expect(html).toContain('id="workflow-edit"');
