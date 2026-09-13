@@ -9,6 +9,7 @@ import { EditorOperationError } from "./store.ts";
 import { addLegacyBankContextQuickFixes, addLegacyExitLayerQuickFixes, diagnosticWithQuickFixes, diagnosticsWithQuickFixes } from "./quick-fixes.ts";
 import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy-surface-format2.ts";
 import { convertLegacyLearnFxToFormat2, type LegacyLearnFxSource } from "./legacy-learn-fx.ts";
+import { convertLegacyProductConfig } from "./legacy-product-config.ts";
 import { validateLearnFxSurface } from "./learn-fx-surface.ts";
 import { convertLegacyZoneToFormat2, legacyMainBankContext } from "./legacy-zone-format2.ts";
 import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
@@ -69,6 +70,7 @@ export interface LegacyImportItem {
     targetExists: boolean;
     targetHash: string | null;
     targetPath: string;
+    vendorOverridePath?: string;
     zoneName?: string;
 }
 
@@ -78,6 +80,18 @@ export interface LegacyImportSource {
     source: string;
     sourcePath: string;
     targetPath: string;
+}
+
+export interface LegacyProductConfigPreview {
+    available: boolean;
+    diagnostics: Diagnostic[];
+    originalSourceHash?: string;
+    source: string;
+    sourcePath: string;
+    targetExists: boolean;
+    targetHash: string | null;
+    targetPath: string;
+    valid: boolean;
 }
 
 export interface LegacyImportPreview {
@@ -444,6 +458,15 @@ async function isDirectory(directoryPath: string): Promise<boolean> {
     }
 }
 
+async function isRegularFile(filePath: string): Promise<boolean> {
+    try {
+        return (await stat(filePath)).isFile();
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+    }
+}
+
 export class LegacyCsiSource {
     private constructor(private readonly root: string) {}
 
@@ -459,8 +482,11 @@ export class LegacyCsiSource {
         if (!selectedStats.isDirectory()) throw new EditorOperationError("legacy.path.directory", "Legacy CSI path must be a directory");
         const canonicalSelection = await realpath(selectedPath);
         const candidates = [canonicalSelection, path.join(canonicalSelection, "CSI")];
-        for (const candidate of candidates) if (await isDirectory(candidate) && await isDirectory(path.join(candidate, "Surfaces"))) return new LegacyCsiSource(await realpath(candidate));
-        throw new EditorOperationError("legacy.path.invalid", "Could not find a legacy CSI/Surfaces directory at the selected path");
+        for (const candidate of candidates) {
+            if (!await isDirectory(candidate)) continue;
+            if (await isDirectory(path.join(candidate, "Surfaces")) || await isRegularFile(path.join(candidate, "CSI.ini")) || await isRegularFile(path.join(candidate, "ReaControlSurface.ini"))) return new LegacyCsiSource(await realpath(candidate));
+        }
+        throw new EditorOperationError("legacy.path.invalid", "Could not find a legacy Surfaces directory, CSI.ini, or ReaControlSurface.ini at the selected path");
     }
 
     getRoot(): string {
@@ -470,14 +496,38 @@ export class LegacyCsiSource {
     async listSurfaces(): Promise<LegacySurfaceSummary[]> {
         const summaries: LegacySurfaceSummary[] = [];
         const surfacesRoot = path.join(this.root, "Surfaces");
+        if (!await isDirectory(surfacesRoot)) return summaries;
         for (const entry of (await readdir(surfacesRoot, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name))) {
             const surfaceRoot = path.join(surfacesRoot, entry.name);
             if (!await isDirectory(surfaceRoot)) continue;
-            if (!await this.isRegularFile(path.join(surfaceRoot, "Surface.txt"))) continue;
+            if (!await isRegularFile(path.join(surfaceRoot, "Surface.txt"))) continue;
             const [zoneCount, fxZoneCount] = await Promise.all([this.countZones(path.join(surfaceRoot, "Zones")), this.countZones(path.join(surfaceRoot, "FXZones"))]);
             summaries.push({ fxZoneCount, name: entry.name, stableId: stableId(entry.name), zoneCount: zoneCount + fxZoneCount });
         }
         return summaries;
+    }
+
+    async previewProductConfig(store: ConfigurationStore): Promise<LegacyProductConfigPreview> {
+        const targetPath = store.getConfigFilename();
+        const targetState = await store.fileState(targetPath);
+        const sourcePath = (await Promise.all(["CSI.ini", "ReaControlSurface.ini"].map(async (candidate) => await isRegularFile(path.join(this.root, candidate)) ? candidate : undefined))).find(Boolean);
+        if (!sourcePath) return { available: false, diagnostics: [], source: "", sourcePath: "CSI.ini", targetExists: targetState.exists, targetHash: targetState.hash, targetPath, valid: false };
+        const legacyPath = path.join(this.root, sourcePath);
+        const originalSource = await readFile(legacyPath, "utf8");
+        const conversion = convertLegacyProductConfig(originalSource, sourcePath);
+        const document = store.parseDocument(targetPath, conversion.source);
+        const diagnostics = [...conversion.diagnostics, ...document.diagnostics];
+        return { available: true, diagnostics, originalSourceHash: sha256(originalSource), source: conversion.source, sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, valid: !diagnostics.some((diagnostic) => diagnostic.severity === "error") };
+    }
+
+    async importProductConfig(store: ConfigurationStore, originalSourceHash: string, targetHash: string | null, replace: boolean): Promise<OperationReport> {
+        const preview = await this.previewProductConfig(store);
+        if (!preview.available || !preview.originalSourceHash) throw new EditorOperationError("legacy.config.missing", "The selected old CSI folder has no CSI.ini or ReaControlSurface.ini file");
+        if (!preview.valid) throw new EditorOperationError("validation.failed", "CSI.ini conversion contains errors", preview.diagnostics);
+        if (preview.originalSourceHash !== originalSourceHash) throw new EditorOperationError("conflict.legacy-source", "CSI.ini changed after preview");
+        if (preview.targetHash !== targetHash) throw new EditorOperationError("conflict.legacy-target", `${preview.targetPath} changed after preview`);
+        if (preview.targetExists && !replace) throw new EditorOperationError("legacy.resolution.conflict", `Confirm replacement of ${preview.targetPath}`);
+        return store.saveTransaction([{ originalHash: preview.targetHash, path: preview.targetPath, source: preview.source }]);
     }
 
     async preview(store: ConfigurationStore, knownActions: Set<string>, surfaceName: string, includeSurface: boolean, selectedZonePaths?: string[], requestedWidgetMappings: LegacyWidgetMapping[] = [], useExistingSurface = false, drafts: LegacyImportDraft[] = [], requestedProfileId?: string, requestedTargetPaths: LegacyImportTargetPath[] = []): Promise<LegacyImportPreview> {
@@ -654,7 +704,8 @@ export class LegacyCsiSource {
         const items: LegacyImportItem[] = [];
         const appendItem = async (kind: LegacyImportKind, sourcePath: string, originalSourceHash: string, targetPath: string, source: string, document: AnyDocument, selected: boolean, zoneName?: string): Promise<void> => {
             const targetState = await store.fileState(targetPath);
-            items.push({ diagnostics: diagnosticsWithQuickFixes(document, knownActions, true), id: `${kind}:${sourcePath}`, kind, originalSourceHash, selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, zoneName });
+            const vendorOverridePath = kind === "zone" && !targetState.exists ? await store.vendorZoneOverridePath(targetPath) : undefined;
+            items.push({ diagnostics: diagnosticsWithQuickFixes(document, knownActions, true), id: `${kind}:${sourcePath}`, kind, originalSourceHash, selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, vendorOverridePath, zoneName });
         };
         await appendItem("surface", files.surface.sourcePath, files.surface.originalSourceHash, surfaceTargetPath, migratedSurface, surfaceDocument, includeSurface);
         for (const zone of normalZones) {
@@ -742,8 +793,8 @@ export class LegacyCsiSource {
             if (!resolution) throw new EditorOperationError("legacy.resolution.required", `Choose how to import ${item.sourcePath}`);
             if (resolution.sourceHash !== item.sourceHash) throw new EditorOperationError("conflict.legacy-source", `Legacy source changed after preview: ${item.sourcePath}`);
             if (resolution.targetHash !== item.targetHash) throw new EditorOperationError("conflict.legacy-target", `Import target changed after preview: ${item.targetPath}`);
-            if (!item.targetExists && resolution.action !== "create") throw new EditorOperationError("legacy.resolution.create", `New import target must use Create: ${item.targetPath}`);
-            if (item.targetExists && !["rename", "replace", "skip"].includes(resolution.action)) throw new EditorOperationError("legacy.resolution.conflict", `Choose Rename, Replace, or Skip for ${item.targetPath}`);
+            if (!item.targetExists && !item.vendorOverridePath && resolution.action !== "create") throw new EditorOperationError("legacy.resolution.create", `New import target must use Create: ${item.targetPath}`);
+            if ((item.targetExists || item.vendorOverridePath) && !["rename", "replace", "skip"].includes(resolution.action)) throw new EditorOperationError("legacy.resolution.conflict", `Choose Rename, Replace, or Skip for ${item.targetPath}`);
             if (resolution.action === "skip") {
                 skipped.push(item.targetPath);
                 continue;
@@ -802,7 +853,7 @@ export class LegacyCsiSource {
         });
         if (!stats.isDirectory()) throw new EditorOperationError("legacy.surface.directory", `Legacy surface is not a directory: ${surfaceName}`);
         const surfacePath = path.join(surfaceRoot, "Surface.txt");
-        if (!await this.isRegularFile(surfacePath)) throw new EditorOperationError("legacy.surface.file", `Legacy surface has no regular Surface.txt file: ${surfaceName}`);
+        if (!await isRegularFile(surfacePath)) throw new EditorOperationError("legacy.surface.file", `Legacy surface has no regular Surface.txt file: ${surfaceName}`);
         const mainZones = await this.readZones(path.join(surfaceRoot, "Zones"), "Main", "Zones");
         const navigators = new Map<string, string>();
         const zones: LegacyZoneSourceFile[] = [];
@@ -870,12 +921,4 @@ export class LegacyCsiSource {
         await visit(zonesRoot, "", new Set());
     }
 
-    private async isRegularFile(filePath: string): Promise<boolean> {
-        try {
-            return (await stat(filePath)).isFile();
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-            throw error;
-        }
-    }
 }

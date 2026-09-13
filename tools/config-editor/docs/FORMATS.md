@@ -45,6 +45,7 @@ Page Home {
 - `Link` blocks connect two Page-local Surface IDs and declare a non-empty `Share=[ ... ]` category list.
 - Only `//` starts a comment. `#` is invalid in the product configuration.
 - Unknown blocks and properties are errors.
+- Old `CSI.ini` and renamed legacy `ReaControlSurface.ini` files are read only by the Bun legacy importer. The import preview converts devices, pages, Surface assignments, links, and supported global settings to this `.conf` model. Replacing an existing product configuration requires explicit confirmation and fresh source and target hash checks.
 
 ## Surface 2
 
@@ -101,36 +102,20 @@ ZoneEnd
 - Zone dependency cycles are errors.
 - An `FXWidgetLayout` file can place the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives after `ZoneEnd`. These are metadata keywords, not comments.
 
-## Functional snippet 1
+## Functional snippet 2
 
-Snippets store semantic bindings, not hardware widget names:
-
-```text
-Snippet Version=1 Id=transport Name="Transport controls"
-  Binding Id=play Role=Button Input=Press Feedback=Toggle Required=Yes
-    Action NoMod Play
-    Action Shift Reaper 40044
-  BindingEnd
-SnippetEnd
-```
-
-- `Snippet` has a stable `Id` and a display `Name`. Every `Binding` has a stable `Id`.
-- `Role` is one of `Button`, `Display`, `Fader`, `Meter`, or `Rotary`.
-- `Input` contains one or more `Press`, `Relative`, `Absolute`, or `Touch` capabilities separated by `+`.
-- `Feedback` contains one or more `Toggle`, `Color`, `Value`, `Text`, or `Meter` capabilities separated by `+`. Use `Feedback=None` when the binding needs no feedback.
-- `Required` is `Yes` or `No`. An optional binding can be skipped, but the user must confirm the skip.
-- Each binding contains at least one `Action`. An action contains a modifier expression, runtime action, and its parameters. `NoMod` cannot be combined with other modifiers.
-- A `Widget` property is an error. The application UI resolves an exact compatible semantic-slot and widget-name match automatically. A different manual selection requires confirmation.
-
-The editor compares each selected widget with the binding role and capabilities. A mismatch is blocked by default. The user can apply it only after the editor shows the mismatch and the user enables the override and confirms the widget.
-
-Applying a snippet resolves semantic bindings into normal zone lines. The editor inserts the lines before `ZoneEnd` in a marked block:
+Snippets are direct Zone fragments:
 
 ```text
-  // @snippet Application=transport Source=transport
-  Play Play
-  Stop Stop
-  // @snippet-end Application=transport
+@Meta { Version=2 Name="Transport controls" }
+
+play Play
+[Shift]+play Reaper 40044
+stop Stop
 ```
 
-`Application` is a stable ID inside the target zone. A repeated application requires `Replace`, `Rename`, or `Skip`. `Replace` changes only the matching marked block, `Rename` adds a separate block with a new application ID, and `Skip` writes nothing. The editor rechecks the snippet, surface, and target-zone hashes and saves the resolved zone through one validated transaction.
+- The first significant line is `@Meta { Version=2 }`.
+- The remaining lines use the normal format 2 Zone binding grammar.
+- Exact Widget names are mapped automatically. A different Widget requires user confirmation.
+- The editor inserts resolved lines directly into the unsaved Zone draft. It does not add application IDs or hidden marker comments.
+- Normal Zone and Surface validation checks the result before save.

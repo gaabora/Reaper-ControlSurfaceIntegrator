@@ -50,7 +50,7 @@ describe("configuration formats", () => {
             ["product.conf", "product.property.integer"],
             ["single-slash.zon", "comment.single-slash.unsupported"],
             ["surface.txt", "surface.format.version"],
-            ["transport.snippet", "snippet.id"],
+            ["transport.snippet", "format2.metadata.version"],
         ]);
         for (const fixturePath of await fixturePaths("invalid")) {
             const source = await readFile(fixturePath, "utf8");
@@ -240,12 +240,11 @@ describe("configuration formats", () => {
         expect(wrongCapability.diagnostics.some((diagnostic) => diagnostic.code === "surface.layout.target.capability" && diagnostic.severity === "error")).toBeTrue();
     });
 
-    test("functional snippet bindings require explicit semantic fields and valid modifiers", () => {
-        const document = parseByPath("Snippet Version=1 Id=test Name=Test\n  Binding Id=play Role=Button Input=Press\n    Action NoMod+Shift Play\n  BindingEnd\nSnippetEnd\n", "test.snippet", new Set(["Play"]));
+    test("functional snippets use direct format 2 Zone bindings", () => {
+        const document = parseByPath("@Meta { Version=2 Name=Test }\n\n[Shift]+play Play\n", "test.snippet", new Set(["Play"]));
         const errorCodes = document.diagnostics.filter((diagnostic) => diagnostic.severity === "error").map((diagnostic) => diagnostic.code);
-        expect(errorCodes).toContain("snippet.binding.feedback");
-        expect(errorCodes).toContain("snippet.binding.required.missing");
-        expect(errorCodes).toContain("snippet.action.modifiers");
+        expect(errorCodes).toEqual([]);
+        expect((document.semantic as { bindings: Array<{ id: string }> }).bindings[0].id).toBe("play");
     });
 
     test("GoZone navigation may return to an earlier zone", () => {

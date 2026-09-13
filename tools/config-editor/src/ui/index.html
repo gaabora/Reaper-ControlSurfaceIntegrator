@@ -86,6 +86,12 @@
                     <label class="legacy-surface-control"><span>{{legacy.surface.title}}</span><select id="legacy-surface" disabled><option value="">{{legacy.surface.placeholder}}</option></select></label>
                     <button id="legacy-reload" disabled>{{action.reloadLegacy}}</button>
                   </div>
+                  <details id="legacy-product-config" class="legacy-subsection" hidden>
+                    <summary>{{legacy.config.title}}</summary>
+                    <p id="legacy-config-status" class="secondary"></p>
+                    <pre id="legacy-config-source" class="operation-report"></pre>
+                    <div class="legacy-config-actions"><label id="legacy-config-replace-label" hidden><input id="legacy-config-replace" type="checkbox"> {{legacy.config.replace}}</label><button id="legacy-config-import" class="primary">{{legacy.config.import}}</button></div>
+                  </details>
                   <div class="legacy-selection-controls">
                     <label><input id="legacy-include-surface" type="checkbox" checked> {{legacy.includeSurface}}</label>
                     <div class="actions"><button id="legacy-select-all" disabled>{{legacy.selectAll}}</button><button id="legacy-select-none" disabled>{{legacy.selectNone}}</button></div>
@@ -121,10 +127,12 @@
             <button id="surface-designer-open" hidden>{{surfaceDesigner.open}}</button>
             <button id="surface-designer-code" hidden>{{surfaceDesigner.code}}</button>
             <button id="clone" hidden>{{action.makeEditable}}</button>
+            <button id="rename-zone" hidden>{{action.renameZone}}</button>
             <button id="discard-changes" disabled>{{action.discardChanges}}</button>
             <button id="save" disabled>{{action.save}}</button>
           </div>
         </div>
+        <div id="zone-context" class="zone-context" hidden></div>
         <div id="draft-conflict" class="draft-conflict danger" hidden>
           <span>{{draft.conflict}}</span>
           <button id="draft-restore">{{draft.restore}}</button>
@@ -171,13 +179,7 @@
     <div class="dialog-panel">
       <div class="dialog-header"><div><h2>{{snippet.dialog.title}}</h2><p id="snippet-target-path" class="secondary"></p></div><button id="snippet-close" class="icon-button" title="{{action.close}}" aria-label="{{action.close}}">×</button></div>
       <label id="snippet-surface-field" hidden><span>{{snippet.surface}}</span><select id="snippet-surface"></select><span id="snippet-surface-feedback" class="feedback danger" hidden></span></label>
-      <label><span>{{snippet.applicationId}}</span><input id="snippet-application-id" placeholder="{{snippet.applicationId}}"></label>
       <div id="snippet-bindings" class="snippet-bindings secondary">{{snippet.bindings.empty}}</div>
-      <div id="snippet-conflict" class="snippet-conflict warning" hidden>
-        <strong>{{snippet.conflict.message}}</strong>
-        <select id="snippet-conflict-action" aria-label="{{snippet.conflict.title}}"></select>
-        <input id="snippet-rename-id" placeholder="{{snippet.conflict.renameId}}" hidden>
-      </div>
       <div id="snippet-diagnostics" class="secondary">{{problems.none}}</div>
       <div class="dialog-actions"><button id="snippet-cancel">{{action.cancel}}</button><button id="snippet-insert" class="primary" disabled>{{action.insertSnippet}}</button></div>
     </div>
@@ -187,6 +189,16 @@
       <h2 id="discard-dialog-title">{{discard.title}}</h2>
       <p id="discard-dialog-message">{{discard.message}}</p>
       <div class="dialog-actions"><button id="discard-cancel">{{action.cancel}}</button><button id="discard-confirm" class="danger-button">{{action.discardChanges}}</button></div>
+    </div>
+  </dialog>
+  <dialog id="rename-zone-dialog">
+    <div class="dialog-panel confirm-dialog">
+      <h2>{{zone.rename.title}}</h2>
+      <p>{{zone.rename.description}}</p>
+      <p id="rename-zone-impact" class="secondary"></p>
+      <label><span>{{zone.rename.newId}}</span><input id="rename-zone-id" placeholder="lowercase-zone-id"></label>
+      <div id="rename-zone-feedback" class="feedback danger" hidden></div>
+      <div class="dialog-actions"><button id="rename-zone-cancel">{{action.cancel}}</button><button id="rename-zone-confirm" class="primary">{{action.renameZone}}</button></div>
     </div>
   </dialog>
   <dialog id="help-dialog">

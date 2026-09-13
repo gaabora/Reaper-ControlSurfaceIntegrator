@@ -31,7 +31,7 @@ describe("local editor server", () => {
             expect(pageText).toContain("Test Product Conf Editor");
             expect(pageText).toContain(`<meta name="config-editor-session-token" content="${running.token}">`);
             expect(running.url).not.toContain(running.token);
-            expect(await (await fetch(new URL("/health", running.url))).json()).toEqual({ editorApiVersion: 11, productId: identity.productId });
+            expect(await (await fetch(new URL("/health", running.url))).json()).toEqual({ editorApiVersion: 12, productId: identity.productId });
             const translations = await fetch(new URL("/app-translations.json", running.url));
             expect(translations.status).toBe(200);
             expect((await translations.json())["app.title"]).toBe("{product} Conf Editor");
@@ -60,9 +60,9 @@ describe("local editor server", () => {
         await mkdir(path.dirname(zonePath), { recursive: true });
         await mkdir(path.dirname(legacySurfacePath), { recursive: true });
         await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test-surface\n    MainProfile=test-profile\n    FXProfile=test-profile\n  }\n}\n", "utf8");
-        await writeFile(snippetPath, "Snippet Version=1 Id=transport Name=Transport\n  Binding Id=play Role=Button Input=Press Feedback=Toggle Required=Yes\n    Action NoMod Play\n  BindingEnd\nSnippetEnd\n", "utf8");
-        await writeFile(surfacePath, "// @format surface 1\nWidget Play\n  Press 90 5e 7f 90 5e 00\n  FB_TwoState 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
-        await writeFile(zonePath, "// @format zone 1\nZone Home\n  Play Play\nZoneEnd\n", "utf8");
+        await writeFile(snippetPath, "@Meta { Version=2 Name=Transport }\n\nPlay Play\n", "utf8");
+        await writeFile(surfacePath, "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5e,0x7f] Off=[0x90,0x5e,0x00] }\n}\n", "utf8");
+        await writeFile(zonePath, "@Meta { Version=2 Role=Home }\n\nPlay Play\n", "utf8");
         await writeFile(legacySurfacePath, "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
         const running = startEditorServer({ actions, candidates: [], editorJavascript, identity, settingsSchema, surfaceIoSchema });
         const headers = { "Content-Type": "application/json", "X-Session-Token": running.token };
@@ -74,7 +74,7 @@ describe("local editor server", () => {
             expect(selectedPayload.legacy.surfaces.map((surface: { name: string }) => surface.name)).toEqual(["LegacySurface"]);
 
             const previewResponse = await fetch(new URL("/api/snippet/preview", running.url), {
-                body: JSON.stringify({ applicationId: "transport", bindingChoices: [{ allowIncompatible: false, bindingId: "play", confirmed: true, widgetName: "Play" }], conflictAction: "", insertionLine: 1, snippetPath: "Snippets/BuiltIn/transport.snippet", surfacePath: "Surfaces/Vendor/test-surface.txt", targetSource: await Bun.file(zonePath).text(), targetZonePath: "Zones/User/test-profile/Main/Home.zon" }),
+                body: JSON.stringify({ bindingChoices: [{ bindingId: "Play", confirmed: true, widgetName: "Play" }], insertionLine: 1, snippetPath: "Snippets/BuiltIn/transport.snippet", surfacePath: "Surfaces/Vendor/test-surface.txt", targetSource: await Bun.file(zonePath).text(), targetZonePath: "Zones/User/test-profile/Main/Home.zon" }),
                 headers,
                 method: "POST",
             });

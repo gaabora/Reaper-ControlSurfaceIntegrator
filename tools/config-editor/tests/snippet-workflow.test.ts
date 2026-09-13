@@ -7,141 +7,69 @@ import type { EditorProductIdentity } from "../src/product-identity.ts";
 import { previewSnippetApplication, type SnippetApplicationRequest } from "../src/snippet-workflow.ts";
 import { ConfigurationStore } from "../src/store.ts";
 
-const identity: EditorProductIdentity = {
-    configFilename: "TestProduct.conf",
-    displayName: "Test Product",
-    packagePrefix: "TestProduct",
-    productId: "test-product",
-    resourceDirectory: "TestProduct",
-};
+const identity: EditorProductIdentity = { configFilename: "TestProduct.conf", displayName: "Test Product", packagePrefix: "TestProduct", productId: "test-product", resourceDirectory: "TestProduct" };
 const knownActions = new Set(["Play", "Record", "Stop"]);
-const snippetSource = `Snippet Version=1 Id=transport Name="Transport controls"
-  Binding Id=play Role=Button Input=Press Feedback=Toggle Required=Yes
-    Action NoMod Play
-  BindingEnd
-  Binding Id=stop Role=Button Input=Press Feedback=Toggle Required=Yes
-    Action NoMod Stop
-  BindingEnd
-SnippetEnd
-`;
-const surfaceSource = `// @format surface 1
-Widget Play
-  Press 90 5e 7f 90 5e 00
-  FB_TwoState 90 5e 7f 90 5e 00
-WidgetEnd
-Widget Stop
-  Press 90 5d 7f 90 5d 00
-  FB_TwoState 90 5d 7f 90 5d 00
-WidgetEnd
-Widget Rotary RotaryWidgetClass
-  Encoder b0 10 7f
-WidgetEnd
-`;
-const zoneSource = "// @format zone 1\nZone Home\n  Record Record\nZoneEnd\n";
+const snippetSource = "@Meta { Version=2 Name=Transport }\n\nplay Play\nstop Stop\n";
+const surfaceSource = "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5e,0x7f] Off=[0x90,0x5e,0x00] }\n}\nWidget Stop {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5d,0x7f] Off=[0x90,0x5d,0x00] }\n}\nWidget Record {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5c,0x7f] Off=[0x90,0x5c,0x00] }\n}\nWidget Rotary {\n  Input Encoder { Encoding=MIDI7 Message=[0xb0,0x10] Mode=Relative7Bit }\n}\n";
+const zoneSource = "@Meta { Version=2 Role=Home }\n\nRecord Record\n";
 const snippetPath = "Snippets/BuiltIn/transport.snippet";
 const surfacePath = "Surfaces/Vendor/test-surface.txt";
 const targetZonePath = "Zones/User/test-profile/Main/Home.zon";
 let temporaryRoot = "";
 let productRoot = "";
 
-function choices(playWidget = "Play", allowIncompatible = false): SnippetApplicationRequest["bindingChoices"] {
-    return [
-        { allowIncompatible, bindingId: "play", confirmed: true, widgetName: playWidget },
-        { allowIncompatible: false, bindingId: "stop", confirmed: true, widgetName: "Stop" },
-    ];
-}
-
-function applicationRequest(bindingChoices = choices(), targetSource = zoneSource): SnippetApplicationRequest {
-    return { applicationId: "transport", bindingChoices, conflictAction: "", insertionLine: 1, snippetPath, surfacePath, targetSource, targetZonePath };
+function applicationRequest(bindingChoices: SnippetApplicationRequest["bindingChoices"] = [], insertionLine = 1): SnippetApplicationRequest {
+    return { bindingChoices, insertionLine, snippetPath, surfacePath, targetSource: zoneSource, targetZonePath };
 }
 
 async function createStore(): Promise<ConfigurationStore> {
-    const guard = await ProductRootGuard.create(productRoot, identity);
-    return new ConfigurationStore(guard, knownActions);
+    return new ConfigurationStore(await ProductRootGuard.create(productRoot, identity), knownActions);
 }
 
 beforeEach(async () => {
     temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "config-editor-snippet-"));
     productRoot = path.join(temporaryRoot, identity.resourceDirectory);
-    await mkdir(path.join(productRoot, "Snippets", "BuiltIn"), { recursive: true });
-    await mkdir(path.join(productRoot, "Snippets", "User"), { recursive: true });
-    await mkdir(path.join(productRoot, "Surfaces", "Vendor"), { recursive: true });
-    await mkdir(path.join(productRoot, "Zones", "User", "test-profile", "Main"), { recursive: true });
-    await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test-surface\n    MainProfile=test-profile\n    FXProfile=test-profile\n  }\n}\n", "utf8");
-    await writeFile(path.join(productRoot, ...snippetPath.split("/")), snippetSource, "utf8");
-    await writeFile(path.join(productRoot, ...surfacePath.split("/")), surfaceSource, "utf8");
-    await writeFile(path.join(productRoot, ...targetZonePath.split("/")), zoneSource, "utf8");
+    for (const directory of [path.dirname(path.join(productRoot, snippetPath)), path.dirname(path.join(productRoot, surfacePath)), path.dirname(path.join(productRoot, targetZonePath))]) await mkdir(directory, { recursive: true });
+    await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test-surface\n    MainProfile=test-profile\n  }\n}\n", "utf8");
+    await writeFile(path.join(productRoot, snippetPath), snippetSource, "utf8");
+    await writeFile(path.join(productRoot, surfacePath), surfaceSource, "utf8");
+    await writeFile(path.join(productRoot, targetZonePath), zoneSource, "utf8");
 });
 
 afterEach(async () => {
     if (temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}config-editor-snippet-`)) await rm(temporaryRoot, { force: true, recursive: true });
 });
 
-describe("functional snippet workflow", () => {
-    test("previews confirmed semantic bindings without writing the target", async () => {
-        const store = await createStore();
-        const unresolved = await previewSnippetApplication(store, knownActions, applicationRequest([]));
-        expect(unresolved.valid).toBeTrue();
-        expect(unresolved.bindings.every((binding) => binding.automatic)).toBeTrue();
-        expect(unresolved.bindings.map((binding) => [binding.id, binding.recommendedWidgetName])).toEqual([["play", "Play"], ["stop", "Stop"]]);
-
-        const preview = await previewSnippetApplication(store, knownActions, applicationRequest());
+describe("format 2 snippet workflow", () => {
+    test("inserts direct Zone bindings without hidden application markers", async () => {
+        const preview = await previewSnippetApplication(await createStore(), knownActions, applicationRequest());
         expect(preview.valid).toBeTrue();
-        expect(preview.source).toContain("// @snippet Application=transport Source=transport\n  Play Play\n  Stop Stop\n  // @snippet-end Application=transport");
-        expect(await readFile(path.join(productRoot, ...targetZonePath.split("/")), "utf8")).toBe(zoneSource);
+        expect(preview.bindings.every((binding) => binding.automatic)).toBeTrue();
+        expect(preview.source).toContain("Play Play\nStop Stop");
+        expect(preview.source).not.toContain("@snippet");
+        expect(await readFile(path.join(productRoot, targetZonePath), "utf8")).toBe(zoneSource);
     });
 
-    test("requires an explained override for an incompatible widget", async () => {
-        const store = await createStore();
-        const blocked = await previewSnippetApplication(store, knownActions, applicationRequest(choices("Rotary")));
+    test("requires confirmation when a source Widget maps to another Widget", async () => {
+        const bindingChoices = [{ bindingId: "play", confirmed: false, widgetName: "Record" }, { bindingId: "stop", confirmed: true, widgetName: "Stop" }];
+        const blocked = await previewSnippetApplication(await createStore(), knownActions, applicationRequest(bindingChoices));
         expect(blocked.valid).toBeFalse();
-        expect(blocked.diagnostics.some((diagnostic) => diagnostic.code === "snippet.binding.incompatible" && diagnostic.severity === "error")).toBeTrue();
-
-        const overridden = await previewSnippetApplication(store, knownActions, applicationRequest(choices("Rotary", true)));
-        expect(overridden.valid).toBeTrue();
-        expect(overridden.diagnostics.some((diagnostic) => diagnostic.code === "snippet.binding.override" && diagnostic.severity === "warning")).toBeTrue();
-        expect(overridden.source).toContain("  Rotary Play\n");
+        bindingChoices[0].confirmed = true;
+        const accepted = await previewSnippetApplication(await createStore(), knownActions, applicationRequest(bindingChoices));
+        expect(accepted.valid).toBeTrue();
+        expect(accepted.source).toContain("Record Play");
     });
 
-    test("requires confirmation for a compatible widget without an exact semantic name", async () => {
-        const store = await createStore();
-        const unconfirmedChoices = choices("Stop");
-        unconfirmedChoices[0].confirmed = false;
-        const preview = await previewSnippetApplication(store, knownActions, applicationRequest(unconfirmedChoices));
+    test("does not automatically map an exact Widget with incompatible input", async () => {
+        await writeFile(path.join(productRoot, snippetPath), "@Meta { Version=2 }\n\n(Increase)+Play Play\n", "utf8");
+        const preview = await previewSnippetApplication(await createStore(), knownActions, applicationRequest());
         expect(preview.valid).toBeFalse();
-        expect(preview.diagnostics.some((diagnostic) => diagnostic.code === "snippet.binding.confirm" && diagnostic.severity === "error")).toBeTrue();
+        expect(preview.bindings[0].automatic).toBeFalse();
+        expect(preview.bindings[0].candidates.map((candidate) => candidate.name)).toEqual(["Rotary"]);
     });
 
-    test("requires Replace, Rename, or Skip when an application ID already exists", async () => {
-        const store = await createStore();
-        const firstPreview = await previewSnippetApplication(store, knownActions, applicationRequest());
-        const existingRequest = applicationRequest(choices(), firstPreview.source);
-
-        const conflict = await previewSnippetApplication(store, knownActions, existingRequest);
-        expect(conflict.valid).toBeFalse();
-        expect(conflict.conflict).toEqual({ action: "", existingApplicationId: "transport" });
-
-        const replaceRequest = { ...existingRequest, conflictAction: "replace" as const };
-        const replacement = await previewSnippetApplication(store, knownActions, replaceRequest);
-        expect(replacement.valid).toBeTrue();
-        expect(replacement.source.match(/@snippet Application=transport/g) ?? []).toHaveLength(1);
-
-        const renameRequest = { ...existingRequest, conflictAction: "rename" as const, renamedApplicationId: "transport-copy" };
-        const renamed = await previewSnippetApplication(store, knownActions, renameRequest);
-        expect(renamed.valid).toBeTrue();
-        expect(renamed.source).toContain("@snippet Application=transport-copy Source=transport");
-
-        const skipRequest = { ...applicationRequest([], firstPreview.source), conflictAction: "skip" as const };
-        const skipped = await previewSnippetApplication(store, knownActions, skipRequest);
-        expect(skipped.valid).toBeTrue();
-        expect(skipped.source).toBe(firstPreview.source);
-    });
-
-    test("inserts after the cursor line", async () => {
-        const store = await createStore();
-        const request = { ...applicationRequest(), insertionLine: 3 };
-        const preview = await previewSnippetApplication(store, knownActions, request);
-        expect(preview.source.indexOf("Record Record")).toBeLessThan(preview.source.indexOf("@snippet Application=transport"));
-        expect(preview.source.indexOf("@snippet-end Application=transport")).toBeLessThan(preview.source.indexOf("ZoneEnd"));
+    test("inserts after the selected line", async () => {
+        const preview = await previewSnippetApplication(await createStore(), knownActions, applicationRequest([], 3));
+        expect(preview.source.indexOf("Record Record")).toBeLessThan(preview.source.indexOf("Play Play"));
     });
 });

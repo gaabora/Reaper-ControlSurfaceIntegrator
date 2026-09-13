@@ -127,7 +127,7 @@ export function validateZoneDocumentGesturesForSurface(document: AnyDocument, su
     const diagnostics: Diagnostic[] = [];
     const resolvedBindings = resolveZoneBindings(document, surfaceDocument, resolutionDiagnostics, effectiveSettings);
     validateFormat2ZoneGestures(resolvedBindings, actionTraits, diagnostics, settingsSchema, document.path, effectiveSettings);
-    return diagnostics;
+    return [...resolutionDiagnostics, ...diagnostics];
 }
 
 function diagnosticIdentity(diagnostic: Diagnostic): string {

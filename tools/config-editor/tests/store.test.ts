@@ -110,7 +110,7 @@ describe("configuration store", () => {
         expect(manifest.status).toBe("rolled-back");
     });
 
-    test("vendor Main clone preserves User FX and does not copy other vendor content", async () => {
+    test("vendor Main override copies only the selected Zone", async () => {
         await writeFile(path.join(productRoot, "Zones", "Vendor", "faderportv2", "notes.txt"), "profile notes\n", "utf8");
         await mkdir(path.join(productRoot, "Zones", "Vendor", "faderportv2", "FX"), { recursive: true });
         await writeFile(path.join(productRoot, "Zones", "Vendor", "faderportv2", "FX", "VendorFx.zon"), alphaSource, "utf8");
@@ -122,6 +122,34 @@ describe("configuration store", () => {
         expect(await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "UserFx.zon"), "utf8")).toBe(betaSource);
         await expect(lstat(path.join(productRoot, "Zones", "User", "faderportv2", "notes.txt"))).rejects.toThrow();
         await expect(lstat(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "VendorFx.zon"))).rejects.toThrow();
+    });
+
+    test("renames one User Zone and updates profile references", async () => {
+        const mainRoot = path.join(productRoot, "Zones", "User", "profile", "Main");
+        await mkdir(mainRoot, { recursive: true });
+        const sourcePath = "Zones/User/profile/Main/old-name.zon";
+        const parentPath = "Zones/User/profile/Main/home.zon";
+        const source = "@Meta { Version=2 }\n\nPlay Play\n";
+        const parent = "@Meta { Version=2 Role=Home }\n\nold-name GoZone old-name\n";
+        await writeFile(path.join(productRoot, sourcePath), source, "utf8");
+        await writeFile(path.join(productRoot, parentPath), parent, "utf8");
+        const store = await createStore();
+        const opened = await store.openDocument(sourcePath);
+        const report = await store.renameZone({ newId: "new-name", originalHash: opened.hash, path: sourcePath, source });
+        expect(report.targetPath).toBe("Zones/User/profile/Main/new-name.zon");
+        expect(await readFile(path.join(productRoot, report.targetPath!), "utf8")).toBe(source);
+        expect(await readFile(path.join(productRoot, parentPath), "utf8")).toContain("old-name GoZone new-name");
+        await expect(lstat(path.join(productRoot, sourcePath))).rejects.toThrow();
+    });
+
+    test("does not rename a User Zone over an existing Vendor Zone ID", async () => {
+        const userRoot = path.join(productRoot, "Zones", "User", "faderportv2", "Main");
+        await mkdir(userRoot, { recursive: true });
+        const sourcePath = "Zones/User/faderportv2/Main/current.zon";
+        await writeFile(path.join(productRoot, sourcePath), "@Meta { Version=2 }\n\nPlay Play\n", "utf8");
+        const store = await createStore();
+        const opened = await store.openDocument(sourcePath);
+        await expect(store.renameZone({ newId: "home", originalHash: opened.hash, path: sourcePath, source: opened.source })).rejects.toThrow("already exists in the profile");
     });
 
     test("vendor FX clone copies only the selected file", async () => {

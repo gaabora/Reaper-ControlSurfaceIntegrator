@@ -1,4 +1,4 @@
-import { copyFile, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, open, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import type { ActionTraits } from "./action-catalog.ts";
@@ -9,6 +9,7 @@ import type { ProductRootGuard, ProductTreeEntry } from "./paths.ts";
 import type { SettingsSchema } from "./settings-schema.ts";
 import { applyQuickFix as applyRegisteredQuickFix, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, type QuickFixRequest } from "./quick-fixes.ts";
 import { validateDocumentSet, validateZoneDocumentGesturesForSurface } from "./validation.ts";
+import type { ZoneSemantic } from "./zone.ts";
 
 export interface DocumentView {
     diagnostics: Diagnostic[];
@@ -50,6 +51,20 @@ export interface OperationReport {
     operationId?: string;
     restored: string[];
     skipped: string[];
+    targetPath?: string;
+}
+
+export interface ZoneContextResult {
+    allowedNavigationActions: string[];
+    parents: Array<{ line: number; path: string; relation: string }>;
+    role: string;
+}
+
+export interface RenameZoneRequest {
+    newId: string;
+    originalHash: string;
+    path: string;
+    source: string;
 }
 
 export interface ConfigurationStoreHooks {
@@ -109,6 +124,19 @@ function flattenFileEntries(entries: ProductTreeEntry[], result: ProductTreeEntr
     return result;
 }
 
+function activeProfileZoneEntries(entries: ProductTreeEntry[], profileId: string, collection: string): ProductTreeEntry[] {
+    const activeById = new Map<string, ProductTreeEntry>();
+    const matching = flattenFileEntries(entries).filter((entry) => {
+        const location = entry.path.replaceAll("\\", "/").match(/^Zones\/(Vendor|User)\/([^/]+)\/(Main|FX)\/(.+)\.zon$/i);
+        return location && location[2].toLowerCase() === profileId.toLowerCase() && location[3].toLowerCase() === collection.toLowerCase();
+    });
+    for (const owner of ["Vendor", "User"]) for (const entry of matching) {
+        const location = entry.path.replaceAll("\\", "/").match(/^Zones\/(Vendor|User)\/([^/]+)\/(Main|FX)\/(.+)\.zon$/i)!;
+        if (location[1].toLowerCase() === owner.toLowerCase()) activeById.set(path.posix.basename(location[4]).toLowerCase(), entry);
+    }
+    return [...activeById.values()];
+}
+
 function operationId(): string {
     const timestamp = new Date().toISOString().toLowerCase().replace(/[^a-z0-9]/g, "");
     return `operation-${timestamp}-${randomUUID()}`;
@@ -127,6 +155,20 @@ export class ConfigurationStore {
 
     getReaperDataPath(): string {
         return this.guard.getReaperDataPath();
+    }
+
+    getConfigFilename(): string {
+        return this.guard.getIdentity().configFilename;
+    }
+
+    async vendorZoneOverridePath(relativePath: string): Promise<string | undefined> {
+        const location = relativePath.replaceAll("\\", "/").match(/^Zones\/User\/([^/]+)\/(Main|FX)\/(.+)\.zon$/i);
+        if (!location) return undefined;
+        const zoneId = path.posix.basename(location[3]).toLowerCase();
+        return flattenFileEntries(await this.tree()).find((entry) => {
+            const candidate = entry.path.replaceAll("\\", "/").match(/^Zones\/Vendor\/([^/]+)\/(Main|FX)\/(.+)\.zon$/i);
+            return candidate && candidate[1].toLowerCase() === location[1].toLowerCase() && candidate[2].toLowerCase() === location[2].toLowerCase() && path.posix.basename(candidate[3]).toLowerCase() === zoneId;
+        })?.path;
     }
 
     async tree(): Promise<ProductTreeEntry[]> {
@@ -186,6 +228,100 @@ export class ConfigurationStore {
             documents.set(entry.path.toLowerCase(), this.parseDocument(entry.path, opened.source));
         }
         return [...documents.values()];
+    }
+
+    async zoneContext(relativePath: string, source: string): Promise<ZoneContextResult> {
+        const location = relativePath.replaceAll("\\", "/").match(/^Zones\/(?:Vendor|User)\/([^/]+)\/(Main|FX)\/(.+)\.zon$/i);
+        if (!location) throw new EditorOperationError("zone.context.path", "Zone context requires a Main or FX .zon file");
+        const currentDocument = this.parseDocument(relativePath, source);
+        if (currentDocument.format !== "zone") throw new EditorOperationError("zone.context.format", "Zone context requires a Zone file");
+        const currentSemantic = currentDocument.semantic as ZoneSemantic;
+        const zoneId = path.posix.basename(relativePath, ".zon");
+        const parents: ZoneContextResult["parents"] = [];
+        for (const entry of activeProfileZoneEntries(await this.tree(), location[1], location[2])) {
+            if (entry.path.toLowerCase() === relativePath.toLowerCase()) continue;
+            const opened = await this.openDocument(entry.path);
+            const semantic = opened.document.semantic as ZoneSemantic;
+            for (const reference of semantic.dependencyReferences) if (reference.name.toLowerCase() === zoneId.toLowerCase()) parents.push({ line: reference.line, path: entry.path, relation: reference.type });
+        }
+        const isLayer = currentSemantic.role === "Layer";
+        return { allowedNavigationActions: isLayer ? ["ExitZoneLayer"] : ["GoZone", "GoHome", "EnterZoneLayer"], parents, role: isLayer ? "Layer" : location[2] === "FX" ? "FX" : currentSemantic.role || "Normal" };
+    }
+
+    async renameZone(request: RenameZoneRequest): Promise<OperationReport> {
+        if (!/^[a-z0-9][a-z0-9_-]*$/.test(request.newId)) throw new EditorOperationError("zone.rename.id", "The new Zone ID must use lowercase letters, numbers, _ or -");
+        const location = request.path.replaceAll("\\", "/").match(/^Zones\/User\/([^/]+)\/(Main|FX)\/(.+)\.zon$/);
+        if (!location) throw new EditorOperationError("zone.rename.path", "Only a User Main or FX Zone can be renamed");
+        const oldId = path.posix.basename(request.path, ".zon");
+        if (oldId === request.newId) throw new EditorOperationError("zone.rename.same", "The new Zone ID is the same as the current ID");
+        const targetPath = path.posix.join(path.posix.dirname(request.path), `${request.newId}.zon`);
+        const caseOnlyRename = oldId.toLowerCase() === request.newId.toLowerCase();
+        const profileEntries = activeProfileZoneEntries(await this.tree(), location[1], location[2]);
+        const conflictingEntry = profileEntries.find((entry) => path.posix.basename(entry.path, ".zon").toLowerCase() === request.newId.toLowerCase() && entry.path.toLowerCase() !== request.path.toLowerCase());
+        if (!caseOnlyRename && conflictingEntry) throw new EditorOperationError("conflict.exists", `A Zone with this ID already exists in the profile: ${conflictingEntry.path}`);
+        const sourceState = await this.fileState(request.path);
+        if (!sourceState.exists || sourceState.hash !== request.originalHash) throw new EditorOperationError("conflict.hash", `Configuration changed after it was opened: ${request.path}`, { currentHash: sourceState.hash, originalHash: request.originalHash });
+        const escapedId = oldId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const replaceReferences = (source: string, referencesByLine: ReadonlyMap<number, string[]>): string => source.split(/(?<=\n)/).map((sourceLine, lineIdx) => {
+            const referenceTypes = referencesByLine.get(lineIdx + 1);
+            if (!referenceTypes?.length) return sourceLine;
+            const commentPosition = sourceLine.indexOf("//");
+            let code = commentPosition < 0 ? sourceLine : sourceLine.slice(0, commentPosition);
+            const comment = commentPosition < 0 ? "" : sourceLine.slice(commentPosition);
+            for (const referenceType of referenceTypes) {
+                if (["IncludedZones", "SubZones", "ZoneLayers"].includes(referenceType)) code = code.replace(new RegExp(`(^|\\s)${escapedId}(?=\\s|}|$)`, "gi"), `$1${request.newId}`);
+                else {
+                    const actionMatch = new RegExp(`\\b${referenceType.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).exec(code);
+                    if (actionMatch) {
+                        const parameterStart = actionMatch.index + actionMatch[0].length;
+                        code = code.slice(0, parameterStart) + code.slice(parameterStart).replace(new RegExp(`(^|\\s)${escapedId}(?=\\s|}|$)`, "i"), `$1${request.newId}`);
+                    }
+                }
+            }
+            return code + comment;
+        }).join("");
+        const sourceDocument = this.parseDocument(request.path, request.source);
+        const matchingReferences = (semantic: ZoneSemantic): Map<number, string[]> => {
+            const result = new Map<number, string[]>();
+            for (const reference of semantic.dependencyReferences) {
+                if (reference.name.toLowerCase() !== oldId.toLowerCase()) continue;
+                result.set(reference.line, [...result.get(reference.line) ?? [], reference.type]);
+            }
+            return result;
+        };
+        const renamedSource = replaceReferences(request.source, matchingReferences(sourceDocument.semantic as ZoneSemantic));
+        const renamedDocument = this.parseDocument(targetPath, renamedSource);
+        if (renamedDocument.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new EditorOperationError("validation.failed", `Renamed Zone contains errors: ${targetPath}`, renamedDocument.diagnostics);
+
+        const changes: SaveChange[] = [{ originalHash: null, path: targetPath, source: renamedSource }];
+        for (const entry of profileEntries) {
+            if (entry.path.toLowerCase() === request.path.toLowerCase()) continue;
+            const userRelativePath = entry.path.replace(/^Zones\/(?:Vendor|User)\//i, "");
+            const opened = await this.openDocument(entry.path);
+            const semantic = opened.document.semantic as ZoneSemantic;
+            const referencesByLine = matchingReferences(semantic);
+            if (!referencesByLine.size) continue;
+            const changedSource = replaceReferences(opened.source, referencesByLine);
+            const changePath = entry.path.startsWith("Zones/Vendor/") ? `Zones/User/${userRelativePath}` : entry.path;
+            const originalHash = entry.path.startsWith("Zones/Vendor/") ? null : opened.hash;
+            changes.push({ originalHash, path: changePath, source: changedSource });
+        }
+
+        const sourceAbsolutePath = await this.guard.resolveExisting(request.path);
+        const currentOperationId = operationId();
+        const backupRelativePath = `Backups/${currentOperationId}/renamed-from/${request.path}`;
+        const backupPath = await this.guard.resolveForWrite(backupRelativePath);
+        await mkdir(path.dirname(backupPath), { recursive: true });
+        await rename(sourceAbsolutePath, backupPath);
+        try {
+            const report = await this.saveTransaction(changes);
+            report.changed.push(request.path);
+            report.targetPath = targetPath;
+            return report;
+        } catch (error) {
+            await rename(backupPath, sourceAbsolutePath);
+            throw error;
+        }
     }
 
     applyQuickFix(relativePath: string, source: string, request: QuickFixRequest): { document: DocumentView; source: string } {
@@ -343,64 +479,16 @@ export class ConfigurationStore {
             const targetPath = `Snippets/User/${segments[2]}`;
             return this.cloneFile(relativePath, targetPath);
         }
-        if (info.owner === "vendor" && info.kind === "zone" && segments[3] === "FX") return this.cloneFile(relativePath, `Zones/User/${segments.slice(2).join("/")}`);
-        if (info.owner === "vendor" && info.kind === "zone" && segments[3] === "Main") return this.cloneMainZones(segments[2]);
-        throw new EditorOperationError("clone.unsupported", "Only vendor surfaces, vendor Main zones, individual vendor FX zones, and built-in snippets can be cloned");
+        if (info.owner === "vendor" && info.kind === "zone" && (segments[3] === "FX" || segments[3] === "Main")) return this.cloneFile(relativePath, `Zones/User/${segments.slice(2).join("/")}`);
+        throw new EditorOperationError("clone.unsupported", "Only vendor surfaces, individual vendor zones, and built-in snippets can be cloned");
     }
 
     private async cloneFile(sourceRelativePath: string, targetRelativePath: string): Promise<OperationReport> {
         const sourcePath = await this.guard.resolveExisting(sourceRelativePath);
         const source = await readFile(sourcePath, "utf8");
-        return this.saveTransaction([{ originalHash: null, path: targetRelativePath, source }]);
-    }
-
-    private async cloneMainZones(profileId: string): Promise<OperationReport> {
-        if (!/^[a-z0-9][a-z0-9_-]*$/.test(profileId)) throw new EditorOperationError("clone.profile-id", `Invalid vendor profile ID: ${profileId}`);
-        const sourceRelativePath = `Zones/Vendor/${profileId}/Main`;
-        const targetRelativePath = `Zones/User/${profileId}/Main`;
-        const sourceRoot = await this.guard.resolveExisting(sourceRelativePath);
-        const targetRoot = await this.guard.resolveForWrite(targetRelativePath);
-        try {
-            await lstat(targetRoot);
-            throw new EditorOperationError("conflict.exists", `User Main zone folder already exists: ${profileId}`);
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        }
-        const temporaryRoot = `${targetRoot}.tmp.${randomUUID()}`;
-        const report = emptyReport();
-        try {
-            await mkdir(path.dirname(targetRoot), { recursive: true });
-            await mkdir(temporaryRoot);
-            await this.copyDirectory(sourceRoot, temporaryRoot, sourceRelativePath, report, new Set());
-            await rename(temporaryRoot, targetRoot);
-            return report;
-        } catch (error) {
-            await rm(temporaryRoot, { force: true, recursive: true });
-            report.failed.push(targetRelativePath);
-            throw new EditorOperationError("clone.failed", error instanceof Error ? error.message : String(error), report);
-        }
-    }
-
-    private async copyDirectory(sourceDirectory: string, targetDirectory: string, sourceRelativeDirectory: string, report: OperationReport, ancestorDirectories: Set<string>): Promise<void> {
-        const canonicalDirectory = await realpath(sourceDirectory);
-        if (ancestorDirectories.has(canonicalDirectory)) throw new EditorOperationError("clone.cycle", `Vendor Main zone folder contains a directory link cycle: ${sourceRelativeDirectory}`);
-        const currentAncestors = new Set(ancestorDirectories);
-        currentAncestors.add(canonicalDirectory);
-        for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
-            const sourcePath = path.join(sourceDirectory, entry.name);
-            const targetPath = path.join(targetDirectory, entry.name);
-            const sourceRelativePath = `${sourceRelativeDirectory}/${entry.name}`;
-            const sourceStats = await stat(sourcePath);
-            if (sourceStats.isDirectory()) {
-                await mkdir(targetPath);
-                await this.copyDirectory(sourcePath, targetPath, sourceRelativePath, report, currentAncestors);
-            } else if (sourceStats.isFile()) {
-                await copyFile(sourcePath, targetPath);
-                report.created.push(sourceRelativePath.replace("Zones/Vendor/", "Zones/User/"));
-            } else {
-                throw new EditorOperationError("clone.file-type", `Vendor Main zone folder contains an unsupported file: ${sourceRelativePath}`);
-            }
-        }
+        const report = await this.saveTransaction([{ originalHash: null, path: targetRelativePath, source }]);
+        report.targetPath = targetRelativePath;
+        return report;
     }
 
     private async prepareChange(change: SaveChange, validate = true): Promise<PreparedChange> {

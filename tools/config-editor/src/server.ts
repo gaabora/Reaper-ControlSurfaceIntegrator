@@ -14,7 +14,7 @@ import type { ReaperDataPathCandidate } from "./paths.ts";
 import { ProductPathError, ProductRootGuard } from "./paths.ts";
 import type { EditorProductIdentity } from "./product-identity.ts";
 import { applyQuickFixSet, QuickFixError, type QuickFixDocumentSource, type QuickFixRequest } from "./quick-fixes.ts";
-import { previewSnippetApplication, snippetSurfaceContext, type SnippetApplicationRequest, type SnippetBindingChoice, type SnippetConflictAction } from "./snippet-workflow.ts";
+import { previewSnippetApplication, snippetSurfaceContext, type SnippetApplicationRequest, type SnippetBindingChoice } from "./snippet-workflow.ts";
 import type { SaveChange } from "./store.ts";
 import { ConfigurationStore, EditorOperationError } from "./store.ts";
 import { createEditorHtml, createEditorTranslationsJson, EDITOR_CSS } from "./ui.ts";
@@ -37,7 +37,7 @@ export interface RunningEditorServer {
     url: string;
 }
 
-export const EDITOR_API_VERSION = 11;
+export const EDITOR_API_VERSION = 12;
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
 
 function profileAuthorId(): string {
@@ -202,26 +202,17 @@ function saveChange(value: unknown): SaveChange {
     return { originalHash, path: stringField(body, "path"), source: stringField(body, "source") };
 }
 
-function snippetConflictAction(body: Record<string, unknown>): SnippetConflictAction {
-    const action = optionalStringField(body, "conflictAction") as SnippetConflictAction;
-    if (!["", "create", "rename", "replace", "skip"].includes(action)) throw new EditorOperationError("request.snippet.action", `Unsupported snippet conflict action: ${action}`);
-    return action;
-}
-
 function snippetBindingChoice(value: unknown): SnippetBindingChoice {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new EditorOperationError("request.snippet.choice", "Each snippet binding choice must be an object");
     const body = value as Record<string, unknown>;
-    return { allowIncompatible: optionalBooleanField(body, "allowIncompatible"), bindingId: stringField(body, "bindingId"), confirmed: booleanField(body, "confirmed"), widgetName: stringField(body, "widgetName") };
+    return { bindingId: stringField(body, "bindingId"), confirmed: booleanField(body, "confirmed"), widgetName: stringField(body, "widgetName") };
 }
 
 function snippetApplicationRequest(body: Record<string, unknown>): SnippetApplicationRequest {
     if (!Array.isArray(body.bindingChoices)) throw new EditorOperationError("request.snippet.choices", "bindingChoices must be an array");
     return {
-        applicationId: optionalStringField(body, "applicationId"),
         bindingChoices: body.bindingChoices.map(snippetBindingChoice),
-        conflictAction: snippetConflictAction(body),
         insertionLine: positiveIntegerField(body, "insertionLine"),
-        renamedApplicationId: optionalStringField(body, "renamedApplicationId") || undefined,
         snippetPath: stringField(body, "snippetPath"),
         surfacePath: stringField(body, "surfacePath"),
         targetSource: stringField(body, "targetSource"),
@@ -360,6 +351,13 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 const drafts = (await legacyDraftStore.list()).filter((draft) => draft.data?.root === root && draft.data.surfaceName === surfaceName && draft.data.targetProfileId === targetProfileId);
                 return jsonResponse({ drafts: drafts.map((draft) => ({ originalSourceHash: draft.originalHash, originalTargetPath: draft.data!.originalTargetPath, source: draft.source, sourcePath: draft.data!.sourcePath, targetPath: draft.data!.targetPath })) });
             }
+            if (requestUrl.pathname === "/api/legacy/product-config" && request.method === "GET") return jsonResponse(await legacySource!.previewProductConfig(store));
+            if (requestUrl.pathname === "/api/legacy/product-config/import" && request.method === "POST") {
+                const body = await requestBody(request);
+                const targetHash = body.targetHash;
+                if (targetHash !== null && typeof targetHash !== "string") throw new EditorOperationError("request.hash", "targetHash must be a string or null");
+                return jsonResponse({ report: await legacySource!.importProductConfig(store, stringField(body, "originalSourceHash"), targetHash, booleanField(body, "replace")) });
+            }
             if (requestUrl.pathname === "/api/legacy/draft" && request.method === "POST") {
                 const body = await requestBody(request);
                 const root = legacySource!.getRoot();
@@ -465,6 +463,17 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
             if (requestUrl.pathname === "/api/validate" && request.method === "POST") {
                 const body = await requestBody(request);
                 return jsonResponse({ document: store.validateSource(stringField(body, "path"), stringField(body, "source")) });
+            }
+            if (requestUrl.pathname === "/api/zone/context" && request.method === "POST") {
+                const body = await requestBody(request);
+                return jsonResponse(await store.zoneContext(stringField(body, "path"), stringField(body, "source")));
+            }
+            if (requestUrl.pathname === "/api/zone/rename" && request.method === "POST") {
+                const body = await requestBody(request);
+                const renameRequest = { newId: stringField(body, "newId"), originalHash: stringField(body, "originalHash"), path: stringField(body, "path"), source: stringField(body, "source") };
+                const report = await store.renameZone(renameRequest);
+                await draftStore.discard(renameRequest.path);
+                return jsonResponse({ report });
             }
             if (requestUrl.pathname === "/api/save" && request.method === "POST") {
                 const change = saveChange(await requestBody(request));

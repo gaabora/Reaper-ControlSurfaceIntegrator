@@ -1890,14 +1890,14 @@ XTouch display migration uses the complete selected Surface. Every recognized XT
 If one legacy file is referenced both as a SubZone and as an independent zone, the importer cannot silently assign one format 2 `Role`. The preview reports both reference locations and asks the user to keep one role or create a renamed copy for one use. A file referenced as a SubZone by several parents is not ambiguous and converts to one reusable `Role=Layer` document.
 
 - ✅ Add lossless format 2 parsing, validation, syntax highlighting, quick fixes, and cross-file references.
-- [ ] Replace semantic snippet slots, explicit capability fields, application IDs, conflict actions, and saved marker comments with direct zone-fragment parsing and token-aware widget plus modifier mapping. Derive compatibility from the normal action, binding, and Surface catalogs, and insert only into the unsaved destination draft.
+- ✅ Replace semantic snippet slots, explicit capability fields, application IDs, conflict actions, and saved marker comments with direct zone-fragment parsing and token-aware widget plus modifier mapping. Derive compatibility from the normal action, binding, and Surface catalogs, and insert only into the unsaved destination draft.
 - ✅ Create the declarative Bun-only action rename registry and validate its destinations against the current action catalog.
 - ✅ Cover the action rename registry, common public typos, and ignored no-context bindings with an executable full-source golden migration.
 - [ ] Review the public action catalog before runtime cutover. Group inconsistent, branded, abbreviated, and redundant names by behavior, approve each canonical name, add its legacy conversion to the registry, then regenerate the editor catalog and Actions reference. Do not rename an action only because another spelling looks shorter.
 - ✅ Keep the conversion matrix and golden fixture pairs synchronized with every later format or action rename.
-- [ ] Show a Zone Layer badge, all current parent references, and context-valid navigation actions in the editor. Offer `ExitZoneLayer` only for zone layers.
-- [ ] Add safe User-zone rename with complete-profile reference updates, case-only filesystem handling, hash checks, and focused User overrides for Vendor referrers.
-- [ ] Replace whole-profile Main cloning with `Create User override` for one zone. Show a clear override confirmation when import or copy selects an existing Vendor ID.
+- ✅ Show a Zone Layer badge, all current parent references, and context-valid navigation actions in the editor. Offer `ExitZoneLayer` only for zone layers.
+- ✅ Add safe User-zone rename with complete-profile reference updates, case-only filesystem handling, hash checks, and focused User overrides for Vendor referrers.
+- ✅ Replace whole-profile Main cloning with `Create User override` for one zone. Show a clear override confirmation when import or copy selects an existing Vendor ID.
 - ✅ Convert old `Zone ... ZoneEnd`, `BlockName ... BlockNameEnd`, and surface blocks during legacy import.
 - ✅ Convert legacy `FB_Encoder` output to one reusable `RotaryRing` profile and explicit `Feedback Ring`, including the historical output-address offset and style bits.
 - ✅ Convert legacy `Widget|` channel placeholders to `Widget#` and include exact, missing-family, and rejected-wildcard golden fixtures.
@@ -1936,7 +1936,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - ✅ Convert brace-based `IncludedZones`, convert `SubZones` to the reusable `ZoneLayers` relation, and mark every referenced file with `Role=Layer`.
 - ✅ Convert `GoZone SelectedTrackFX`, `GoSubZone`, `LeaveSubZone`, and all lifecycle pseudo-widgets to their explicit format 2 actions or blocks.
 - ✅ Replace development product-config parsing, serialization, diagnostics, fixtures, drafts, and editor support with the new unversioned `.conf` model and Product plus Device settings scopes.
-- [ ] Convert old `CSI.ini` only through the Bun legacy importer and do not add runtime fallback.
+- ✅ Convert old `CSI.ini` only through the Bun legacy importer and do not add runtime fallback.
 - ✅ Report ambiguous legacy content before import and keep the source unchanged.
 
 Ready when old public CSI examples can be imported into format 2 without runtime legacy parsing.

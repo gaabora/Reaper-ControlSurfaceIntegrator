@@ -16,8 +16,8 @@ This Bun and TypeScript application provides a local browser editor and its loss
 - Hash conflict checks, atomic single-file saves, and multi-file transactions.
 - Backup manifests, rollback, and operation reports.
 - Repeatable read-only import from legacy `Surface.txt`, `Zones/**/*.zon`, and `FXZones/**/*.zon` files.
-- Legacy dependency preview, semantic widget mapping, selected-zone import, and required `Rename`, `Replace`, or `Skip` conflict resolution.
-- Inline functional snippet insertion with semantic widget filtering, automatic exact matches, confirmed manual mappings, mismatch explanations, and application conflict resolution.
+- Legacy dependency preview, direct widget mapping, selected-zone import, product configuration import, and required `Rename`, `Replace`, or `Skip` file conflict resolution.
+- Inline direct format 2 snippet insertion with automatic exact Widget matches and confirmed alternate mappings.
 - A loopback-only browser server with a random session token.
 - A typed English UI text catalog with parameter replacement.
 - Standalone compile targets for Windows, macOS, and Linux.
@@ -50,7 +50,7 @@ Enter only the REAPER `Data` directory. The editor adds the product configuratio
 bun run start -- --data-path "/absolute/REAPER/resource/Data"
 ```
 
-The browser opens the first valid discovered REAPER data path automatically. The main page shows the selected path above the `Edit configuration` and `Import old CSI` tasks. It keeps `Open` as a fallback when the discovered path is wrong or a different REAPER installation is needed. The tree marks vendor surfaces, vendor zones, and built-in snippets with a dim read-only style. Use `Make editable copy` before editing them. For Main zones, this copies only the profile's Main directory. For an FX zone, it copies only the selected file to the same path under User.
+The browser opens the first valid discovered REAPER data path automatically. The header shows the selected path in every task and keeps `Open` as a fallback when the discovered path is wrong or a different REAPER installation is needed. The tree marks vendor surfaces, vendor zones, and built-in snippets with a dim read-only style. Use `Make editable copy` for a vendor Surface or built-in snippet. Use `Create User override` for a vendor Zone. A Zone override copies only the selected `.zon` file to the same path under User.
 
 The text editor stays inside the available viewport and scrolls independently. `Problems` separates diagnostics for the current file from the collapsible `All found` index. Opening or checking a file updates its entry without removing previously found problems from other files. `Check all` validates every available configuration file, uses unsaved drafts for changed files, selects User Main when present, applies User FX overrides, and adds cross-file dependency and duplicate diagnostics. File and line links navigate without turning the diagnostic text into a button, so the message remains selectable.
 
@@ -68,11 +68,13 @@ The editor checks the standard old `CSI` directory beside the selected `Data` di
 
 Use `Reload old CSI` after files or surface folders change on disk. Reload keeps the selected surface, selected zones, target and conflict choices, and in-memory import drafts. If a changed source cannot be refreshed safely, the existing preview and drafts remain available and the editor reports the conflict.
 
+When the old folder contains `CSI.ini` or `ReaControlSurface.ini`, the source section also shows a converted product configuration preview. `Import CSI.ini` creates the current product `.conf`. Replacing an existing configuration requires its confirmation checkbox. The old file stays unchanged.
+
 The import workspace uses two columns. Open a source file from Import preview to edit its import draft in the left column. Problems stay below that editor. Target profile settings, target paths, conflict actions, Import, and the operation report stay in the independently scrolling right column. Narrow screens stack these columns.
 
 Choose a surface, include or exclude its `Surface.txt`, and select any `.zon` files from its legacy `Zones` and `FXZones` directories. Selecting a zone also selects its single unambiguous `GoZone`, `GoSubZone`, `IncludedZones`, and `SubZones` dependencies. You can clear a dependency after automatic selection. Files whose names do not end exactly in `.zon`, such as `.zon~20260101` and `.zon1` backup files, are not imported. A deprecated `GoZones.zon` manifest is not imported. When it assigns a navigator to a zone, the importer adds that navigator to the matching zone header as `NavType`.
 
-The preview shows migrated source text, target paths, syntax diagnostics, dependencies, widget mappings, and conflicts. Missing format markers are added as `// @format surface 1` or `// @format zone 1`. Click a source file or diagnostic to open its import draft at the related line. Draft changes stay in memory and are written only to the new target during import. The old CSI file is never changed.
+The preview shows converted format 2 source text, target paths, syntax diagnostics, dependencies, widget mappings, and conflicts. Click a source file or diagnostic to open its import draft at the related line. Draft changes stay in memory and are written only to the new target during import. The old CSI file is never changed.
 
 Legacy lines whose first non-space character is one `/` or an unsupported `#` are converted to `//` comments in the import preview. OSC address tokens after a widget type, such as `X32Fader /ch/01/mix/fader`, and exact Learn FX directives such as `#WidgetType` stay unchanged. Current Surface and Zone files accept only `//` comments, apart from these reserved Learn FX directives. A leading single-slash or unsupported hash comment in an editable current file is an error with a `Convert to // comment` quick fix.
 
@@ -80,15 +82,15 @@ A legacy surface named `FaderPortV2` initially maps to `Surfaces/User/faderportv
 
 The importer compares each selected binding with the target surface. If `Surface.txt` is included and will be created or replaced, this is the imported surface. If the surface conflict is set to `Rename` or `Skip`, or `Surface.txt` is excluded, the importer uses the existing user surface and then the vendor surface with the target profile ID. Changing this conflict choice refreshes the widget preview. Missing or incompatible widgets require a compatible replacement from the dropdown. The dropdown uses the same press, touch, relative, absolute, value, toggle, color, text, and meter capabilities as the runtime OSK metadata. A binding such as `Touch+DisplayLower|` uses `Touch` as a modifier, so the `DisplayLower|` family does not need touch input. Channel placeholders stay channel placeholders, so a legacy `Fader|` can map to a compatible family such as `Rotary|`, but not to one fixed `Rotary1`. The resolved widget names are written into the preview source before hashes are calculated.
 
-Every existing target requires `Rename`, `Replace`, or `Skip`. Import is disabled while selected content has errors, a widget mapping is unresolved, or a conflict has no decision. The server checks source and target hashes again, validates the final file set, and saves it through the normal multi-file transaction. The final report lists changed, created, failed, restored, and skipped paths.
+Every existing target requires `Rename`, `Replace`, or `Skip`. If a new User Zone has the same ID as a Vendor Zone in that profile, the preview names the Vendor file and requires `Create User override`, `Rename`, or `Skip`. Import is disabled while selected content has errors, a widget mapping is unresolved, or a conflict has no decision. The server checks source and target hashes again, validates the final file set, and saves it through the normal multi-file transaction. The final report lists changed, created, failed, restored, and skipped paths.
 
 ## Functional snippets
 
-Choose `Edit configuration` and open an editable zone below `Zones/User`. The snippet selector appears only for this zone file. Choose a built-in or user snippet and click `Insert snippet`. The editor resolves the surface through the selected zone profile and the matching `ZoneFolder` or `FXZoneFolder` assignment in the main product config. If no unique assignment exists, the mapping dialog shows a surface selector.
+Choose `Edit configuration` and open an editable Zone below `Zones/User`. The snippet selector appears only for this Zone file. Choose a built-in or user snippet and click `Insert snippet`. The editor resolves the Surface through the selected Zone profile and the matching `MainProfile` or `FXProfile` assignment in the product config. If no unique assignment exists, the mapping dialog shows a Surface selector.
 
-An exact compatible widget name is accepted automatically, and the generated block is inserted without opening the dialog. The dialog opens when a surface, widget mapping, or existing application decision is required. To skip a binding with `Required=No`, leave its widget empty and confirm the skip. An incompatible widget is not accepted by default. If the manual choice is intentional, read the displayed mismatch, enable the mismatch override, and confirm the widget.
+An exact Widget name is accepted automatically. The dialog opens only when a Surface must be selected or a snippet Widget must map to another Surface Widget. An alternate mapping requires explicit confirmation. The editor then validates the resulting normal Zone bindings against the selected Surface.
 
-The application ID identifies one generated block inside the zone. Inserting the same ID again requires `Replace`, `Rename`, or `Skip`. Replace updates only that block. Rename creates another block under a new ID. Skip does not change the draft. A new block is inserted after the current cursor line. When the cursor is on line 1 or outside the zone body, the block is inserted before `ZoneEnd`. Snippet insertion changes only the current recovery draft. It does not save the zone.
+The resolved format 2 binding lines are inserted after the current cursor line, or after `@Meta` when the cursor is inside metadata. The editor does not add an application ID, generated wrapper, or hidden marker comments. Snippet insertion changes only the current recovery draft. It does not save the Zone.
 
 Open a snippet from the configuration tree to edit its text. Built-in snippets stay read-only until `Make editable copy` creates the matching user file.
 

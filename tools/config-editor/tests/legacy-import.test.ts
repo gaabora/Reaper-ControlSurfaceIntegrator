@@ -803,6 +803,26 @@ WidgetEnd
         expect(preview.dependencies).toContainEqual({ from: "Zones/HomeZones/Home.zon", matches: ["Zones/GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
     });
 
+    test("opens a config-only legacy folder and previews its renamed INI file", async () => {
+        const configOnlyRoot = path.join(temporaryRoot, "ConfigOnly");
+        await mkdir(configOnlyRoot);
+        await writeFile(path.join(configOnlyRoot, "ReaControlSurface.ini"), "SurfaceType=MIDI SurfaceName=main MidiInput=0 MidiOutput=1\nPageName=Home\nSurface=main SurfaceFolder=main ZoneFolder=main FXZoneFolder=main StartChannel=0\n", "utf8");
+        const source = await LegacyCsiSource.create(configOnlyRoot);
+        const preview = await source.previewProductConfig(await createStore());
+        expect(await source.listSurfaces()).toEqual([]);
+        expect(preview.sourcePath).toBe("ReaControlSurface.ini");
+        expect(preview.valid).toBeTrue();
+    });
+
+    test("marks a selected Vendor Zone ID as an explicit User override", async () => {
+        const vendorPath = path.join(productRoot, "Zones", "Vendor", "faderportv2", "Main", "Existing", "Transport.zon");
+        await mkdir(path.dirname(vendorPath), { recursive: true });
+        await writeFile(vendorPath, "@Meta { Version=2 Target=Tracks }\n\nPlay Play\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/GoZones/Transport.zon"], [], false, [], "faderportv2");
+        expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.vendorOverridePath).toBe("Zones/Vendor/faderportv2/Main/Existing/Transport.zon");
+    });
+
     test("explains when a referenced legacy zone is not selected", async () => {
         const source = await LegacyCsiSource.create(legacyRoot);
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);

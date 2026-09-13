@@ -1,10 +1,5 @@
-Snippet Version=1 Id=transport Name="Transport controls"
-  Binding Id=play Role=Button Input=Press Feedback=Toggle Required=Yes
-    Action NoMod Play
-    Action Shift Reaper 40044
-  BindingEnd
+@Meta { Version=2 Name="Transport controls" }
 
-  Binding Id=stop Role=Button Input=Press Feedback=Toggle Required=Yes
-    Action NoMod Stop
-  BindingEnd
-SnippetEnd
+play Play
+[Shift]+play Reaper 40044
+stop Stop
