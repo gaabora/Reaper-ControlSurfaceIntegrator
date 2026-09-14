@@ -274,6 +274,8 @@ enum PropertyType {
   D(ZoneFolder) \
   D(FXZoneFolder) \
   D(NavType) \
+  D(Target) \
+  D(BankTarget) \
   D(GoHome) \
   D(KeyLabel) \
 

@@ -751,7 +751,8 @@ export class LegacyCsiSource {
         const actionRenameDiagnostics = missingLegacyActionRenameDestinations(knownActions).map((action): Diagnostic => ({ code: "legacy.action-rename.destination.missing", message: `Legacy action rename target is missing from the current action catalog: ${action}`, severity: "error" }));
         const allDiagnostics = profileDocuments.flatMap((document) => diagnosticsWithQuickFixes(document, knownActions, !document.path?.startsWith("Zones/Vendor/"))).concat(mappingSurfaceDiagnostics, setDiagnostics, widgetMappingResult.diagnostics, actionRenameDiagnostics);
         const bankContextLocations = new Set(allDiagnostics.filter((diagnostic) => diagnostic.code === "legacy.zone.bank.context").map((diagnostic) => `${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`));
-        const diagnostics = allDiagnostics.filter((diagnostic) => diagnostic.code !== "format2.zone.action.bank-amount" || !bankContextLocations.has(`${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`));
+        const confirmationLocations = new Set(allDiagnostics.filter((diagnostic) => diagnostic.code === "legacy.zone.action.confirmation").map((diagnostic) => `${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`));
+        const diagnostics = allDiagnostics.filter((diagnostic) => (diagnostic.code !== "format2.zone.action.bank-amount" || !bankContextLocations.has(`${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`)) && (diagnostic.code !== "zone.action.unknown" || !confirmationLocations.has(`${diagnostic.path?.toLowerCase()}\0${diagnostic.line}`)));
         const selectedTargetPaths = new Map<string, string>();
         for (const item of items.filter((candidate) => candidate.selected)) {
             const targetKey = item.targetPath.toLowerCase();

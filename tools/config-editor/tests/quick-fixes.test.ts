@@ -4,7 +4,7 @@ import { addLegacyBankContextQuickFixes, addLegacyExitLayerQuickFixes, applyQuic
 import { convertLegacyZoneToFormat2 } from "../src/legacy-zone-format2.ts";
 import { validateDocumentSet } from "../src/validation.ts";
 
-const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "GoHome", "GoZone", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
+const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "GoHome", "GoZone", "LearnFocusedFX", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
 
 describe("diagnostic quick fix registry", () => {
     test("offers and applies the zone format marker fix without saving", () => {
@@ -88,6 +88,18 @@ describe("diagnostic quick fix registry", () => {
 
         expect(fix.label).toBe("Comment out this line");
         expect(applyQuickFix(source, relativePath, knownActions, { diagnostic, fix }).source).toContain("// Button the");
+    });
+
+    test("requires one explicit click to replace an old automatic FX workflow", () => {
+        const relativePath = "Zones/User/test/Main/Home.zon";
+        const conversion = convertLegacyZoneToFormat2("Zone Home\nButton AutoMapFocusedFX\nZoneEnd\n", { profile: "Main", targetPath: relativePath });
+        const document = parseByPath(conversion.source, relativePath, knownActions);
+        const sourceDiagnostic = conversion.diagnostics.find((candidate) => candidate.code === "legacy.zone.action.confirmation")!;
+        const diagnostic = diagnosticWithQuickFixes(document, sourceDiagnostic, knownActions, true);
+        const fix = diagnostic.fixes!.find((candidate) => candidate.id === "legacy.zone.action.confirm-replacement")!;
+
+        expect(fix.label).toBe("Use LearnFocusedFX");
+        expect(applyQuickFix(conversion.source, relativePath, knownActions, { diagnostic, fix }).source).toContain("Button LearnFocusedFX");
     });
 
     test("can comment out an unknown lifecycle action line", () => {

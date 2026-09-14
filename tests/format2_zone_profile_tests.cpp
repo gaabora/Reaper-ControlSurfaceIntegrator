@@ -109,6 +109,17 @@ static void TestLayerOnlyAction() {
     Require(layer.IsValid(), "ExitZoneLayer layer acceptance");
 }
 
+static void TestBankBindingContextOverride() {
+    const Format2ZoneParseResult valid = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Target=Tracks BankTarget=FX }\nLeft Bank -1 Target=SelectedTrack BankTarget=FX\n", "TrackFXMenu.zon", Format2DocumentKind::MainZone);
+    Require(valid.IsValid(), "Bank binding context override acceptance");
+
+    const Format2ZoneParseResult missingPair = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nLeft Bank -1 Target=SelectedTrack\n", "Home.zon", Format2DocumentKind::MainZone);
+    Require(HasParseDiagnostic(missingPair, "format2.zone.action.bank-context-pair"), "Bank binding context pair requirement");
+
+    const Format2ZoneParseResult invalidPair = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nLeft Bank -1 Target=MasterTrack BankTarget=Sends\n", "Home.zon", Format2DocumentKind::MainZone);
+    Require(HasParseDiagnostic(invalidPair, "format2.zone.action.bank-context"), "Bank binding context compatibility");
+}
+
 static void TestTerminalModifierSource() {
     const Format2ZoneParseResult parsed = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nLayerB Modifier Option\n(DoublePress)+[Option] ToggleOSK\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(parsed.IsValid(), "terminal Modifier source acceptance");
@@ -242,6 +253,7 @@ int main() {
     TestNavigationRoleRules();
     TestDeclaredLayerNavigation();
     TestLayerOnlyAction();
+    TestBankBindingContextOverride();
     TestTerminalModifierSource();
     TestModifierBlink();
     TestProfileLoader();

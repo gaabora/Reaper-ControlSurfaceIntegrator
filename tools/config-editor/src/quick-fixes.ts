@@ -1,5 +1,6 @@
 import type { ActionTraits } from "./action-catalog.ts";
 import { parseByPath, type AnyDocument } from "./formats.ts";
+import { legacyActionConfirmation } from "./legacy-action-renames.ts";
 import { serializeDocument, type Diagnostic, type DiagnosticQuickFix } from "./model.ts";
 import { legacyMainBankContext } from "./legacy-zone-format2.ts";
 import type { SettingsSchema } from "./settings-schema.ts";
@@ -361,6 +362,17 @@ const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
         apply: (context) => replaceBindingAction(context, "LeaveSubZone", "GoHome"),
         fixes: (context) => context.diagnostic.code === "legacy.zone.exit.context" && bindingActionAtDiagnosticLine(context) === "LeaveSubZone" ? [{ id: "legacy.zone.exit.use-go-home", label: "Use GoHome instead" }] : [],
         id: "legacy.zone.exit.use-go-home",
+    },
+    {
+        acceptsSetDiagnostic: true,
+        apply: (context, fix) => replaceUnknownZoneAction(context, fix),
+        fixes: (context) => {
+            if (context.diagnostic.code !== "legacy.zone.action.confirmation") return [];
+            const originalAction = unknownZoneActionAtDiagnosticLine(context);
+            const confirmation = originalAction ? legacyActionConfirmation(originalAction) : undefined;
+            return confirmation && context.knownActions.has(confirmation.replacementAction) ? [{ data: { originalAction, replacementAction: confirmation.replacementAction }, id: "legacy.zone.action.confirm-replacement", label: `Use ${confirmation.replacementAction}` }] : [];
+        },
+        id: "legacy.zone.action.confirm-replacement",
     },
     {
         apply: (context) => convertLegacyNamedBank(context),

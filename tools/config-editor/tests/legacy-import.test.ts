@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { isIgnoredLegacyAction, missingLegacyActionRenameDestinations, renameLegacyAction } from "../src/legacy-action-renames.ts";
+import { isIgnoredLegacyAction, isUnsupportedLegacyAction, legacyActionConfirmation, missingLegacyActionRenameDestinations, renameLegacyAction } from "../src/legacy-action-renames.ts";
 import { LegacyCsiSource, migrateLegacyCommentSyntax, migrateLegacyZoneSyntax } from "../src/legacy-import.ts";
 import { parseByPath } from "../src/formats.ts";
 import { convertLegacyLearnFxToFormat2 } from "../src/legacy-learn-fx.ts";
@@ -23,7 +23,7 @@ const identity: EditorProductIdentity = {
     productId: "test-product",
     resourceDirectory: "TestProduct",
 };
-const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "FXParam", "GoHome", "GoZone", "Play", "Reaper", "ToggleEnableLastTouchedFXParamMapping", "ToggleSelectedTrackFX", "TrackMute", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackVolume", "TrackVolumeDisplay"]);
+const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "FXParam", "GoHome", "GoZone", "LearnFocusedFX", "Play", "Reaper", "ToggleEnableFocusedFXMapping", "ToggleEnableLastTouchedFXParamMapping", "ToggleSelectedTrackFX", "TrackMute", "TrackPan", "TrackPanL", "TrackPanR", "TrackSelect", "TrackSolo", "TrackVolume", "TrackVolumeDisplay"]);
 const surfaceSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
 const homeSource = "Zone Home\n  Play Play\n  Shift+Play GoZone Transport\nZoneEnd\n";
 const transportSource = "Zone Transport\n  Play Play\nZoneEnd\n";
@@ -82,12 +82,17 @@ describe("legacy CSI import", () => {
         expect(renameLegacyAction("TrackSendBank", ["-1"], { bankTarget: "Sends", isLayer: false, target: "Tracks" })).toEqual({ action: "Bank", arguments: ["-1"] });
         expect(renameLegacyAction("TrackSendBank", ["-1"], { isLayer: false, target: "SelectedTrack" })).toEqual({ action: "TrackSendBank", arguments: ["-1"] });
         expect(renameLegacyAction("SelectedTrackFXMenuBank", ["1"], { bankTarget: "FX", isLayer: false, target: "SelectedTrack" })).toEqual({ action: "Bank", arguments: ["1"] });
-        expect(renameLegacyAction("SelectedTrackFXMenuBank", ["1"], { bankTarget: "FX", isLayer: false, target: "Tracks" })).toEqual({ action: "SelectedTrackFXMenuBank", arguments: ["1"] });
+        expect(renameLegacyAction("SelectedTrackFXMenuBank", ["1"], { bankTarget: "FX", isLayer: false, target: "Tracks" })).toEqual({ action: "Bank", arguments: ["1", "Target=SelectedTrack", "BankTarget=FX"] });
+        expect(renameLegacyAction("TracksMute", [], { isLayer: false })).toEqual({ action: "TrackMute", arguments: [] });
+        expect(renameLegacyAction("TracksSolo", [], { isLayer: false })).toEqual({ action: "TrackSolo", arguments: [] });
+        expect(renameLegacyAction("ToggleAutoFXMapping", [], { isLayer: false })).toEqual({ action: "ToggleEnableFocusedFXMapping", arguments: [] });
         expect(renameLegacyAction("ToggleEnableFocusedFXParamMapping", [], { isLayer: false })).toEqual({ action: "ToggleEnableLastTouchedFXParamMapping", arguments: [] });
+        expect(legacyActionConfirmation("AutoMapFocusedFX")?.replacementAction).toBe("LearnFocusedFX");
+        expect(isUnsupportedLegacyAction("MetronomePrimaryVolume")).toBeTrue();
         expect(isIgnoredLegacyAction("NullDisplay")).toBeTrue();
         expect(isIgnoredLegacyAction("NoFeedback")).toBeTrue();
         expect(missingLegacyActionRenameDestinations(knownActions)).toEqual([]);
-        expect(missingLegacyActionRenameDestinations(new Set(["GoHome"]))).toEqual(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "GoZone", "Reaper", "ToggleEnableLastTouchedFXParamMapping", "ToggleSelectedTrackFX", "TrackMute", "TrackPan"]);
+        expect(missingLegacyActionRenameDestinations(new Set(["GoHome"]))).toEqual(["Bank", "EnterZoneLayer", "ExitZoneLayer", "FixedTextDisplay", "GoZone", "LearnFocusedFX", "Reaper", "ToggleEnableFocusedFXMapping", "ToggleEnableLastTouchedFXParamMapping", "ToggleSelectedTrackFX", "TrackMute", "TrackPan", "TrackSolo"]);
     });
 
     test("converts a legacy MIDI Surface and creates a fader-aware OSK layout", () => {

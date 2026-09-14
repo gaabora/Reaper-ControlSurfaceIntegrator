@@ -1,5 +1,5 @@
 import path from "node:path";
-import { conflictingLegacyActionRename, isIgnoredLegacyAction, renameLegacyAction } from "./legacy-action-renames.ts";
+import { conflictingLegacyActionRename, isIgnoredLegacyAction, isUnsupportedLegacyAction, legacyActionConfirmation, renameLegacyAction } from "./legacy-action-renames.ts";
 import { addDiagnostic, type Diagnostic } from "./model.ts";
 import { analysisText, initializeLine, splitSourceLines } from "./text.ts";
 
@@ -296,6 +296,12 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         initializeLine(sourceTokens);
         const action = sourceTokens.tokens[1];
         if (isIgnoredLegacyAction(action)) continue;
+        if (isUnsupportedLegacyAction(action)) {
+            const outputLine = `// Unsupported legacy action ${action}: ${content.trim()}${comment ? ` ${comment}` : ""}`;
+            output.push(outputLine);
+            addDiagnostic(diagnostics, "warning", "legacy.zone.action.unsupported", `${action} belonged to a removed legacy workflow and was commented out. Choose a current action if this control is still needed.`, output.length, options.targetPath);
+            continue;
+        }
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
         const invalidLayerExit = action === "LeaveSubZone" && !options.isLayer;
         let invalidBankContextMessage = "";
@@ -308,7 +314,7 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
             convertedAction = "Bank";
             actionTokens = [renameConflict.requiredZoneName, ...actionTokens];
         }
-        if (convertedAction === "Bank" && actionTokens.length >= 2 && !actionTokens[0].includes("=")) {
+        if (convertedAction === "Bank" && actionTokens.length >= 2 && MAGIC_MAIN_METADATA.has(actionTokens[0].toLowerCase())) {
             const bankTarget = MAGIC_MAIN_METADATA.get(actionTokens[0].toLowerCase());
             const contexts = options.bankContexts ?? (options.isLayer ? [] : [zoneName]);
             const sameContext = options.profile === "Main" && bankTarget && contexts.length > 0 && contexts.every((context) => MAGIC_MAIN_METADATA.get(context.toLowerCase())?.join(" ") === bankTarget.join(" "));
@@ -321,6 +327,8 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
             if (invalidLayerExit) addDiagnostic(diagnostics, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Choose whether this binding returns Home or the Zone becomes a Layer.`, output.length + 2, options.targetPath);
             if (invalidBankContextMessage) addDiagnostic(diagnostics, "error", "legacy.zone.bank.context", invalidBankContextMessage, output.length + 2, options.targetPath);
             output.push(`On ${lifecycle} {`, `  ${actionText}`, "}", "");
+            const confirmation = legacyActionConfirmation(action);
+            if (confirmation) addDiagnostic(diagnostics, "error", "legacy.zone.action.confirmation", `${action} used an old automatic workflow. Confirm replacement with ${confirmation.replacementAction}, which opens the current guided workflow.`, output.length - 2, options.targetPath);
             continue;
         }
         const inferHold = sourceTokens.tokens.slice(2).some((token) => token.startsWith("HoldDelay=") || token.startsWith("HoldRepeatInterval="));
@@ -330,6 +338,8 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         if (invalidLayerExit) addDiagnostic(diagnostics, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Choose whether this binding returns Home or the Zone becomes a Layer.`, output.length + 1, options.targetPath);
         if (invalidBankContextMessage) addDiagnostic(diagnostics, "error", "legacy.zone.bank.context", invalidBankContextMessage, output.length + 1, options.targetPath);
         output.push(comment ? `${binding} ${comment}` : binding);
+        const confirmation = legacyActionConfirmation(action);
+        if (confirmation) addDiagnostic(diagnostics, "error", "legacy.zone.action.confirmation", `${action} used an old automatic workflow. Confirm replacement with ${confirmation.replacementAction}, which opens the current guided workflow.`, output.length, options.targetPath);
     }
     while (output.length > 1 && output.at(-1) === "") output.pop();
     return { diagnostics, source: output.join("\n") + "\n" };

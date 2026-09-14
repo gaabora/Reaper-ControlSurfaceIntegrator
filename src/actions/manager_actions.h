@@ -1056,13 +1056,28 @@ public:
 //!
 //! @brief Adjusts the track bank offset (scrolls channels left/right on the surface).
 //!
-//! @zone_usage  Legacy: WidgetName Bank "TrackNavigator" 8. Format 2: WidgetName Bank 8, using the current zone Target and BankTarget.
+//! @zone_usage  Legacy: WidgetName Bank "TrackNavigator" 8. Format 2: WidgetName Bank 8, or Bank 8 Target=SelectedTrack BankTarget=FX for an explicit child collection.
 //!
 //! @feedback None (clears color only).
 //!
-//! @params Legacy uses a navigator name and step size. Format 2 accepts only a step size and derives the bank from zone metadata. Positive moves right and negative moves left.
+//! @params Legacy uses a navigator name and step size. Format 2 accepts a step size and normally derives the bank from zone metadata. Target plus BankTarget can override one binding when both are present and compatible. Positive moves right and negative moves left.
 class Bank : public Action
 {
+private:
+    static ZoneRuntimeTarget ResolveTargetOverride(const char* value) {
+        if (IsSameString(value, "Tracks")) return ZoneRuntimeTarget::Tracks;
+        if (IsSameString(value, "SelectedTrack")) return ZoneRuntimeTarget::SelectedTrack;
+        if (IsSameString(value, "MasterTrack")) return ZoneRuntimeTarget::MasterTrack;
+        return ZoneRuntimeTarget::Legacy;
+    }
+
+    static ZoneRuntimeBankTarget ResolveBankTargetOverride(const char* value) {
+        if (IsSameString(value, "Sends")) return ZoneRuntimeBankTarget::Sends;
+        if (IsSameString(value, "Receives")) return ZoneRuntimeBankTarget::Receives;
+        if (IsSameString(value, "FX")) return ZoneRuntimeBankTarget::Fx;
+        return ZoneRuntimeBankTarget::None;
+    }
+
 public:
     ActionType GetType() const override { return ActionType::Bank; }
 
@@ -1074,7 +1089,15 @@ public:
         const bool shouldAdjust = (value < 0 && context->GetRangeMinimum() < 0) || (value > 0 && context->GetRangeMinimum() >= 0);
         if (!shouldAdjust) return;
         if (context->GetZone()->UsesFormat2Runtime()) {
-            context->GetCSI()->AdjustFormat2Bank(context->GetPage(), context->GetZone()->GetRuntimeTarget(), context->GetZone()->GetRuntimeBankTarget(), context->GetIntParam());
+            ZoneRuntimeTarget target = context->GetZone()->GetRuntimeTarget();
+            ZoneRuntimeBankTarget bankTarget = context->GetZone()->GetRuntimeBankTarget();
+            const char* targetOverride = context->GetWidgetProperties().get_prop(PropertyType_Target);
+            const char* bankTargetOverride = context->GetWidgetProperties().get_prop(PropertyType_BankTarget);
+            if (targetOverride && bankTargetOverride) {
+                target = Bank::ResolveTargetOverride(targetOverride);
+                bankTarget = Bank::ResolveBankTargetOverride(bankTargetOverride);
+            }
+            context->GetCSI()->AdjustFormat2Bank(context->GetPage(), target, bankTarget, context->GetIntParam());
             return;
         }
         context->GetCSI()->AdjustBank(context->GetPage(), context->GetStringParam(), context->GetIntParam());

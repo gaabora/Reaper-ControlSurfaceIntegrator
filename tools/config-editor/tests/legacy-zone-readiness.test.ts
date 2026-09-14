@@ -20,12 +20,21 @@ describe("legacy Zone readiness", () => {
         expect(conversion.source).toContain("Bank SelectedTrackFXMenu -1");
     });
 
-    test("reports a legacy named Bank action that targets another Zone", () => {
+    test("preserves a target-specific Bank action with an explicit binding context", () => {
         const conversion = convertLegacyZoneToFormat2("Zone TrackFXMenu\nLeft SelectedTrackFXMenuBank -1\nZoneEnd\n", { profile: "Main", targetPath: profileRoot + "TrackFXMenu.zon" });
 
-        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.zone.bank.context", line: 3, severity: "error" }));
-        expect(conversion.source).toContain("Left Bank SelectedTrackFXMenu -1");
-        expect(parseByPath(conversion.source, profileRoot + "TrackFXMenu.zon").diagnostics).not.toContainEqual(expect.objectContaining({ code: "zone.action.unknown" }));
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("Left Bank -1 Target=SelectedTrack BankTarget=FX");
+        expect(parseByPath(conversion.source, profileRoot + "TrackFXMenu.zon").diagnostics).toEqual([]);
+    });
+
+    test("comments out removed actions and requires confirmation for the current Learn workflow", () => {
+        const conversion = convertLegacyZoneToFormat2("Zone Home\nDebug DumpHex\nLearn AutoMapFocusedFX\nZoneEnd\n", { profile: "Main", targetPath: profileRoot + "Home.zon" });
+
+        expect(conversion.source).toContain("// Unsupported legacy action DumpHex: Debug DumpHex");
+        expect(conversion.source).toContain("Learn AutoMapFocusedFX");
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.zone.action.unsupported", severity: "warning" }));
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.zone.action.confirmation", severity: "error" }));
     });
 
     test("requires every parent of a reusable layer to have the matching bank context", () => {

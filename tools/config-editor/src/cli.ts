@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { actionNameSet, actionTraitsByName, loadActionCatalog, writeActionCatalog } from "./action-catalog.ts";
 import { isSupportedConfigPath, parseByPath, type AnyDocument } from "./formats.ts";
-import { conflictingLegacyActionRename, isIgnoredLegacyAction, renameLegacyAction } from "./legacy-action-renames.ts";
+import { conflictingLegacyActionRename, isIgnoredLegacyAction, isUnsupportedLegacyAction, legacyActionConfirmation, renameLegacyAction } from "./legacy-action-renames.ts";
 import { analyzeLegacySurfaceCoverage } from "./legacy-surface-coverage.ts";
 import { legacyMainTargetContext } from "./legacy-zone-format2.ts";
 import type { Diagnostic } from "./model.ts";
@@ -91,7 +91,7 @@ interface LegacyActionUsage {
     count: number;
     examples: string[];
     replacement?: string;
-    status: "conflict" | "current" | "ignored" | "renamed" | "unknown";
+    status: "confirm" | "conflict" | "current" | "ignored" | "renamed" | "unknown" | "unsupported";
 }
 
 async function legacyActionsCommand(args: string[]): Promise<number> {
@@ -120,8 +120,9 @@ async function legacyActionsCommand(args: string[]): Promise<number> {
             const renameContext = { ...targetContext, isLayer: true };
             const renamed = renameLegacyAction(binding.action, binding.params, renameContext);
             const conflict = conflictingLegacyActionRename(binding.action, binding.params, renameContext);
-            const replacement = renamed.action === binding.action ? undefined : renamed.action;
-            const status = isIgnoredLegacyAction(binding.action) ? "ignored" : replacement ? "renamed" : conflict ? "conflict" : knownActions.has(binding.action) ? "current" : "unknown";
+            const confirmation = legacyActionConfirmation(binding.action);
+            const replacement = renamed.action === binding.action ? confirmation?.replacementAction : renamed.action;
+            const status = isIgnoredLegacyAction(binding.action) ? "ignored" : isUnsupportedLegacyAction(binding.action) ? "unsupported" : confirmation ? "confirm" : replacement ? "renamed" : conflict ? "conflict" : knownActions.has(binding.action) ? "current" : "unknown";
             if (status === "unknown" && (!/^[A-Za-z][A-Za-z0-9_]*$/.test(binding.action) || binding.action.includes("="))) continue;
             const possibleWidget = binding.action.split("+").at(-1)?.replace(/[|#]$/, "") ?? "";
             if (status === "unknown" && [...surfaceWidgets].some((widget) => widget === possibleWidget || widget.startsWith(possibleWidget) && /^\d+$/.test(widget.slice(possibleWidget.length)))) continue;
@@ -141,9 +142,11 @@ async function legacyActionsCommand(args: string[]): Promise<number> {
     const currentCount = entries.filter((entry) => entry.status === "current").reduce((sum, entry) => sum + entry.count, 0);
     const ignoredCount = entries.filter((entry) => entry.status === "ignored").reduce((sum, entry) => sum + entry.count, 0);
     const renamedCount = entries.filter((entry) => entry.status === "renamed").reduce((sum, entry) => sum + entry.count, 0);
+    const confirmationCount = entries.filter((entry) => entry.status === "confirm").reduce((sum, entry) => sum + entry.count, 0);
+    const unsupportedCount = entries.filter((entry) => entry.status === "unsupported").reduce((sum, entry) => sum + entry.count, 0);
     const conflictCount = entries.filter((entry) => entry.status === "conflict").reduce((sum, entry) => sum + entry.count, 0);
     const unknownCount = entries.filter((entry) => entry.status === "unknown").reduce((sum, entry) => sum + entry.count, 0);
-    console.log(`Legacy Zone actions: ${currentCount} current occurrences, ${renamedCount} renamed occurrences, ${conflictCount} context conflicts, ${ignoredCount} ignored compatibility occurrences, ${unknownCount} unknown occurrences in ${zonePaths.length} files`);
+    console.log(`Legacy Zone actions: ${currentCount} current occurrences, ${renamedCount} renamed occurrences, ${confirmationCount} confirmation occurrences, ${unsupportedCount} unsupported occurrences, ${conflictCount} context conflicts, ${ignoredCount} ignored compatibility occurrences, ${unknownCount} unknown occurrences in ${zonePaths.length} files`);
     return conflictCount || unknownCount ? 1 : 0;
 }
 

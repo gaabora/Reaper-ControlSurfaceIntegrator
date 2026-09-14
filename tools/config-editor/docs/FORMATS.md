@@ -102,6 +102,19 @@ ZoneEnd
 - Zone dependency cycles are errors.
 - An `FXWidgetLayout` file can place the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives after `ZoneEnd`. These are metadata keywords, not comments.
 
+## Zone 2
+
+Format 2 Zone files start with `@Meta { Version=2 ... }`. A normal `Bank <amount>` binding uses the Zone `Target` and optional `BankTarget`. One binding can select a different child collection by supplying both action properties:
+
+```text
+@Meta { Version=2 Target=Tracks BankTarget=FX }
+
+Left  Bank -1 Target=SelectedTrack BankTarget=FX
+Right Bank 1 Target=SelectedTrack BankTarget=FX
+```
+
+The paired override accepts `Target=Tracks|SelectedTrack` with `BankTarget=Sends|Receives|FX`, or `Target=MasterTrack` with `BankTarget=FX`. Supplying only one property or an incompatible pair is an error.
+
 ## Functional snippet 2
 
 Snippets are direct Zone fragments:

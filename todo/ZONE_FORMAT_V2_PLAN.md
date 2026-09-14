@@ -1459,7 +1459,7 @@ Previous Bank -8
 Next Bank 8
 ```
 
-`Bank` accepts one signed integer amount. It moves the normal collection selected by `Target`, or the child collection selected by `BankTarget`. It does not accept a legacy navigator or magic zone name. A binding that must move a different collection belongs in a zone or included zone with that target context. The importer removes a matching legacy bank name and reports a conflict when the old action requests a different collection from the converted zone metadata.
+`Bank` accepts one signed integer amount. It normally moves the collection selected by the Zone `Target` and optional `BankTarget`. One binding can instead provide a paired explicit `Target` and `BankTarget` action override when a physical layout controls two child collections from one Zone. It does not accept a legacy navigator or magic zone name. The importer removes matching legacy bank names and writes the paired action override for a target-specific legacy action whose collection differs from the converted Zone metadata. A mismatched generic `Bank ZoneName Amount` remains unresolved because the requested collection is not encoded by the action name.
 
 The runtime stores navigator, track set, lifetime, activation scope, link category, bank offset, and zero-based REAPER indexes in its typed model. These fields are not part of the file syntax.
 
@@ -1874,6 +1874,8 @@ The initial conversion matrix is:
 | Legacy single-slash comment lines | `//` comments when the line is recognized as a legacy comment; OSC address tokens remain data |
 | Any renamed action | New action name and transformed parameters from the Bun-only action rename registry |
 | Legacy `NullDisplay` or standalone `NoFeedback` action | Binding removed because the legacy runtime created no action context; `NoFeedback` after a real action becomes `Feedback=No` |
+| Legacy `AutoMapFocusedFX` or `AutoLearnFocusedFX` | Kept unresolved until the user confirms replacement with the current guided `LearnFocusedFX` workflow |
+| Removed legacy Learn/Remap, metronome-volume, or `DumpHex` action | Binding preserved as a comment with a focused migration warning; no runtime alias is added |
 
 Action renames live in one declarative Bun-only registry separate from the general importer. Each entry identifies the legacy action, the new action, and any parameter transformation or context restriction. Runtime C++ does not keep old action aliases. The importer validates that every registry destination exists in the current generated action catalog.
 
@@ -1930,7 +1932,8 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
 - ✅ Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - ✅ Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
   - ✅ Read recognized long navigator names both from deprecated `GoZones.zon` entries and directly beside the legacy Zone ID, including `Zone Channel TrackNavigator` to `Target=Tracks`.
-  - ✅ Convert legacy `Bank Target Amount` to `Bank Amount` when the target matches the converted zone context. Report a migration conflict when it does not match, so the user can move that binding to an included zone with the required context.
+  - ✅ Convert legacy `Bank Target Amount` to `Bank Amount` when the target matches the converted zone context. Preserve a target-specific legacy action in a mixed-context Zone with paired `Target` and `BankTarget` action properties; keep a mismatched generic named Bank unresolved for an explicit move.
+  - ✅ Classify the remaining old public actions: safe group and toggle renames, confirmed Learn workflow replacements, ignored no-context bindings, and commented removed Learn/Remap, metronome-volume, and debug actions.
 - ✅ Remove exact standalone legacy navigator-name lines from zone bodies and report other unknown lines.
 - ✅ Convert Learn FX pseudo-zones into `LearnFX.fxzon`, derive supported entry defaults, report ambiguous display/default targets, validate resolved Surface capabilities, and do not convert `FXRowLayout`.
 - ✅ Convert brace-based `IncludedZones`, convert `SubZones` to the reusable `ZoneLayers` relation, and mark every referenced file with `Role=Layer`.
@@ -1956,6 +1959,11 @@ Ready when old public CSI examples can be imported into format 2 without runtime
 Ready when the plugin, editor, OSK, bundled resources, and documentation use format 2 as the only current runtime contract.
 
 ## [ ] Deferred design
+
+### Metronome volume actions
+
+- [ ] Review how the SWS `_S&M_METRO_VOL_DOWN` and `_S&M_METRO_VOL_UP` actions access and change REAPER metronome volume before defining replacement CSI actions.
+- [ ] If stable control and feedback are possible, design current primary and secondary metronome volume actions instead of restoring the removed legacy implementation.
 
 ### Track pinning
 

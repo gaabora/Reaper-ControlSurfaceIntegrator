@@ -156,6 +156,15 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         const [action, ...tokens] = tokenizeLine(text, true);
         const params = tokens.filter((token) => !/^[A-Za-z][A-Za-z0-9]*=/.test(token));
         if (action === "Bank" && (params.length !== 1 || !/^-?\d+$/.test(params[0]))) addDiagnostic(diagnostics, "error", "format2.zone.action.bank-amount", "Bank requires one unquoted signed integer amount", lineNumber, documentPath);
+        const targetProperty = tokens.find((token) => token.startsWith("Target="))?.slice("Target=".length);
+        const bankTargetProperty = tokens.find((token) => token.startsWith("BankTarget="))?.slice("BankTarget=".length);
+        if (action !== "Bank" && (targetProperty || bankTargetProperty)) addDiagnostic(diagnostics, "error", "format2.zone.action.bank-context-property", "Target and BankTarget action properties are valid only on Bank", lineNumber, documentPath);
+        if (action === "Bank" && Boolean(targetProperty) !== Boolean(bankTargetProperty)) addDiagnostic(diagnostics, "error", "format2.zone.action.bank-context-pair", "Bank requires both Target and BankTarget when either action override is present", lineNumber, documentPath);
+        if (action === "Bank" && targetProperty && bankTargetProperty) {
+            const validTrackChild = ["Tracks", "SelectedTrack"].includes(targetProperty) && ["Sends", "Receives", "FX"].includes(bankTargetProperty);
+            const validMasterFx = targetProperty === "MasterTrack" && bankTargetProperty === "FX";
+            if (!validTrackChild && !validMasterFx) addDiagnostic(diagnostics, "error", "format2.zone.action.bank-context", `Bank Target=${targetProperty} is not compatible with BankTarget=${bankTargetProperty}`, lineNumber, documentPath);
+        }
         if (["ToggleSelectedTrackFX", "ClearLastTouchedFXParam", "ClearFocusedFX", "ClearSelectedTrackFX", "ClearFXSlot"].includes(action) && params.length) addDiagnostic(diagnostics, "error", "format2.zone.action.argument", `${action} does not accept positional parameters`, lineNumber, documentPath);
         if (action === "ExitZoneLayer") layerActions.push({ action, line: lineNumber });
         if (action !== "GoZone" && action !== "EnterZoneLayer") return;

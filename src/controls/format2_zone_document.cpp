@@ -307,7 +307,33 @@ private:
         return action;
     }
 
+    const Format2PropertySyntax* FindActionProperty(const Format2ZoneAction& action, const char* name) const {
+        for (const Format2PropertySyntax& property : action.properties) if (property.name == name) return &property;
+        return nullptr;
+    }
+
+    void ValidateBankContextProperties(const Format2ZoneAction& action) {
+        const Format2PropertySyntax* target = this->FindActionProperty(action, "Target");
+        const Format2PropertySyntax* bankTarget = this->FindActionProperty(action, "BankTarget");
+        if (action.action != "Bank") {
+            if (target || bankTarget) this->AddDiagnostic("format2.zone.action.bank-context-property", "Target and BankTarget action properties are valid only on Bank", target ? target->nameLocation : bankTarget->nameLocation);
+            return;
+        }
+        if (static_cast<bool>(target) != static_cast<bool>(bankTarget)) {
+            this->AddDiagnostic("format2.zone.action.bank-context-pair", "Bank requires both Target and BankTarget when either action override is present", target ? target->nameLocation : bankTarget->nameLocation);
+            return;
+        }
+        if (!target) return;
+        const bool scalarValues = !target->value.list && !target->value.scalar.quoted && !bankTarget->value.list && !bankTarget->value.scalar.quoted;
+        const std::string& targetValue = target->value.scalar.text;
+        const std::string& bankTargetValue = bankTarget->value.scalar.text;
+        const bool validTrackChild = (targetValue == "Tracks" || targetValue == "SelectedTrack") && (bankTargetValue == "Sends" || bankTargetValue == "Receives" || bankTargetValue == "FX");
+        const bool validMasterFx = targetValue == "MasterTrack" && bankTargetValue == "FX";
+        if (!scalarValues || (!validTrackChild && !validMasterFx)) this->AddDiagnostic("format2.zone.action.bank-context", "Bank Target=" + targetValue + " is not compatible with BankTarget=" + bankTargetValue, target->value.location);
+    }
+
     void ValidateKnownActionArguments(const Format2ZoneAction& action) {
+        this->ValidateBankContextProperties(action);
         const Format2ActionArgumentKind argumentKind = GetFormat2ActionArgumentKind(action.action);
         if (argumentKind == Format2ActionArgumentKind::None) {
             if (!action.arguments.empty()) this->AddDiagnostic("format2.zone.action.argument", action.action + " does not accept positional parameters", action.arguments.front().location);
