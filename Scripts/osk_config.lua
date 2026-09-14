@@ -129,6 +129,9 @@ function M.OpenConfigEditor(surfName, widgetName)
     state.selectedBinding = 1
     state.status = ""
     state.searchSelected = 0
+    state.zoneNames = {}
+    state.searchQuery = ""
+    state.osdBinding = nil
     state.windowGeometryApplied = false
     osk_config_model.SyncSearchIndexFromMode(state)
 
@@ -152,13 +155,13 @@ function M.ShouldSuppressContextMenu()
     return os.clock() < state.suppressWindowContextMenuUntil
 end
 
-function M.RenderConfigEditor(ctx, font)
+function M.RenderConfigEditor(ctx, font, headingFont)
     if not state.isOpen then return end
 
     osk_config_protocol.PollConfigResponses(state, data, osk_config_model)
 
     local dirtyMarker = state.isDirty and " *" or ""
-    local title = "Widget config: [" .. state.widgetName .. "]  @" .. state.surfaceName .. "/" .. state.zoneName .. dirtyMarker .. " ###osk_widget_config"
+    local title = "Widget config: [" .. state.widgetName .. "]  @" .. state.surfaceName .. "/" .. state.zoneName .. ".zon" .. dirtyMarker .. " ###osk_widget_config"
     if not state.windowGeometryApplied then
         loadWindowGeometry()
         if state.windowPosition then imgui.SetNextWindowPos(ctx, state.windowPosition.x, state.windowPosition.y, imgui.Cond_Appearing) end
@@ -189,7 +192,24 @@ function M.RenderConfigEditor(ctx, font)
             reaper = r,
             modifierFlags = MODIFIER_FLAGS,
             tableFlags = TABLE_FLAGS,
-            onCreateZone = function() osk_zone_create.Open(state.surfaceName) end,
+            headingFont = headingFont,
+            onCreateZone = function()
+                local binding = osk_config_model.GetSelectedBinding(state)
+                local surfaceName = state.surfaceName
+                osk_zone_create.Open(surfaceName, function(zoneName, documentType, purpose)
+                    if not state.isOpen or state.surfaceName ~= surfaceName or documentType ~= "main" or purpose == "layer" then return end
+                    state.zoneNames[#state.zoneNames + 1] = zoneName
+                    for _, currentBinding in ipairs(state.bindings) do
+                        if currentBinding == binding and binding.actionName == "GoZone" then
+                            local parts = action_line.Parse(binding.line)
+                            if parts.params[1] == "Blink" then table.insert(parts.params, 1, zoneName) else parts.params[1] = zoneName end
+                            binding.line = action_line.Build(parts)
+                            osk_config_model.UpdateDirtyState(state)
+                            break
+                        end
+                    end
+                end)
+            end,
         }
         osk_config_view.RenderToolbar(ctx, state, deps)
         imgui.Spacing(ctx)

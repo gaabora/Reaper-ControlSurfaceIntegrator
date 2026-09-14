@@ -301,6 +301,21 @@ public:
     const char* GetFXZoneFolder() { return userFxZoneFolder_.c_str(); }
     map<const string, ZoneInfo>& GetZoneInfo() { return zoneInfo_; }
 
+    vector<string> GetNavigationZoneNames() const {
+        vector<string> names;
+        for (const auto& [zoneName, zoneInfo] : this->zoneInfo_) {
+            if (zoneInfo.isFxZone) continue;
+            if (this->format2ZoneProfile_) {
+                const auto documentIndex = this->format2DocumentIndexByPath_.find(zoneInfo.filePath);
+                if (documentIndex == this->format2DocumentIndexByPath_.end()) continue;
+                const auto& metadata = this->format2ZoneProfile_->documents[documentIndex->second].parsed.document.metadata;
+                if (metadata.role == Format2ZoneRole::Layer) continue;
+            }
+            names.push_back(zoneName);
+        }
+        return names;
+    }
+
     CSurfIntegrator* GetCSI() { return csi_; }
     ControlSurface* GetSurface() { return surface_; }
     bool UsesFormat2ZoneProfile() const { return this->format2ZoneProfile_ != nullptr; }

@@ -54,7 +54,7 @@ end
 
 local function getReaperActionTitle(parts, action_line, r)
     if tostring(parts.actionName or ""):lower() ~= "reaper" then return nil end
-    local commandToken = action_line.UnquoteValue and action_line.UnquoteValue(parts.params[1] or "") or parts.params[1]
+    local commandToken = tostring(action_line.UnquoteValue and action_line.UnquoteValue(parts.params[1] or "") or parts.params[1] or "")
     local commandId = tonumber(commandToken)
     if not commandId and commandToken ~= "" and type(r.NamedCommandLookup) == "function" then
         commandId = r.NamedCommandLookup(commandToken)
@@ -79,6 +79,15 @@ function M.GetBindingTitle(binding, action_line, data, r)
     return binding.line ~= "" and binding.line or "NoAction"
 end
 
+function M.GetActionTitle(binding, action_line, reaperApi)
+    local parts = action_line.Parse(binding.line)
+    local title = getReaperActionTitle(parts, action_line, reaperApi)
+    if title then return title end
+    local params = {}
+    for _, param in ipairs(parts.params) do if param ~= "Blink" then params[#params + 1] = param end end
+    return (table.concat({ parts.actionName or "NoAction", table.concat(params, " ") }, " "):gsub("%s+$", ""))
+end
+
 function M.GetModifierLabel(binding, modifierFlags)
     local labels = {}
     if binding.hasHold then labels[#labels + 1] = "Hold" end
@@ -90,27 +99,6 @@ function M.GetModifierLabel(binding, modifierFlags)
     end
     if #labels == 0 then return "-" end
     return table.concat(labels, "+")
-end
-
-function M.GetOtherSummary(binding, action_line)
-    local labels = {}
-    if binding.modifierMode then labels[#labels + 1] = "Modifier " .. (binding.modifierMode == "Default" and "Device setting" or binding.modifierMode) end
-    if binding.isIncrease then labels[#labels + 1] = "Increase" end
-    if binding.isDecrease then labels[#labels + 1] = "Decrease" end
-    if binding.isValueInverted then labels[#labels + 1] = "Invert" end
-    if binding.isFeedbackInverted then labels[#labels + 1] = "InvertFB" end
-
-    local parts = action_line.Parse(binding.line)
-    for _, param in ipairs(parts.params or {}) do
-        labels[#labels + 1] = action_line.UnquoteValue(param)
-    end
-    for key, value in pairs(parts.properties or {}) do
-        if key ~= "OSD" and key ~= "KeyLabel" then
-            labels[#labels + 1] = key .. "=" .. tostring(value)
-        end
-    end
-    table.sort(labels)
-    return table.concat(labels, ", ")
 end
 
 function M.ParseBindingString(raw, action_line)
@@ -312,15 +300,6 @@ function M.RemoveSelectedBinding(state)
     M.UpdateDirtyState(state)
 end
 
-function M.DuplicateSelectedBinding(state)
-    local selected = M.GetSelectedBinding(state)
-    if not selected then return end
-    local copy = M.CloneBindings({ selected })[1]
-    table.insert(state.bindings, state.selectedBinding + 1, copy)
-    state.selectedBinding = state.selectedBinding + 1
-    M.UpdateDirtyState(state)
-end
-
 function M.MoveSelectedBinding(state, offset)
     if #state.bindings < 2 then return end
     local fromIndex = state.selectedBinding
@@ -340,7 +319,12 @@ function M.ApplySearchSelectionToBinding(state, binding, row, action_line)
     local productActionPrefix = "[" .. identity.displayName .. "] "
     local csiAction = row:sub(1, #productActionPrefix) == productActionPrefix and row:sub(#productActionPrefix + 1) or nil
     if csiAction then
-        binding.line = csiAction
+        local parts = action_line.Parse(binding.line)
+        local hasBlink = false
+        for _, param in ipairs(parts.params) do if param == "Blink" then hasBlink = true end end
+        if parts.actionName ~= csiAction then parts.params = hasBlink and { "Blink" } or {} end
+        parts.actionName = csiAction
+        binding.line = action_line.Build(parts)
         M.RefreshBindingDerivedFields(binding, action_line)
         M.UpdateDirtyState(state)
         return
@@ -349,7 +333,13 @@ function M.ApplySearchSelectionToBinding(state, binding, row, action_line)
     local commandId = row:match("^%[REAPER%]%s+(%d+)")
     if commandId then
         local namedCommand = row:match("^%[REAPER%]%s+%d+%s+%((_[^)]+)%)")
-        binding.line = "Reaper " .. (namedCommand or commandId)
+        local parts = action_line.Parse(binding.line)
+        local hasBlink = false
+        for _, param in ipairs(parts.params) do if param == "Blink" then hasBlink = true end end
+        parts.actionName = "Reaper"
+        parts.params = { namedCommand or commandId }
+        if hasBlink then parts.params[#parts.params + 1] = "Blink" end
+        binding.line = action_line.Build(parts)
         M.RefreshBindingDerivedFields(binding, action_line)
         M.UpdateDirtyState(state)
     end

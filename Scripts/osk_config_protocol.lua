@@ -142,6 +142,11 @@ function M.PollConfigResponses(state, data, model)
     if zone ~= nil then state.zoneName = zone end
     local path = M.PollResponse(data, "ConfigZonePath_" .. surf .. "_" .. widget)
     if path ~= nil then state.zoneFilePath = path end
+    local zones = M.PollResponse(data, "ConfigZoneList_" .. surf .. "_" .. widget)
+    if zones ~= nil then
+        state.zoneNames = {}
+        for zoneName in zones:gmatch("[^\n]+") do state.zoneNames[#state.zoneNames + 1] = zoneName end
+    end
 
     local rawStatus = M.PollResponse(data, "ConfigStatus_" .. surf .. "_" .. widget)
     if rawStatus ~= nil then

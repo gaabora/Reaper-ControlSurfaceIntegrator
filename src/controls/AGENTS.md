@@ -21,6 +21,7 @@
 - Treat only `//` as Surface and Zone comments. Preserve single slash tokens as data so OSC addresses such as `/ch/01/mix/fader` reach the OSC widget parser.
 - Treat the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` Learn template directives as metadata, not as comments.
 - ExtState sections, keys, and serialized payloads shared with `Scripts/` must change atomically.
+- Include `ConfigZoneList_<surface>_<widget>` in successful OSK ConfigQuery responses. List available Main zone IDs one per line, excluding FX and Role=Layer zones, for the Lua GoZone selector.
 - Parse Product overrides from the root `Settings` block and Device overrides from its nested `Settings` block. Resolve compiled defaults, Product, and Device in that order. Reject one invalid scope as a unit instead of partially applying it.
 - Apply canonical Product `DebugLevel`, `WriteLogFile`, `ShowLogInReaperConsole`, `SurfaceRawInDisplay`, `SurfaceInDisplay`, and `SurfaceOutDisplay` values to the runtime logger and legacy diagnostic globals after initial configuration load, Apply, and Reload.
 - Label incoming debug logs with the message kind and named fields: `MIDI received` with Surface and Bytes, `OSC received` with Surface, Address, and Value, and `Widget input` with Surface, Widget, and Value.

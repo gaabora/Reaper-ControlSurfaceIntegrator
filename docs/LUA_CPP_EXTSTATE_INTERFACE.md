@@ -74,6 +74,7 @@ Keys in `ReaCtrlSurf_OSK`:
 | `ConfigResult_<surface>_<widget>` | `modifier:action line;...` |
 | `ConfigZoneName_<surface>_<widget>` | Active edit-target zone name |
 | `ConfigZonePath_<surface>_<widget>` | Active edit-target zone file path |
+| `ConfigZoneList_<surface>_<widget>` | Newline-separated available Main zone IDs for GoZone, excluding FX and Role=Layer zones; returned by ConfigQuery |
 | `ConfigStatus_<surface>_<widget>` | Structured operation status |
 | `ZoneCreateStatus_<surface>` | `outcome|path|message` for one zone-file creation request |
 
@@ -312,6 +313,8 @@ The schema supports `Boolean`, `Enum`, and `Integer` setting types. Boolean valu
 ## Lua Appearance Persistent Settings
 
 Common Control Panel appearance is fixed at item spacing `8`, rounding `4`, and disabled opacity `0.6`. It has no user settings. Error color is not a configurable appearance value.
+
+The OSK Appearance schema includes `primary_button_color` (`#RRGGBB`, default `#365e97`) for the widget editor Save button. It uses the same draft preview, Save, and Revert lifecycle as other OSK appearance settings.
 
 `ReaCtrlSurf_APPEARANCE_SETTINGS` contains session-only `Revision`. Every OSK, OSD, or Notifications schema save that changes persisted values increments it. `Revision` is a change notification, not a persistent setting or configuration revision.
 

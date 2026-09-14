@@ -996,6 +996,14 @@ void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {
     const string keyZonePath = string("ConfigZonePath_") + this->name_ + "_" + widgetName;
     ::SetExtState(ProductIdentity::ExtStateOsk, keyZonePath.c_str(), zonePath.c_str(), false);
 
+    string zoneNames;
+    for (const auto& availableZoneName : this->zoneManager_->GetNavigationZoneNames()) {
+        if (!zoneNames.empty()) zoneNames += "\n";
+        zoneNames += availableZoneName;
+    }
+    const string keyZoneList = string("ConfigZoneList_") + this->name_ + "_" + widgetName;
+    ::SetExtState(ProductIdentity::ExtStateOsk, keyZoneList.c_str(), zoneNames.c_str(), false);
+
     PublishConfigStatus("OK", "Query", this->name_, widgetName, zoneName, "Config query completed");
 }
 

@@ -76,6 +76,7 @@ local function pollResponse()
     state.path = path or ""
     state.status = message or ""
     if outcome == "OK" then
+        if state.onCreated and state.createdZone then state.onCreated(state.createdZone.name, state.createdZone.documentType, state.createdZone.purpose) end
         state.zoneName = ""
         state.alias = ""
         state.matchFx = ""
@@ -91,12 +92,13 @@ local function sendRequest()
     reaper.DeleteExtState(data.EXT_SECTION, responseKey(), false)
     local payload = table.concat({ state.surfaceName, state.documentType, state.zoneName, state.alias, state.purpose, state.matchFx }, "|")
     reaper.SetExtState(data.EXT_CMD_SECTION, "ZoneCreate", payload, false)
+    state.createdZone = { name = state.zoneName, documentType = state.documentType, purpose = state.purpose }
     state.path = ""
     state.pending = true
     state.status = "Creating zone file..."
 end
 
-function M.Open(surfaceName)
+function M.Open(surfaceName, onCreated)
     if not surfaceName or surfaceName == "" then return end
     state.alias = ""
     state.documentType = "main"
@@ -107,6 +109,7 @@ function M.Open(surfaceName)
     state.purpose = "tracks"
     state.status = ""
     state.surfaceName = surfaceName
+    state.onCreated = onCreated
     state.zoneName = ""
     reaper.DeleteExtState(data.EXT_SECTION, responseKey(), false)
 end

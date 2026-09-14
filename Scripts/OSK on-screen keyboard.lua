@@ -33,6 +33,7 @@ local ctx = nil
 local FONT = nil
 local FONT_SMALL = nil
 local CONFIG_FONT = nil
+local CONFIG_HEADING_FONT = nil
 local surfaceWindows = {}
 local fontCache = nil
 local lastAppearanceChangeToken = ""
@@ -166,7 +167,7 @@ local function main()
         end
     end
 
-    config.RenderConfigEditor(ctx, CONFIG_FONT)
+    config.RenderConfigEditor(ctx, CONFIG_FONT, CONFIG_HEADING_FONT)
     osk_zone_create.Render(ctx, CONFIG_FONT)
     data.FlushSurfacePositions(false)
 
@@ -196,6 +197,7 @@ local function Init()
     FONT = fonts.default
     FONT_SMALL = fonts.small
     CONFIG_FONT = fonts.default
+    CONFIG_HEADING_FONT = fontCache:Get("sans-serif", theme.CONFIG.heading_font_size)
     RebuildFonts()
     if render.SetConfigModule then render.SetConfigModule(config) end
 

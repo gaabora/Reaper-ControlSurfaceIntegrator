@@ -57,6 +57,23 @@ function M.DirtyActionButton(ctx, label, enabled, onClick)
     return clicked and enabled
 end
 
+function M.ColorButton(ctx, label, color, width, height)
+    imgui.PushStyleColor(ctx, imgui.Col_Button, color)
+    imgui.PushStyleColor(ctx, imgui.Col_ButtonHovered, theme.BrightenColor(color, 18))
+    imgui.PushStyleColor(ctx, imgui.Col_ButtonActive, theme.DimColor(color, 0.85))
+    imgui.PushStyleColor(ctx, imgui.Col_Text, theme.GetContrastTextColorFromCol(color))
+    local clicked = imgui.Button(ctx, label, width or 0, height or 0)
+    imgui.PopStyleColor(ctx, 4)
+    return clicked
+end
+
+function M.ToggleButton(ctx, label, enabled)
+    local color = imgui.GetStyleColor(ctx, enabled and imgui.Col_HeaderActive or imgui.Col_TableHeaderBg)
+    local clicked = M.ColorButton(ctx, (enabled and "✓ " or "") .. label, color)
+    if clicked then return true, not enabled end
+    return false, enabled
+end
+
 function M.SliderWithInput(ctx, label, currentValue, minValue, maxValue, step, options)
     options = options or {}
     local changed = false
