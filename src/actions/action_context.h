@@ -42,6 +42,7 @@ private:
     ActionModifierMode modifierMode_ = ActionModifierMode::Legacy;
     bool modifierModeUsesDefault_ = false;
     ActionInputEvent recognizedInputEvent_ = ActionInputEvent::Legacy;
+    bool inputEventUsesDefault_ = false;
     int modifierTapWindowMs_ = 0;
     BlinkState blink_; ///< LED/display blink state
     ActionColorState color_; ///< Color and track-color state
@@ -50,6 +51,7 @@ private:
     int runCount_ = 1;
 
     bool provideFeedback_ = true;
+    bool feedbackAvailable_ = true;
 
     char meterMode_[64] = "";
 
@@ -134,6 +136,8 @@ public:
 
     void SetInputEvent(ActionInputEvent inputEvent) { this->timing_.inputEvent = inputEvent; }
     ActionInputEvent GetInputEvent() const { return this->timing_.inputEvent; }
+    void SetInputEventUsesDefault(bool value) { this->inputEventUsesDefault_ = value; }
+    bool GetInputEventUsesDefault() const { return this->inputEventUsesDefault_; }
     void SetModifierMode(ActionModifierMode modifierMode) { this->modifierMode_ = modifierMode; }
     ActionModifierMode GetModifierMode() const { return this->modifierMode_; }
     void SetModifierModeUsesDefault(bool value) { this->modifierModeUsesDefault_ = value; }
@@ -181,6 +185,7 @@ public:
     double  GetRangeMaximum() const { return value_.rangeMaximum; }
     void    SetRangeMaximum(double rangeMaximum) { value_.rangeMaximum = rangeMaximum; }
     bool    GetProvideFeedback() { return provideFeedback_; }
+    bool GetFeedbackAvailable() const { return this->feedbackAvailable_; }
 
     void SetStringParam(const char* stringParam) {
         stringParam_ = stringParam;

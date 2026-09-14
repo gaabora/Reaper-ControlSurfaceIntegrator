@@ -170,9 +170,8 @@ struct OskConfigBinding {
     int modifierValue = 0;
     vector<string> actionTokens;
     Format2ModifierMode modifierMode = Format2ModifierMode::Default;
+    ActionInputEvent inputEvent = ActionInputEvent::Legacy;
     bool isModifierDeclaration = false;
-    bool hasHold = false;
-    bool hasDoublePress = false;
     bool isValueInverted = false;
     bool isFeedbackInverted = false;
     bool isIncrease = false;
@@ -182,8 +181,12 @@ struct OskConfigBinding {
 };
 
 static bool IsOskMetadataToken(const string& token, OskConfigBinding& binding) {
-    if (token == "__OSK_HOLD") binding.hasHold = true;
-    else if (token == "__OSK_DOUBLE_PRESS") binding.hasDoublePress = true;
+    if (token == "__OSK_EVENT_PRESS") binding.inputEvent = ActionInputEvent::Press;
+    else if (token == "__OSK_EVENT_TAP") binding.inputEvent = ActionInputEvent::Tap;
+    else if (token == "__OSK_EVENT_RELEASE") binding.inputEvent = ActionInputEvent::Release;
+    else if (token == "__OSK_EVENT_HOLD") binding.inputEvent = ActionInputEvent::Hold;
+    else if (token == "__OSK_EVENT_LONG_HOLD") binding.inputEvent = ActionInputEvent::LongHold;
+    else if (token == "__OSK_EVENT_DOUBLE_PRESS") binding.inputEvent = ActionInputEvent::DoublePress;
     else if (token == "__OSK_INVERT") binding.isValueInverted = true;
     else if (token == "__OSK_INVERT_FB") binding.isFeedbackInverted = true;
     else if (token == "__OSK_INCREASE") binding.isIncrease = true;
@@ -267,7 +270,7 @@ static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData,
             errorMessage = "Binding cannot be both Increase and Decrease at position " + to_string(bindingIdx + 1);
             return false;
         }
-        if (binding.isModifierDeclaration && (binding.modifierValue != 0 || binding.hasHold || binding.hasDoublePress || binding.isValueInverted || binding.isFeedbackInverted || binding.isIncrease || binding.isDecrease)) {
+        if (binding.isModifierDeclaration && (binding.modifierValue != 0 || binding.inputEvent != ActionInputEvent::Legacy || binding.isValueInverted || binding.isFeedbackInverted || binding.isIncrease || binding.isDecrease)) {
             errorMessage = "A Modifier declaration cannot use binding selectors at position " + to_string(bindingIdx + 1);
             return false;
         }
@@ -325,8 +328,8 @@ static string BuildFormat2ModifierPrefix(int modifierValue) {
 
 static string BuildFormat2SelectorPrefix(int modifierValue, ActionContext* context) {
     string prefix = BuildFormat2ModifierPrefix(modifierValue);
-    if (context && context->IsDoublePress()) prefix += "(DoublePress)+";
-    else if (context) {
+    if (context && !context->GetInputEventUsesDefault() && context->IsDoublePress()) prefix += "(DoublePress)+";
+    else if (context && !context->GetInputEventUsesDefault()) {
         switch (context->GetInputEvent()) {
             case ActionInputEvent::Press: prefix += "(Press)+"; break;
             case ActionInputEvent::Tap: prefix += "(Tap)+"; break;
@@ -421,8 +424,12 @@ static vector<string> BuildFormat2OskDraftLines(const string& widgetName, const 
             continue;
         }
         string line = BuildFormat2ModifierPrefix(binding.modifierValue);
-        if (binding.hasDoublePress) line += "(DoublePress)+";
-        else if (binding.hasHold) line += "(Hold)+";
+        if (binding.inputEvent == ActionInputEvent::Press) line += "(Press)+";
+        else if (binding.inputEvent == ActionInputEvent::Tap) line += "(Tap)+";
+        else if (binding.inputEvent == ActionInputEvent::Release) line += "(Release)+";
+        else if (binding.inputEvent == ActionInputEvent::Hold) line += "(Hold)+";
+        else if (binding.inputEvent == ActionInputEvent::LongHold) line += "(LongHold)+";
+        else if (binding.inputEvent == ActionInputEvent::DoublePress) line += "(DoublePress)+";
         if (binding.isValueInverted) line += "(Invert)+";
         if (binding.isFeedbackInverted) line += "(InvertFB)+";
         if (binding.isIncrease) line += "(Increase)+";
@@ -972,8 +979,15 @@ void ControlSurface::HandleOSKConfigQuery(const string& widgetName) {
             result += std::to_string(mod);
             result += ":";
             result += SerializeContextAction(ctx.get());
-            if (ctx->GetHoldDelay() > 0) result += " __OSK_HOLD";
-            if (ctx->IsDoublePress()) result += " __OSK_DOUBLE_PRESS";
+            if (!ctx->GetFeedbackAvailable()) result += " __OSK_FEEDBACK_UNAVAILABLE";
+            if (!ctx->GetInputEventUsesDefault()) {
+                if (ctx->GetInputEvent() == ActionInputEvent::Press) result += " __OSK_EVENT_PRESS";
+                else if (ctx->GetInputEvent() == ActionInputEvent::Tap) result += " __OSK_EVENT_TAP";
+                else if (ctx->GetInputEvent() == ActionInputEvent::Release) result += " __OSK_EVENT_RELEASE";
+                else if (ctx->GetInputEvent() == ActionInputEvent::Hold) result += " __OSK_EVENT_HOLD";
+                else if (ctx->GetInputEvent() == ActionInputEvent::LongHold) result += " __OSK_EVENT_LONG_HOLD";
+                else if (ctx->GetInputEvent() == ActionInputEvent::DoublePress) result += " __OSK_EVENT_DOUBLE_PRESS";
+            }
             if (ctx->GetIsValueInverted()) result += " __OSK_INVERT";
             if (ctx->GetIsFeedbackInverted()) result += " __OSK_INVERT_FB";
             if (ctx->GetRangeMinimum() == -2.0 && ctx->GetRangeMaximum() == 1.0) result += " __OSK_DECREASE";

@@ -168,12 +168,19 @@ modifier:action line;modifier:action line
 The action line may end with internal metadata tokens used to preserve structured
 editor state:
 
-- `__OSK_HOLD`
-- `__OSK_DOUBLE_PRESS`
+- `__OSK_EVENT_PRESS`
+- `__OSK_EVENT_TAP`
+- `__OSK_EVENT_RELEASE`
+- `__OSK_EVENT_HOLD`
+- `__OSK_EVENT_LONG_HOLD`
+- `__OSK_EVENT_DOUBLE_PRESS`
+- `__OSK_FEEDBACK_UNAVAILABLE` (query-only; the editor does not send it back)
 - `__OSK_INVERT`
 - `__OSK_INVERT_FB`
 - `__OSK_INCREASE`
 - `__OSK_DECREASE`
+
+For a REAPER command that returns `-1` from `GetToggleCommandState`, C++ publishes `__OSK_FEEDBACK_UNAVAILABLE`, disables normal action feedback, and the editor shows checked read-only `No feedback`. `Blink` remains available. `Feedback=No` together with `Blink` uses a permanent active source, so the Widget blinks continuously while the binding's Zone is active. With normal feedback, Blink follows the action's active value.
 
 ## OSD
 

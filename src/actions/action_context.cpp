@@ -116,9 +116,10 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         }
 
         int feedbackState = GetToggleCommandState(commandId_);
-        if (feedbackState == -1 && provideFeedback_ && !color_.HasConfiguredColor()) {
+        if (feedbackState == -1) {
+            feedbackAvailable_ = false;
             provideFeedback_ = false;
-            this->LogMessage(string("action '") + DAW::GetCommandName(commandId_) + "' does not provide feedback", DEBUG_LEVEL_DEBUG);
+            if (!feedback || !IsSameString(feedback, "No")) this->LogMessage(string("action '") + DAW::GetCommandName(commandId_) + "' does not provide feedback", DEBUG_LEVEL_DEBUG);
         }
     }
 
@@ -202,8 +203,8 @@ int ActionContext::GetSlotIndex() { return this->zone_->GetSlotIndexForChannel(t
 
 const char* ActionContext::GetName() { return zone_->GetAlias(); }
 void ActionContext::RequestUpdate() {
-    if (provideFeedback_ && !timing_.isDoublePress) 
-        action_->RequestUpdate(this);
+    if (provideFeedback_ && !timing_.isDoublePress) action_->RequestUpdate(this);
+    else if (!provideFeedback_ && blink_.blinkSet) UpdateWidgetValue(1.0);
 }
 
 void ActionContext::ClearWidget() {

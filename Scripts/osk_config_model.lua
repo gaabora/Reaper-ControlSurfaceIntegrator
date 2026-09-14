@@ -7,6 +7,15 @@ M.SEARCH_MODE_BY_INDEX = { "all", "csi", "reaper" }
 M.MODIFIER_MODE_ITEMS = "Use Device setting\0Momentary\0Latch\0Hybrid\0"
 M.MODIFIER_MODE_BY_INDEX = { "Default", "Momentary", "Latch", "Hybrid" }
 M.MODIFIER_MODE_INDEX = { Default = 0, Momentary = 1, Latch = 2, Hybrid = 3 }
+M.GESTURES = {
+    { label = "Default", value = "Legacy" },
+    { label = "Press", value = "Press" },
+    { label = "Tap", value = "Tap" },
+    { label = "Release", value = "Release" },
+    { label = "Hold", value = "Hold" },
+    { label = "Long hold", value = "LongHold" },
+    { label = "Double press", value = "DoublePress" },
+}
 
 function M.ParseCsv(text)
     local out = {}
@@ -90,8 +99,7 @@ end
 
 function M.GetModifierLabel(binding, modifierFlags)
     local labels = {}
-    if binding.hasHold then labels[#labels + 1] = "Hold" end
-    if binding.hasDoublePress then labels[#labels + 1] = "DoublePress" end
+    if binding.inputEvent and binding.inputEvent ~= "Legacy" then labels[#labels + 1] = binding.inputEvent end
     for _, modifier in ipairs(modifierFlags) do
         if ((binding.mod or 0) & modifier.bit) ~= 0 then
             labels[#labels + 1] = modifier.name
@@ -107,20 +115,25 @@ function M.ParseBindingString(raw, action_line)
         local modStr, line = entry:match("^(%-?%d+):(.+)$")
         if modStr and line then
             local metadata = {
-                hasHold = false,
-                hasDoublePress = false,
+                inputEvent = "Legacy",
                 isValueInverted = false,
                 isFeedbackInverted = false,
                 isIncrease = false,
                 isDecrease = false,
                 modifierMode = nil,
+                feedbackAvailable = true,
             }
             while true do
                 local token = line:match("%s+(__OSK_[A-Z_]+)$")
                 if not token then break end
                 line = line:sub(1, #line - #token - 1)
-                if token == "__OSK_HOLD" then metadata.hasHold = true
-                elseif token == "__OSK_DOUBLE_PRESS" then metadata.hasDoublePress = true
+                if token == "__OSK_EVENT_PRESS" then metadata.inputEvent = "Press"
+                elseif token == "__OSK_EVENT_TAP" then metadata.inputEvent = "Tap"
+                elseif token == "__OSK_EVENT_RELEASE" then metadata.inputEvent = "Release"
+                elseif token == "__OSK_EVENT_HOLD" then metadata.inputEvent = "Hold"
+                elseif token == "__OSK_EVENT_LONG_HOLD" then metadata.inputEvent = "LongHold"
+                elseif token == "__OSK_EVENT_DOUBLE_PRESS" then metadata.inputEvent = "DoublePress"
+                elseif token == "__OSK_FEEDBACK_UNAVAILABLE" then metadata.feedbackAvailable = false
                 elseif token == "__OSK_INVERT" then metadata.isValueInverted = true
                 elseif token == "__OSK_INVERT_FB" then metadata.isFeedbackInverted = true
                 elseif token == "__OSK_INCREASE" then metadata.isIncrease = true
@@ -136,13 +149,13 @@ function M.ParseBindingString(raw, action_line)
                 mod = tonumber(modStr) or 0,
                 line = line,
                 actionName = parts.actionName or "",
-                hasHold = metadata.hasHold,
-                hasDoublePress = metadata.hasDoublePress,
+                inputEvent = metadata.inputEvent,
                 isValueInverted = metadata.isValueInverted,
                 isFeedbackInverted = metadata.isFeedbackInverted,
                 isIncrease = metadata.isIncrease,
                 isDecrease = metadata.isDecrease,
                 modifierMode = metadata.modifierMode,
+                feedbackAvailable = metadata.feedbackAvailable,
             }
         end
     end
@@ -166,6 +179,16 @@ function M.GetNamedCommandId(r, commandId)
     return namedCommand
 end
 
+function M.IsFeedbackAvailable(binding, action_line, reaperApi)
+    local parts = action_line.Parse(binding.line)
+    if tostring(parts.actionName or ""):lower() ~= "reaper" then return binding.feedbackAvailable ~= false end
+    local commandToken = tostring(action_line.UnquoteValue(parts.params[1] or ""))
+    local commandId = tonumber(commandToken)
+    if not commandId and commandToken ~= "" and type(reaperApi.NamedCommandLookup) == "function" then commandId = reaperApi.NamedCommandLookup(commandToken) end
+    if not commandId or commandId == 0 or type(reaperApi.GetToggleCommandState) ~= "function" then return true end
+    return reaperApi.GetToggleCommandState(commandId) ~= -1
+end
+
 function M.RefreshSearchResults(state, r)
     local query = state.searchQuery
     local results = {}
@@ -173,7 +196,7 @@ function M.RefreshSearchResults(state, r)
     if state.searchMode ~= "reaper" then
         for _, name in ipairs(state.csiActions) do
             if M.MatchesSearchTerms(name, query) then
-                results[#results + 1] = "[" .. identity.displayName .. "] " .. name
+                results[#results + 1] = name .. " [" .. identity.displayName .. "]"
             end
         end
     end
@@ -205,7 +228,7 @@ function M.RefreshSearchResults(state, r)
             local searchableText = table.concat({ tostring(commandId), namedCommand, actionName }, " ")
             if M.MatchesSearchTerms(searchableText, query) then
                 local idText = namedCommand ~= "" and string.format("%d (%s)", commandId, namedCommand) or tostring(commandId)
-                results[#results + 1] = string.format("[REAPER] %s - %s", idText, actionName)
+                results[#results + 1] = string.format("%s - ID %s", actionName, idText)
             end
         end
     end
@@ -218,8 +241,10 @@ function M.SerializeBindings(bindings)
     for _, binding in ipairs(bindings or {}) do
         if binding and binding.line and binding.line ~= "" then
             local line = binding.line
-            if binding.hasHold then line = line .. " __OSK_HOLD" end
-            if binding.hasDoublePress then line = line .. " __OSK_DOUBLE_PRESS" end
+            if binding.inputEvent and binding.inputEvent ~= "Legacy" and not binding.modifierMode then
+                local eventToken = binding.inputEvent:gsub("(%l)(%u)", "%1_%2"):upper()
+                line = line .. " __OSK_EVENT_" .. eventToken
+            end
             if binding.isValueInverted then line = line .. " __OSK_INVERT" end
             if binding.isFeedbackInverted then line = line .. " __OSK_INVERT_FB" end
             if binding.isIncrease then line = line .. " __OSK_INCREASE" end
@@ -238,13 +263,13 @@ function M.CloneBindings(bindings)
             mod = binding.mod or 0,
             line = binding.line or "",
             actionName = binding.actionName or "",
-            hasHold = binding.hasHold == true,
-            hasDoublePress = binding.hasDoublePress == true,
+            inputEvent = binding.inputEvent or "Legacy",
             isValueInverted = binding.isValueInverted == true,
             isFeedbackInverted = binding.isFeedbackInverted == true,
             isIncrease = binding.isIncrease == true,
             isDecrease = binding.isDecrease == true,
             modifierMode = binding.modifierMode,
+            feedbackAvailable = binding.feedbackAvailable ~= false,
         }
     end
     return copy
@@ -288,6 +313,7 @@ function M.AddBinding(state)
         mod = 0,
         line = "NoAction",
         actionName = "NoAction",
+        inputEvent = "Legacy",
     }
     state.selectedBinding = #state.bindings
     M.UpdateDirtyState(state)
@@ -316,8 +342,8 @@ function M.ApplySearchSelectionToBinding(state, binding, row, action_line)
     row = row or state.searchResults[state.searchSelected]
     if not row then return end
 
-    local productActionPrefix = "[" .. identity.displayName .. "] "
-    local csiAction = row:sub(1, #productActionPrefix) == productActionPrefix and row:sub(#productActionPrefix + 1) or nil
+    local productActionSuffix = " [" .. identity.displayName .. "]"
+    local csiAction = row:sub(-#productActionSuffix) == productActionSuffix and row:sub(1, #row - #productActionSuffix) or nil
     if csiAction then
         local parts = action_line.Parse(binding.line)
         local hasBlink = false
@@ -325,14 +351,15 @@ function M.ApplySearchSelectionToBinding(state, binding, row, action_line)
         if parts.actionName ~= csiAction then parts.params = hasBlink and { "Blink" } or {} end
         parts.actionName = csiAction
         binding.line = action_line.Build(parts)
+        binding.feedbackAvailable = nil
         M.RefreshBindingDerivedFields(binding, action_line)
         M.UpdateDirtyState(state)
         return
     end
 
-    local commandId = row:match("^%[REAPER%]%s+(%d+)")
+    local commandId = row:match("%- ID%s+(%d+)")
     if commandId then
-        local namedCommand = row:match("^%[REAPER%]%s+%d+%s+%((_[^)]+)%)")
+        local namedCommand = row:match("%- ID%s+%d+%s+%((_[^)]+)%)")
         local parts = action_line.Parse(binding.line)
         local hasBlink = false
         for _, param in ipairs(parts.params) do if param == "Blink" then hasBlink = true end end
@@ -340,20 +367,38 @@ function M.ApplySearchSelectionToBinding(state, binding, row, action_line)
         parts.params = { namedCommand or commandId }
         if hasBlink then parts.params[#parts.params + 1] = "Blink" end
         binding.line = action_line.Build(parts)
+        binding.feedbackAvailable = nil
         M.RefreshBindingDerivedFields(binding, action_line)
         M.UpdateDirtyState(state)
     end
 end
 
-function M.SetHoldEnabled(state, binding, enabled, action_line)
-    binding.hasHold = enabled
-    if not enabled then
+function M.SetInputEvent(state, binding, inputEvent, action_line)
+    binding.inputEvent = inputEvent or "Legacy"
+    if binding.inputEvent ~= "Hold" and binding.inputEvent ~= "LongHold" then
         local parts = action_line.Parse(binding.line)
         parts.properties.HoldDelay = nil
         parts.properties.HoldRepeatInterval = nil
         binding.line = action_line.Build(parts)
     end
     M.UpdateDirtyState(state)
+end
+
+function M.GetZoneLinePreview(widgetName, binding, modifierFlags)
+    if binding.modifierMode then
+        local line = widgetName .. " Modifier " .. binding.line
+        if binding.modifierMode ~= "Default" then line = line .. " Mode=" .. binding.modifierMode end
+        return line
+    end
+    local selectors = {}
+    for _, modifier in ipairs(modifierFlags) do if ((binding.mod or 0) & modifier.bit) ~= 0 then selectors[#selectors + 1] = "[" .. modifier.name .. "]" end end
+    if binding.inputEvent and binding.inputEvent ~= "Legacy" then selectors[#selectors + 1] = "(" .. binding.inputEvent .. ")" end
+    if binding.isValueInverted then selectors[#selectors + 1] = "(Invert)" end
+    if binding.isFeedbackInverted then selectors[#selectors + 1] = "(InvertFB)" end
+    if binding.isIncrease then selectors[#selectors + 1] = "(Increase)" end
+    if binding.isDecrease then selectors[#selectors + 1] = "(Decrease)" end
+    local prefix = #selectors > 0 and table.concat(selectors, "+") .. "+" or ""
+    return prefix .. widgetName .. " " .. binding.line
 end
 
 return M

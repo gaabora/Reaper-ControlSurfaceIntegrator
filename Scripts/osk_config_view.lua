@@ -275,13 +275,38 @@ local function renderConditions(ctx, state, binding, deps)
     imgui.PopStyleVar(ctx)
     if binding.modifierMode then return end
     imgui.Spacing(ctx)
-    local toggled, enabled = ui.ToggleButton(ctx, "Hold##gesture_hold", binding.hasHold == true)
-    if toggled then deps.model.SetHoldEnabled(state, binding, enabled, deps.action_line) end
-    imgui.SameLine(ctx)
-    toggled, enabled = ui.ToggleButton(ctx, "Double press##gesture_double", binding.hasDoublePress == true)
-    if toggled then binding.hasDoublePress = enabled; deps.model.UpdateDirtyState(state) end
-    imgui.SameLine(ctx)
-    if softButton(ctx, "Modifiers...") then imgui.OpenPopup(ctx, "##modifiers") end
+    local gestureItems = {}
+    for _, gesture in ipairs(deps.model.GESTURES) do gestureItems[#gestureItems + 1] = { label = gesture.label, value = gesture.value } end
+    gestureItems[#gestureItems + 1] = { label = "Modifiers...", modifiers = true }
+    local gestureRows = { { items = {}, width = 0 } }
+    local paddingX = imgui.GetStyleVar(ctx, imgui.StyleVar_FramePadding)
+    for _, gestureItem in ipairs(gestureItems) do
+        gestureItem.width = imgui.CalcTextSize(ctx, gestureItem.label) + paddingX * 2
+        local gestureRow = gestureRows[#gestureRows]
+        local addition = #gestureRow.items > 0 and spacingX or 0
+        if #gestureRow.items > 0 and gestureRow.width + addition + gestureItem.width > availableWidth then
+            gestureRow = { items = {}, width = 0 }
+            gestureRows[#gestureRows + 1] = gestureRow
+            addition = 0
+        end
+        gestureRow.items[#gestureRow.items + 1] = gestureItem
+        gestureRow.width = gestureRow.width + addition + gestureItem.width
+    end
+    for _, gestureRow in ipairs(gestureRows) do
+        imgui.SetCursorPosX(ctx, startX + math.max(0, (availableWidth - gestureRow.width) / 2))
+        for idx, gestureItem in ipairs(gestureRow.items) do
+            if idx > 1 then imgui.SameLine(ctx) end
+            if gestureItem.modifiers then
+                if softButton(ctx, gestureItem.label, gestureItem.width) then imgui.OpenPopup(ctx, "##modifiers") end
+            else
+                local selected = (binding.inputEvent or "Legacy") == gestureItem.value
+                local buttonColor = imgui.GetStyleColor(ctx, selected and imgui.Col_HeaderActive or imgui.Col_TableHeaderBg)
+                if ui.ColorButton(ctx, gestureItem.label .. "##gesture_" .. gestureItem.value, buttonColor, gestureItem.width) then deps.model.SetInputEvent(state, binding, gestureItem.value, deps.action_line) end
+                if gestureItem.value == "Legacy" then ui.ItemTooltip(ctx, "Use the Device Default button trigger: Press or Tap") end
+            end
+        end
+    end
+    local toggled, enabled
     if imgui.BeginPopup(ctx, "##modifiers") then
         for idx, modifier in ipairs(deps.modifierFlags) do
             local selected = ((binding.mod or 0) & modifier.bit) ~= 0
@@ -434,19 +459,45 @@ end
 
 local function renderAdvanced(ctx, state, binding, parts, deps)
     if not imgui.CollapsingHeader(ctx, "Advanced") then return end
-    local changed, enabled = imgui.Checkbox(ctx, "Modifier source", binding.modifierMode ~= nil)
-    if changed then binding.modifierMode = enabled and "Default" or nil; deps.model.UpdateDirtyState(state) end
+    local changed, enabled = imgui.Checkbox(ctx, "Use " .. state.widgetName .. " as modifier", binding.modifierMode ~= nil)
+    ui.ItemTooltip(ctx, "This binding declares the edited physical widget as a standard modifier source instead of running a normal action.", true)
+    if changed then
+        binding.modifierMode = enabled and "Default" or nil
+        if enabled then
+            binding.mod = 0
+            binding.inputEvent = "Legacy"
+            binding.isValueInverted = false
+            binding.isFeedbackInverted = false
+            binding.isIncrease = false
+            binding.isDecrease = false
+            parts.actionName = deps.modifierFlags[1].name
+            parts.params = {}
+            parts.properties = {}
+            saveParts(state, binding, parts, deps)
+        else
+            deps.model.UpdateDirtyState(state)
+        end
+    end
     if binding.modifierMode then
         imgui.SameLine(ctx)
         imgui.SetNextItemWidth(ctx, 180)
         local modeChanged, mode = imgui.Combo(ctx, "##modifier_mode", deps.model.MODIFIER_MODE_INDEX[binding.modifierMode] or 0, deps.model.MODIFIER_MODE_ITEMS)
         if modeChanged then binding.modifierMode = deps.model.MODIFIER_MODE_BY_INDEX[mode + 1]; deps.model.UpdateDirtyState(state) end
-        field(ctx, "Modifier name")
-        local nameChanged, name = imgui.InputText(ctx, "##modifier_name", parts.actionName)
-        if nameChanged then parts.actionName = name; saveParts(state, binding, parts, deps) end
+        imgui.SameLine(ctx)
+        imgui.SetNextItemWidth(ctx, 120)
+        if imgui.BeginCombo(ctx, "##modifier_name", parts.actionName) then
+            for _, modifier in ipairs(deps.modifierFlags) do
+                if imgui.Selectable(ctx, modifier.name, parts.actionName == modifier.name) then parts.actionName = modifier.name; saveParts(state, binding, parts, deps) end
+            end
+            imgui.EndCombo(ctx)
+        end
     else
-        changed, enabled = imgui.Checkbox(ctx, "No feedback", tostring(parts.properties.Feedback or ""):lower() == "no")
-        if changed then parts.properties.Feedback = enabled and "No" or nil; saveParts(state, binding, parts, deps) end
+        local feedbackAvailable = deps.model.IsFeedbackAvailable(binding, deps.action_line, deps.reaper)
+        local feedbackDisabled = not feedbackAvailable
+        local feedbackLabel = feedbackDisabled and "No feedback (automatic)" or "No feedback"
+        changed, enabled = ui.Disabled(ctx, feedbackDisabled, function() return imgui.Checkbox(ctx, feedbackLabel, feedbackDisabled or tostring(parts.properties.Feedback or ""):lower() == "no") end)
+        ui.ItemTooltip(ctx, feedbackDisabled and "This REAPER action does not report a toggle state. Blink can still run continuously." or "Disable action feedback. With Blink enabled, the widget blinks continuously.", true)
+        if changed and not feedbackDisabled then parts.properties.Feedback = enabled and "No" or nil; saveParts(state, binding, parts, deps) end
         imgui.SameLine(ctx)
         changed, enabled = imgui.Checkbox(ctx, "Invert feedback", binding.isFeedbackInverted == true)
         if changed then binding.isFeedbackInverted = enabled; deps.model.UpdateDirtyState(state) end
@@ -459,7 +510,7 @@ local function renderAdvanced(ctx, state, binding, parts, deps)
         imgui.SetNextItemWidth(ctx, theme.CONFIG.run_count_width)
         local runCountChanged, runCount = imgui.DragInt(ctx, "##run_count", tonumber(parts.properties.RunCount) or 1, 1, 1, 10, "Run count: %d")
         if runCountChanged then parts.properties.RunCount = runCount > 1 and tostring(runCount) or nil; saveParts(state, binding, parts, deps) end
-        if binding.hasHold then
+        if binding.inputEvent == "Hold" or binding.inputEvent == "LongHold" then
             imgui.SetNextItemWidth(ctx, theme.CONFIG.hold_input_width)
             local delayChanged, delay = imgui.DragInt(ctx, "##hold_delay", tonumber(parts.properties.HoldDelay) or 0, 100, 0, 10000, "Hold delay: %d ms")
             ui.ItemTooltip(ctx, "0 uses the Device hold delay")
@@ -471,13 +522,15 @@ local function renderAdvanced(ctx, state, binding, parts, deps)
             if repeatChanged then parts.properties.HoldRepeatInterval = interval > 0 and tostring(interval) or nil; saveParts(state, binding, parts, deps) end
         end
     end
-    field(ctx, "Raw")
+    field(ctx, "Action raw")
     local lineChanged, line = imgui.InputText(ctx, "##raw_action", binding.line)
     if lineChanged then
         binding.line = line
         deps.model.RefreshBindingDerivedFields(binding, deps.action_line)
         deps.model.UpdateDirtyState(state)
     end
+    field(ctx, "Zone line")
+    imgui.InputText(ctx, "##zone_line", deps.model.GetZoneLinePreview(state.widgetName, binding, deps.modifierFlags), imgui.InputTextFlags_ReadOnly)
 end
 
 function M.RenderBody(ctx, state, deps)

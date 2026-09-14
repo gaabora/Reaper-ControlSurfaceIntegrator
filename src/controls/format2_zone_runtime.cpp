@@ -18,6 +18,7 @@ struct Format2PreparedActionContext {
     std::string actionName;
     std::vector<std::string> parameters;
     ActionInputEvent inputEvent = ActionInputEvent::Legacy;
+    bool inputEventUsesDefault = false;
     ActionModifierMode modifierMode = ActionModifierMode::Legacy;
     bool modifierModeUsesDefault = false;
     int eventDelayMs = 0;
@@ -370,7 +371,10 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         prepared.actionIdentity = MakeFormat2ActionIdentity(binding.action);
         prepared.parameters = MakeFormat2ActionParameters(binding.action, spec.surfaceChannelOffset);
         PrepareFormat2Selectors(zoneManager, binding, prepared, result);
-        if (prepared.inputEvent == ActionInputEvent::Legacy && !prepared.increase && !prepared.decrease && widget->GetIsTwoState()) prepared.inputEvent = zoneManager->GetSurface()->GetSettings().GetString("DefaultButtonTrigger") == "Tap" ? ActionInputEvent::Tap : ActionInputEvent::Press;
+        if (prepared.inputEvent == ActionInputEvent::Legacy && !prepared.increase && !prepared.decrease && widget->GetIsTwoState()) {
+            prepared.inputEventUsesDefault = true;
+            prepared.inputEvent = zoneManager->GetSurface()->GetSettings().GetString("DefaultButtonTrigger") == "Tap" ? ActionInputEvent::Tap : ActionInputEvent::Press;
+        }
         if (prepared.inputEvent != ActionInputEvent::Legacy && !widget->GetIsTwoState()) {
             AddFormat2RuntimeDiagnostic(result, "format2.zone.runtime.button-input", "A button event requires a Widget with press and release input: " + spec.widgetId, binding.widget.location);
             continue;
@@ -415,6 +419,7 @@ Format2ZoneRuntimeResult LoadFormat2ZoneRuntimeBindings(ZoneManager* zoneManager
         zone->AddWidget(prepared.widget);
         ActionContext* context = zone->AddActionContext(prepared.widget, prepared.modifier, zone, prepared.actionName.c_str(), prepared.parameters, prepared.navigator, prepared.surfaceChannelOffset);
         context->SetInputEvent(prepared.inputEvent);
+        context->SetInputEventUsesDefault(prepared.inputEventUsesDefault);
         context->SetModifierMode(prepared.modifierMode);
         context->SetModifierModeUsesDefault(prepared.modifierModeUsesDefault);
         context->SetModifierTapWindow(prepared.modifierTapWindowMs);
