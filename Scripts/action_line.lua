@@ -157,7 +157,7 @@ function M.Build(parts)
     end
 
     local used = {}
-    local priorityKeys = { "Feedback", "Blink", "BlinkIntervalMs", "HoldDelay", "HoldRepeatInterval", "RunCount", "OSD", "KeyLabel" }
+    local priorityKeys = { "Feedback", "Blink", "Animation", "BlinkIntervalMs", "HoldDelay", "HoldRepeatInterval", "RunCount", "OSD", "KeyLabel" }
     for _, key in ipairs(priorityKeys) do
         local value = parts.properties and parts.properties[key]
         if value ~= nil and tostring(value) ~= "" then

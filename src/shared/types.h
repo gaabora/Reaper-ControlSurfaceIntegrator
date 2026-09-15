@@ -240,6 +240,7 @@ enum PropertyType {
   D(MeterMode) \
   D(Feedback) \
   D(Blink) \
+  D(Animation) \
   D(BlinkIntervalMs) \
   D(HoldDelay) \
   D(HoldRepeatInterval) \

@@ -191,6 +191,12 @@ function normalizeProperty(token: string): string {
     return token;
 }
 
+function animationForLegacyInterval(interval: number): string {
+    if (interval <= 250) return "BlinkFast";
+    if (interval >= 750) return "BlinkSlow";
+    return "BlinkNormal";
+}
+
 function convertWidgetExpression(expression: string, inferHold: boolean, declaredModifiers?: ReadonlySet<string>): string {
     const parts = expression.split("+").filter(Boolean);
     const widgetName = (parts.pop() ?? "").replace(/\|$/, "#");
@@ -308,17 +314,17 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
         if (modifierDeclaration) {
             actionTokens = actionTokens.flatMap((token) => {
-                if (token === "Blink") return ["Blink=Active"];
+                if (token === "Blink") return ["Blink=Active", "Animation=BlinkNormal"];
                 const legacyBlink = token.match(/^Blink=(\d+)$/);
-                if (legacyBlink) return ["Blink=Active", `BlinkIntervalMs=${legacyBlink[1]}`];
+                if (legacyBlink) return ["Blink=Active", `Animation=${animationForLegacyInterval(Number(legacyBlink[1]))}`];
                 return [token];
             });
         } else {
             const feedbackNone = actionTokens.includes("Feedback=None");
             actionTokens = actionTokens.flatMap((token) => {
-                if (token === "Blink") return [`Blink=${feedbackNone ? "Always" : "Active"}`];
+                if (token === "Blink") return [`Blink=${feedbackNone ? "Always" : "Active"}`, "Animation=BlinkNormal"];
                 const legacyBlink = token.match(/^Blink=(\d+)$/);
-                if (legacyBlink) return [`Blink=${feedbackNone ? "Always" : "Active"}`, `BlinkIntervalMs=${legacyBlink[1]}`];
+                if (legacyBlink) return [`Blink=${feedbackNone ? "Always" : "Active"}`, `Animation=${animationForLegacyInterval(Number(legacyBlink[1]))}`];
                 return [token];
             });
             if (!feedbackNone && sourceTokens.tokens[0].split("+").includes("InvertFB")) {

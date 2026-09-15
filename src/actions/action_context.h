@@ -135,10 +135,10 @@ public:
         blink_.condition = condition;
         blink_.blinkIntervalMs = value;
     }
-    int GetBlinkInterval();
     bool IsBlinkSet() const { return this->blink_.blinkSet; }
-    int GetConfiguredBlinkInterval() const { return this->blink_.blinkIntervalMs; }
     BlinkCondition GetBlinkCondition() const { return this->blink_.condition; }
+    AnimationPreset GetAnimationPreset() const { return this->blink_.animation; }
+    const char* GetAnimationPresetName() const;
     FeedbackMode GetFeedbackMode() const { return this->feedbackMode_; }
 
     void SetDoublePress() { timing_.isDoublePress = true; }

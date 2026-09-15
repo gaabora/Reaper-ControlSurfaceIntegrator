@@ -17,7 +17,7 @@
 - Declare a confirmed normalized action shape with `GetFeedbackShape()` and the matching `//! @feedback_shape` value. Leave dynamic, raw-unit, text, state, color, and semantically unknown actions without a shape.
 - `Do`, `RequestUpdate`, `Touch`, and normalized-value behavior must agree for each action.
 - Use `Feedback=Default`, `Feedback=Invert`, and `Feedback=None` for normal, inverted, and disabled action feedback. A stateless REAPER command resolves to `Feedback=None` automatically. Use the bare `InvertValue` action option to invert the value sent to an action.
-- Apply `Feedback=Invert` before evaluating `Blink=Active` or `Blink=Inactive`. `Blink=Always` uses a permanent source and remains available with `Feedback=None`. Keep the optional interval in `BlinkIntervalMs`.
+- Apply `Feedback=Invert` before evaluating `Blink=Active` or `Blink=Inactive`. `Blink=Always` uses a permanent source and remains available with `Feedback=None`. Select `Animation=BlinkFast|BlinkNormal|BlinkSlow|BlinkDouble|BlinkHeartbeat`; resolve the three base intervals from Product or Device settings. Keep `BlinkIntervalMs` only as migration input.
 - Stateless `Reaper` actions with explicit action-line colors must still provide inactive color feedback unless the mapping uses `Feedback=None`.
 - Resolve format 2 `StateColors` through `ActionContext` so generic Color feedback and OSK state use the same selected color. Keep anonymous `{ ... }` color parsing only for the legacy runtime path.
 - Action feedback must use the owning `ActionContext` and widget contracts rather than bypassing them.

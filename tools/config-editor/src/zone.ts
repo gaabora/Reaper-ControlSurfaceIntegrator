@@ -273,8 +273,10 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
                 if (propertyName === "Mode" && !["Momentary", "Latch", "Hybrid"].includes(value)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.mode", `Unknown modifier Mode: ${value}`, line.lineNumber, documentPath);
                 else if (propertyName === "Blink" && value !== "Active" && (!/^\d+$/.test(value) || Number(value) < 1)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.blink", "A Modifier supports Blink=Active. For a custom interval, use Blink=Active BlinkIntervalMs=500", line.lineNumber, documentPath);
                 else if (propertyName === "BlinkIntervalMs" && (!/^\d+$/.test(value) || Number(value) < 1)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.blink-interval", "BlinkIntervalMs must be a positive millisecond value, for example BlinkIntervalMs=500", line.lineNumber, documentPath);
-                else if (propertyName !== "Mode" && propertyName !== "Blink" && propertyName !== "BlinkIntervalMs" && propertyName !== "StateColors") addDiagnostic(diagnostics, "error", "format2.zone.modifier.property", `Unknown modifier declaration property: ${propertyName}`, line.lineNumber, documentPath);
+                else if (propertyName === "Animation" && !["BlinkFast", "BlinkNormal", "BlinkSlow", "BlinkDouble", "BlinkHeartbeat"].includes(value)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.animation", "Animation must be BlinkFast, BlinkNormal, BlinkSlow, BlinkDouble, or BlinkHeartbeat", line.lineNumber, documentPath);
+                else if (propertyName !== "Mode" && propertyName !== "Blink" && propertyName !== "BlinkIntervalMs" && propertyName !== "Animation" && propertyName !== "StateColors") addDiagnostic(diagnostics, "error", "format2.zone.modifier.property", `Unknown modifier declaration property: ${propertyName}`, line.lineNumber, documentPath);
             }
+            if (properties.has("Animation") && !properties.has("Blink") && !properties.has("BlinkIntervalMs") && !hasBareBlink) addDiagnostic(diagnostics, "error", "format2.zone.modifier.animation-without-blink", "Animation needs Blink=Active, for example Blink=Active Animation=BlinkFast", line.lineNumber, documentPath);
             if (modifierName) semantic.modifierDeclarations.push({ action: modifierName, inputSelectors: ["Modifier"], line: line.lineNumber, modifierKind: standard ? "standard" : "pseudo", modifiers: [], params: [], properties, widget: expression.widget });
             continue;
         }
@@ -288,6 +290,9 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         const blinkInterval = properties.get("BlinkIntervalMs");
         if (blinkInterval && (!/^\d+$/.test(blinkInterval) || Number(blinkInterval) < 1)) addDiagnostic(diagnostics, "error", "format2.zone.blink-interval", "BlinkIntervalMs must be one positive integer", line.lineNumber, documentPath);
         if (blinkInterval && !blink) addDiagnostic(diagnostics, "error", "format2.zone.blink-interval-without-mode", "BlinkIntervalMs requires Blink", line.lineNumber, documentPath);
+        const animation = properties.get("Animation");
+        if (animation && !["BlinkFast", "BlinkNormal", "BlinkSlow", "BlinkDouble", "BlinkHeartbeat"].includes(animation)) addDiagnostic(diagnostics, "error", "format2.zone.animation", "Animation must be BlinkFast, BlinkNormal, BlinkSlow, BlinkDouble, or BlinkHeartbeat", line.lineNumber, documentPath);
+        if (animation && !blink) addDiagnostic(diagnostics, "error", "format2.zone.animation-without-blink", "Animation needs a Blink condition, for example Blink=Active Animation=BlinkFast", line.lineNumber, documentPath);
         for (const propertyName of ["DelayMs", "RepeatIntervalMs", "RunCount"]) if (new RegExp(`(?:^|\\s)${propertyName}\\s*=\\s*"`).test(text)) addDiagnostic(diagnostics, "error", "format2.zone.gesture.integer-property", `${propertyName} must be one complete unquoted integer`, line.lineNumber, documentPath);
         const selectedButtonEvents = expression.inputSelectors.filter((selector) => buttonEvents.has(selector));
         if (selectedButtonEvents.length > 1) addDiagnostic(diagnostics, "error", "format2.zone.binding.event", "A binding cannot select more than one button event", line.lineNumber, documentPath);

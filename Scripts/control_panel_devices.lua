@@ -172,7 +172,7 @@ local function renderRuntime(ctx, active, issue, details)
     imgui.Text(ctx, active and "● Active" or "× Inactive")
     imgui.PopStyleColor(ctx)
     imgui.SameLine(ctx)
-    imgui.TextDisabled(ctx, details and details ~= "" and details or (active and "CSI opened the saved I/O. Save draft changes to reconnect it." or "Check the selected ports or connection, then Save changes to reconnect CSI."))
+    imgui.TextDisabled(ctx, details and details ~= "" and details or (active and "CSI opened this I/O. Changes reconnect automatically after the editor closes." or "Check the selected ports or connection. Changes reconnect automatically after the editor closes."))
     if issue and issue ~= "" then imgui.TextWrapped(ctx, "Runtime issue: " .. issue) end
 end
 
@@ -662,7 +662,7 @@ local function renderListenerEditor(ctx, page, listener, fonts)
         if otherListener ~= listener and otherListener.broadcaster == listener.broadcaster and otherListener.listener == listener.listener then localError(ctx, "This relationship already exists") break end
         if otherListener.broadcaster == listener.listener and otherListener.listener == listener.broadcaster then localError(ctx, "This relationship creates a circular pair") break end
     end
-    renderRuntime(ctx, listener.active, "", listener.active and "CSI is forwarding the selected categories. No action is required." or "Check both Surface assignments, then Save changes to reconnect CSI.")
+    renderRuntime(ctx, listener.active, "", listener.active and "CSI is forwarding the selected categories. No action is required." or "Check both Surface assignments. Changes reconnect automatically.")
 end
 
 local function renderListenersSection(ctx, data, fonts)
@@ -896,6 +896,10 @@ function module.IsBusy()
     return state.requestId ~= nil
 end
 
+function module.IsEditing()
+    return state.editPage ~= nil or state.editSurface ~= nil or state.deleteIo ~= nil
+end
+
 function module.HasError()
     return state.error ~= ""
 end
@@ -950,7 +954,7 @@ function module.RenderPage(ctx, fonts)
     if not state.data then return end
     if not state.data.configExists then
         imgui.Spacing(ctx)
-        imgui.TextWrapped(ctx, "No product configuration exists yet. Add an I/O definition and assign a Surface to Home. Then use Create configuration below.")
+        imgui.TextWrapped(ctx, "No product configuration exists yet. Add an I/O definition and assign a Surface to Home. The complete configuration is created automatically.")
     end
     imgui.Spacing(ctx)
     renderAssignmentsSection(ctx, state.data, fonts)

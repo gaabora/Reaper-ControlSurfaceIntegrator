@@ -3,6 +3,7 @@
 //  control_surface.h — ControlSurface base class
 //
 #include "preamble.h"
+#include "blink_state.h"
 #include "../actions/action_timing.h"
 #include "format2_surface_document.h"
 #include "page_interface.h"
@@ -295,6 +296,7 @@ public:
         this->latchTime_ = settings.GetInteger("ModifierTapWindowMs");
         this->holdTimeMs_ = settings.GetInteger("HoldDelayMs");
         this->doublePressTime_ = settings.GetInteger("DoublePressWindowMs");
+        this->blinkTimeMs_ = settings.GetInteger("BlinkNormalIntervalMs");
     }
     const SettingsValues& GetSettings() const { return this->settings_; }
     const SettingOverrides& GetSettingOverrides() const { return this->settingOverrides_; }
@@ -307,6 +309,24 @@ public:
     bool IsBlinkLit(int intervalMs) {
         if (intervalMs <= 0) intervalMs = blinkTimeMs_;
         return (GetTickCount() / static_cast<DWORD>(intervalMs)) % 2 == 0;
+    }
+
+    bool IsAnimationLit(AnimationPreset animation) {
+        const DWORD now = GetTickCount();
+        const int fastInterval = (std::max)(1, this->settings_.GetInteger("BlinkFastIntervalMs"));
+        const int normalInterval = (std::max)(1, this->blinkTimeMs_);
+        const int slowInterval = (std::max)(1, this->settings_.GetInteger("BlinkSlowIntervalMs"));
+        if (animation == AnimationPreset::BlinkFast) return (now / static_cast<DWORD>(fastInterval)) % 2 == 0;
+        if (animation == AnimationPreset::BlinkSlow) return (now / static_cast<DWORD>(slowInterval)) % 2 == 0;
+        if (animation == AnimationPreset::BlinkDouble) {
+            const DWORD phase = now % static_cast<DWORD>(slowInterval * 2 + fastInterval * 3);
+            return phase < static_cast<DWORD>(fastInterval) || (phase >= static_cast<DWORD>(fastInterval * 2) && phase < static_cast<DWORD>(fastInterval * 3));
+        }
+        if (animation == AnimationPreset::BlinkHeartbeat) {
+            const DWORD phase = now % static_cast<DWORD>(slowInterval * 2 + fastInterval * 4);
+            return phase < static_cast<DWORD>(fastInterval) || (phase >= static_cast<DWORD>(fastInterval * 3) && phase < static_cast<DWORD>(fastInterval * 4));
+        }
+        return (now / static_cast<DWORD>(normalInterval)) % 2 == 0;
     }
 
     void SetOSDTime(int value) { osdTimeMs_ = value; }

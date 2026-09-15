@@ -17,6 +17,12 @@ M.GESTURES = {
     { label = "Double press", value = "DoublePress" },
 }
 
+local function animationForLegacyInterval(interval)
+    if interval <= 250 then return "BlinkFast" end
+    if interval >= 750 then return "BlinkSlow" end
+    return "BlinkNormal"
+end
+
 function M.ParseCsv(text)
     local out = {}
     for entry in tostring(text or ""):gmatch("[^,]+") do
@@ -166,8 +172,12 @@ function M.ParseBindingString(raw, action_line)
             local legacyBlinkInterval = tonumber(parts.properties.Blink)
             if legacyBlinkInterval then
                 parts.properties.Blink = metadata.modifierMode and "Active" or parts.properties.Feedback == "None" and "Always" or "Active"
-                parts.properties.BlinkIntervalMs = tostring(legacyBlinkInterval)
+                parts.properties.Animation = animationForLegacyInterval(legacyBlinkInterval)
             end
+            local legacyAnimationInterval = tonumber(parts.properties.BlinkIntervalMs)
+            if legacyAnimationInterval then parts.properties.Animation = animationForLegacyInterval(legacyAnimationInterval) end
+            parts.properties.BlinkIntervalMs = nil
+            if parts.properties.Blink and not parts.properties.Animation then parts.properties.Animation = "BlinkNormal" end
             line = action_line.Build(parts)
             bindings[#bindings + 1] = {
                 mod = tonumber(modStr) or 0,

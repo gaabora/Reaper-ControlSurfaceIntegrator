@@ -452,25 +452,16 @@ local function renderBlink(ctx, state, binding, parts, deps)
     local nextMode = renderChoiceButtons(ctx, "Blink", modes, currentMode, false)
     local changed = nextMode ~= nil
     nextMode = nextMode or currentMode
-    local custom = parts.properties.BlinkIntervalMs ~= nil
-    local interval = tonumber(parts.properties.BlinkIntervalMs) or 500
     if nextMode ~= "Off" then
-        imgui.SameLine(ctx)
-        local customChanged
-        customChanged, custom = imgui.Checkbox(ctx, "Custom interval", custom)
-        changed = changed or customChanged
-        if custom then
-            imgui.SameLine(ctx)
-            imgui.SetNextItemWidth(ctx, 120)
-            local intervalChanged
-            intervalChanged, interval = imgui.DragInt(ctx, "##blink_interval", interval, 10, 1, 10000, "%d ms")
-            changed = changed or intervalChanged
-        end
+        local animations = { "BlinkFast", "BlinkNormal", "BlinkSlow", "BlinkDouble", "BlinkHeartbeat" }
+        local nextAnimation = renderChoiceButtons(ctx, "Animation", animations, parts.properties.Animation or "BlinkNormal", false)
+        if nextAnimation then parts.properties.Animation = nextAnimation; changed = true end
     end
     if changed then
         for idx = #parts.params, 1, -1 do if parts.params[idx] == "Blink" then table.remove(parts.params, idx) end end
         parts.properties.Blink = nextMode ~= "Off" and nextMode or nil
-        parts.properties.BlinkIntervalMs = nextMode ~= "Off" and custom and tostring(interval) or nil
+        parts.properties.Animation = nextMode ~= "Off" and (parts.properties.Animation or "BlinkNormal") or nil
+        parts.properties.BlinkIntervalMs = nil
         saveParts(state, binding, parts, deps)
     end
 end

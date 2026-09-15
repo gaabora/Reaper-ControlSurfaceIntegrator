@@ -1,5 +1,27 @@
 #include "../controls/integrator.h"
 
+static AnimationPreset ParseAnimationPreset(const char* value) {
+    if (value && IsSameString(value, "BlinkFast")) return AnimationPreset::BlinkFast;
+    if (value && IsSameString(value, "BlinkSlow")) return AnimationPreset::BlinkSlow;
+    if (value && IsSameString(value, "BlinkDouble")) return AnimationPreset::BlinkDouble;
+    if (value && IsSameString(value, "BlinkHeartbeat")) return AnimationPreset::BlinkHeartbeat;
+    return AnimationPreset::BlinkNormal;
+}
+
+static AnimationPreset AnimationPresetForLegacyInterval(int intervalMs) {
+    if (intervalMs <= 250) return AnimationPreset::BlinkFast;
+    if (intervalMs >= 750) return AnimationPreset::BlinkSlow;
+    return AnimationPreset::BlinkNormal;
+}
+
+static const char* AnimationPresetName(AnimationPreset animation) {
+    if (animation == AnimationPreset::BlinkFast) return "BlinkFast";
+    if (animation == AnimationPreset::BlinkSlow) return "BlinkSlow";
+    if (animation == AnimationPreset::BlinkDouble) return "BlinkDouble";
+    if (animation == AnimationPreset::BlinkHeartbeat) return "BlinkHeartbeat";
+    return "BlinkNormal";
+}
+
 ////////// ActionContext ////////
 
 ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget* widget, Zone* zone, int paramIndex, const vector<string>& paramsAndProperties, Navigator* navigator, int format2ChannelOffset)
@@ -40,6 +62,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
 
     const char* blinkValue = widgetProperties_.get_prop(PropertyType_Blink);
     const char* blinkInterval = widgetProperties_.get_prop(PropertyType_BlinkIntervalMs);
+    this->blink_.animation = ParseAnimationPreset(widgetProperties_.get_prop(PropertyType_Animation));
     if (blinkValue) {
         BlinkCondition condition = BlinkCondition::Active;
         int intervalMs = INHERIT_VALUE;
@@ -48,6 +71,7 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         else if (!IsSameString(blinkValue, "Active")) intervalMs = atoi(blinkValue);
         if (this->feedbackMode_ == FeedbackMode::None && !IsSameString(blinkValue, "Active") && !IsSameString(blinkValue, "Inactive") && !IsSameString(blinkValue, "Always")) condition = BlinkCondition::Always;
         if (blinkInterval) intervalMs = atoi(blinkInterval);
+        if (intervalMs > 0) this->blink_.animation = AnimationPresetForLegacyInterval(intervalMs);
         this->SetBlinkInterval(intervalMs, condition);
     }
 
@@ -249,7 +273,7 @@ void ActionContext::UpdateWidgetValue(double value) {
     if (blink_.blinkSet) {
         const bool active = value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE;
         const bool shouldBlink = blink_.condition == BlinkCondition::Always || (blink_.condition == BlinkCondition::Active && active) || (blink_.condition == BlinkCondition::Inactive && !active);
-        if (shouldBlink) value = this->GetSurface()->IsBlinkLit(this->GetBlinkInterval()) ? 1.0 : 0.0;
+        if (shouldBlink) value = this->blink_.blinkIntervalMs > 0 ? (this->GetSurface()->IsBlinkLit(this->blink_.blinkIntervalMs) ? 1.0 : 0.0) : (this->GetSurface()->IsAnimationLit(this->blink_.animation) ? 1.0 : 0.0);
     }
     widget_->UpdateValue(widgetProperties_, value);
 
@@ -307,7 +331,7 @@ void ActionContext::LogAction(double value) {
         if (blink_.condition == BlinkCondition::Active) oss << " Blink=Active";
         else if (blink_.condition == BlinkCondition::Inactive) oss << " Blink=Inactive";
         else if (blink_.condition == BlinkCondition::Always) oss << " Blink=Always";
-        if (blink_.blinkIntervalMs > 0) oss << " BlinkIntervalMs=" << blink_.blinkIntervalMs;
+        oss << " Animation=" << AnimationPresetName(this->blink_.animation);
     }
     LogToConsole("[INFO] @%s/{%s}: [%s] '%s' > %s (%s) val:%0.2f ctx:%s\n", this->GetSurface()->GetName(), this->GetZone()->GetName(), this->GetWidget()->GetName(), JoinStringVector(sourceParams_, " ").c_str(), actionTitle_.c_str(), oss.str().c_str(), value, this->GetName());
 }
@@ -322,7 +346,7 @@ int ActionContext::ClampValueWithWarning(int value, int min_val, int max_val) {
     return clamped;
 }
 
-int ActionContext::GetBlinkInterval() { return blink_.blinkIntervalMs == INHERIT_VALUE ? this->GetSurface()->GetBlinkTime() : blink_.blinkIntervalMs; }
+const char* ActionContext::GetAnimationPresetName() const { return AnimationPresetName(this->blink_.animation); }
 int ActionContext::GetHoldDelay() { return timing_.holdDelayMs == INHERIT_VALUE ? this->GetSurface()->GetHoldTime() : timing_.holdDelayMs; }
 
 // runs once button pressed/released

@@ -842,7 +842,7 @@ WidgetEnd
         const source = "Zone Home\n  Section Nudge Blink\n  Nudge SendMIDIMessage \"90 3c 7f\"\n  Nudge+Touch Reaper 41228\n  DoublePress+Nudge ToggleOSK\nZoneEnd\n";
         const conversion = convertLegacyZoneToFormat2(source, { isLayer: false, profile: "Main", targetPath: "Zones/User/test/Main/Home.zon" });
 
-        expect(conversion.source).toContain("Section Modifier Nudge Blink=Active\n");
+        expect(conversion.source).toContain("Section Modifier Nudge Blink=Active Animation=BlinkNormal\n");
         expect(conversion.source).toContain('[Nudge] SendMIDIMessage "90 3c 7f"\n');
         expect(conversion.source).toContain("[Nudge]+Touch Reaper 41228\n");
         expect(conversion.source).toContain("(DoublePress)+[Nudge] ToggleOSK\n");
@@ -860,7 +860,7 @@ WidgetEnd
         const conversion = convertLegacyZoneToFormat2(source, { profile: "Main", targetPath: "Zones/User/test/Main/Channel.zon" });
 
         expect(conversion.source).toStartWith("@Meta { Version=2 Target=Tracks }");
-        expect(conversion.source).toContain("Link Modifier Control Blink=Active StateColors=[ #281400, #787800 ]");
+        expect(conversion.source).toContain("Link Modifier Control Blink=Active Animation=BlinkNormal StateColors=[ #281400, #787800 ]");
         const document = parseByPath(conversion.source, "/config/Zones/User/test/Main/Channel.zon");
         expect(document.diagnostics).not.toContainEqual(expect.objectContaining({ code: "format2.zone.modifier.property" }));
     });

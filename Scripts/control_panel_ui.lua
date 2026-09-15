@@ -5,8 +5,6 @@ local lifecycleProtocol = require("control_panel_protocol")
 local pages = require("control_panel_pages")
 local settingsStore = require("settings_store")
 local theme = require("theme_settings")
-local ui = require("ui_components")
-
 local module = {}
 
 local DEFAULT_TAB = "General"
@@ -16,7 +14,7 @@ local MINIMUM_WIDTH = 1050
 local MINIMUM_HEIGHT = 440
 local NAVIGATION_WIDTH = 160
 local FOOTER_HEIGHT = 38
-local CLOSE_POPUP_ID = "Save changes before closing?##ControlPanelClose"
+local AUTO_SAVE_DELAY_SECONDS = 0.6
 
 local function readSelectedTab()
     local savedTab = reaper.GetExtState(identity.extState.controlPanel, "SelectedTab")
@@ -25,8 +23,8 @@ end
 
 local function newState()
     local state = {
+        autoSaveDue = 0,
         closeAfterSave = false,
-        closePopupPending = false,
         focusRequested = true,
         geometry = {
             position = settingsStore.ReadPair(identity.extState.controlPanel, "WindowPosition"),
@@ -52,9 +50,20 @@ end
 
 local function requestClose(state)
     if pages.IsBusy() then
-        state.lastStatus = "Wait for the current settings operation"
+        state.closeAfterSave = true
+    elseif not pages.CanAutoSave() then
+        state.lastStatus = "Close the open Devices editor before closing the Control Panel"
+        state.lastStatusIsError = true
     elseif pages.HasAnyDirty() then
-        state.closePopupPending = true
+        local accepted, saveError = pages.SaveAll()
+        if accepted then
+            state.closeAfterSave = true
+            state.lastStatus = "Saving..."
+            state.lastStatusIsError = false
+        else
+            state.lastStatus = tostring(saveError or "Cannot save changes")
+            state.lastStatusIsError = true
+        end
     else
         state.open = false
     end
@@ -117,61 +126,23 @@ end
 local function renderFooter(ctx, state)
     local dirty = pages.HasAnyDirty()
     local busy = pages.IsBusy()
-    ui.DirtyActionButton(ctx, pages.NeedsConfigurationCreation() and "Create configuration" or "Save changes", dirty and not busy, function()
-        local accepted, saveError = pages.SaveAll()
-        state.lastStatus = accepted and "Saving changes..." or tostring(saveError or "Cannot save changes")
-        state.lastStatusIsError = not accepted
-    end)
-    imgui.SameLine(ctx)
-    ui.Disabled(ctx, not dirty or busy, function()
-        if imgui.Button(ctx, "Revert") then
-            local reverted, revertError = pages.RevertAll()
-            state.lastStatus = reverted and "Draft reverted" or tostring(revertError or "Cannot revert changes")
-            state.lastStatusIsError = not reverted
-        end
-    end)
-    imgui.SameLine(ctx)
     local errorStatus = pages.HasError() and pages.GetStatus() or (state.lastStatusIsError and state.lastStatus or "")
-    local status = busy and "Working..." or (errorStatus ~= "" and errorStatus or (dirty and "Unsaved changes" or (state.lastStatus ~= "" and state.lastStatus or pages.GetStatus())))
-    imgui.TextDisabled(ctx, status ~= "" and status or "No unsaved changes")
+    local operationStatus = pages.GetStatus() == "Configuration Editor opened" and pages.GetStatus() or ""
+    local status = busy and "Saving..." or (errorStatus ~= "" and errorStatus or (dirty and "Saving..." or (operationStatus ~= "" and operationStatus or "Saved")))
+    imgui.TextDisabled(ctx, status)
 end
 
-local function renderClosePopup(ctx, state)
-    if state.closePopupPending then
-        imgui.OpenPopup(ctx, CLOSE_POPUP_ID)
-        state.closePopupPending = false
-    end
-    local visible = imgui.BeginPopupModal(ctx, CLOSE_POPUP_ID, nil, imgui.WindowFlags_AlwaysAutoResize)
-    if not visible then return end
-    imgui.Text(ctx, "Save changes before closing the Control Panel?")
-    imgui.Spacing(ctx)
-    if imgui.Button(ctx, "Save", 100, 0) then
-        local accepted, saveError = pages.SaveAll()
-        if accepted then
-            state.lastStatusIsError = false
-            state.closeAfterSave = pages.IsBusy()
-            if not state.closeAfterSave and not pages.HasAnyDirty() then state.open = false end
-            imgui.CloseCurrentPopup(ctx)
-        else
-            state.lastStatus = tostring(saveError or "Cannot save changes")
-            state.lastStatusIsError = true
-        end
-    end
-    imgui.SameLine(ctx)
-    if imgui.Button(ctx, "Don't Save", 100, 0) then
-        local reverted, revertError = pages.RevertAll()
-        if reverted then
-            state.lastStatusIsError = false
-            state.open = false
-            imgui.CloseCurrentPopup(ctx)
-        else
-            state.lastStatus = tostring(revertError or "Cannot discard changes")
-            state.lastStatusIsError = true
-        end
-    end
-    imgui.SameLine(ctx)
-    if imgui.Button(ctx, "Cancel", 100, 0) then imgui.CloseCurrentPopup(ctx) end
-    imgui.EndPopup(ctx)
+local function updateAutoSave(ctx, state)
+    if not pages.HasAnyDirty() then state.autoSaveDue = 0 return end
+    if pages.IsBusy() or not pages.CanAutoSave() then state.autoSaveDue = 0 return end
+    local now = reaper.time_precise()
+    if imgui.IsAnyItemActive(ctx) then state.autoSaveDue = now + AUTO_SAVE_DELAY_SECONDS return end
+    if state.autoSaveDue == 0 then state.autoSaveDue = now + AUTO_SAVE_DELAY_SECONDS return end
+    if now < state.autoSaveDue then return end
+    state.autoSaveDue = now + AUTO_SAVE_DELAY_SECONDS
+    local accepted, saveError = pages.SaveAll()
+    state.lastStatus = accepted and "Saving..." or tostring(saveError or "Cannot save changes")
+    state.lastStatusIsError = not accepted
 end
 
 function module.New(ctx, fonts)
@@ -194,15 +165,16 @@ end
 function module.Render(state)
     pollLifecycleRequests(state)
     pages.Update()
-    if state.lastStatus == "Saving changes..." and not pages.IsBusy() then
-        state.lastStatus = pages.GetStatus()
+    if state.lastStatus == "Saving..." and not pages.IsBusy() then
         state.lastStatusIsError = pages.HasError() or pages.HasAnyDirty()
+        state.lastStatus = state.lastStatusIsError and pages.GetStatus() or "Saved"
     end
     if state.closeAfterSave and not pages.IsBusy() then
         if pages.HasAnyDirty() then
-            state.closeAfterSave = false
-            state.lastStatus = pages.GetStatus()
-            state.lastStatusIsError = true
+            local accepted, saveError = pages.SaveAll()
+            state.closeAfterSave = accepted
+            state.lastStatus = accepted and "Saving..." or tostring(saveError or "Cannot save changes")
+            state.lastStatusIsError = not accepted
         else
             state.open = false
         end
@@ -234,6 +206,7 @@ function module.Render(state)
         renderNavigation(state.ctx, state, bodyHeight)
         imgui.SameLine(state.ctx)
         renderPage(state.ctx, state, availableWidth - NAVIGATION_WIDTH - 8, bodyHeight)
+        updateAutoSave(state.ctx, state)
         renderFooter(state.ctx, state)
     end
     imgui.End(state.ctx)
@@ -241,7 +214,6 @@ function module.Render(state)
     if not windowOpen then
         requestClose(state)
     end
-    renderClosePopup(state.ctx, state)
     imgui.PopStyleVar(state.ctx, 3)
     return state.open
 end

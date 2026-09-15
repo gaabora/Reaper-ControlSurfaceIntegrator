@@ -334,6 +334,12 @@ private:
             if (interval->value.list || !ParseFormat2IntegerScalar(interval->value.scalar, intervalMs) || intervalMs < 1) this->AddDiagnostic("format2.zone.blink-interval", "BlinkIntervalMs must be one positive integer", interval->value.location);
             if (!blink) this->AddDiagnostic("format2.zone.blink-interval-without-mode", "BlinkIntervalMs requires Blink", interval->nameLocation);
         }
+        const Format2PropertySyntax* animation = this->FindActionProperty(action, "Animation");
+        if (animation) {
+            const std::string& value = animation->value.scalar.text;
+            if (animation->value.list || animation->value.scalar.quoted || (value != "BlinkFast" && value != "BlinkNormal" && value != "BlinkSlow" && value != "BlinkDouble" && value != "BlinkHeartbeat")) this->AddDiagnostic("format2.zone.animation", "Animation must be BlinkFast, BlinkNormal, BlinkSlow, BlinkDouble, or BlinkHeartbeat", animation->value.location);
+            if (!blink) this->AddDiagnostic("format2.zone.animation-without-blink", "Animation needs a Blink condition, for example Blink=Active Animation=BlinkFast", animation->nameLocation);
+        }
     }
 
     void ValidateBankContextProperties(const Format2ZoneAction& action) {
@@ -438,6 +444,10 @@ private:
                     declaration.blink = true;
                     declaration.blinkIntervalMs = blinkIntervalMs;
                 }
+            } else if (property.name == "Animation") {
+                const std::string& value = property.value.scalar.text;
+                if (property.value.list || property.value.scalar.quoted || (value != "BlinkFast" && value != "BlinkNormal" && value != "BlinkSlow" && value != "BlinkDouble" && value != "BlinkHeartbeat")) this->AddDiagnostic("format2.zone.modifier.animation", "Animation must be BlinkFast, BlinkNormal, BlinkSlow, BlinkDouble, or BlinkHeartbeat", property.value.location);
+                else declaration.feedbackProperties.push_back(property);
             } else if (property.name == "StateColors") {
                 declaration.feedbackProperties.push_back(property);
             } else if (property.name != "Mode") {
@@ -455,6 +465,8 @@ private:
                 this->AddDiagnostic("format2.zone.modifier.mode", "Unknown modifier Mode: " + property.value.scalar.text, property.value.location);
             }
         }
+        const Format2PropertySyntax* animation = this->FindActionProperty(action, "Animation");
+        if (animation && !declaration.blink) this->AddDiagnostic("format2.zone.modifier.animation-without-blink", "Animation needs Blink=Active, for example Blink=Active Animation=BlinkFast", animation->nameLocation);
         this->result_.zone.modifiers.push_back(std::move(declaration));
     }
 

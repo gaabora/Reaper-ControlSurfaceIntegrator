@@ -178,6 +178,7 @@ struct OskConfigBinding {
     bool isDecrease = false;
     bool blink = false;
     int blinkIntervalMs = -1;
+    string animation = "BlinkNormal";
 };
 
 static bool IsOskMetadataToken(const string& token, OskConfigBinding& binding) {
@@ -283,6 +284,10 @@ static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData,
                     binding.blink = true;
                     continue;
                 }
+                if (token.rfind("Animation=", 0) == 0) {
+                    binding.animation = token.substr(10);
+                    continue;
+                }
                 const string legacyBlinkValue = token.rfind("Blink=", 0) == 0 ? token.substr(6) : "";
                 const bool legacyBlinkInterval = !legacyBlinkValue.empty() && legacyBlinkValue.find_first_not_of("0123456789") == string::npos;
                 const bool blinkInterval = token.rfind("BlinkIntervalMs=", 0) == 0;
@@ -295,10 +300,11 @@ static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData,
                         binding.blinkIntervalMs = -1;
                     }
                     if (binding.blinkIntervalMs < 1 || parsedCharacters != token.size() - valueOffset) {
-                        errorMessage = "Cannot save binding " + to_string(bindingIdx + 1) + ": '" + token + "' is not a valid Modifier blink interval. Use Blink=Active, or use Blink=Active BlinkIntervalMs=500 for a custom 500 ms interval.";
+                        errorMessage = "Cannot save binding " + to_string(bindingIdx + 1) + ": '" + token + "' is not a valid legacy Modifier blink interval. Use Blink=Active with Animation=BlinkFast, BlinkNormal, BlinkSlow, BlinkDouble, or BlinkHeartbeat.";
                         return false;
                     }
                     binding.blink = true;
+                    binding.animation = binding.blinkIntervalMs <= 250 ? "BlinkFast" : binding.blinkIntervalMs >= 750 ? "BlinkSlow" : "BlinkNormal";
                     continue;
                 }
                 if (token.rfind("Blink=", 0) == 0) {
@@ -393,6 +399,12 @@ static string Format2OskColor(int red, int green, int blue) {
     return color;
 }
 
+static string AnimationForLegacyBlinkInterval(int intervalMs) {
+    if (intervalMs <= 250) return "BlinkFast";
+    if (intervalMs >= 750) return "BlinkSlow";
+    return "BlinkNormal";
+}
+
 static vector<string> NormalizeFormat2OskActionTokens(const vector<string>& sourceTokens) {
     vector<string> tokens;
     for (size_t tokenIdx = 0; tokenIdx < sourceTokens.size(); ++tokenIdx) {
@@ -402,7 +414,7 @@ static vector<string> NormalizeFormat2OskActionTokens(const vector<string>& sour
                 const bool numeric = !value.empty() && value.find_first_not_of("0123456789") == string::npos;
                 if (numeric) {
                     tokens.push_back("Blink=Active");
-                    tokens.push_back("BlinkIntervalMs=" + value);
+                    tokens.push_back("Animation=" + AnimationForLegacyBlinkInterval(atoi(value.c_str())));
                     continue;
                 }
             }
@@ -455,14 +467,14 @@ static void AddFormat2ActionOption(vector<string>& tokens, const string& option)
 static vector<string> NormalizeFormat2OskContextTokens(const vector<string>& sourceTokens, ActionContext* context) {
     vector<string> filtered;
     for (const string& token : sourceTokens) {
-        if (token == "Blink" || token.rfind("Blink=", 0) == 0 || token.rfind("BlinkIntervalMs=", 0) == 0) continue;
+        if (token == "Blink" || token.rfind("Blink=", 0) == 0 || token.rfind("BlinkIntervalMs=", 0) == 0 || token.rfind("Animation=", 0) == 0) continue;
         filtered.push_back(token);
     }
     if (context->IsBlinkSet()) {
         if (context->GetBlinkCondition() == BlinkCondition::Inactive) filtered.push_back("Blink=Inactive");
         else if (context->GetBlinkCondition() == BlinkCondition::Always) filtered.push_back("Blink=Always");
         else filtered.push_back("Blink=Active");
-        if (context->GetConfiguredBlinkInterval() > 0) filtered.push_back("BlinkIntervalMs=" + to_string(context->GetConfiguredBlinkInterval()));
+        filtered.push_back("Animation=" + string(context->GetAnimationPresetName()));
     }
     if (context->GetIsValueInverted()) AddFormat2ActionOption(filtered, "InvertValue");
     return NormalizeFormat2OskFeedbackTokens(filtered, context->GetFeedbackMode());
@@ -479,7 +491,7 @@ static vector<string> BuildFormat2OskDraftLines(const string& widgetName, const 
             else if (binding.modifierMode == Format2ModifierMode::Hybrid) line += " Mode=Hybrid";
             if (binding.blink) {
                 line += " Blink=Active";
-                if (binding.blinkIntervalMs > 0) line += " BlinkIntervalMs=" + to_string(binding.blinkIntervalMs);
+                line += " Animation=" + binding.animation;
             }
             lines.push_back(std::move(line));
             continue;
@@ -530,7 +542,7 @@ static vector<string> BuildFormat2SerializedWidgetLines(Zone* zone, Widget* widg
                 }
                 if (context->IsBlinkSet()) {
                     line += " Blink=Active";
-                    if (context->GetConfiguredBlinkInterval() > 0) line += " BlinkIntervalMs=" + to_string(context->GetConfiguredBlinkInterval());
+                    line += " Animation=" + string(context->GetAnimationPresetName());
                 }
                 lines.push_back(std::move(line));
                 continue;

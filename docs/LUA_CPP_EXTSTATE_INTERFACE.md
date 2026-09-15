@@ -45,7 +45,7 @@ LogSessionId=session-1724250000000000-0
 LogOffset=1842
 ```
 
-`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Close` performs the normal close flow and shows the Save, Don't Save, and Cancel prompt when the draft is dirty. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Device` is optional navigation context for General. It identifies which configured Device scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current daily-file record that Logging selects and scrolls into view. The `LogSessionId` key name remains unchanged inside this protocol. This lifecycle section does not carry configuration values.
+`Tab` is required only for `SelectTab`. `Open` starts the Control Panel when it is not active. `Close` waits for active automatic persistence and closes when the draft is saved. `Focus` brings the existing window forward. `SelectTab` selects one known page and focuses the window. `Device` is optional navigation context for General. It identifies which configured Device scope General must query through the separate settings protocol. `LogSessionId` and `LogOffset` are optional navigation context for Logging. They identify the current daily-file record that Logging selects and scrolls into view. The `LogSessionId` key name remains unchanged inside this protocol. This lifecycle section does not carry configuration values.
 
 Lua writes the session-only `State` key as `Open` after startup and `Closed` during shutdown. The stable `_REACTRLSURF_OPEN_CONTROL_PANEL` action uses this lifecycle state for its toggle value. The user action opens a closed panel and sends `Close` to an open panel. Programmatic calls from the native dialog, OSK, and Notifications still open, focus, or select a tab without toggling the panel closed.
 
@@ -180,7 +180,7 @@ editor state:
 - `__OSK_INCREASE`
 - `__OSK_DECREASE`
 
-For a REAPER command that returns `-1` from `GetToggleCommandState`, C++ publishes `__OSK_FEEDBACK_UNAVAILABLE`, resolves feedback to read-only `Feedback=None`, and permits `Blink=Always`. Normal actions use `Feedback=Default` or `Feedback=Invert`. `Blink=Active` and `Blink=Inactive` test the resulting feedback state, while `Blink=Always` does not need action feedback. `BlinkIntervalMs` overrides the Surface interval. Lua migrates query-only `__OSK_INVERT` to the bare `InvertValue` action option.
+For a REAPER command that returns `-1` from `GetToggleCommandState`, C++ publishes `__OSK_FEEDBACK_UNAVAILABLE`, resolves feedback to read-only `Feedback=None`, and permits `Blink=Always`. Normal actions use `Feedback=Default` or `Feedback=Invert`. `Blink=Active` and `Blink=Inactive` test the resulting feedback state, while `Blink=Always` does not need action feedback. `Animation` selects `BlinkFast`, `BlinkNormal`, `BlinkSlow`, `BlinkDouble`, or `BlinkHeartbeat`. Product and Device settings own the three base intervals. Lua migrates query-only `__OSK_INVERT` to the bare `InvertValue` action option.
 
 ## OSD
 
@@ -252,7 +252,7 @@ C++ consumes and deletes the request, parses the current product configuration, 
 
 `Validate` and `Apply` include the `ExpectedRevision` returned by Query and the complete draft as one-based `ConfigLine.<index>` properties. C++ rejects an outdated revision, parses and validates the complete candidate, and checks names, numeric ranges, Surface templates, selected Main Zone profile sources, assignment I/O references, and Page-local listener relationships. `Apply` replaces the configuration atomically, prepares missing User FX directories when the selected FX source includes User, and asks REAPER to reconnect CSI. `CreateProfile` creates a minimal Main scaffold and empty FX directory only under the User profile root. `CopyProfile` copies Vendor Main to the matching User profile and never changes Vendor files. `OpenEditor` launches the installed standalone editor through the system shell. Query returns `EditorAvailable=1` only when its platform executable exists in the product Tools directory.
 
-Lua builds the complete candidate through `devices_model.lua`. The serializer includes the Product and Device setting overrides returned by Query, so a Devices save does not omit settings owned by General or Logging. The Control Panel keeps the queried snapshot for Revert and considers only the serialized candidate when calculating Devices dirty state. Apply requires user confirmation because reconnecting CSI temporarily disconnects active surfaces.
+Lua builds the complete candidate through `devices_model.lua`. The serializer includes the Product and Device setting overrides returned by Query, so Devices persistence does not omit settings owned by General or Logging. The Control Panel keeps the queried snapshot for recovery and considers only the serialized candidate when calculating Devices dirty state. It waits until the Devices popup editor closes, then saves and reconnects CSI automatically.
 
 Every response starts with `Version=1` and `Status=OK|ERROR`. An error adds `Message`. A successful response contains:
 
@@ -321,7 +321,7 @@ The schema supports `Boolean`, `Enum`, and `Integer` setting types. Boolean valu
 
 Common Control Panel appearance is fixed at item spacing `8`, rounding `4`, and disabled opacity `0.6`. It has no user settings. Error color is not a configurable appearance value.
 
-The OSK Appearance schema includes `primary_button_color` (`#RRGGBB`, default `#365e97`) for the widget editor Save button. It uses the same draft preview, Save, and Revert lifecycle as other OSK appearance settings.
+The OSK Appearance schema includes `primary_button_color` (`#RRGGBB`, default `#365e97`) for the widget editor Save button. Control Panel appearance changes use draft preview followed by automatic persistence.
 
 `ReaCtrlSurf_APPEARANCE_SETTINGS` contains session-only `Revision`. Every OSK, OSD, or Notifications schema save that changes persisted values increments it. `Revision` is a change notification, not a persistent setting or configuration revision.
 
@@ -331,7 +331,7 @@ The Control Panel also writes a session-only live preview overlay in this sectio
 - `PreviewRevision` increments after the preview is published or cleared.
 - `Preview.<group>.<setting>` contains every current draft value, where `<group>` is `OSK`, `OSD`, or `Notifications`.
 
-Running OSK, OSD, and Notifications contexts compare both revisions. After either changes, they load persistent appearance values and then apply the active preview overlay. Save persists the draft and clears the overlay. Revert, Don't Save, and Control Panel shutdown clear the overlay without persisting it.
+Running OSK, OSD, and Notifications contexts compare both revisions. After either changes, they load persistent appearance values and then apply the active preview overlay. Automatic Control Panel persistence saves the draft and clears the overlay. Control Panel shutdown clears any remaining preview overlay.
 
 Persistent keys in `ReaCtrlSurf_OSK_SETTINGS`:
 

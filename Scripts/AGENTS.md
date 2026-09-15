@@ -12,9 +12,9 @@
 - `surface_io_schema.conf` canonical format 2 primitive, capability, protocol encoding, property value and relationship rules, nested transport blocks, reusable profiles, and Surface-level block metadata.
 - `settings_protocol.lua` C++ request/response client and `settings_ui.lua` embedded Product and Device settings page.
 - `devices_protocol.lua` C++ request/response client, `devices_model.lua` complete draft serializer, and `control_panel_devices.lua` device editor and runtime status page.
-- `control_panel_appearance.lua` OSK, OSD, and Notifications appearance draft, validation, preview, Save, and Revert behavior.
+- `control_panel_appearance.lua` OSK, OSD, and Notifications appearance draft, validation, preview, and automatic persistence behavior.
 - `control_panel_logging.lua` simple current-session NOTICE, WARNING, and ERROR log view plus notification record navigation and native file/folder open requests.
-- `logging_settings_ui.lua` Product-scope logging settings draft, Save, and Revert behavior.
+- `logging_settings_ui.lua` Product-scope logging settings draft and persistence behavior.
 - `osd_templates.lua` canonical OSD template variable definitions, resolver functions, enumeration, validation, and expansion.
 - Shared Lua modules for data parsing, configuration editing, input, rendering, settings, and UI behavior directly under `Scripts/`.
 - `osk_zone_create.lua` small format 2 zone-creation dialog and its `ZoneCreate` request/status state.
@@ -50,10 +50,11 @@
 - The OSK layout, state, label, binding, and action-list formats are serialized contracts; change both ends together.
 - Module loading must work from the linked or copied REAPER Scripts path without a CMake configure step.
 - Do not silently persist settings that are intended to remain session-only.
-- Track unapplied editor changes separately from live unsaved changes, and request C++ revert when an editor with live changes closes.
+- Track unapplied OSK widget-editor changes separately from live unsaved changes, and request C++ revert when that editor closes with live changes.
+- Save valid Control Panel changes automatically after a short idle delay. Do not show Control Panel Save or Revert buttons or a dirty-close prompt. Delay Devices persistence while its editor popup is open, show only saving, saved, or actionable error status, and wait for an active save when the panel closes.
 - Keep the binding editor's structured columns, pseudo-modifiers, generated titles, and color controls backed by the same serialized raw action line used by `ConfigApplyLive`.
 - Read and write format 2 binding colors as `StateColors=[ #RRGGBB, ... ]`. The widget editor must not convert them back to anonymous legacy color blocks.
-- Preserve the standard Modifier declaration marker and its `Default`, `Momentary`, `Latch`, or `Hybrid` mode in every OSK binding model copy and serialized request. Show Modifier mode only for a Modifier source and keep `Default` linked to the Device setting. Show Modifier Blink as `Off|Active`; serialize it as `Blink=Active` with optional `BlinkIntervalMs`.
+- Preserve the standard Modifier declaration marker and its `Default`, `Momentary`, `Latch`, or `Hybrid` mode in every OSK binding model copy and serialized request. Show Modifier mode only for a Modifier source and keep `Default` linked to the Device setting. Show Modifier Blink as `Off|Active` and serialize it with an `Animation` preset.
 - Treat an OSK configuration `WARN` status as a successful Apply Live result, keep its concise shared-gesture diagnostic visible after the automatic Query, and continue queued preview or Save behavior.
 - Keep config color-picker swatches compact: empty saved/recent slots use checker/transparent swatches, left-click uses a stored color, and right-clicking a saved slot overwrites it with the current picker color.
 - Keep config color live preview separate from toolbar Apply Live: preview uses `ConfigApplyLive`, coalesces in-flight color changes to the latest serialized binding state, and does not request a follow-up `ConfigQuery`.
@@ -62,7 +63,7 @@
 - Keep the widget name large and centered between the top Save/Apply/Revert and add/remove/up/down controls. Save uses the Appearance OSK Primary button color, Apply and table controls use the table-header color, and Revert uses the shared red button color. Keep Modifier, Action, and Colors columns; do not show Other or routine surface/zone and status captions. Center the Default, Press, Tap, Release, Hold, Long hold, Double press, and Modifiers controls below the widget preview, wrapping complete centered rows when needed.
 - Show Action raw as the editable action segment and Zone line as the read-only complete format 2 line so gesture, modifier, and `InvertValue` selectors remain visible. Keep feedback inversion in `Feedback=Invert`, not in a selector.
 - Preserve explicit format 2 Press, Tap, Release, Hold, LongHold, and DoublePress events through OSK Query, Apply Live, and Save. Preserve an unqualified two-state binding as Default even when runtime resolves it through the Device `DefaultButtonTrigger` setting.
-- Center selected modifier buttons and the edited widget below the binding table, with plus signs between them. Show the edited widget in the selected binding's active display color and modifiers in inactive colors. Keep gestures and the modifier picker separate from this preview. Put `Feedback=Default|Invert|None` and `Blink=Off|Active|Inactive|Always` in button-toggle rows in Advanced. Keep optional `BlinkIntervalMs`, bare `InvertValue`, run count, hold timing, modifier-source mode, and raw input there too.
+- Center selected modifier buttons and the edited widget below the binding table, with plus signs between them. Show the edited widget in the selected binding's active display color and modifiers in inactive colors. Keep gestures and the modifier picker separate from this preview. Put `Feedback=Default|Invert|None`, `Blink=Off|Active|Inactive|Always`, and the built-in `Animation` presets in button-toggle rows in Advanced. Keep bare `InvertValue`, run count, hold timing, modifier-source mode, and raw input there too.
 - Populate GoZone choices from the C++ ConfigZoneList response. Keep `+ create zone` last and open the existing separate zone dialog. After successful Main creation, add and select the new non-Layer zone only in the originating binding draft, without saving the parent zone.
 - Keep the config window undockable and its dirty-state Apply, Save, and Revert controls in the top toolbar so they remain visible.
 - Show direction pseudo-modifiers only for relative controls identified by layout metadata; normal buttons must not expose Increase or Decrease controls.
@@ -91,7 +92,7 @@
 - Publish Notifications Open and Closed lifecycle state so `_REACTRLSURF_TOGGLE_NOTIFICATIONS` reports the correct toggle value. A Stop command from the stable action ends the script; per-record dismiss does not.
 - Keep a square per-record notification dismiss control with the shared theme size and `×` label separate from script shutdown. Dismissing one visible record must leave Notifications active so later messages can appear.
 - Publish the session-only Appearance `Revision` after a Lua appearance schema is saved. Publish the session-only `PreviewRevision` and complete draft overlay after every Control Panel Appearance change. Running OSK, OSD, and Notifications contexts must reload persisted values and then apply the active preview overlay when either revision changes.
-- Clear the Appearance preview overlay on Save, Revert, Don't Save, and Control Panel shutdown. Preview values must never become persistent before Save.
+- Clear the Appearance preview overlay after automatic persistence and on Control Panel shutdown. Preview values must never become persistent before the automatic save succeeds.
 - Keep OSK visual, docking, interaction, wheel inversion, tooltip delay, and label-replacement settings on the Control Panel Appearance page. Apply label replacements to OSK and OSD text. Keep only Appearance navigation, Reset devices, Reset MIDI, and the per-surface OSD-bar position in the OSK context menu.
 - Show OSK hover tooltips with the default binding first and `+ `-prefixed alternate bindings for modifiers, Hold, DoublePress, and combined pseudo-modifier entries.
 - Keep full surface, zone, snippet, import, export, and dependency editing out of OSK. The widget editor may open zone creation for one validated empty scaffold but must not edit a parent zone.
@@ -131,7 +132,7 @@
 - Check standalone OSD at 100% width on macOS and on each available monitor.
 - Trigger NOTICE, WARNING, and ERROR logs and confirm that Lua notifications appear without opening the REAPER console.
 - Open General and verify that its Device selector lists configured Devices and preserves Product and Device inheritance.
-- Change every Appearance group and verify running OSK, OSD, and Notifications contexts preview each draft change before Save and restore persistent values after Revert.
+- Change every Appearance group and verify running OSK, OSD, and Notifications contexts preview each draft change before automatic persistence.
 - Dismiss one notification and verify Notifications remains active and shows a later record.
 - Verify standalone OSD settings stay open after the message timeout when opened by right-clicking the visible overlay.
 

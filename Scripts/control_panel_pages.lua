@@ -174,6 +174,10 @@ function module.IsBusy()
     return devices.IsBusy() or general.IsBusy() or appearance.IsBusy() or logging.IsBusy() or state.pendingSaveStage ~= ""
 end
 
+function module.CanAutoSave()
+    return not devices.IsEditing()
+end
+
 function module.SaveAll()
     if module.IsBusy() then return false, "Wait for the current settings operation" end
     local valid, validationError = module.ValidateAll()

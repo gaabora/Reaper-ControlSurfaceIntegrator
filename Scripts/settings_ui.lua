@@ -42,6 +42,9 @@ local SETTING_LABELS = {
     DoublePressWindowMs = "Double-press window",
     ModifierTapWindowMs = "Modifier tap window",
     HoldRepeatIntervalMs = "Hold repeat interval",
+    BlinkFastIntervalMs = "Fast blink interval",
+    BlinkNormalIntervalMs = "Normal blink interval",
+    BlinkSlowIntervalMs = "Slow blink interval",
 }
 
 local function findDeviceOptionIdx(deviceId)
@@ -247,7 +250,7 @@ function module.Initialize()
 end
 
 function module.SetContext(deviceId)
-    if module.IsDirty() or state.pendingKind == "Apply" or state.pendingKind == "Reload" then return false, "Save or Revert the current General draft first" end
+    if module.IsDirty() or state.pendingKind == "Apply" or state.pendingKind == "Reload" then return false, "Wait for the current General changes to save" end
     if state.requestId then
         protocol.Cancel(state.requestId)
         state.pendingKind = ""
