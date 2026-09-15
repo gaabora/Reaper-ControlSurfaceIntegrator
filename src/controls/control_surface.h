@@ -311,22 +311,8 @@ public:
         return (GetTickCount() / static_cast<DWORD>(intervalMs)) % 2 == 0;
     }
 
-    bool IsAnimationLit(AnimationPreset animation) {
-        const DWORD now = GetTickCount();
-        const int fastInterval = (std::max)(1, this->settings_.GetInteger("BlinkFastIntervalMs"));
-        const int normalInterval = (std::max)(1, this->blinkTimeMs_);
-        const int slowInterval = (std::max)(1, this->settings_.GetInteger("BlinkSlowIntervalMs"));
-        if (animation == AnimationPreset::BlinkFast) return (now / static_cast<DWORD>(fastInterval)) % 2 == 0;
-        if (animation == AnimationPreset::BlinkSlow) return (now / static_cast<DWORD>(slowInterval)) % 2 == 0;
-        if (animation == AnimationPreset::BlinkDouble) {
-            const DWORD phase = now % static_cast<DWORD>(slowInterval * 2 + fastInterval * 3);
-            return phase < static_cast<DWORD>(fastInterval) || (phase >= static_cast<DWORD>(fastInterval * 2) && phase < static_cast<DWORD>(fastInterval * 3));
-        }
-        if (animation == AnimationPreset::BlinkHeartbeat) {
-            const DWORD phase = now % static_cast<DWORD>(slowInterval * 2 + fastInterval * 4);
-            return phase < static_cast<DWORD>(fastInterval) || (phase >= static_cast<DWORD>(fastInterval * 3) && phase < static_cast<DWORD>(fastInterval * 4));
-        }
-        return (now / static_cast<DWORD>(normalInterval)) % 2 == 0;
+    double SampleAnimation(const std::string& animationName) {
+        return SampleAnimationPreset(animationName, this->settings_, this->blinkTimeMs_, static_cast<std::uint32_t>(GetTickCount()));
     }
 
     void SetOSDTime(int value) { osdTimeMs_ = value; }

@@ -137,7 +137,6 @@ public:
     }
     bool IsBlinkSet() const { return this->blink_.blinkSet; }
     BlinkCondition GetBlinkCondition() const { return this->blink_.condition; }
-    AnimationPreset GetAnimationPreset() const { return this->blink_.animation; }
     const char* GetAnimationPresetName() const;
     FeedbackMode GetFeedbackMode() const { return this->feedbackMode_; }
 
