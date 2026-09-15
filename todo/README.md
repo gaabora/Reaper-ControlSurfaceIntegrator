@@ -13,6 +13,7 @@ This folder keeps the work that is still open.
 - [CONFIGURATION_WORKFLOW_PLAN.md](CONFIGURATION_WORKFLOW_PLAN.md) - plan for product paths, the local configuration editor, legacy import, vendor layouts, snippets, and OSK zone-file creation
 - [LUA_CONTROL_PANEL_PLAN.md](LUA_CONTROL_PANEL_PLAN.md) - plan for the Lua plugin Control Panel, device and Zone profile configuration, shared appearance settings, logging, and stable REAPER GUI actions
 - [ZONE_WIDGET_MODIFIER_VALIDATION.md](ZONE_WIDGET_MODIFIER_VALIDATION.md) - proposed validation contract for widget modifiers, gestures, action groups, and zone context changes
+- [ANIMATION_AND_BLINK_PLAN.md](ANIMATION_AND_BLINK_PLAN.md) - [ ] remaining shared preset metadata, user presets, RGB animation frames, editor preview, and verification work
 - [PSEUDO_MODIFIER_PLAN.md](PSEUDO_MODIFIER_PLAN.md) - implementation plan for zone-scoped modifiers named after their source widgets, based on the shared binding grammar and validation contract
 - [ZONE_FORMAT_V2_PLAN.md](ZONE_FORMAT_V2_PLAN.md) - proposed replacement for block-shaped zones, magic names, Learn FX pseudo-zones, and separate zone line readers
 
