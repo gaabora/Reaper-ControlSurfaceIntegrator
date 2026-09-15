@@ -6,7 +6,8 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
     : csi_(csi), action_(action), widget_(widget), zone_(zone), navigator_(navigator ? navigator : zone->GetNavigator()), format2ChannelOffset_(format2ChannelOffset), paramIndex_(paramIndex) {
     vector<string> params;
     for (int i = 0; i < (int) (paramsAndProperties).size(); ++i) {
-        if ((paramsAndProperties)[i].find("=") == string::npos)
+        if ((paramsAndProperties)[i] == "InvertValue") this->value_.isValueInverted = true;
+        else if ((paramsAndProperties)[i].find("=") == string::npos)
             params.push_back((paramsAndProperties)[i]);
         sourceParams_.push_back((paramsAndProperties)[i]);
     }
@@ -14,8 +15,13 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
     this->widgetProperties_.SetFeedbackShape(this->action_->GetFeedbackShape());
 
     const char* feedback = widgetProperties_.get_prop(PropertyType_Feedback);
-    if (feedback && IsSameString(feedback, "No"))
-        provideFeedback_ = false;
+    if (feedback && (IsSameString(feedback, "None") || IsSameString(feedback, "No"))) {
+        this->feedbackMode_ = FeedbackMode::None;
+        this->provideFeedback_ = false;
+    } else if (feedback && IsSameString(feedback, "Invert")) {
+        this->feedbackMode_ = FeedbackMode::Invert;
+        this->value_.isFeedbackInverted = true;
+    }
 
     const char* holdDelay = widgetProperties_.get_prop(PropertyType_HoldDelay);
     if (holdDelay)
@@ -32,9 +38,18 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         this->LogMessage(string("invalid value for RunCount '") + runCount + "'", DEBUG_LEVEL_WARNING);
     }
 
-    const char* blinkTime = widgetProperties_.get_prop(PropertyType_Blink);
-    if (blinkTime)
-        SetBlinkInterval(atoi(blinkTime));
+    const char* blinkValue = widgetProperties_.get_prop(PropertyType_Blink);
+    const char* blinkInterval = widgetProperties_.get_prop(PropertyType_BlinkIntervalMs);
+    if (blinkValue) {
+        BlinkCondition condition = BlinkCondition::Active;
+        int intervalMs = INHERIT_VALUE;
+        if (IsSameString(blinkValue, "Inactive")) condition = BlinkCondition::Inactive;
+        else if (IsSameString(blinkValue, "Always")) condition = BlinkCondition::Always;
+        else if (!IsSameString(blinkValue, "Active")) intervalMs = atoi(blinkValue);
+        if (this->feedbackMode_ == FeedbackMode::None && !IsSameString(blinkValue, "Active") && !IsSameString(blinkValue, "Inactive") && !IsSameString(blinkValue, "Always")) condition = BlinkCondition::Always;
+        if (blinkInterval) intervalMs = atoi(blinkInterval);
+        this->SetBlinkInterval(intervalMs, condition);
+    }
 
     const char* meterMode = widgetProperties_.get_prop(PropertyType_MeterMode);
     if (meterMode && strlen(meterMode) > 0)
@@ -42,9 +57,11 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
 
     for (int i = 0; i < (int) (paramsAndProperties).size(); ++i) {
         if (paramsAndProperties[i] == "NoFeedback") {
+            this->feedbackMode_ = FeedbackMode::None;
             provideFeedback_ = false;
+            if (this->blink_.condition == BlinkCondition::Active) this->blink_.condition = BlinkCondition::Always;
         } else if (paramsAndProperties[i] == "Blink") {
-            SetBlinkInterval(INHERIT_VALUE);
+            SetBlinkInterval(INHERIT_VALUE, this->feedbackMode_ == FeedbackMode::None ? BlinkCondition::Always : BlinkCondition::Active);
         }
     }
 
@@ -118,8 +135,11 @@ ActionContext::ActionContext(CSurfIntegrator* const csi, Action* action, Widget*
         int feedbackState = GetToggleCommandState(commandId_);
         if (feedbackState == -1) {
             feedbackAvailable_ = false;
+            this->feedbackMode_ = FeedbackMode::None;
             provideFeedback_ = false;
-            if (!feedback || !IsSameString(feedback, "No")) this->LogMessage(string("action '") + DAW::GetCommandName(commandId_) + "' does not provide feedback", DEBUG_LEVEL_DEBUG);
+            this->value_.isFeedbackInverted = false;
+            if (this->blink_.condition == BlinkCondition::Active) this->blink_.condition = BlinkCondition::Always;
+            if (!feedback || (!IsSameString(feedback, "None") && !IsSameString(feedback, "No"))) this->LogMessage(string("action '") + DAW::GetCommandName(commandId_) + "' does not provide feedback", DEBUG_LEVEL_DEBUG);
         }
     }
 
@@ -204,12 +224,13 @@ int ActionContext::GetSlotIndex() { return this->zone_->GetSlotIndexForChannel(t
 const char* ActionContext::GetName() { return zone_->GetAlias(); }
 void ActionContext::RequestUpdate() {
     if (provideFeedback_ && !timing_.isDoublePress) action_->RequestUpdate(this);
-    else if (!provideFeedback_ && blink_.blinkSet) UpdateWidgetValue(1.0);
+    else if (!provideFeedback_ && blink_.condition == BlinkCondition::Always) UpdateWidgetValue(1.0);
 }
 
 void ActionContext::ClearWidget() {
-    UpdateWidgetValue(0.0);
-    UpdateWidgetValue("");
+    this->widget_->UpdateValue(this->widgetProperties_, 0.0);
+    this->UpdateColorValue(0.0);
+    this->widget_->UpdateValue(this->widgetProperties_, "");
 }
 
 void ActionContext::UpdateColorValue(double value) {
@@ -224,13 +245,11 @@ void ActionContext::UpdateWidgetValue(double value) {
     if (value_.steppedValues.size() > 0)
         SetSteppedValueIndex(value);
 
-    if (value_.isFeedbackInverted) {
-        value = 1.0 - value;
-    } else if (blink_.blinkSet) {
-        bool shouldBlink = (value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE);
-        if (shouldBlink && !GetSurface()->IsBlinkLit(GetBlinkInterval())) {
-            value = 1.0 - value;
-        }
+    if (this->feedbackMode_ == FeedbackMode::Invert) value = 1.0 - value;
+    if (blink_.blinkSet) {
+        const bool active = value != ActionContext::BUTTON_RELEASE_MESSAGE_VALUE;
+        const bool shouldBlink = blink_.condition == BlinkCondition::Always || (blink_.condition == BlinkCondition::Active && active) || (blink_.condition == BlinkCondition::Inactive && !active);
+        if (shouldBlink) value = this->GetSurface()->IsBlinkLit(this->GetBlinkInterval()) ? 1.0 : 0.0;
     }
     widget_->UpdateValue(widgetProperties_, value);
 
@@ -278,15 +297,17 @@ void ActionContext::LogAction(double value) {
         }
         oss << " }[" << color_.currentColorIndex << "]";
     }
-    if (!provideFeedback_) oss << " FeedBack=No";
-    if (value_.isValueInverted) oss << " Invert";
-    if (value_.isFeedbackInverted) oss << " InvertFB";
+    if (this->feedbackMode_ == FeedbackMode::None) oss << " Feedback=None";
+    else if (this->feedbackMode_ == FeedbackMode::Invert) oss << " Feedback=Invert";
+    if (value_.isValueInverted) oss << " InvertValue";
     if (timing_.holdDelayMs > 0) oss << " HoldDelay=" << timing_.holdDelayMs;
     if (timing_.holdRepeatIntervalMs > 0) oss << " HoldRepeatInterval=" << timing_.holdRepeatIntervalMs;
     if (runCount_ > 1) oss << " RunCount=" << runCount_;
     if (blink_.blinkSet) {
-        oss << " Blink";
-        if (blink_.blinkIntervalMs > 0) oss << "=" << blink_.blinkIntervalMs;
+        if (blink_.condition == BlinkCondition::Active) oss << " Blink=Active";
+        else if (blink_.condition == BlinkCondition::Inactive) oss << " Blink=Inactive";
+        else if (blink_.condition == BlinkCondition::Always) oss << " Blink=Always";
+        if (blink_.blinkIntervalMs > 0) oss << " BlinkIntervalMs=" << blink_.blinkIntervalMs;
     }
     LogToConsole("[INFO] @%s/{%s}: [%s] '%s' > %s (%s) val:%0.2f ctx:%s\n", this->GetSurface()->GetName(), this->GetZone()->GetName(), this->GetWidget()->GetName(), JoinStringVector(sourceParams_, " ").c_str(), actionTitle_.c_str(), oss.str().c_str(), value, this->GetName());
 }

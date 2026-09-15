@@ -259,6 +259,7 @@ private:
         this->ValidatePropertyPlacementAndDuplicates(node, action.properties);
         this->AddNavigationReference(action);
         this->ValidateKnownActionArguments(action);
+        this->ValidateFeedbackProperties(action);
 
         if (action.action == "Modifier" || action.action == "PseudoModifier") {
             if (this->generatedBindings_) {
@@ -304,12 +305,35 @@ private:
         this->ValidatePropertyPlacementAndDuplicates(node, action.properties);
         this->AddNavigationReference(action);
         this->ValidateKnownActionArguments(action);
+        this->ValidateFeedbackProperties(action);
         return action;
     }
 
     const Format2PropertySyntax* FindActionProperty(const Format2ZoneAction& action, const char* name) const {
         for (const Format2PropertySyntax& property : action.properties) if (property.name == name) return &property;
         return nullptr;
+    }
+
+    void ValidateFeedbackProperties(const Format2ZoneAction& action) {
+        const Format2PropertySyntax* feedback = this->FindActionProperty(action, "Feedback");
+        if (feedback) {
+            const std::string& value = feedback->value.scalar.text;
+            if (feedback->value.list || feedback->value.scalar.quoted || (value != "Default" && value != "Invert" && value != "None" && value != "Value" && value != "Yes" && value != "No")) this->AddDiagnostic("format2.zone.feedback", "Feedback must be Default, Invert, or None", feedback->value.location);
+        }
+        const Format2PropertySyntax* blink = this->FindActionProperty(action, "Blink");
+        if (blink) {
+            int legacyIntervalMs = 0;
+            const std::string& value = blink->value.scalar.text;
+            const bool legacyInterval = !blink->value.list && !blink->value.scalar.quoted && ParseFormat2IntegerScalar(blink->value.scalar, legacyIntervalMs) && legacyIntervalMs > 0;
+            if (blink->value.list || blink->value.scalar.quoted || (value != "Active" && value != "Inactive" && value != "Always" && !legacyInterval)) this->AddDiagnostic("format2.zone.blink", "Blink must be Active, Inactive, or Always", blink->value.location);
+            if (feedback && feedback->value.scalar.text == "None" && (value == "Active" || value == "Inactive")) this->AddDiagnostic("format2.zone.blink-feedback", "Feedback=None supports only Blink=Always", blink->value.location);
+        }
+        const Format2PropertySyntax* interval = this->FindActionProperty(action, "BlinkIntervalMs");
+        if (interval) {
+            int intervalMs = 0;
+            if (interval->value.list || !ParseFormat2IntegerScalar(interval->value.scalar, intervalMs) || intervalMs < 1) this->AddDiagnostic("format2.zone.blink-interval", "BlinkIntervalMs must be one positive integer", interval->value.location);
+            if (!blink) this->AddDiagnostic("format2.zone.blink-interval-without-mode", "BlinkIntervalMs requires Blink", interval->nameLocation);
+        }
     }
 
     void ValidateBankContextProperties(const Format2ZoneAction& action) {
@@ -334,31 +358,35 @@ private:
 
     void ValidateKnownActionArguments(const Format2ZoneAction& action) {
         this->ValidateBankContextProperties(action);
+        std::vector<const Format2ScalarSyntax*> arguments;
+        for (const Format2ScalarSyntax& argument : action.arguments) if (argument.quoted || argument.text != "InvertValue") arguments.push_back(&argument);
         const Format2ActionArgumentKind argumentKind = GetFormat2ActionArgumentKind(action.action);
         if (argumentKind == Format2ActionArgumentKind::None) {
-            if (!action.arguments.empty()) this->AddDiagnostic("format2.zone.action.argument", action.action + " does not accept positional parameters", action.arguments.front().location);
+            if (!arguments.empty()) this->AddDiagnostic("format2.zone.action.argument", action.action + " does not accept positional parameters", arguments.front()->location);
             return;
         }
         if (argumentKind != Format2ActionArgumentKind::SignedInteger) return;
-        if (action.arguments.size() != 1 || action.arguments[0].quoted) {
+        if (arguments.size() != 1 || arguments[0]->quoted) {
             this->AddDiagnostic("format2.zone.action.bank-amount", action.action + " requires one unquoted signed integer amount", action.actionLocation);
             return;
         }
-        const std::string& value = action.arguments[0].text;
+        const std::string& value = arguments[0]->text;
         std::size_t digitIdx = !value.empty() && value[0] == '-' ? 1 : 0;
         bool valid = digitIdx < value.size();
         for (; valid && digitIdx < value.size(); digitIdx++) valid = value[digitIdx] >= '0' && value[digitIdx] <= '9';
-        if (!valid) this->AddDiagnostic("format2.zone.action.bank-amount", action.action + " requires one signed integer amount", action.arguments[0].location);
+        if (!valid) this->AddDiagnostic("format2.zone.action.bank-amount", action.action + " requires one signed integer amount", arguments[0]->location);
     }
 
     void AddNavigationReference(const Format2ZoneAction& action) {
         const std::optional<Format2ZoneNavigationKind> kind = GetFormat2ActionZoneNavigationKind(action.action);
         if (!kind) return;
-        if (action.arguments.size() != 1 || action.arguments[0].quoted || !IsValidFormat2Identifier(action.arguments[0].text)) {
+        std::vector<const Format2ScalarSyntax*> arguments;
+        for (const Format2ScalarSyntax& argument : action.arguments) if (argument.quoted || argument.text != "InvertValue") arguments.push_back(&argument);
+        if (arguments.size() != 1 || arguments[0]->quoted || !IsValidFormat2Identifier(arguments[0]->text)) {
             this->AddDiagnostic("format2.zone.navigation.argument", action.action + " requires one unquoted zone ID", action.actionLocation);
             return;
         }
-        this->result_.zone.navigationReferences.push_back({*kind, action.arguments[0].text, action.arguments[0].location});
+        this->result_.zone.navigationReferences.push_back({*kind, arguments[0]->text, arguments[0]->location});
     }
 
     void ValidatePropertyPlacementAndDuplicates(const Format2SyntaxNode& node, const std::vector<Format2PropertySyntax>& properties) {

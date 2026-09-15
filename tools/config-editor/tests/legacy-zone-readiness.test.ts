@@ -9,7 +9,7 @@ describe("legacy Zone readiness", () => {
     test("converts a matching bank target and preserves amount and feedback", () => {
         const conversion = convertLegacyZoneToFormat2("Zone SelectedTrackSend\nPrev Bank SelectedTrackSend -1 Blink=1000\nNext Bank SelectedTrackSend 1\nZoneEnd\n", { profile: "Main", targetPath: profileRoot + "SelectedTrackSend.zon" });
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toContain("Prev Bank -1 Blink=1000");
+        expect(conversion.source).toContain("Prev Bank -1 Blink=Active BlinkIntervalMs=1000");
         expect(conversion.source).toContain("Next Bank 1");
         expect(parseByPath(conversion.source, profileRoot + "SelectedTrackSend.zon").diagnostics).toEqual([]);
     });
@@ -61,7 +61,7 @@ describe("legacy Zone readiness", () => {
         expect(independent.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.zone.exit.context", severity: "error" }));
         const layer = convertLegacyZoneToFormat2(source, { ...options, isLayer: true });
         expect(layer.diagnostics).toEqual([]);
-        expect(layer.source).toContain("Click ExitZoneLayer Blink=1000");
+        expect(layer.source).toContain("Click ExitZoneLayer Blink=Active BlinkIntervalMs=1000");
     });
 
     test("an unmatched relation end cannot remove the generated metadata", () => {

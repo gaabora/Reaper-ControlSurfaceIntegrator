@@ -154,7 +154,7 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
 
     const validateAction = (text: string, lineNumber: number): void => {
         const [action, ...tokens] = tokenizeLine(text, true);
-        const params = tokens.filter((token) => !/^[A-Za-z][A-Za-z0-9]*=/.test(token));
+        const params = tokens.filter((token) => !/^[A-Za-z][A-Za-z0-9]*=/.test(token) && token !== "InvertValue");
         if (action === "Bank" && (params.length !== 1 || !/^-?\d+$/.test(params[0]))) addDiagnostic(diagnostics, "error", "format2.zone.action.bank-amount", "Bank requires one unquoted signed integer amount", lineNumber, documentPath);
         const targetProperty = tokens.find((token) => token.startsWith("Target="))?.slice("Target=".length);
         const bankTargetProperty = tokens.find((token) => token.startsWith("BankTarget="))?.slice("BankTarget=".length);
@@ -279,6 +279,14 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         }
         semantic.bindings.push({ action, inputSelectors: expression.inputSelectors, line: line.lineNumber, modifierSource: expression.modifierSource, modifiers: expression.modifiers, params, properties, widget: expression.widget });
         validateAction(text.slice(expressionText.length).trimStart(), line.lineNumber);
+        const feedback = properties.get("Feedback");
+        if (feedback && !["Default", "Invert", "None", "Value", "Yes", "No"].includes(feedback)) addDiagnostic(diagnostics, "error", "format2.zone.feedback", "Feedback must be Default, Invert, or None", line.lineNumber, documentPath);
+        const blink = properties.get("Blink");
+        if (blink && !["Active", "Inactive", "Always"].includes(blink) && !/^\d+$/.test(blink)) addDiagnostic(diagnostics, "error", "format2.zone.blink", "Blink must be Active, Inactive, or Always", line.lineNumber, documentPath);
+        if (feedback === "None" && (blink === "Active" || blink === "Inactive")) addDiagnostic(diagnostics, "error", "format2.zone.blink-feedback", "Feedback=None supports only Blink=Always", line.lineNumber, documentPath);
+        const blinkInterval = properties.get("BlinkIntervalMs");
+        if (blinkInterval && (!/^\d+$/.test(blinkInterval) || Number(blinkInterval) < 1)) addDiagnostic(diagnostics, "error", "format2.zone.blink-interval", "BlinkIntervalMs must be one positive integer", line.lineNumber, documentPath);
+        if (blinkInterval && !blink) addDiagnostic(diagnostics, "error", "format2.zone.blink-interval-without-mode", "BlinkIntervalMs requires Blink", line.lineNumber, documentPath);
         for (const propertyName of ["DelayMs", "RepeatIntervalMs", "RunCount"]) if (new RegExp(`(?:^|\\s)${propertyName}\\s*=\\s*"`).test(text)) addDiagnostic(diagnostics, "error", "format2.zone.gesture.integer-property", `${propertyName} must be one complete unquoted integer`, line.lineNumber, documentPath);
         const selectedButtonEvents = expression.inputSelectors.filter((selector) => buttonEvents.has(selector));
         if (selectedButtonEvents.length > 1) addDiagnostic(diagnostics, "error", "format2.zone.binding.event", "A binding cannot select more than one button event", line.lineNumber, documentPath);

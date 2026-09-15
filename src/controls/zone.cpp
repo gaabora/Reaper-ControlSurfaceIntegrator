@@ -58,9 +58,7 @@ bool Zone::UsesWidgetForCurrentEvent(Widget* widget) {
 
 bool Zone::UsesWidgetForCurrentFeedback(Widget* widget) {
     if (!this->UsesWidgetForCurrentEvent(widget)) return false;
-    if (!this->usesExactEventFallback_) return true;
-    for (auto& actionContext : this->GetActionContexts(widget)) if (actionContext->GetProvideFeedback() && !actionContext->IsDoublePress()) return true;
-    return false;
+    return true;
 }
 
 bool Zone::MatchesRuntimeTarget(ZoneRuntimeTarget target, const char* legacyName) const {
@@ -109,8 +107,7 @@ void Zone::Deactivate() {
     this->buttonGestureStates_.clear();
     for (auto& widget : widgets_) {
         for (auto& actionContext : GetActionContexts(widget)) {
-            actionContext->UpdateWidgetValue(0.0);
-            actionContext->UpdateWidgetValue("");
+            actionContext->ClearWidget();
 
             if (IsSameString(widget->GetName(), "OnZoneDeactivation"))
                 actionContext->DoAction(1.0);

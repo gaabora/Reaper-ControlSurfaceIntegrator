@@ -181,9 +181,17 @@ public:
     }
 
     void RequestUpdateWidget(Widget* widget) {
+        bool hasOutputContext = false;
+        for (auto& actionContext : GetActionContexts(widget)) {
+            if ((actionContext->GetProvideFeedback() && !actionContext->IsDoublePress()) || actionContext->GetBlinkCondition() == BlinkCondition::Always) {
+                hasOutputContext = true;
+                break;
+            }
+        }
         for (auto& actionContext : GetActionContexts(widget)) {
             actionContext->RunDeferredActions();
-            actionContext->RequestUpdate();
+            if (hasOutputContext) actionContext->RequestUpdate();
+            else actionContext->ClearWidget();
         }
     }
 

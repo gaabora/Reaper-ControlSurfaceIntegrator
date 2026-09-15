@@ -23,7 +23,7 @@
 - Stable IDs match `[a-z0-9][a-z0-9_-]*`.
 - Use `//` for comments in Surface and Zone files. Do not use a single leading `/` or `#` to disable a configuration line.
 - Write Learn template directives as the exact `#WidgetType`, `#DisplayRow`, `#RingStyle`, `#DisplayFont`, and `#SupportsColor` metadata keywords.
-- Built-in snippets use semantic bindings with explicit `Role`, `Input`, `Feedback`, and `Required` values. They must not contain fixed surface widget names.
+- Built-in snippets use direct format 2 Zone binding lines. Their Widget names are mapping inputs: exact Surface Widget names map automatically, and other mappings require user confirmation in the editor.
 - ReaPack installs these resources below `REAPER/Data/<ProductResourceDirectory>`, owns vendor surfaces, vendor zone profiles, and built-in snippets, and must not overwrite user surfaces, user zone profiles, or user snippets.
 
 ## Work Guidance

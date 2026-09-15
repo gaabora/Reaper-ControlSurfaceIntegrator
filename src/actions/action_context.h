@@ -12,6 +12,12 @@
 class ActionContext
 {
 public:
+    enum class FeedbackMode {
+        Default,
+        Invert,
+        None,
+    };
+
     enum class TransportStepAmount {
         Unknown = 0,
         Bar,
@@ -52,6 +58,7 @@ private:
 
     bool provideFeedback_ = true;
     bool feedbackAvailable_ = true;
+    FeedbackMode feedbackMode_ = FeedbackMode::Default;
 
     char meterMode_[64] = "";
 
@@ -119,17 +126,20 @@ public:
     PropertyList& GetWidgetProperties() { return widgetProperties_; }
 
     void SetIsValueInverted() { value_.isValueInverted = true; }
-    void SetIsFeedbackInverted() { value_.isFeedbackInverted = true; }
+    void SetIsFeedbackInverted() { if (this->feedbackAvailable_ && this->provideFeedback_) { this->feedbackMode_ = FeedbackMode::Invert; this->value_.isFeedbackInverted = true; } }
     bool GetIsValueInverted() const { return this->value_.isValueInverted; }
     bool GetIsFeedbackInverted() const { return this->value_.isFeedbackInverted; }
 
-    void SetBlinkInterval(int value) {
+    void SetBlinkInterval(int value, BlinkCondition condition = BlinkCondition::Active) {
         blink_.blinkSet = true;
+        blink_.condition = condition;
         blink_.blinkIntervalMs = value;
     }
     int GetBlinkInterval();
     bool IsBlinkSet() const { return this->blink_.blinkSet; }
     int GetConfiguredBlinkInterval() const { return this->blink_.blinkIntervalMs; }
+    BlinkCondition GetBlinkCondition() const { return this->blink_.condition; }
+    FeedbackMode GetFeedbackMode() const { return this->feedbackMode_; }
 
     void SetDoublePress() { timing_.isDoublePress = true; }
     bool IsDoublePress() { return timing_.isDoublePress; }

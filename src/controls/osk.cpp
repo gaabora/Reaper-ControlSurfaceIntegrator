@@ -339,8 +339,6 @@ static string BuildFormat2SelectorPrefix(int modifierValue, ActionContext* conte
             default: if (context->GetHoldDelay() > 0) prefix += "(Hold)+"; break;
         }
     }
-    if (context && context->GetIsValueInverted()) prefix += "(Invert)+";
-    if (context && context->GetIsFeedbackInverted()) prefix += "(InvertFB)+";
     if (context && context->GetRangeMinimum() == -2.0 && context->GetRangeMaximum() == 1.0) prefix += "(Decrease)+";
     else if (context && context->GetRangeMinimum() == 0.0 && context->GetRangeMaximum() == 2.0) prefix += "(Increase)+";
     return prefix;
@@ -365,7 +363,9 @@ static string BuildOskTooltipModifierName(int modifierValue, ActionContext* cont
 static string NormalizeFormat2OskProperty(const string& token) {
     if (token.rfind("HoldDelay=", 0) == 0) return "DelayMs=" + token.substr(10);
     if (token.rfind("HoldRepeatInterval=", 0) == 0) return "RepeatIntervalMs=" + token.substr(19);
-    if (token == "NoFeedback") return "Feedback=No";
+    if (token == "NoFeedback" || token == "Feedback=No") return "Feedback=None";
+    if (token == "Feedback=Yes" || token == "Feedback=Value") return "Feedback=Default";
+    if (token == "Blink") return "Blink=Active";
     return token;
 }
 
@@ -379,6 +379,15 @@ static vector<string> NormalizeFormat2OskActionTokens(const vector<string>& sour
     vector<string> tokens;
     for (size_t tokenIdx = 0; tokenIdx < sourceTokens.size(); ++tokenIdx) {
         if (sourceTokens[tokenIdx] != "{") {
+            if (sourceTokens[tokenIdx].rfind("Blink=", 0) == 0) {
+                const string value = sourceTokens[tokenIdx].substr(6);
+                const bool numeric = !value.empty() && value.find_first_not_of("0123456789") == string::npos;
+                if (numeric) {
+                    tokens.push_back("Blink=Active");
+                    tokens.push_back("BlinkIntervalMs=" + value);
+                    continue;
+                }
+            }
             tokens.push_back(NormalizeFormat2OskProperty(sourceTokens[tokenIdx]));
             continue;
         }
@@ -410,6 +419,37 @@ static vector<string> NormalizeFormat2OskActionTokens(const vector<string>& sour
     return tokens;
 }
 
+static vector<string> NormalizeFormat2OskFeedbackTokens(const vector<string>& sourceTokens, ActionContext::FeedbackMode feedbackMode) {
+    vector<string> filtered;
+    for (const string& token : sourceTokens) if (token.rfind("Feedback=", 0) != 0 && token != "NoFeedback") filtered.push_back(token);
+    if (feedbackMode == ActionContext::FeedbackMode::None) filtered.push_back("Feedback=None");
+    else if (feedbackMode == ActionContext::FeedbackMode::Invert) filtered.push_back("Feedback=Invert");
+    else filtered.push_back("Feedback=Default");
+    return NormalizeFormat2OskActionTokens(filtered);
+}
+
+static void AddFormat2ActionOption(vector<string>& tokens, const string& option) {
+    if (std::find(tokens.begin(), tokens.end(), option) != tokens.end()) return;
+    const auto firstProperty = std::find_if(tokens.begin() + (tokens.empty() ? 0 : 1), tokens.end(), [](const string& token) { return token.find('=') != string::npos; });
+    tokens.insert(firstProperty, option);
+}
+
+static vector<string> NormalizeFormat2OskContextTokens(const vector<string>& sourceTokens, ActionContext* context) {
+    vector<string> filtered;
+    for (const string& token : sourceTokens) {
+        if (token == "Blink" || token.rfind("Blink=", 0) == 0 || token.rfind("BlinkIntervalMs=", 0) == 0) continue;
+        filtered.push_back(token);
+    }
+    if (context->IsBlinkSet()) {
+        if (context->GetBlinkCondition() == BlinkCondition::Inactive) filtered.push_back("Blink=Inactive");
+        else if (context->GetBlinkCondition() == BlinkCondition::Always) filtered.push_back("Blink=Always");
+        else filtered.push_back("Blink=Active");
+        if (context->GetConfiguredBlinkInterval() > 0) filtered.push_back("BlinkIntervalMs=" + to_string(context->GetConfiguredBlinkInterval()));
+    }
+    if (context->GetIsValueInverted()) AddFormat2ActionOption(filtered, "InvertValue");
+    return NormalizeFormat2OskFeedbackTokens(filtered, context->GetFeedbackMode());
+}
+
 static vector<string> BuildFormat2OskDraftLines(const string& widgetName, const vector<OskConfigBinding>& bindings) {
     vector<string> lines;
     for (const OskConfigBinding& binding : bindings) {
@@ -430,12 +470,19 @@ static vector<string> BuildFormat2OskDraftLines(const string& widgetName, const 
         else if (binding.inputEvent == ActionInputEvent::Hold) line += "(Hold)+";
         else if (binding.inputEvent == ActionInputEvent::LongHold) line += "(LongHold)+";
         else if (binding.inputEvent == ActionInputEvent::DoublePress) line += "(DoublePress)+";
-        if (binding.isValueInverted) line += "(Invert)+";
-        if (binding.isFeedbackInverted) line += "(InvertFB)+";
         if (binding.isIncrease) line += "(Increase)+";
         else if (binding.isDecrease) line += "(Decrease)+";
         line += widgetName;
-        for (const string& actionToken : NormalizeFormat2OskActionTokens(binding.actionTokens)) line += " " + QuoteZoneToken(actionToken);
+        vector<string> sourceTokens = binding.actionTokens;
+        if (binding.isValueInverted) AddFormat2ActionOption(sourceTokens, "InvertValue");
+        const bool feedbackDisabled = std::any_of(sourceTokens.begin(), sourceTokens.end(), [](const string& token) { return token == "NoFeedback" || token == "Feedback=No" || token == "Feedback=None"; });
+        if (binding.isFeedbackInverted && !feedbackDisabled) {
+            vector<string> filteredTokens;
+            for (const string& token : sourceTokens) if (token.rfind("Feedback=", 0) != 0 && token != "NoFeedback") filteredTokens.push_back(token);
+            sourceTokens = std::move(filteredTokens);
+            sourceTokens.push_back("Feedback=Invert");
+        }
+        for (const string& actionToken : NormalizeFormat2OskActionTokens(sourceTokens)) line += " " + QuoteZoneToken(actionToken);
         lines.push_back(std::move(line));
     }
     return lines;
@@ -469,7 +516,7 @@ static vector<string> BuildFormat2SerializedWidgetLines(Zone* zone, Widget* widg
             line += widgetName;
             vector<string> sourceTokens = context->GetSourceParams();
             if (sourceTokens.empty()) sourceTokens.push_back(context->GetAction()->GetName());
-            const vector<string> actionTokens = NormalizeFormat2OskActionTokens(sourceTokens);
+            const vector<string> actionTokens = NormalizeFormat2OskContextTokens(sourceTokens, context);
             for (const string& actionToken : actionTokens) line += " " + QuoteZoneToken(actionToken);
             const bool holdEvent = context->GetInputEvent() == ActionInputEvent::Hold || context->GetInputEvent() == ActionInputEvent::LongHold || context->GetHoldDelay() > 0;
             if (holdEvent && line.find(" DelayMs=") == string::npos) line += " DelayMs=" + to_string(context->GetHoldDelay());

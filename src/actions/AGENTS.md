@@ -16,8 +16,9 @@
 - New action types must be represented in `ACTION_TYPE_LIST`, registered by the integrator, and documented when user-visible.
 - Declare a confirmed normalized action shape with `GetFeedbackShape()` and the matching `//! @feedback_shape` value. Leave dynamic, raw-unit, text, state, color, and semantically unknown actions without a shape.
 - `Do`, `RequestUpdate`, `Touch`, and normalized-value behavior must agree for each action.
-- Treat `Feedback=No` plus `Blink` as a persistent active blink while the binding's zone is active. A REAPER command without a toggle state is automatically feedback-unavailable; it can still use the same persistent Blink behavior.
-- Stateless `Reaper` actions with explicit action-line colors must still provide inactive color feedback unless the mapping explicitly uses `Feedback=No` or `NoFeedback`.
+- Use `Feedback=Default`, `Feedback=Invert`, and `Feedback=None` for normal, inverted, and disabled action feedback. A stateless REAPER command resolves to `Feedback=None` automatically. Use the bare `InvertValue` action option to invert the value sent to an action.
+- Apply `Feedback=Invert` before evaluating `Blink=Active` or `Blink=Inactive`. `Blink=Always` uses a permanent source and remains available with `Feedback=None`. Keep the optional interval in `BlinkIntervalMs`.
+- Stateless `Reaper` actions with explicit action-line colors must still provide inactive color feedback unless the mapping uses `Feedback=None`.
 - Resolve format 2 `StateColors` through `ActionContext` so generic Color feedback and OSK state use the same selected color. Keep anonymous `{ ... }` color parsing only for the legacy runtime path.
 - Action feedback must use the owning `ActionContext` and widget contracts rather than bypassing them.
 - An explicit action-line `OSD` value is authoritative event text. Queue it after the action runs and mark it as explicit instead of replacing it with automatic action-specific text. Lua owns template variable expansion.

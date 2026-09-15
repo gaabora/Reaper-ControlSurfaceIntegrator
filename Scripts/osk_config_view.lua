@@ -430,17 +430,35 @@ local function renderLabels(ctx, state, binding, parts, deps)
     if #unknown > 0 then imgui.TextWrapped(ctx, "Unknown variables stay unchanged: " .. table.concat(unknown, ", ")) end
 end
 
-local function renderBlink(ctx, state, binding, parts, deps)
-    local enabled = parts.properties.Blink ~= nil
-    for _, param in ipairs(parts.params) do if param == "Blink" then enabled = true end end
-    local changed, nextEnabled = imgui.Checkbox(ctx, "Blink", enabled)
-    local custom = parts.properties.Blink ~= nil
-    local interval = tonumber(parts.properties.Blink) or 500
-    if nextEnabled then
+local function renderChoiceButtons(ctx, label, choices, selected, disabled)
+    imgui.Text(ctx, label)
+    local changedChoice = nil
+    for _, choice in ipairs(choices) do
         imgui.SameLine(ctx)
-        imgui.SetNextItemWidth(ctx, 160)
-        local modeChanged, mode = imgui.Combo(ctx, "##blink_mode", custom and 1 or 0, "Surface default\0Custom interval\0")
-        if modeChanged then custom = mode == 1; changed = true end
+        local selectedChoice = selected == choice
+        local buttonColor = imgui.GetStyleColor(ctx, selectedChoice and imgui.Col_HeaderActive or imgui.Col_TableHeaderBg)
+        local clicked = ui.Disabled(ctx, disabled, function() return ui.ColorButton(ctx, choice .. "##" .. label .. "_" .. choice, buttonColor) end)
+        if clicked and not disabled and not selectedChoice then changedChoice = choice end
+    end
+    return changedChoice
+end
+
+local function renderBlink(ctx, state, binding, parts, deps)
+    local modes = { "Off", "Active", "Inactive", "Always" }
+    local feedbackNone = parts.properties.Feedback == "None"
+    if feedbackNone then modes = { "Off", "Always" } end
+    local currentMode = parts.properties.Blink or "Off"
+    if feedbackNone and currentMode ~= "Always" then currentMode = "Off" end
+    local nextMode = renderChoiceButtons(ctx, "Blink", modes, currentMode, false)
+    local changed = nextMode ~= nil
+    nextMode = nextMode or currentMode
+    local custom = parts.properties.BlinkIntervalMs ~= nil
+    local interval = tonumber(parts.properties.BlinkIntervalMs) or 500
+    if nextMode ~= "Off" then
+        imgui.SameLine(ctx)
+        local customChanged
+        customChanged, custom = imgui.Checkbox(ctx, "Custom interval", custom)
+        changed = changed or customChanged
         if custom then
             imgui.SameLine(ctx)
             imgui.SetNextItemWidth(ctx, 120)
@@ -451,8 +469,8 @@ local function renderBlink(ctx, state, binding, parts, deps)
     end
     if changed then
         for idx = #parts.params, 1, -1 do if parts.params[idx] == "Blink" then table.remove(parts.params, idx) end end
-        parts.properties.Blink = nextEnabled and custom and tostring(interval) or nil
-        if nextEnabled and not custom then parts.params[#parts.params + 1] = "Blink" end
+        parts.properties.Blink = nextMode ~= "Off" and nextMode or nil
+        parts.properties.BlinkIntervalMs = nextMode ~= "Off" and custom and tostring(interval) or nil
         saveParts(state, binding, parts, deps)
     end
 end
@@ -493,17 +511,24 @@ local function renderAdvanced(ctx, state, binding, parts, deps)
         end
     else
         local feedbackAvailable = deps.model.IsFeedbackAvailable(binding, deps.action_line, deps.reaper)
-        local feedbackDisabled = not feedbackAvailable
-        local feedbackLabel = feedbackDisabled and "No feedback (automatic)" or "No feedback"
-        changed, enabled = ui.Disabled(ctx, feedbackDisabled, function() return imgui.Checkbox(ctx, feedbackLabel, feedbackDisabled or tostring(parts.properties.Feedback or ""):lower() == "no") end)
-        ui.ItemTooltip(ctx, feedbackDisabled and "This REAPER action does not report a toggle state. Blink can still run continuously." or "Disable action feedback. With Blink enabled, the widget blinks continuously.", true)
-        if changed and not feedbackDisabled then parts.properties.Feedback = enabled and "No" or nil; saveParts(state, binding, parts, deps) end
+        local feedbackModes = { "Default", "Invert", "None" }
+        local feedbackMode = feedbackAvailable and (parts.properties.Feedback or "Default") or "None"
+        local nextFeedbackMode = renderChoiceButtons(ctx, "Feedback", feedbackModes, feedbackMode, not feedbackAvailable)
+        ui.ItemTooltip(ctx, feedbackAvailable and "Select the action value used for feedback." or "This REAPER action does not report a toggle state. Feedback is None.", true)
+        if nextFeedbackMode and feedbackAvailable then
+            parts.properties.Feedback = nextFeedbackMode
+            if parts.properties.Feedback == "None" and parts.properties.Blink and parts.properties.Blink ~= "Always" then parts.properties.Blink = "Always" end
+            saveParts(state, binding, parts, deps)
+        end
         imgui.SameLine(ctx)
-        changed, enabled = imgui.Checkbox(ctx, "Invert feedback", binding.isFeedbackInverted == true)
-        if changed then binding.isFeedbackInverted = enabled; deps.model.UpdateDirtyState(state) end
-        imgui.SameLine(ctx)
-        changed, enabled = imgui.Checkbox(ctx, "Invert value", binding.isValueInverted == true)
-        if changed then binding.isValueInverted = enabled; deps.model.UpdateDirtyState(state) end
+        local invertValue = false
+        for _, param in ipairs(parts.params) do if param == "InvertValue" then invertValue = true end end
+        changed, enabled = imgui.Checkbox(ctx, "Invert value", invertValue)
+        if changed then
+            for paramIdx = #parts.params, 1, -1 do if parts.params[paramIdx] == "InvertValue" then table.remove(parts.params, paramIdx) end end
+            if enabled then parts.params[#parts.params + 1] = "InvertValue" end
+            saveParts(state, binding, parts, deps)
+        end
     end
     renderBlink(ctx, state, binding, parts, deps)
     if not binding.modifierMode then

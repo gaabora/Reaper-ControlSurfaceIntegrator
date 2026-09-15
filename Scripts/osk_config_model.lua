@@ -93,7 +93,7 @@ function M.GetActionTitle(binding, action_line, reaperApi)
     local title = getReaperActionTitle(parts, action_line, reaperApi)
     if title then return title end
     local params = {}
-    for _, param in ipairs(parts.params) do if param ~= "Blink" then params[#params + 1] = param end end
+    for _, param in ipairs(parts.params) do if param ~= "Blink" and param ~= "InvertValue" then params[#params + 1] = param end end
     return (table.concat({ parts.actionName or "NoAction", table.concat(params, " ") }, " "):gsub("%s+$", ""))
 end
 
@@ -145,6 +145,30 @@ function M.ParseBindingString(raw, action_line)
                 end
             end
             local parts = action_line.Parse(line)
+            if parts.properties.Feedback == "No" then parts.properties.Feedback = "None"
+            elseif parts.properties.Feedback == "Yes" or parts.properties.Feedback == "Value" then parts.properties.Feedback = "Default" end
+            if not metadata.feedbackAvailable then parts.properties.Feedback = "None" end
+            if metadata.isFeedbackInverted and metadata.feedbackAvailable then parts.properties.Feedback = "Invert" end
+            metadata.isFeedbackInverted = false
+            if metadata.isValueInverted and not metadata.modifierMode then
+                local hasInvertValue = false
+                for _, param in ipairs(parts.params) do if param == "InvertValue" then hasInvertValue = true end end
+                if not hasInvertValue then parts.params[#parts.params + 1] = "InvertValue" end
+                metadata.isValueInverted = false
+            end
+            if not metadata.modifierMode and parts.properties.Feedback == nil then parts.properties.Feedback = "Default" end
+            for paramIdx = #parts.params, 1, -1 do
+                if parts.params[paramIdx] == "Blink" and not metadata.modifierMode then
+                    table.remove(parts.params, paramIdx)
+                    parts.properties.Blink = parts.properties.Feedback == "None" and "Always" or "Active"
+                end
+            end
+            local legacyBlinkInterval = tonumber(parts.properties.Blink)
+            if legacyBlinkInterval then
+                parts.properties.Blink = parts.properties.Feedback == "None" and "Always" or "Active"
+                parts.properties.BlinkIntervalMs = tostring(legacyBlinkInterval)
+            end
+            line = action_line.Build(parts)
             bindings[#bindings + 1] = {
                 mod = tonumber(modStr) or 0,
                 line = line,
@@ -245,8 +269,6 @@ function M.SerializeBindings(bindings)
                 local eventToken = binding.inputEvent:gsub("(%l)(%u)", "%1_%2"):upper()
                 line = line .. " __OSK_EVENT_" .. eventToken
             end
-            if binding.isValueInverted then line = line .. " __OSK_INVERT" end
-            if binding.isFeedbackInverted then line = line .. " __OSK_INVERT_FB" end
             if binding.isIncrease then line = line .. " __OSK_INCREASE" end
             if binding.isDecrease then line = line .. " __OSK_DECREASE" end
             if binding.modifierMode then line = line .. " __OSK_MODIFIER_" .. binding.modifierMode:upper() end
@@ -347,8 +369,13 @@ function M.ApplySearchSelectionToBinding(state, binding, row, action_line)
     if csiAction then
         local parts = action_line.Parse(binding.line)
         local hasBlink = false
+        local hasInvertValue = false
         for _, param in ipairs(parts.params) do if param == "Blink" then hasBlink = true end end
-        if parts.actionName ~= csiAction then parts.params = hasBlink and { "Blink" } or {} end
+        for _, param in ipairs(parts.params) do if param == "InvertValue" then hasInvertValue = true end end
+        if parts.actionName ~= csiAction then
+            parts.params = hasBlink and { "Blink" } or {}
+            if hasInvertValue then parts.params[#parts.params + 1] = "InvertValue" end
+        end
         parts.actionName = csiAction
         binding.line = action_line.Build(parts)
         binding.feedbackAvailable = nil
@@ -362,10 +389,13 @@ function M.ApplySearchSelectionToBinding(state, binding, row, action_line)
         local namedCommand = row:match("%- ID%s+%d+%s+%((_[^)]+)%)")
         local parts = action_line.Parse(binding.line)
         local hasBlink = false
+        local hasInvertValue = false
         for _, param in ipairs(parts.params) do if param == "Blink" then hasBlink = true end end
+        for _, param in ipairs(parts.params) do if param == "InvertValue" then hasInvertValue = true end end
         parts.actionName = "Reaper"
         parts.params = { namedCommand or commandId }
         if hasBlink then parts.params[#parts.params + 1] = "Blink" end
+        if hasInvertValue then parts.params[#parts.params + 1] = "InvertValue" end
         binding.line = action_line.Build(parts)
         binding.feedbackAvailable = nil
         M.RefreshBindingDerivedFields(binding, action_line)
@@ -393,8 +423,6 @@ function M.GetZoneLinePreview(widgetName, binding, modifierFlags)
     local selectors = {}
     for _, modifier in ipairs(modifierFlags) do if ((binding.mod or 0) & modifier.bit) ~= 0 then selectors[#selectors + 1] = "[" .. modifier.name .. "]" end end
     if binding.inputEvent and binding.inputEvent ~= "Legacy" then selectors[#selectors + 1] = "(" .. binding.inputEvent .. ")" end
-    if binding.isValueInverted then selectors[#selectors + 1] = "(Invert)" end
-    if binding.isFeedbackInverted then selectors[#selectors + 1] = "(InvertFB)" end
     if binding.isIncrease then selectors[#selectors + 1] = "(Increase)" end
     if binding.isDecrease then selectors[#selectors + 1] = "(Decrease)" end
     local prefix = #selectors > 0 and table.concat(selectors, "+") .. "+" or ""

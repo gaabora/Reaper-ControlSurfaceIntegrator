@@ -180,7 +180,8 @@ function normalizeProperty(token: string): string {
     token = token.replace(/#([0-9a-fA-F]{6})[0-9a-fA-F]{2}\b/g, "#$1");
     if (token.startsWith("HoldDelay=")) return `DelayMs=${token.slice(10)}`;
     if (token.startsWith("HoldRepeatInterval=")) return `RepeatIntervalMs=${token.slice(19)}`;
-    if (token === "NoFeedback") return "Feedback=No";
+    if (token === "NoFeedback" || token === "Feedback=No") return "Feedback=None";
+    if (token === "Feedback=Yes" || token === "Feedback=Value") return "Feedback=Default";
     if (/^[A-Za-z][A-Za-z0-9]*=\[.*\]$/.test(token)) return token;
     if (/\s/.test(token)) {
         const separator = token.indexOf("=");
@@ -197,6 +198,7 @@ function convertWidgetExpression(expression: string, inferHold: boolean, declare
     let prefix = "";
     if (inferHold && !parts.includes("Hold") && !parts.includes("LongHold")) prefix += "(Hold)+";
     for (const selector of parts) {
+        if (selector === "Invert" || selector === "InvertFB") continue;
         if (INPUT_SELECTORS.has(selector)) prefix += `(${selector})+`;
         else if (CONTEXT_SELECTORS.has(selector)) prefix += `[${selector}]+`;
         else prefix += `[${selector}]+`;
@@ -302,7 +304,25 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
             addDiagnostic(diagnostics, "warning", "legacy.zone.action.unsupported", `${action} belonged to a removed legacy workflow and was commented out. Choose a current action if this control is still needed.`, output.length, options.targetPath);
             continue;
         }
+        const modifierDeclaration = MODIFIER_ACTIONS.has(action);
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
+        if (!modifierDeclaration) {
+            const feedbackNone = actionTokens.includes("Feedback=None");
+            actionTokens = actionTokens.flatMap((token) => {
+                if (token === "Blink") return [`Blink=${feedbackNone ? "Always" : "Active"}`];
+                const legacyBlink = token.match(/^Blink=(\d+)$/);
+                if (legacyBlink) return [`Blink=${feedbackNone ? "Always" : "Active"}`, `BlinkIntervalMs=${legacyBlink[1]}`];
+                return [token];
+            });
+            if (!feedbackNone && sourceTokens.tokens[0].split("+").includes("InvertFB")) {
+                actionTokens = actionTokens.filter((token) => !token.startsWith("Feedback="));
+                actionTokens.push("Feedback=Invert");
+            }
+            if (sourceTokens.tokens[0].split("+").includes("Invert")) {
+                const firstProperty = actionTokens.findIndex((token) => token.includes("="));
+                actionTokens.splice(firstProperty < 0 ? actionTokens.length : firstProperty, 0, "InvertValue");
+            }
+        }
         const invalidLayerExit = action === "LeaveSubZone" && !options.isLayer;
         let invalidBankContextMessage = "";
         const renameContext = { bankTarget, isLayer: options.isLayer ?? false, target };
@@ -332,7 +352,6 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
             continue;
         }
         const inferHold = sourceTokens.tokens.slice(2).some((token) => token.startsWith("HoldDelay=") || token.startsWith("HoldRepeatInterval="));
-        const modifierDeclaration = MODIFIER_ACTIONS.has(action);
         const widget = convertWidgetExpression(sourceTokens.tokens[0], inferHold, modifierDeclaration ? undefined : declaredModifiers);
         const binding = modifierDeclaration ? `${widget} Modifier ${action}${actionTokens.length ? ` ${actionTokens.join(" ")}` : ""}` : `${widget} ${actionText}`;
         if (invalidLayerExit) addDiagnostic(diagnostics, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Choose whether this binding returns Home or the Zone becomes a Layer.`, output.length + 1, options.targetPath);

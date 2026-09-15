@@ -176,11 +176,11 @@ editor state:
 - `__OSK_EVENT_DOUBLE_PRESS`
 - `__OSK_FEEDBACK_UNAVAILABLE` (query-only; the editor does not send it back)
 - `__OSK_INVERT`
-- `__OSK_INVERT_FB`
+- `__OSK_INVERT_FB` (migration input only; Lua converts it to `Feedback=Invert`)
 - `__OSK_INCREASE`
 - `__OSK_DECREASE`
 
-For a REAPER command that returns `-1` from `GetToggleCommandState`, C++ publishes `__OSK_FEEDBACK_UNAVAILABLE`, disables normal action feedback, and the editor shows checked read-only `No feedback`. `Blink` remains available. `Feedback=No` together with `Blink` uses a permanent active source, so the Widget blinks continuously while the binding's Zone is active. With normal feedback, Blink follows the action's active value.
+For a REAPER command that returns `-1` from `GetToggleCommandState`, C++ publishes `__OSK_FEEDBACK_UNAVAILABLE`, resolves feedback to read-only `Feedback=None`, and permits `Blink=Always`. Normal actions use `Feedback=Default` or `Feedback=Invert`. `Blink=Active` and `Blink=Inactive` test the resulting feedback state, while `Blink=Always` does not need action feedback. `BlinkIntervalMs` overrides the Surface interval. Lua migrates query-only `__OSK_INVERT` to the bare `InvertValue` action option.
 
 ## OSD
 
