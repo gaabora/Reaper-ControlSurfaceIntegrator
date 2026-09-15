@@ -444,9 +444,9 @@ local function renderChoiceButtons(ctx, label, choices, selected, disabled)
 end
 
 local function renderBlink(ctx, state, binding, parts, deps)
-    local modes = { "Off", "Active", "Inactive", "Always" }
+    local modes = binding.modifierMode and { "Off", "Active" } or { "Off", "Active", "Inactive", "Always" }
     local feedbackNone = parts.properties.Feedback == "None"
-    if feedbackNone then modes = { "Off", "Always" } end
+    if not binding.modifierMode and feedbackNone then modes = { "Off", "Always" } end
     local currentMode = parts.properties.Blink or "Off"
     if feedbackNone and currentMode ~= "Always" then currentMode = "Off" end
     local nextMode = renderChoiceButtons(ctx, "Blink", modes, currentMode, false)

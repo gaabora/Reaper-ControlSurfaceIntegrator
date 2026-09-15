@@ -65,6 +65,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
 - User First: make things best effort and as user-friendly as possible, even when user inputs are imperfect or invalid. Handle errors gracefully instead of pushing debugging work onto users. We build software to make people’s lives easier, not to make them debug our mistakes.
+- User-facing errors must say what failed, quote the invalid value when useful, show the accepted form with a concrete example, and tell the user how to fix it. Do not expose parser positions, diagnostic codes, or implementation terms unless the message is for a developer log.
 - Focus on requested code changes. Do not build, install, package, sign, publish, deploy, or simulate release workflows unless the user explicitly requests that exact action. Treat the user's confirmation that these workflows work as sufficient. Run or fix tests only when explicitly requested or when directly required to verify a specific code change.
 - write in ASD-STE100 Simplified Technical English
 - speak in simplified english please, so even a foreigner without tech background can understand what you mean, without fancy metaphors but using simple practical examples

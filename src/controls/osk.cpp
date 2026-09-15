@@ -274,25 +274,43 @@ static bool ParseConfigBindings(CSurfIntegrator* csi, const string& bindingData,
             errorMessage = "A Modifier declaration cannot use binding selectors at position " + to_string(bindingIdx + 1);
             return false;
         }
-        if (binding.isModifierDeclaration && binding.actionTokens.size() == 2 && binding.actionTokens[1] == "Blink") {
-            binding.blink = true;
-            binding.actionTokens.pop_back();
-        } else if (binding.isModifierDeclaration && binding.actionTokens.size() == 2 && binding.actionTokens[1].rfind("Blink=", 0) == 0) {
-            size_t parsedBlinkCharacters = 0;
-            try {
-                binding.blinkIntervalMs = std::stoi(binding.actionTokens[1].substr(6), &parsedBlinkCharacters);
-            } catch (...) {
-                binding.blinkIntervalMs = -1;
+        if (binding.isModifierDeclaration) {
+            vector<string> modifierTokens;
+            if (!binding.actionTokens.empty()) modifierTokens.push_back(binding.actionTokens[0]);
+            for (size_t tokenIdx = 1; tokenIdx < binding.actionTokens.size(); ++tokenIdx) {
+                const string& token = binding.actionTokens[tokenIdx];
+                if (token == "Blink" || token == "Blink=Active") {
+                    binding.blink = true;
+                    continue;
+                }
+                const string legacyBlinkValue = token.rfind("Blink=", 0) == 0 ? token.substr(6) : "";
+                const bool legacyBlinkInterval = !legacyBlinkValue.empty() && legacyBlinkValue.find_first_not_of("0123456789") == string::npos;
+                const bool blinkInterval = token.rfind("BlinkIntervalMs=", 0) == 0;
+                if (legacyBlinkInterval || blinkInterval) {
+                    const size_t valueOffset = legacyBlinkInterval ? 6 : 16;
+                    size_t parsedCharacters = 0;
+                    try {
+                        binding.blinkIntervalMs = std::stoi(token.substr(valueOffset), &parsedCharacters);
+                    } catch (...) {
+                        binding.blinkIntervalMs = -1;
+                    }
+                    if (binding.blinkIntervalMs < 1 || parsedCharacters != token.size() - valueOffset) {
+                        errorMessage = "Cannot save binding " + to_string(bindingIdx + 1) + ": '" + token + "' is not a valid Modifier blink interval. Use Blink=Active, or use Blink=Active BlinkIntervalMs=500 for a custom 500 ms interval.";
+                        return false;
+                    }
+                    binding.blink = true;
+                    continue;
+                }
+                if (token.rfind("Blink=", 0) == 0) {
+                    errorMessage = "Cannot save binding " + to_string(bindingIdx + 1) + ": a Modifier supports only Blink=Active. Use Blink=Active or remove the Blink setting.";
+                    return false;
+                }
+                modifierTokens.push_back(token);
             }
-            if (binding.blinkIntervalMs < 1 || parsedBlinkCharacters != binding.actionTokens[1].size() - 6) {
-                errorMessage = "Modifier Blink requires one positive integer interval at position " + to_string(bindingIdx + 1);
-                return false;
-            }
-            binding.blink = true;
-            binding.actionTokens.pop_back();
+            binding.actionTokens = std::move(modifierTokens);
         }
         if (binding.isModifierDeclaration && binding.actionTokens.size() != 1) {
-            errorMessage = "A Modifier declaration requires one modifier name at position " + to_string(bindingIdx + 1);
+            errorMessage = "Cannot save binding " + to_string(bindingIdx + 1) + ": a Modifier needs one name, for example 'Marker Modifier Marker Blink=Active'.";
             return false;
         }
         bindings.push_back(binding);
@@ -459,7 +477,10 @@ static vector<string> BuildFormat2OskDraftLines(const string& widgetName, const 
             if (binding.modifierMode == Format2ModifierMode::Momentary) line += " Mode=Momentary";
             else if (binding.modifierMode == Format2ModifierMode::Latch) line += " Mode=Latch";
             else if (binding.modifierMode == Format2ModifierMode::Hybrid) line += " Mode=Hybrid";
-            if (binding.blink) line += binding.blinkIntervalMs > 0 ? " Blink=" + to_string(binding.blinkIntervalMs) : " Blink";
+            if (binding.blink) {
+                line += " Blink=Active";
+                if (binding.blinkIntervalMs > 0) line += " BlinkIntervalMs=" + to_string(binding.blinkIntervalMs);
+            }
             lines.push_back(std::move(line));
             continue;
         }
@@ -507,7 +528,10 @@ static vector<string> BuildFormat2SerializedWidgetLines(Zone* zone, Widget* widg
                     else if (context->GetModifierMode() == ActionModifierMode::Latch) line += " Mode=Latch";
                     else if (context->GetModifierMode() == ActionModifierMode::Hybrid) line += " Mode=Hybrid";
                 }
-                if (context->IsBlinkSet()) line += context->GetConfiguredBlinkInterval() > 0 ? " Blink=" + to_string(context->GetConfiguredBlinkInterval()) : " Blink";
+                if (context->IsBlinkSet()) {
+                    line += " Blink=Active";
+                    if (context->GetConfiguredBlinkInterval() > 0) line += " BlinkIntervalMs=" + to_string(context->GetConfiguredBlinkInterval());
+                }
                 lines.push_back(std::move(line));
                 continue;
             }

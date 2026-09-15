@@ -147,8 +147,8 @@ describe("configuration formats", () => {
     });
 
     test("accepts modifier blinking with the default or an explicit interval", () => {
-        const defaultBlink = parseByPath("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
-        const explicitBlink = parseByPath("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=750\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
+        const defaultBlink = parseByPath("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=Active\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
+        const explicitBlink = parseByPath("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=Active BlinkIntervalMs=750\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
         const invalidBlink = parseByPath("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=fast\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
 
         expect(defaultBlink.diagnostics.some((diagnostic) => diagnostic.code.startsWith("format2.zone.modifier."))).toBeFalse();

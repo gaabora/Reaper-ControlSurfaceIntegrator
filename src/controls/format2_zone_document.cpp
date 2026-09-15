@@ -426,7 +426,14 @@ private:
         for (const Format2PropertySyntax& property : action.properties) {
             if (property.name == "Blink") {
                 int blinkIntervalMs = 0;
-                if (property.value.list || !ParseFormat2IntegerScalar(property.value.scalar, blinkIntervalMs) || blinkIntervalMs < 1) this->AddDiagnostic("format2.zone.modifier.blink", "Modifier Blink must be one positive integer interval in milliseconds", property.value.location);
+                if (!property.value.list && !property.value.scalar.quoted && property.value.scalar.text == "Active") declaration.blink = true;
+                else if (!property.value.list && ParseFormat2IntegerScalar(property.value.scalar, blinkIntervalMs) && blinkIntervalMs > 0) {
+                    declaration.blink = true;
+                    declaration.blinkIntervalMs = blinkIntervalMs;
+                } else this->AddDiagnostic("format2.zone.modifier.blink", "A Modifier supports Blink=Active. For a custom interval, add BlinkIntervalMs with a positive millisecond value, for example Blink=Active BlinkIntervalMs=500", property.value.location);
+            } else if (property.name == "BlinkIntervalMs") {
+                int blinkIntervalMs = 0;
+                if (property.value.list || !ParseFormat2IntegerScalar(property.value.scalar, blinkIntervalMs) || blinkIntervalMs < 1) this->AddDiagnostic("format2.zone.modifier.blink-interval", "BlinkIntervalMs must be a positive millisecond value, for example BlinkIntervalMs=500", property.value.location);
                 else {
                     declaration.blink = true;
                     declaration.blinkIntervalMs = blinkIntervalMs;

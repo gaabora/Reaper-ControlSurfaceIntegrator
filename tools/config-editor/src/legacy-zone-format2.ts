@@ -306,7 +306,14 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         }
         const modifierDeclaration = MODIFIER_ACTIONS.has(action);
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
-        if (!modifierDeclaration) {
+        if (modifierDeclaration) {
+            actionTokens = actionTokens.flatMap((token) => {
+                if (token === "Blink") return ["Blink=Active"];
+                const legacyBlink = token.match(/^Blink=(\d+)$/);
+                if (legacyBlink) return ["Blink=Active", `BlinkIntervalMs=${legacyBlink[1]}`];
+                return [token];
+            });
+        } else {
             const feedbackNone = actionTokens.includes("Feedback=None");
             actionTokens = actionTokens.flatMap((token) => {
                 if (token === "Blink") return [`Blink=${feedbackNone ? "Always" : "Active"}`];

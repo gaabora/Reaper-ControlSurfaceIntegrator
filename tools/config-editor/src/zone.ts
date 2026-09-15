@@ -271,8 +271,9 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
             if (!standard) addDiagnostic(diagnostics, "error", "format2.zone.runtime.pseudo-modifier", "PseudoModifier declarations are not part of the format 2 runtime yet", line.lineNumber, documentPath);
             for (const [propertyName, value] of properties) {
                 if (propertyName === "Mode" && !["Momentary", "Latch", "Hybrid"].includes(value)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.mode", `Unknown modifier Mode: ${value}`, line.lineNumber, documentPath);
-                else if (propertyName === "Blink" && (!/^\d+$/.test(value) || Number(value) < 1)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.blink", "Modifier Blink must be one positive integer interval in milliseconds", line.lineNumber, documentPath);
-                else if (propertyName !== "Mode" && propertyName !== "Blink" && propertyName !== "StateColors") addDiagnostic(diagnostics, "error", "format2.zone.modifier.property", `Unknown modifier declaration property: ${propertyName}`, line.lineNumber, documentPath);
+                else if (propertyName === "Blink" && value !== "Active" && (!/^\d+$/.test(value) || Number(value) < 1)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.blink", "A Modifier supports Blink=Active. For a custom interval, use Blink=Active BlinkIntervalMs=500", line.lineNumber, documentPath);
+                else if (propertyName === "BlinkIntervalMs" && (!/^\d+$/.test(value) || Number(value) < 1)) addDiagnostic(diagnostics, "error", "format2.zone.modifier.blink-interval", "BlinkIntervalMs must be a positive millisecond value, for example BlinkIntervalMs=500", line.lineNumber, documentPath);
+                else if (propertyName !== "Mode" && propertyName !== "Blink" && propertyName !== "BlinkIntervalMs" && propertyName !== "StateColors") addDiagnostic(diagnostics, "error", "format2.zone.modifier.property", `Unknown modifier declaration property: ${propertyName}`, line.lineNumber, documentPath);
             }
             if (modifierName) semantic.modifierDeclarations.push({ action: modifierName, inputSelectors: ["Modifier"], line: line.lineNumber, modifierKind: standard ? "standard" : "pseudo", modifiers: [], params: [], properties, widget: expression.widget });
             continue;

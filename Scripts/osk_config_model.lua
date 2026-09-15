@@ -158,14 +158,14 @@ function M.ParseBindingString(raw, action_line)
             end
             if not metadata.modifierMode and parts.properties.Feedback == nil then parts.properties.Feedback = "Default" end
             for paramIdx = #parts.params, 1, -1 do
-                if parts.params[paramIdx] == "Blink" and not metadata.modifierMode then
+                if parts.params[paramIdx] == "Blink" then
                     table.remove(parts.params, paramIdx)
-                    parts.properties.Blink = parts.properties.Feedback == "None" and "Always" or "Active"
+                    parts.properties.Blink = metadata.modifierMode and "Active" or parts.properties.Feedback == "None" and "Always" or "Active"
                 end
             end
             local legacyBlinkInterval = tonumber(parts.properties.Blink)
             if legacyBlinkInterval then
-                parts.properties.Blink = parts.properties.Feedback == "None" and "Always" or "Active"
+                parts.properties.Blink = metadata.modifierMode and "Active" or parts.properties.Feedback == "None" and "Always" or "Active"
                 parts.properties.BlinkIntervalMs = tostring(legacyBlinkInterval)
             end
             line = action_line.Build(parts)
