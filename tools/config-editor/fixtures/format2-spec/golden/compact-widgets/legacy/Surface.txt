@@ -1,0 +1,17 @@
+// Surface note
+Widget TrackSelectB1
+  AnyPress /-stat/selidx/16
+  FB_IntProcessor /-stat/selidx/16
+WidgetEnd
+Widget TrackSelectB2
+  AnyPress /-stat/selidx/17
+  FB_IntProcessor /-stat/selidx/17
+WidgetEnd
+Widget TrackSelectB3
+  AnyPress /-stat/selidx/18
+  // Keep this comment between commands.
+  FB_IntProcessor /-stat/selidx/18
+WidgetEnd
+Widget Unsupported1
+  MissingProcessor value
+WidgetEnd

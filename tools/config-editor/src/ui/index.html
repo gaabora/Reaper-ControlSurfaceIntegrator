@@ -59,11 +59,11 @@
                 <section id="legacy-draft-panel" class="legacy-draft-panel" hidden>
                   <div class="legacy-draft-header">
                     <div class="legacy-draft-fields">
-                      <strong>{{legacy.draft.title}}</strong><span id="legacy-draft-source" class="secondary"></span>
+                      <strong>{{legacy.draft.title}}</strong><span id="legacy-draft-stage" class="secondary"></span><span id="legacy-draft-source" class="secondary"></span>
                       <label class="legacy-draft-target-row"><span>{{legacy.draft.target}}</span><input id="legacy-draft-target"></label>
                       <div id="legacy-draft-target-feedback" class="feedback danger" hidden></div>
                     </div>
-                    <div class="actions"><button id="legacy-draft-discard" disabled>{{legacy.draft.discard}}</button></div>
+                    <div class="actions"><button id="legacy-draft-back" hidden>{{legacy.stage.back}}</button><button id="legacy-draft-advance">{{legacy.stage.advance}}</button><button id="legacy-draft-discard" disabled>{{legacy.draft.discard}}</button></div>
                   </div>
                   <div id="legacy-draft-editor" class="code-editor"></div>
                 </section>

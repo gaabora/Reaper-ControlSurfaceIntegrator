@@ -55,10 +55,13 @@ const elements = {
     legacyCheckAll: requiredElement("legacy-check-all"),
     legacyDraftDiscard: requiredElement("legacy-draft-discard"),
     legacyDraftDiscardAll: requiredElement("legacy-draft-discard-all"),
+    legacyDraftAdvance: requiredElement("legacy-draft-advance"),
+    legacyDraftBack: requiredElement("legacy-draft-back"),
     legacyDraftEmpty: requiredElement("legacy-draft-empty"),
     legacyDraftEditor: requiredElement("legacy-draft-editor"),
     legacyDraftPanel: requiredElement("legacy-draft-panel"),
     legacyDraftSource: requiredElement("legacy-draft-source"),
+    legacyDraftStage: requiredElement("legacy-draft-stage"),
     legacyDraftTarget: requiredElement("legacy-draft-target"),
     legacyDraftTargetFeedback: requiredElement("legacy-draft-target-feedback"),
     legacyImport: requiredElement("legacy-import"),
@@ -150,7 +153,7 @@ const state = {
     draftConflicts: new Set(),
     globalProblems: [],
     identity: null,
-    legacy: { activeDraftPath: "", collapsedFolders: new Set(), drafts: new Map(), originalSources: new Map(), originalTargetPaths: new Map(), preview: null, productConfig: null, profileAuthor: "user", resolutions: new Map(), selectedZonePaths: new Set(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
+    legacy: { activeDraftPath: "", collapsedFolders: new Set(), generatedResults: new Map(), originalTargetPaths: new Map(), preview: null, productConfig: null, profileAuthor: "user", resolutions: new Map(), resultDrafts: new Map(), selectedZonePaths: new Set(), sourceDrafts: new Map(), stages: new Map(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
     problemFiles: new Map(),
     snippet: { choices: new Map(), insertionLine: 1, preview: null, treeEntries: [] },
     surfaceDesigner: false,
@@ -166,12 +169,18 @@ let pendingDraft = null;
 let draftWriteActive = false;
 let draftWritePromise = Promise.resolve();
 let legacyDraftTimer = 0;
+let legacyPreviewRevision = 0;
 let quickFixActive = false;
 const codeEditor = createConfigurationEditor(elements.rawEditor, handleEditorChange);
 const legacyDraftEditor = createConfigurationEditor(elements.legacyDraftEditor, (source) => {
     const item = legacySourceForPath(state.legacy.activeDraftPath);
     if (item) {
-        state.legacy.drafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source });
+        const draft = { originalSourceHash: item.originalSourceHash, source };
+        if (legacyStageForPath(item.sourcePath) === "prepare") {
+            state.legacy.sourceDrafts.set(item.sourcePath, draft);
+            legacyPreviewRevision += 1;
+        }
+        else state.legacy.resultDrafts.set(item.sourcePath, draft);
         updateLegacyZoneTreeSelection();
         updateLegacyDraftState(item);
         scheduleLegacyDraftUpdate();
@@ -789,15 +798,17 @@ async function applyDiagnosticQuickFix(diagnostic, fix) {
         if (state.task === "legacy") {
             const item = legacySourceForPath(diagnostic.path) || state.legacy.preview?.items.find((candidate) => candidate.targetPath === diagnostic.path);
             if (!item) throw new Error(translate("error.quickFixEditable"));
-            const currentSource = state.legacy.drafts.get(item.sourcePath)?.source ?? item.source;
+            const currentSource = state.legacy.resultDrafts.get(item.sourcePath)?.source ?? item.source;
             if (["zone.bank.move-to-context", "zone.relationship.make-layer"].includes(fix.id)) {
                 const documentItems = state.legacy.preview?.items.filter((candidate) => candidate.selected && candidate.kind === "zone") ?? [];
-                const documents = documentItems.map((candidate) => ({ path: candidate.targetPath, source: state.legacy.drafts.get(candidate.sourcePath)?.source ?? candidate.source }));
+                const documents = documentItems.map((candidate) => ({ path: candidate.targetPath, source: state.legacy.resultDrafts.get(candidate.sourcePath)?.source ?? candidate.source }));
                 const result = await api("/api/quick-fix-set", { method: "POST", body: JSON.stringify({ diagnostic: { code: diagnostic.code, line: diagnostic.line, message: diagnostic.message }, documents, fix: { data: fix.data, id: fix.id } }) });
                 for (const change of result.changes) {
                     const changedItem = state.legacy.preview?.items.find((candidate) => candidate.targetPath === change.path);
                     if (!changedItem) throw new Error(translate("error.quickFixEditable"));
-                    state.legacy.drafts.set(changedItem.sourcePath, { originalSourceHash: changedItem.originalSourceHash, source: change.source });
+                    if (!state.legacy.generatedResults.has(changedItem.sourcePath)) state.legacy.generatedResults.set(changedItem.sourcePath, changedItem.source);
+                    state.legacy.resultDrafts.set(changedItem.sourcePath, { originalSourceHash: changedItem.originalSourceHash, source: change.source });
+                    state.legacy.stages.set(changedItem.sourcePath, "result");
                     await persistLegacyDraft(changedItem.sourcePath, false);
                 }
                 await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
@@ -807,7 +818,9 @@ async function applyDiagnosticQuickFix(diagnostic, fix) {
                 return;
             }
             const result = await api("/api/quick-fix", { method: "POST", body: JSON.stringify({ diagnostic: { code: diagnostic.code, line: diagnostic.line, message: diagnostic.message }, fix: { data: fix.data, id: fix.id }, path: item.targetPath, source: currentSource }) });
-            state.legacy.drafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source: result.source });
+            if (!state.legacy.generatedResults.has(item.sourcePath)) state.legacy.generatedResults.set(item.sourcePath, item.source);
+            state.legacy.resultDrafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source: result.source });
+            state.legacy.stages.set(item.sourcePath, "result");
             await persistLegacyDraft(item.sourcePath);
             const refreshedItem = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === item.sourcePath);
             if (refreshedItem) openLegacyDraft(refreshedItem, diagnostic.line);
@@ -1103,7 +1116,16 @@ function renameSuggestion(targetPath) {
 }
 
 function legacyDraftsForRequest() {
-    return [...state.legacy.drafts].map(([sourcePath, draft]) => ({ originalSourceHash: draft.originalSourceHash, source: draft.source, sourcePath }));
+    const sourcePaths = new Set([...state.legacy.sourceDrafts.keys(), ...state.legacy.resultDrafts.keys(), ...state.legacy.stages.keys()]);
+    const drafts = [];
+    for (const sourcePath of sourcePaths) {
+        const source = legacyOriginalSourceForPath(sourcePath);
+        if (!source) continue;
+        const stage = legacyStageForPath(sourcePath);
+        const draft = stage === "result" ? state.legacy.resultDrafts.get(sourcePath) : state.legacy.sourceDrafts.get(sourcePath);
+        if (draft) drafts.push({ originalSourceHash: source.originalSourceHash, source: draft.source, sourcePath });
+    }
+    return drafts;
 }
 
 function legacyTargetPathsForRequest(selectedZonePaths = state.legacy.selectedZonePaths) {
@@ -1118,30 +1140,57 @@ function legacyDraftTargetPath(item) {
     return state.legacy.targetPaths.get(item.sourcePath) ?? item.targetPath;
 }
 
-function legacyDraftIsDirty(item) {
-    const originalSource = state.legacy.originalSources.get(item.sourcePath) ?? item.source;
-    const source = state.legacy.drafts.get(item.sourcePath)?.source ?? item.source;
+function legacyOriginalSourceForPath(sourcePath) {
+    return state.legacy.preview?.sources?.find((candidate) => candidate.sourcePath === sourcePath);
+}
+
+function legacyStageForPath(sourcePath) {
+    return state.legacy.stages.get(sourcePath) ?? "prepare";
+}
+
+function legacySourceDraftIsDirty(item) {
+    const originalSource = legacyOriginalSourceForPath(item.sourcePath)?.source ?? item.source;
+    const source = state.legacy.sourceDrafts.get(item.sourcePath)?.source ?? originalSource;
     const originalTargetPath = state.legacy.originalTargetPaths.get(item.sourcePath) ?? item.targetPath;
     return source !== originalSource || legacyDraftTargetPath(item) !== originalTargetPath;
 }
 
+function legacyResultDraftIsDirty(item) {
+    const generatedResult = state.legacy.generatedResults.get(item.sourcePath) ?? item.source;
+    const resultDraft = state.legacy.resultDrafts.get(item.sourcePath)?.source ?? generatedResult;
+    return resultDraft !== generatedResult;
+}
+
 function updateLegacyDraftState(item) {
-    elements.legacyDraftDiscard.disabled = !legacyDraftIsDirty(item);
-    elements.legacyDraftDiscardAll.disabled = state.legacy.drafts.size === 0 && state.legacy.targetPaths.size === 0;
+    const stage = legacyStageForPath(item.sourcePath);
+    const sourceDirty = legacySourceDraftIsDirty(item);
+    const resultDirty = legacyResultDraftIsDirty(item);
+    elements.legacyDraftStage.textContent = translate(stage === "prepare" ? "legacy.stage.prepare" : "legacy.stage.result");
+    elements.legacyDraftAdvance.hidden = stage !== "prepare";
+    elements.legacyDraftBack.hidden = stage !== "result";
+    elements.legacyDraftDiscard.textContent = translate(stage === "prepare" ? "legacy.draft.discardSource" : "legacy.draft.discardResult");
+    elements.legacyDraftDiscard.disabled = stage === "prepare" ? !sourceDirty : !resultDirty;
+    elements.legacyDraftDiscardAll.disabled = state.legacy.sourceDrafts.size === 0 && state.legacy.resultDrafts.size === 0 && state.legacy.targetPaths.size === 0;
     const conflictMessage = item.vendorOverridePath ? translate("legacy.conflict.vendorOverride", { path: item.vendorOverridePath }) : translate("legacy.conflict.unresolved");
     setFeedback(elements.legacyDraftTargetFeedback, legacyItemHasConflict(item) && !legacyItemAlreadyImported(item) ? conflictMessage : "", "danger");
 }
 
 async function persistLegacyDraft(sourcePath, refresh = true) {
     const item = legacySourceForPath(sourcePath);
-    if (!item) return;
-    const originalSource = state.legacy.originalSources.get(sourcePath) ?? item.source;
-    const source = state.legacy.drafts.get(sourcePath)?.source ?? item.source;
+    const originalSourceItem = legacyOriginalSourceForPath(sourcePath);
+    if (!item || !originalSourceItem) return;
+    const stage = legacyStageForPath(sourcePath);
+    const sourceDraft = state.legacy.sourceDrafts.get(sourcePath)?.source ?? originalSourceItem.source;
+    const resultDraft = stage === "result" ? state.legacy.resultDrafts.get(sourcePath)?.source ?? item.source : undefined;
+    const generatedResult = stage === "result" ? state.legacy.generatedResults.get(sourcePath) ?? item.source : undefined;
     const originalTargetPath = state.legacy.originalTargetPaths.get(sourcePath) ?? item.targetPath;
     const targetPath = legacyDraftTargetPath(item);
-    await api("/api/legacy/draft", { method: "POST", body: JSON.stringify({ originalSource, originalSourceHash: item.originalSourceHash, originalTargetPath, source, sourcePath, surfaceName: state.legacy.surfaceName, targetPath, targetProfileId: state.legacy.targetProfileId }) });
-    if (source === originalSource && targetPath === originalTargetPath) {
-        state.legacy.drafts.delete(sourcePath);
+    const result = await api("/api/legacy/draft", { method: "POST", body: JSON.stringify({ generatedResult, originalSource: originalSourceItem.source, originalSourceHash: originalSourceItem.originalSourceHash, originalTargetPath, resultDraft, sourceDraft, sourcePath, stage, surfaceName: state.legacy.surfaceName, targetPath, targetProfileId: state.legacy.targetProfileId }) });
+    if (!result.dirty) {
+        state.legacy.sourceDrafts.delete(sourcePath);
+        state.legacy.resultDrafts.delete(sourcePath);
+        state.legacy.stages.delete(sourcePath);
+        state.legacy.generatedResults.delete(sourcePath);
         state.legacy.targetPaths.delete(sourcePath);
     }
     if (refresh) await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
@@ -1160,9 +1209,11 @@ async function restoreLegacyDrafts() {
     for (const draft of result.drafts) {
         const source = legacySourceForPath(draft.sourcePath);
         if (!source || source.originalSourceHash !== draft.originalSourceHash) continue;
-        state.legacy.originalSources.set(draft.sourcePath, state.legacy.originalSources.get(draft.sourcePath) ?? source.source);
         state.legacy.originalTargetPaths.set(draft.sourcePath, draft.originalTargetPath);
-        state.legacy.drafts.set(draft.sourcePath, { originalSourceHash: draft.originalSourceHash, source: draft.source });
+        state.legacy.sourceDrafts.set(draft.sourcePath, { originalSourceHash: draft.originalSourceHash, source: draft.sourceDraft });
+        if (draft.stage === "result" && draft.resultDraft) state.legacy.resultDrafts.set(draft.sourcePath, { originalSourceHash: draft.originalSourceHash, source: draft.resultDraft });
+        if (draft.stage === "result") state.legacy.stages.set(draft.sourcePath, "result");
+        if (draft.generatedResult) state.legacy.generatedResults.set(draft.sourcePath, draft.generatedResult);
         state.legacy.targetPaths.set(draft.sourcePath, draft.targetPath);
         if (source.kind === "zone" || source.kind === "learn-fx") state.legacy.selectedZonePaths.add(draft.sourcePath);
         restored = true;
@@ -1176,7 +1227,7 @@ function closeLegacyDraft() {
     elements.legacyDraftPanel.hidden = true;
     elements.legacyDraftEmpty.hidden = false;
     setFeedback(elements.legacyDraftTargetFeedback, "");
-    elements.legacyDraftDiscardAll.disabled = state.legacy.drafts.size === 0 && state.legacy.targetPaths.size === 0;
+    elements.legacyDraftDiscardAll.disabled = state.legacy.sourceDrafts.size === 0 && state.legacy.resultDrafts.size === 0 && state.legacy.targetPaths.size === 0;
     updateLegacyZoneTreeSelection();
 }
 
@@ -1189,11 +1240,38 @@ function openLegacyDraft(item, line) {
     elements.legacyDraftSource.textContent = translate("legacy.source") + ": " + item.sourcePath;
     elements.legacyDraftTarget.value = legacyDraftTargetPath(item);
     elements.legacyDraftTarget.readOnly = item.kind === "learn-fx";
-    const draft = state.legacy.drafts.get(item.sourcePath);
-    legacyDraftEditor.setValue(draft?.source ?? item.source, changedItem);
+    const stage = legacyStageForPath(item.sourcePath);
+    const source = stage === "prepare" ? state.legacy.sourceDrafts.get(item.sourcePath)?.source ?? legacyOriginalSourceForPath(item.sourcePath)?.source ?? item.source : state.legacy.resultDrafts.get(item.sourcePath)?.source ?? item.source;
+    legacyDraftEditor.setValue(source, changedItem);
     updateLegacyDraftState(item);
     updateLegacyZoneTreeSelection();
     if (line) requestAnimationFrame(() => legacyDraftEditor.goToLine(line));
+}
+
+async function advanceLegacyDraftToResult(sourcePath) {
+    await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+    const item = legacySourceForPath(sourcePath);
+    if (!item) return;
+    const sourceDiagnostics = state.legacy.preview?.diagnostics.filter((diagnostic) => diagnostic.path === item.sourcePath || diagnostic.path === item.targetPath) ?? [];
+    if ([...item.diagnostics, ...sourceDiagnostics].some((diagnostic) => diagnostic.severity === "error")) throw new Error(translate("legacy.stage.advanceBlocked"));
+    state.legacy.generatedResults.set(sourcePath, item.source);
+    state.legacy.resultDrafts.set(sourcePath, { originalSourceHash: item.originalSourceHash, source: item.source });
+    state.legacy.stages.set(sourcePath, "result");
+    await persistLegacyDraft(sourcePath);
+    const refreshedItem = legacySourceForPath(sourcePath);
+    if (refreshedItem) openLegacyDraft(refreshedItem);
+}
+
+async function returnLegacyDraftToPrepare(sourcePath) {
+    const item = legacySourceForPath(sourcePath);
+    if (!item) return;
+    state.legacy.resultDrafts.delete(sourcePath);
+    state.legacy.stages.delete(sourcePath);
+    state.legacy.generatedResults.delete(sourcePath);
+    await persistLegacyDraft(sourcePath);
+    await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+    const refreshedItem = legacySourceForPath(sourcePath);
+    if (refreshedItem) openLegacyDraft(refreshedItem);
 }
 
 function selectedLegacyItems() {
@@ -1221,6 +1299,7 @@ function updateLegacyImportButton() {
     const preview = state.legacy.preview;
     const selectedItems = selectedLegacyItems();
     const pendingItems = selectedItems.filter((item) => !legacyItemAlreadyImported(item));
+    const preparingItems = pendingItems.filter((item) => legacyStageForPath(item.sourcePath) !== "result");
     const unresolvedConflictCount = pendingItems.filter((item) => {
         const resolution = resolutionFor(item);
         if (!legacyItemHasConflict(item)) return resolution.action !== "create";
@@ -1233,6 +1312,7 @@ function updateLegacyImportButton() {
     let ready = false;
     let statusClass = "danger";
     if (preview && !selectedItems.length) message = translate("legacy.import.selectFiles");
+    else if (preview && preparingItems.length) message = translate("legacy.import.finishPreparation", { count: preparingItems.length });
     else if (preview && mappingErrorCount) message = translate("legacy.import.resolveMappings", { count: mappingErrorCount });
     else if (preview && errorCount) message = translate("legacy.import.fixErrors", { count: errorCount });
     else if (preview && unresolvedConflictCount) message = translate("legacy.import.resolveConflicts", { count: unresolvedConflictCount });
@@ -1287,7 +1367,7 @@ async function setLegacyZoneSelected(zone, selected) {
 
 function updateLegacyZoneTreeSelection() {
     for (const button of elements.legacyZones.querySelectorAll("button[data-path]")) {
-        const dirty = state.legacy.drafts.has(button.dataset.path);
+        const dirty = state.legacy.sourceDrafts.has(button.dataset.path) || state.legacy.resultDrafts.has(button.dataset.path) || state.legacy.targetPaths.has(button.dataset.path);
         button.classList.toggle("selected", button.dataset.path === state.legacy.activeDraftPath);
         button.classList.toggle("dirty", dirty);
         button.textContent = button.dataset.label + (dirty ? " *" : "");
@@ -1492,7 +1572,7 @@ function renderLegacyWidgetMappings() {
 function renderLegacyPreview() {
     const preview = state.legacy.preview;
     elements.legacyCheckAll.disabled = !preview;
-    elements.legacyDraftDiscardAll.disabled = state.legacy.drafts.size === 0 && state.legacy.targetPaths.size === 0;
+    elements.legacyDraftDiscardAll.disabled = state.legacy.sourceDrafts.size === 0 && state.legacy.resultDrafts.size === 0 && state.legacy.targetPaths.size === 0;
     renderLegacyZones();
     renderLegacyDependencies();
     renderLegacyWidgetMappings();
@@ -1604,14 +1684,15 @@ function renderLegacyPreview() {
 
 async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = usesExistingLegacySurface()) {
     if (!elements.legacySurface.value) return;
+    const revision = ++legacyPreviewRevision;
     const requestedZonePaths = selectedZonePaths === undefined ? state.legacy.selectedZonePaths : new Set(selectedZonePaths);
     const body = { drafts: legacyDraftsForRequest(), includeSurface: elements.legacyIncludeSurface.checked, surfaceName: elements.legacySurface.value, targetPaths: legacyTargetPathsForRequest(requestedZonePaths), targetProfileId: state.legacy.targetProfileId || undefined, useExistingSurface, widgetMappings: widgetMappingsForRequest() };
     if (selectedZonePaths !== undefined) body.selectedZonePaths = selectedZonePaths;
     const result = await api("/api/legacy/preview", { method: "POST", body: JSON.stringify(body) });
+    if (revision !== legacyPreviewRevision) return;
     state.legacy.preview = result.preview;
     state.legacy.surfaceName = elements.legacySurface.value;
-    const previewItemsByPath = new Map(result.preview.items.map((item) => [item.sourcePath, item]));
-    for (const source of result.preview.sources || []) if (!state.legacy.originalSources.has(source.sourcePath)) state.legacy.originalSources.set(source.sourcePath, previewItemsByPath.get(source.sourcePath)?.source ?? source.source);
+    for (const item of result.preview.items) if (legacyStageForPath(item.sourcePath) === "prepare") state.legacy.generatedResults.set(item.sourcePath, item.source);
     for (const item of result.preview.items) if (!state.legacy.originalTargetPaths.has(item.sourcePath) && !state.legacy.targetPaths.has(item.sourcePath)) state.legacy.originalTargetPaths.set(item.sourcePath, item.targetPath);
     state.legacy.selectedZonePaths = new Set(result.preview.selectedZonePaths);
     state.legacy.targetProfileId = result.preview.targetProfileId;
@@ -1671,14 +1752,16 @@ function renderLegacySelection(selection) {
     closeLegacyDraft();
     elements.legacyOperationReport.hidden = true;
     elements.legacyOperationReport.textContent = "";
-    state.legacy.drafts.clear();
-    state.legacy.originalSources.clear();
+    state.legacy.generatedResults.clear();
     state.legacy.originalTargetPaths.clear();
     state.legacy.collapsedFolders.clear();
     state.legacy.preview = null;
     state.legacy.productConfig = null;
     state.legacy.resolutions.clear();
+    state.legacy.resultDrafts.clear();
     state.legacy.selectedZonePaths.clear();
+    state.legacy.sourceDrafts.clear();
+    state.legacy.stages.clear();
     state.legacy.targetPaths.clear();
     state.legacy.targetProfileId = "";
     state.legacy.surfaceName = "";
@@ -1851,11 +1934,13 @@ elements.legacySurface.addEventListener("change", async () => {
         if (state.legacy.activeDraftPath) await persistLegacyDraft(state.legacy.activeDraftPath, false);
         closeLegacyDraft();
         state.legacy.collapsedFolders.clear();
-        state.legacy.drafts.clear();
-        state.legacy.originalSources.clear();
+        state.legacy.generatedResults.clear();
         state.legacy.originalTargetPaths.clear();
         state.legacy.resolutions.clear();
+        state.legacy.resultDrafts.clear();
         state.legacy.selectedZonePaths.clear();
+        state.legacy.sourceDrafts.clear();
+        state.legacy.stages.clear();
         state.legacy.targetPaths.clear();
         state.legacy.targetProfileId = "";
         state.legacy.surfaceName = elements.legacySurface.value;
@@ -1880,9 +1965,11 @@ elements.legacyTargetProfile.addEventListener("change", async () => {
         if (state.legacy.activeDraftPath) await persistLegacyDraft(state.legacy.activeDraftPath, false);
         setFeedback(elements.legacyTargetFeedback, "");
         state.legacy.targetProfileId = elements.legacyTargetProfile.value.trim();
-        state.legacy.drafts.clear();
-        state.legacy.originalSources.clear();
+        state.legacy.generatedResults.clear();
         state.legacy.originalTargetPaths.clear();
+        state.legacy.resultDrafts.clear();
+        state.legacy.sourceDrafts.clear();
+        state.legacy.stages.clear();
         state.legacy.targetPaths.clear();
         if (elements.legacySurface.value) {
             await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
@@ -1892,18 +1979,41 @@ elements.legacyTargetProfile.addEventListener("change", async () => {
 });
 
 async function discardLegacyDraft(sourcePath) {
-    const discardedItem = legacySourceForPath(sourcePath);
     window.clearTimeout(legacyDraftTimer);
-    await api("/api/legacy/draft/discard", { method: "POST", body: JSON.stringify({ sourcePath, surfaceName: elements.legacySurface.value, targetProfileId: state.legacy.targetProfileId }) });
-    state.legacy.drafts.delete(sourcePath);
-    state.legacy.targetPaths.delete(sourcePath);
-    if (discardedItem?.kind === "learn-fx") state.legacy.selectedZonePaths.delete(sourcePath);
-    await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
     const item = legacySourceForPath(sourcePath);
-    if (item) openLegacyDraft(item);
+    if (!item) return;
+    if (legacyStageForPath(sourcePath) === "prepare") state.legacy.sourceDrafts.delete(sourcePath);
+    else {
+        state.legacy.resultDrafts.delete(sourcePath);
+        state.legacy.stages.delete(sourcePath);
+        state.legacy.generatedResults.delete(sourcePath);
+    }
+    await persistLegacyDraft(sourcePath, false);
+    await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+    const refreshedItem = legacySourceForPath(sourcePath);
+    if (refreshedItem) openLegacyDraft(refreshedItem);
 }
 
-elements.legacyDraftDiscard.addEventListener("click", () => showDiscardConfirmation(translate("discard.importDraft.title"), translate("discard.importDraft.message"), translate("legacy.draft.discard"), async () => discardLegacyDraft(state.legacy.activeDraftPath)));
+elements.legacyDraftDiscard.addEventListener("click", () => {
+    const item = legacySourceForPath(state.legacy.activeDraftPath);
+    if (!item) return;
+    const sourceStage = legacyStageForPath(item.sourcePath) === "prepare";
+    showDiscardConfirmation(translate(sourceStage ? "discard.importSourceDraft.title" : "discard.importResultDraft.title"), translate(sourceStage ? "discard.importSourceDraft.message" : "discard.importResultDraft.message"), translate(sourceStage ? "legacy.draft.discardSource" : "legacy.draft.discardResult"), async () => discardLegacyDraft(item.sourcePath));
+});
+
+elements.legacyDraftAdvance.addEventListener("click", async () => {
+    try { await advanceLegacyDraftToResult(state.legacy.activeDraftPath); } catch (error) { showError(error, elements.legacyDraftTargetFeedback); }
+});
+
+elements.legacyDraftBack.addEventListener("click", () => {
+    const item = legacySourceForPath(state.legacy.activeDraftPath);
+    if (!item) return;
+    if (legacyResultDraftIsDirty(item)) {
+        showDiscardConfirmation(translate("discard.importResultDraft.title"), translate("discard.importResultDraft.message"), translate("legacy.stage.back"), async () => returnLegacyDraftToPrepare(item.sourcePath));
+        return;
+    }
+    void returnLegacyDraftToPrepare(item.sourcePath).catch((error) => showError(error, elements.legacyDraftTargetFeedback));
+});
 
 elements.legacyCheckAll.addEventListener("click", async () => {
     try {
@@ -1917,8 +2027,11 @@ elements.legacyCheckAll.addEventListener("click", async () => {
 elements.legacyDraftDiscardAll.addEventListener("click", () => showDiscardConfirmation(translate("discard.importDrafts.title"), translate("discard.importDrafts.message"), translate("action.discardAll"), async () => {
     window.clearTimeout(legacyDraftTimer);
     await api("/api/legacy/drafts/discard-all", { method: "POST", body: JSON.stringify({ surfaceName: elements.legacySurface.value, targetProfileId: state.legacy.targetProfileId }) });
-    for (const sourcePath of new Set([...state.legacy.drafts.keys(), ...state.legacy.targetPaths.keys()])) if (legacySourceForPath(sourcePath)?.kind === "learn-fx") state.legacy.selectedZonePaths.delete(sourcePath);
-    state.legacy.drafts.clear();
+    for (const sourcePath of new Set([...state.legacy.sourceDrafts.keys(), ...state.legacy.resultDrafts.keys(), ...state.legacy.targetPaths.keys()])) if (legacySourceForPath(sourcePath)?.kind === "learn-fx") state.legacy.selectedZonePaths.delete(sourcePath);
+    state.legacy.generatedResults.clear();
+    state.legacy.resultDrafts.clear();
+    state.legacy.sourceDrafts.clear();
+    state.legacy.stages.clear();
     state.legacy.targetPaths.clear();
     await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
 }));

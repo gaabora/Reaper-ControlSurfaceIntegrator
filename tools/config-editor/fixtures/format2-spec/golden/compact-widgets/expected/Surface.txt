@@ -1,0 +1,28 @@
+@Meta { Version=2 Protocol=OSC Channels=3 Name="Compact Widgets" }
+
+// Surface note
+
+Widget TrackSelectB1 { Input Press { Encoding=OSCFloat Address="/-stat/selidx/16" Match=Any } Feedback Value { Encoding=OSCInt Address="/-stat/selidx/16" } }
+Widget TrackSelectB2 { Input Press { Encoding=OSCFloat Address="/-stat/selidx/17" Match=Any } Feedback Value { Encoding=OSCInt Address="/-stat/selidx/17" } }
+
+Widget TrackSelectB3 {
+  Input Press { Encoding=OSCFloat Address="/-stat/selidx/18" Match=Any }
+  // Keep this comment between commands.
+  Feedback Value { Encoding=OSCInt Address="/-stat/selidx/18" }
+}
+
+Widget Unsupported1 {
+  //! MissingProcessor value
+}
+
+
+
+OSKLayout {
+  Row {
+    Widget TrackSelectB1
+    Widget TrackSelectB3
+  }
+  Row {
+    Widget TrackSelectB2
+  }
+}

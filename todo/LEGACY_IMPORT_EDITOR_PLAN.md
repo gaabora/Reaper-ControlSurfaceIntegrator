@@ -21,16 +21,16 @@ Move to result editing captures the current converted preview as the result draf
 
 Back to source preparation makes the left editor editable again. If the result has manual changes, show a warning that conversion will reset those changes and require confirmation. Cancel leaves both drafts and the stage unchanged. Do not implement partial block regeneration or merging of source changes into a manually edited result.
 
-## [ ] Stage 1: Preserve conversion content and compact Widget groups
+## ✅ Stage 1: Preserve conversion content and compact Widget groups
 
-- [ ] Preserve standalone and inline comments in Surface conversion, close to the related commands. Keep source order and comment order where conversion permits it.
-- [ ] Preserve every unconverted or invalid command as `//! original line` in the result, with an explanation in Problems. Audit both Surface and Zone conversion paths for lines that are currently omitted.
-- [ ] Keep unresolved conversion problems visible. An automatically generated `//!` marker must not silently turn failed conversion into success. An explicit user edit that comments out the unwanted command in the source draft must allow the conversion problem to clear after revalidation.
-- [ ] Write adjacent numbered Widgets from the same family on consecutive lines when their structure matches and only names, addresses, or values differ. Preserve order; do not sort or gather Widgets from separate parts of the file.
-- [ ] Allow one compact Widget to contain both Input and Feedback. Several commands alone do not require a multiline block.
-- [ ] Keep multiline output for nested tables, long sets of parameters, or comments between commands when compact output would hide the structure. A preceding comment or trailing comment does not by itself prevent a compact Widget.
-- [ ] Define the compact-output rule through representative fixtures before implementation. Do not insert file newlines only because the editor viewport is narrow; visual wrapping is separate from file formatting.
-- [ ] Check all Surface readers used by the editor and runtime before emitting compact output. Ensure the Bun semantic model retains inline Widgets and their input and feedback capabilities.
+- ✅ Preserve standalone and inline comments in Surface conversion, close to the related commands. Keep source order and comment order where conversion permits it.
+- ✅ Preserve every unconverted or invalid command as `//! original line` in the result, with an explanation in Problems. Audit both Surface and Zone conversion paths for lines that are currently omitted.
+- ✅ Keep unresolved conversion problems visible. An automatically generated `//!` marker must not silently turn failed conversion into success. An explicit user edit that comments out the unwanted command in the source draft must allow the conversion problem to clear after revalidation.
+- ✅ Write adjacent numbered Widgets from the same family on consecutive lines when their structure matches and only names, addresses, or values differ. Preserve order; do not sort or gather Widgets from separate parts of the file.
+- ✅ Allow one compact Widget to contain both Input and Feedback. Several commands alone do not require a multiline block.
+- ✅ Keep multiline output for nested tables, long sets of parameters, or comments between commands when compact output would hide the structure. A preceding comment or trailing comment does not by itself prevent a compact Widget.
+- ✅ Define the compact-output rule through representative fixtures before implementation. Do not insert file newlines only because the editor viewport is narrow; visual wrapping is separate from file formatting.
+- ✅ Check all Surface readers used by the editor and runtime before emitting compact output. Ensure the Bun semantic model retains inline Widgets and their input and feedback capabilities.
 
 Expected compact group:
 
@@ -41,15 +41,15 @@ Widget TrackSelectB2 { Input Press { Encoding=OSCFloat Address="/-stat/selidx/17
 
 Acceptance: a numbered family is easy to compare line by line. Comments survive conversion. Unsupported source content remains visible. Compact and multiline forms describe the same Widgets and capabilities.
 
-## [ ] Stage 2: Store source and result drafts separately
+## ✅ Stage 2: Store source and result drafts separately
 
-- [ ] Add a persistent old-format source draft, separate from the original file and the converted import draft. Reuse the existing recovery-draft service where practical.
-- [ ] Save source edits after a debounce and regenerate the read-only preview. Ignore stale conversion responses when a newer source edit exists.
-- [ ] Implement the two stages and transition rules above for each file. A completed Surface must not force all Zones into result editing.
-- [ ] Save and restore both drafts, the current stage, and the source identity needed for existing source-change checks. Do not recover a draft against a changed original without the existing explicit conflict choice.
-- [ ] Keep manually edited result drafts fixed during preview refreshes, navigation, source reload, and edits to other files. Revalidate dependencies without overwriting those results.
-- [ ] Require selected files to reach result editing before final import. Continue to validate the complete selected set and destination conflicts before writing.
-- [ ] Make discard controls state which draft they affect. Do not silently discard a source draft when discarding result edits.
+- ✅ Add a persistent old-format source draft, separate from the original file and the converted import draft. Reuse the existing recovery-draft service where practical.
+- ✅ Save source edits after a debounce and regenerate the read-only preview. Ignore stale conversion responses when a newer source edit exists.
+- ✅ Implement the two stages and transition rules above for each file. A completed Surface must not force all Zones into result editing.
+- ✅ Save and restore both drafts, the current stage, and the source identity needed for existing source-change checks. Do not recover a draft against a changed original without the existing explicit conflict choice.
+- ✅ Keep manually edited result drafts fixed during preview refreshes, navigation, source reload, and edits to other files. Revalidate dependencies without overwriting those results.
+- ✅ Require selected files to reach result editing before final import. Continue to validate the complete selected set and destination conflicts before writing.
+- ✅ Make discard controls state which draft they affect. Do not silently discard a source draft when discarding result edits.
 
 Acceptance: source edits update the preview only in the first stage. Result edits survive navigation and restart. Returning to source preparation warns before losing manual result changes. No draft write changes the old CSI files.
 

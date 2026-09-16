@@ -349,7 +349,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 const targetProfileId = requestUrl.searchParams.get("targetProfileId") ?? "";
                 const root = legacySource!.getRoot();
                 const drafts = (await legacyDraftStore.list()).filter((draft) => draft.data?.root === root && draft.data.surfaceName === surfaceName && draft.data.targetProfileId === targetProfileId);
-                return jsonResponse({ drafts: drafts.map((draft) => ({ originalSourceHash: draft.originalHash, originalTargetPath: draft.data!.originalTargetPath, source: draft.source, sourcePath: draft.data!.sourcePath, targetPath: draft.data!.targetPath })) });
+                return jsonResponse({ drafts: drafts.map((draft) => ({ generatedResult: draft.data!.generatedResult || undefined, originalSourceHash: draft.originalHash, originalTargetPath: draft.data!.originalTargetPath, resultDraft: draft.data!.resultDraft || draft.source, sourceDraft: draft.data!.sourceDraft || draft.source, sourcePath: draft.data!.sourcePath, stage: draft.data!.stage || "result", targetPath: draft.data!.targetPath })) });
             }
             if (requestUrl.pathname === "/api/legacy/product-config" && request.method === "GET") return jsonResponse(await legacySource!.previewProductConfig(store));
             if (requestUrl.pathname === "/api/legacy/product-config/import" && request.method === "POST") {
@@ -365,16 +365,20 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 const targetProfileId = stringField(body, "targetProfileId");
                 const sourcePath = stringField(body, "sourcePath");
                 const originalSourceHash = stringField(body, "originalSourceHash");
-                const source = stringField(body, "source");
+                const sourceDraft = stringField(body, "sourceDraft");
+                const resultDraft = optionalStringField(body, "resultDraft");
+                const generatedResult = optionalStringField(body, "generatedResult");
+                const stage = stringField(body, "stage");
+                if (stage !== "prepare" && stage !== "result") throw new EditorOperationError("request.legacy-stage", "stage must be prepare or result");
                 const targetPath = stringField(body, "targetPath");
                 const originalTargetPath = stringField(body, "originalTargetPath");
                 const storageKey = legacyDraftStorageKey(root, surfaceName, targetProfileId, sourcePath);
-                if (source === stringField(body, "originalSource") && targetPath === originalTargetPath) {
+                if (stage === "prepare" && sourceDraft === stringField(body, "originalSource") && targetPath === originalTargetPath) {
                     await legacyDraftStore.discard(storageKey);
                     return jsonResponse({ dirty: false });
                 }
-                const data = { originalTargetPath, root, sourcePath, surfaceName, targetPath, targetProfileId };
-                return jsonResponse({ dirty: true, draft: await legacyDraftStore.write(storageKey, originalSourceHash, source, data) });
+                const data = { generatedResult: generatedResult ?? "", originalTargetPath, resultDraft: resultDraft ?? "", root, sourceDraft, sourcePath, stage, surfaceName, targetPath, targetProfileId };
+                return jsonResponse({ dirty: true, draft: await legacyDraftStore.write(storageKey, originalSourceHash, resultDraft ?? sourceDraft, data) });
             }
             if (requestUrl.pathname === "/api/legacy/draft/discard" && request.method === "POST") {
                 const body = await requestBody(request);

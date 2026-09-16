@@ -224,6 +224,11 @@ function metadataFor(zoneName: string, headerTokens: string[], options: LegacyZo
     return metadata;
 }
 
+function appendUnconvertedLine(output: string[], diagnostics: Diagnostic[], code: string, message: string, text: string, lineNumber: number, documentPath: string, severity: "error" | "warning" = "error"): void {
+    output.push(`//! ${text.trim()}`);
+    addDiagnostic(diagnostics, severity, code, message, lineNumber, documentPath);
+}
+
 export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFormat2Options): LegacyZoneFormat2Conversion {
     const diagnostics: Diagnostic[] = [];
     const lines = splitSourceLines(source);
@@ -233,9 +238,11 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         initializeLine(line);
         return line.tokens[0] === "Zone";
     });
+    const headerValid = Boolean(header?.tokens[1]);
     const fallbackName = path.basename(options.targetPath, path.extname(options.targetPath));
     const zoneName = header?.tokens[1] ?? fallbackName;
     if (!header) addDiagnostic(diagnostics, "error", "legacy.zone.header.missing", "Legacy Zone has no Zone header.", undefined, options.targetPath);
+    else if (!headerValid) addDiagnostic(diagnostics, "error", "legacy.zone.header.name", "Legacy Zone header requires a Zone name.", header.lineNumber, options.targetPath);
     const metadata = metadataFor(zoneName, header?.tokens.slice(2) ?? [], options, diagnostics, header?.lineNumber);
     const target = metadata.find((entry) => entry.startsWith("Target="))?.slice("Target=".length);
     const bankTarget = metadata.find((entry) => entry.startsWith("BankTarget="))?.slice("BankTarget=".length);
@@ -243,10 +250,13 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         initializeLine(line);
         return MODIFIER_ACTIONS.has(line.tokens[1]) ? [line.tokens[1]] : [];
     }));
-    const output: string[] = [`@Meta { Version=2${metadata.length ? ` ${metadata.join(" ")}` : ""} }`, ""];
+    const headerComment = header ? inlineComment(header.text).comment : "";
+    const output: string[] = [`@Meta { Version=2${metadata.length ? ` ${metadata.join(" ")}` : ""} }`, ...(headerComment ? [headerComment] : []), ""];
     let section: "included" | "layers" | undefined;
     let sectionStart = 0;
     let sectionEntries = 0;
+    let sectionSourceLine: number | undefined;
+    let sectionSourceText = "";
 
     const appendBlank = (): void => {
         if (output.at(-1) !== "") output.push("");
@@ -261,28 +271,40 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
             continue;
         }
         const keyword = line.tokens[0];
-        if (keyword === "Zone" || keyword === "ZoneEnd") continue;
+        if (keyword === "Zone" || keyword === "ZoneEnd") {
+            if (!headerValid || !header || (keyword === "Zone" && line.lineNumber !== header.lineNumber)) appendUnconvertedLine(output, diagnostics, "legacy.zone.structure.unconverted", `Legacy Zone structure line cannot be converted: ${text}`, text, line.lineNumber, options.targetPath);
+            continue;
+        }
         if (keyword === "IncludedZones" || keyword === "SubZones") {
+            if (section) {
+                appendUnconvertedLine(output, diagnostics, "legacy.zone.reference.nested", `Legacy relation block starts before ${section === "included" ? "IncludedZones" : "SubZones"} ends.`, text, line.lineNumber, options.targetPath);
+                continue;
+            }
             appendBlank();
             section = keyword === "IncludedZones" ? "included" : "layers";
             sectionStart = output.length;
             sectionEntries = 0;
+            sectionSourceLine = line.lineNumber;
+            sectionSourceText = text;
             output.push(section === "included" ? "IncludedZones {" : "ZoneLayers {");
             continue;
         }
         if (keyword === "IncludedZonesEnd" || keyword === "SubZonesEnd") {
             if (!section || (keyword === "IncludedZonesEnd") !== (section === "included")) {
-                addDiagnostic(diagnostics, "error", "legacy.zone.reference.end", `${keyword} has no matching relation block.`, line.lineNumber, options.targetPath);
+                appendUnconvertedLine(output, diagnostics, "legacy.zone.reference.end", `${keyword} has no matching relation block.`, text, line.lineNumber, options.targetPath);
                 continue;
             }
             if (sectionEntries) output.push("}");
             else output.splice(sectionStart, 1);
             appendBlank();
             section = undefined;
+            sectionSourceLine = undefined;
+            sectionSourceText = "";
             continue;
         }
         if (section) {
-            if (line.tokens[0]) {
+            if (line.tokens.length > 1) appendUnconvertedLine(output, diagnostics, "legacy.zone.reference.line", `Legacy ${section === "included" ? "IncludedZones" : "SubZones"} entry must contain one Zone name.`, text, line.lineNumber, options.targetPath);
+            else if (line.tokens[0]) {
                 output.push(`  ${line.tokens[0]}`);
                 sectionEntries++;
             }
@@ -290,28 +312,37 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         }
         if (STANDALONE_NAVIGATORS.has(keyword) && line.tokens.length === 1) continue;
         if (keyword?.startsWith("#")) {
-            addDiagnostic(diagnostics, "error", "legacy.zone.learn-template", "Legacy Learn FX template directives must be imported as LearnFX.fxzon, not as a normal Zone.", line.lineNumber, options.targetPath);
+            appendUnconvertedLine(output, diagnostics, "legacy.zone.learn-template", "Legacy Learn FX template directives must be imported as LearnFX.fxzon, not as a normal Zone.", text, line.lineNumber, options.targetPath);
             continue;
         }
         if (line.tokens.length < 2) {
-            addDiagnostic(diagnostics, "error", "legacy.zone.line.unknown", `Legacy Zone line cannot be converted: ${text}`, line.lineNumber, options.targetPath);
+            appendUnconvertedLine(output, diagnostics, "legacy.zone.line.unknown", `Legacy Zone line cannot be converted: ${text}`, text, line.lineNumber, options.targetPath);
             continue;
         }
         const lifecycle = LIFECYCLE_EVENTS.get(keyword);
         const { comment, content } = inlineComment(line.text);
         const sourceTokens = splitSourceLines(content)[0];
-        if (!sourceTokens) continue;
+        if (!sourceTokens) {
+            appendUnconvertedLine(output, diagnostics, "legacy.zone.line.unknown", `Legacy Zone line cannot be converted: ${text}`, text, line.lineNumber, options.targetPath);
+            continue;
+        }
         initializeLine(sourceTokens);
         const action = sourceTokens.tokens[1];
-        if (isIgnoredLegacyAction(action)) continue;
+        if (isIgnoredLegacyAction(action)) {
+            appendUnconvertedLine(output, diagnostics, "legacy.zone.action.ignored", `${action} has no format 2 replacement and was kept as a comment.`, content, line.lineNumber, options.targetPath, "warning");
+            continue;
+        }
         if (isUnsupportedLegacyAction(action)) {
-            const outputLine = `// Unsupported legacy action ${action}: ${content.trim()}${comment ? ` ${comment}` : ""}`;
-            output.push(outputLine);
-            addDiagnostic(diagnostics, "warning", "legacy.zone.action.unsupported", `${action} belonged to a removed legacy workflow and was commented out. Choose a current action if this control is still needed.`, output.length, options.targetPath);
+            appendUnconvertedLine(output, diagnostics, "legacy.zone.action.unsupported", `${action} belonged to a removed legacy workflow and was kept as a comment. Choose a current action if this control is still needed.`, content, line.lineNumber, options.targetPath, "warning");
             continue;
         }
         const modifierDeclaration = MODIFIER_ACTIONS.has(action);
+        const diagnosticsBeforeValues = diagnostics.length;
         let actionTokens = convertAnonymousValues(sourceTokens.tokens.slice(2), line.lineNumber, options.targetPath, diagnostics).map((token) => token.replace(/\|$/, "#"));
+        if (diagnostics.slice(diagnosticsBeforeValues).some((diagnostic) => diagnostic.severity === "error")) {
+            output.push(`//! ${content.trim()}`);
+            continue;
+        }
         if (modifierDeclaration) {
             actionTokens = actionTokens.flatMap((token) => {
                 if (token === "Blink") return ["Blink=Active", "Animation=BlinkNormal"];
@@ -372,6 +403,10 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         output.push(comment ? `${binding} ${comment}` : binding);
         const confirmation = legacyActionConfirmation(action);
         if (confirmation) addDiagnostic(diagnostics, "error", "legacy.zone.action.confirmation", `${action} used an old automatic workflow. Confirm replacement with ${confirmation.replacementAction}, which opens the current guided workflow.`, output.length, options.targetPath);
+    }
+    if (section) {
+        if (sectionSourceLine) appendUnconvertedLine(output, diagnostics, "legacy.zone.reference.unclosed", `Legacy ${section === "included" ? "IncludedZones" : "SubZones"} block has no matching end line.`, sectionSourceText, sectionSourceLine, options.targetPath);
+        output.push("}");
     }
     while (output.length > 1 && output.at(-1) === "") output.pop();
     return { diagnostics, source: output.join("\n") + "\n" };

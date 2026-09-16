@@ -50,4 +50,6 @@ Display FixedTextDisplay "Legacy typo"
 ButtonG ToggleSelectedTrackFX
 ButtonH GoZone Mixer
 ButtonI ToggleEnableLastTouchedFXParamMapping
+//! EmptyDisplay NullDisplay
+//! EmptyButton NoFeedback
 Rotary TrackAutoMode Range=[0.0, 1.0] StepValues=[0.0, 0.5, 1.0] TicksPerStep=[4, 2, 1]

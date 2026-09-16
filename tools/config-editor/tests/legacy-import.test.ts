@@ -175,8 +175,22 @@ WidgetEnd
         const legacyZone = await readGoldenFixture("actions-and-values", "legacy", "Actions.zon");
         const expectedZone = await readGoldenFixture("actions-and-values", "expected", "Actions.zon");
         const conversion = convertLegacyZoneToFormat2(legacyZone, { profile: "Main", targetPath: "Zones/User/test/Main/Track.zon" });
-        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.diagnostics).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: "legacy.zone.action.ignored", severity: "warning" }),
+        ]));
         expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedZone));
+    });
+
+    test("compacts adjacent Widget families without losing comments, unsupported lines, or capabilities", async () => {
+        const legacySurface = await readGoldenFixture("compact-widgets", "legacy", "Surface.txt");
+        const expectedSurface = await readGoldenFixture("compact-widgets", "expected", "Surface.txt");
+        const conversion = convertLegacySurfaceToFormat2(legacySurface, "Compact Widgets", "Surfaces/User/compact-widgets.txt");
+        const document = parseSurface(conversion.source, "Surfaces/User/compact-widgets.txt");
+
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.processor.unsupported", line: 16, severity: "error" }));
+        expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
+        expect(document.semantic.widgets[0].body.map((line) => line.tokens.slice(0, 2))).toEqual([["Input", "Press"], ["Feedback", "Value"]]);
+        expect(document.semantic.widgets[1].body.map((line) => line.tokens.slice(0, 2))).toEqual([["Input", "Press"], ["Feedback", "Value"]]);
     });
 
     test("matches the selected-track FX bank golden file", async () => {

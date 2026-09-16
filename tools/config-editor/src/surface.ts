@@ -66,6 +66,37 @@ function braceDelta(text: string): number {
     return delta;
 }
 
+function inlineWidgetBody(text: string, line: SourceLine): SourceLine[] {
+    const body: SourceLine[] = [];
+    let cursor = text.indexOf("{") + 1;
+    let depth = 1;
+    let insideQuote = false;
+    while (cursor > 0 && cursor < text.length && depth > 0) {
+        while (cursor < text.length && /\s/.test(text[cursor])) cursor++;
+        const header = text.slice(cursor).match(/^(Input|Feedback)\s+([A-Za-z][A-Za-z0-9_-]*)\s*\{/);
+        if (depth === 1 && header) {
+            const blockStart = cursor;
+            cursor += header[0].length;
+            let blockDepth = 1;
+            let blockQuote = false;
+            while (cursor < text.length && blockDepth > 0) {
+                const character = text[cursor++];
+                if (character === "\"") blockQuote = !blockQuote;
+                else if (!blockQuote && character === "{") blockDepth++;
+                else if (!blockQuote && character === "}") blockDepth--;
+            }
+            const blockText = text.slice(blockStart, cursor);
+            body.push({ ending: "", kind: "entry", lineNumber: line.lineNumber, text: blockText, tokens: tokenizeLine(blockText) });
+            continue;
+        }
+        const character = text[cursor++];
+        if (character === "\"") insideQuote = !insideQuote;
+        else if (!insideQuote && character === "{") depth++;
+        else if (!insideQuote && character === "}") depth--;
+    }
+    return body;
+}
+
 function parseFormat2Surface(source: string, documentPath?: string): LosslessDocument<SurfaceSemantic> {
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
@@ -131,6 +162,10 @@ function parseFormat2Surface(source: string, documentPath?: string): LosslessDoc
             currentWidget = { body: [], line: line.lineNumber, name: line.tokens[1], oskProperties: new Map() };
             widgets.push(currentWidget);
             widgetDepth = delta;
+            line.kind = "block-start";
+        } else if (line.tokens[0] === "Widget" && line.tokens[1] && delta === 0) {
+            const widget = { body: inlineWidgetBody(text, line), line: line.lineNumber, name: line.tokens[1], oskProperties: new Map() };
+            widgets.push(widget);
             line.kind = "block-start";
         } else if (line.tokens[0] === "OSKLayout" && delta > 0) {
             layout = { line: line.lineNumber, rows: [], version: "2" };

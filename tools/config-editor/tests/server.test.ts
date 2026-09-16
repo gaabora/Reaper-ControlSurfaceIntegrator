@@ -22,6 +22,37 @@ const surfaceIoSchema: SurfaceIoSchema = { primitives: [{ capabilities: ["Press"
 const editorJavascript = await bundleEditorJavascript();
 
 describe("local editor server", () => {
+    test("stores legacy source and result drafts separately", async () => {
+        const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "config-editor-server-legacy-draft-"));
+        const dataRoot = path.join(temporaryRoot, "Data");
+        const productRoot = path.join(dataRoot, identity.resourceDirectory);
+        const legacySurfacePath = path.join(temporaryRoot, "CSI", "Surfaces", "LegacySurface", "Surface.txt");
+        await mkdir(productRoot, { recursive: true });
+        await mkdir(path.dirname(legacySurfacePath), { recursive: true });
+        await writeFile(legacySurfacePath, "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
+        const running = startEditorServer({ actions, candidates: [], editorJavascript, identity, settingsSchema, surfaceIoSchema });
+        const headers = { "Content-Type": "application/json", "X-Session-Token": running.token };
+        const originalSource = "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n";
+        const originalSourceHash = "source-hash";
+        try {
+            const selected = await fetch(new URL("/api/select-data-path", running.url), { body: JSON.stringify({ path: dataRoot }), headers, method: "POST" });
+            expect(selected.status).toBe(200);
+            const saved = await fetch(new URL("/api/legacy/draft", running.url), {
+                body: JSON.stringify({ generatedResult: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n", originalSource, originalSourceHash, originalTargetPath: "Surfaces/User/legacysurface.txt", resultDraft: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {}\n", sourceDraft: originalSource + "// source edit\n", sourcePath: "Surfaces/LegacySurface/Surface.txt", stage: "result", surfaceName: "LegacySurface", targetPath: "Surfaces/User/legacysurface.txt", targetProfileId: "legacysurface" }),
+                headers,
+                method: "POST",
+            });
+            expect(saved.status).toBe(200);
+            expect((await saved.json()).dirty).toBeTrue();
+            const restored = await fetch(new URL("/api/legacy/drafts?surfaceName=LegacySurface&targetProfileId=legacysurface", running.url), { headers });
+            expect(restored.status).toBe(200);
+            expect(await restored.json()).toEqual({ drafts: [{ generatedResult: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n", originalSourceHash, originalTargetPath: "Surfaces/User/legacysurface.txt", resultDraft: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {}\n", sourceDraft: originalSource + "// source edit\n", sourcePath: "Surfaces/LegacySurface/Surface.txt", stage: "result", targetPath: "Surfaces/User/legacysurface.txt" }] });
+        } finally {
+            running.server.stop(true);
+            if (temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}config-editor-server-legacy-draft-`)) await rm(temporaryRoot, { force: true, recursive: true });
+        }
+    });
+
     test("binds to loopback and protects API calls with its session token", async () => {
         const running = startEditorServer({ actions, candidates: [], editorJavascript, identity, settingsSchema, surfaceIoSchema });
         try {

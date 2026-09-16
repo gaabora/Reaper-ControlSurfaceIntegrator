@@ -834,6 +834,57 @@ function legacyWidgetAlias(sourceLines: ReturnType<typeof splitSourceLines>, wid
     return alias || undefined;
 }
 
+interface ConvertedSurfaceWidget {
+    body: string[];
+    compact: boolean;
+    leadingComments: string[];
+    name: string;
+    signature: string;
+    sourceEndLine: number;
+    trailingComments: string[];
+}
+
+function legacyInlineComment(text: string): string {
+    let insideQuote = false;
+    for (let idx = 0; idx < text.length - 1; idx++) {
+        if (text[idx] === "\"") insideQuote = !insideQuote;
+        else if (!insideQuote && text[idx] === "/" && text[idx + 1] === "/") return text.slice(idx).trimEnd();
+    }
+    return "";
+}
+
+function appendInlineComment(converted: string, comment: string): string {
+    if (!comment) return converted;
+    const lines = converted.split("\n");
+    lines[lines.length - 1] += ` ${comment}`;
+    return lines.join("\n");
+}
+
+function widgetEndLine(sourceLines: ReturnType<typeof splitSourceLines>, widget: SurfaceWidget, nextWidget?: SurfaceWidget): number {
+    const limit = nextWidget?.line ?? sourceLines.length + 1;
+    for (let lineIdx = widget.line; lineIdx < limit; lineIdx++) {
+        if (tokenizeLine(analysisText(sourceLines[lineIdx]))[0] === "WidgetEnd") return lineIdx + 1;
+    }
+    return limit - 1;
+}
+
+function compactWidgetSignature(body: string[]): string {
+    return body.map((entry) => entry.replace(/=("(?:[^"\\]|\\.)*"|\[[^\]]*\]|[^\s}]+)/g, "=")).join("\n");
+}
+
+function numberedWidgetFamily(name: string): string | undefined {
+    const match = name.match(/^(.*\D)(\d+)$/);
+    return match?.[1];
+}
+
+function appendConvertedSurfaceWidget(output: string[], widget: ConvertedSurfaceWidget, compact: boolean, appendBlank: boolean): void {
+    output.push(...widget.leadingComments);
+    if (compact) output.push(`Widget ${widget.name} { ${widget.body.join(" ")} }`);
+    else output.push(`Widget ${widget.name} {`, ...widget.body.map((entry) => `  ${entry}`), "}");
+    output.push(...widget.trailingComments);
+    if (appendBlank) output.push("");
+}
+
 export function convertLegacySurfaceToFormat2(source: string, surfaceName: string, documentPath: string, meterMode: LegacyMcuMeterMode = "XTouch", scribbleStripMode?: number): LegacySurfaceConversion {
     if (/^\s*(?:\uFEFF)?@Meta\s*\{[^}]*\bVersion=2\b/i.test(source)) {
         const currentDocument = parseSurface(source, documentPath);
@@ -844,21 +895,72 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const sourceLines = splitSourceLines(source);
     const blocks = legacyBlocks(source);
     const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
-    for (const widget of document.semantic.widgets) {
-        output.push(`Widget ${widget.name} {`);
+    const usedCommentLines = new Set<number>();
+    const convertedWidgets: ConvertedSurfaceWidget[] = [];
+    for (const [widgetIdx, widget] of document.semantic.widgets.entries()) {
+        const nextWidget = document.semantic.widgets[widgetIdx + 1];
+        const endLine = widgetEndLine(sourceLines, widget, nextWidget);
+        const comments = sourceLines.filter((line) => line.lineNumber >= widget.line && line.lineNumber <= endLine && analysisText(line).startsWith("//"));
+        for (const comment of comments) usedCommentLines.add(comment.lineNumber);
+        const firstCommandLine = widget.body[0]?.lineNumber ?? endLine;
+        const lastCommandLine = widget.body.at(-1)?.lineNumber ?? widget.line;
+        const leadingComments = comments.filter((line) => line.lineNumber < firstCommandLine).map((line) => analysisText(line));
+        const trailingComments = comments.filter((line) => line.lineNumber > lastCommandLine).map((line) => analysisText(line));
+        const emittedCommentLines = new Set<number>();
+        const body: string[] = [];
         const alias = legacyWidgetAlias(sourceLines, widget);
-        if (alias) output.push(`  Alias=${JSON.stringify(alias)}`);
+        if (alias) body.push(`Alias=${JSON.stringify(alias)}`);
         const channel = legacyWidgetChannel(widget);
-        if (channel) output.push(`  Channel=${channel}`);
+        if (channel) body.push(`Channel=${channel}`);
         else {
             const trackColorLine = widget.body.find((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_asparionrgb");
             if (trackColorLine) addDiagnostic(diagnostics, "error", "legacy.widget.channel.unresolved", "Track-color feedback requires a channel, but the processor has no channel argument and the Widget ID has no unambiguous numeric suffix.", trackColorLine.lineNumber, documentPath);
         }
         for (const line of widget.body) {
+            for (const comment of comments) if (comment.lineNumber < line.lineNumber && comment.lineNumber >= firstCommandLine) {
+                if (!emittedCommentLines.has(comment.lineNumber)) {
+                    body.push(analysisText(comment));
+                    emittedCommentLines.add(comment.lineNumber);
+                }
+            }
             const converted = convertProcessor(widget, line.tokens, line.lineNumber, diagnostics, documentPath, scribbleStripMode);
-            if (converted) output.push(`  ${converted}`);
+            const inlineComment = legacyInlineComment(line.text);
+            if (converted === undefined) body.push(`//! ${analysisText(line)}`);
+            else if (converted && inlineComment && line.lineNumber === lastCommandLine) trailingComments.push(inlineComment);
+            else if (converted) body.push(appendInlineComment(converted, inlineComment));
+            else if (inlineComment) body.push(inlineComment);
         }
-        output.push("}", "");
+        const headerComment = legacyInlineComment(sourceLines[widget.line - 1]?.text ?? "");
+        if (headerComment) leadingComments.unshift(headerComment);
+        const compact = !body.some((entry) => entry.includes("\n") || Boolean(legacyInlineComment(entry)));
+        convertedWidgets.push({ body, compact, leadingComments, name: widget.name, signature: compactWidgetSignature(body), sourceEndLine: endLine, trailingComments });
+    }
+    const initialComments: string[] = [];
+    for (const line of sourceLines) {
+        if (!analysisText(line).startsWith("//") || usedCommentLines.has(line.lineNumber)) continue;
+        const previousWidget = [...convertedWidgets].reverse().find((widget) => widget.sourceEndLine < line.lineNumber);
+        if (previousWidget) previousWidget.trailingComments.push(analysisText(line));
+        else initialComments.push(analysisText(line));
+    }
+    const unconvertedLines: string[] = [];
+    for (const line of document.lines) {
+        const text = analysisText(line);
+        const hasBlockEndError = diagnostics.some((diagnostic) => diagnostic.code === "surface.block.end" && diagnostic.line === line.lineNumber);
+        if (!text || text.startsWith("//") || (line.kind !== "unknown" && !hasBlockEndError)) continue;
+        unconvertedLines.push(`//! ${text}`);
+        if (!diagnostics.some((diagnostic) => diagnostic.line === line.lineNumber && diagnostic.severity === "error")) addDiagnostic(diagnostics, "error", "legacy.surface.line.unconverted", `Legacy Surface line cannot be converted: ${text}`, line.lineNumber, documentPath);
+    }
+    if (initialComments.length) output.push(...initialComments, "");
+    if (unconvertedLines.length) output.push(...unconvertedLines, "");
+    for (let widgetIdx = 0; widgetIdx < convertedWidgets.length;) {
+        const first = convertedWidgets[widgetIdx];
+        const family = numberedWidgetFamily(first.name);
+        let groupEnd = widgetIdx + 1;
+        while (family && first.compact && groupEnd < convertedWidgets.length && numberedWidgetFamily(convertedWidgets[groupEnd].name) === family && convertedWidgets[groupEnd].compact && convertedWidgets[groupEnd].signature === first.signature) groupEnd++;
+        const compactGroup = first.compact && groupEnd - widgetIdx > 1;
+        appendConvertedSurfaceWidget(output, first, compactGroup, groupEnd === widgetIdx + 1);
+        for (let groupIdx = widgetIdx + 1; groupIdx < groupEnd; groupIdx++) appendConvertedSurfaceWidget(output, convertedWidgets[groupIdx], compactGroup, groupIdx === groupEnd - 1);
+        widgetIdx = groupEnd;
     }
     output.push(...xTouchFeedbackGroup(document.semantic.widgets, diagnostics, documentPath), "");
     output.push(...iconFeedbackGroup(document.semantic.widgets, diagnostics, documentPath), "");

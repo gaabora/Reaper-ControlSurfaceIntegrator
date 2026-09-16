@@ -63,6 +63,9 @@ describe("browser UI bindings", () => {
         expect(html).toContain('id="raw-editor" class="code-editor"');
         expect(html).toContain('id="legacy-draft-editor" class="code-editor"');
         expect(html).toContain('id="legacy-draft-empty"');
+        expect(html).toContain('id="legacy-draft-stage"');
+        expect(html).toContain('id="legacy-draft-advance"');
+        expect(html).toContain('id="legacy-draft-back"');
         expect(html).toContain('id="legacy-target-profile"');
         expect(html).toContain('id="legacy-reload"');
         expect(html).toContain('id="help-dialog"');
@@ -87,6 +90,9 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain('resolution.action === "rename" ? "label" : "span"');
         expect(EDITOR_CSS).toContain(".legacy-rename-target input");
         expect(EDITOR_JAVASCRIPT).toContain('api("/api/legacy/draft"');
+        expect(EDITOR_JAVASCRIPT).toContain('sourceDraft');
+        expect(EDITOR_JAVASCRIPT).toContain('resultDraft');
+        expect(EDITOR_JAVASCRIPT).toContain('legacyPreviewRevision');
         expect(EDITOR_JAVASCRIPT).toContain('option.label = "[" + translatedCapabilities(candidate.capabilities) + "]"');
         expect(EDITOR_CSS).toContain(".legacy-zone-tree > ul { padding-left: 0; }");
         expect(html).toContain('id="legacy-problems-resizer"');
