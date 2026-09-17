@@ -16,6 +16,11 @@ export interface DiagnosticRelatedLocation {
 export interface Diagnostic {
     code: string;
     fixes?: DiagnosticQuickFix[];
+    legacyLocation?: "conversion" | "result" | "source";
+    legacyResultLine?: number;
+    legacyResultPath?: string;
+    legacySourceLine?: number;
+    legacySourcePath?: string;
     line?: number;
     message: string;
     path?: string;

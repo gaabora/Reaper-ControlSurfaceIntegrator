@@ -67,11 +67,17 @@ export interface LegacyImportItem {
     source: string;
     sourceHash: string;
     sourcePath: string;
+    relationships: LegacyImportRelationship[];
     targetExists: boolean;
     targetHash: string | null;
     targetPath: string;
     vendorOverridePath?: string;
     zoneName?: string;
+}
+
+export interface LegacyImportRelationship {
+    resultLines: number[];
+    sourceLines: number[];
 }
 
 export interface LegacyImportSource {
@@ -110,6 +116,83 @@ export interface LegacyImportPreview {
     valid: boolean;
     widgetMappings: LegacyWidgetMappingIssue[];
     widgetTarget: "existing" | "imported";
+}
+
+function relationshipKey(sourceLines: number[], resultLines: number[]): string {
+    return `${sourceLines.join(",")}\0${resultLines.join(",")}`;
+}
+
+function blockEnd(lines: string[], startLine: number): number {
+    let depth = 0;
+    for (let line = startLine; line <= lines.length; line++) {
+        const text = lines[line - 1];
+        depth += (text.match(/\{/g) ?? []).length;
+        depth -= (text.match(/\}/g) ?? []).length;
+        if (depth === 0 && line > startLine) return line;
+    }
+    return startLine;
+}
+
+function conversionRelationships(source: string, result: string): LegacyImportRelationship[] {
+    const sourceLines = source.split(/\r?\n/);
+    const resultLines = result.split(/\r?\n/);
+    const relationships: LegacyImportRelationship[] = [];
+    const knownRelationships = new Set<string>();
+    const addRelationship = (sourceLine: number, resultLine: number, sourceEnd = sourceLine, resultEnd = resultLine): void => {
+        if (sourceLine < 1 || resultLine < 1) return;
+        const relatedSourceLines = Array.from({ length: sourceEnd - sourceLine + 1 }, (_, idx) => sourceLine + idx);
+        const relatedResultLines = Array.from({ length: resultEnd - resultLine + 1 }, (_, idx) => resultLine + idx);
+        const key = relationshipKey(relatedSourceLines, relatedResultLines);
+        if (knownRelationships.has(key)) return;
+        knownRelationships.add(key);
+        relationships.push({ resultLines: relatedResultLines, sourceLines: relatedSourceLines });
+    };
+    const resultLinesByText = new Map<string, number[]>();
+    for (let resultLine = 1; resultLine <= resultLines.length; resultLine++) {
+        const text = resultLines[resultLine - 1].trim();
+        if (!text) continue;
+        const lines = resultLinesByText.get(text) ?? [];
+        lines.push(resultLine);
+        resultLinesByText.set(text, lines);
+    }
+    for (let sourceLine = 1; sourceLine <= sourceLines.length; sourceLine++) {
+        const text = sourceLines[sourceLine - 1].trim();
+        if (!text) continue;
+        const retainedCommentLines = resultLinesByText.get(`//! ${text.replace(/^\/\/!?\s*/, "")}`) ?? [];
+        const exactLines = resultLinesByText.get(text) ?? [];
+        const matchingLines = retainedCommentLines.length === 1 ? retainedCommentLines : exactLines.length === 1 ? exactLines : [];
+        if (matchingLines.length) addRelationship(sourceLine, matchingLines[0]);
+        const blockMatch = text.match(/^([A-Za-z][A-Za-z0-9_]*)\b/);
+        if (!blockMatch || /^Zone\b/i.test(text)) continue;
+        const resultBlockLines = resultLinesByText.get(`${text} {`) ?? [];
+        if (resultBlockLines.length !== 1) continue;
+        const sourceEnd = /^Widget\b/i.test(text) ? sourceLines.findIndex((candidate, idx) => idx >= sourceLine && /^\s*WidgetEnd\b/i.test(candidate)) + 1 : sourceLine;
+        addRelationship(sourceLine, resultBlockLines[0], sourceEnd || sourceLine, blockEnd(resultLines, resultBlockLines[0]));
+    }
+    const zoneHeader = sourceLines.findIndex((line) => /^\s*Zone\b/i.test(line));
+    const metaLine = resultLines.findIndex((line) => /^\s*@Meta\b/i.test(line));
+    if (zoneHeader >= 0 && metaLine >= 0) addRelationship(zoneHeader + 1, metaLine + 1, zoneHeader + 1, blockEnd(resultLines, metaLine + 1));
+    return relationships;
+}
+
+function relatedResultLine(relationships: LegacyImportRelationship[], sourceLine: number | undefined): number | undefined {
+    if (!sourceLine) return undefined;
+    return relationships.find((relationship) => relationship.sourceLines.includes(sourceLine))?.resultLines[0];
+}
+
+function isGeneratedResultDiagnostic(diagnostic: Diagnostic): boolean {
+    return ["legacy.zone.action.confirmation", "legacy.zone.bank.context", "legacy.zone.exit.context"].includes(diagnostic.code);
+}
+
+function annotateLegacyDiagnostic(diagnostic: Diagnostic, item: LegacyImportItem): Diagnostic {
+    const sourcePath = diagnostic.legacySourcePath ?? (diagnostic.path === item.sourcePath ? item.sourcePath : undefined);
+    const sourceLine = diagnostic.legacySourceLine ?? (sourcePath ? diagnostic.line : undefined);
+    const isConversion = diagnostic.legacyLocation === "conversion" || (!sourcePath && diagnostic.code.startsWith("legacy.") && !isGeneratedResultDiagnostic(diagnostic));
+    if (sourcePath || isConversion) {
+        const conversionSourceLine = sourceLine ?? diagnostic.line;
+        return { ...diagnostic, legacyLocation: isConversion ? "conversion" : "source", legacyResultLine: relatedResultLine(item.relationships, conversionSourceLine), legacyResultPath: item.targetPath, legacySourceLine: conversionSourceLine, legacySourcePath: sourcePath ?? item.sourcePath, line: conversionSourceLine, path: sourcePath ?? item.sourcePath };
+    }
+    return { ...diagnostic, legacyLocation: "result", legacyResultLine: diagnostic.line, legacyResultPath: item.targetPath, legacySourcePath: item.sourcePath };
 }
 
 export interface LegacyImportResolution {
@@ -706,7 +789,10 @@ export class LegacyCsiSource {
         const appendItem = async (kind: LegacyImportKind, sourcePath: string, originalSourceHash: string, targetPath: string, source: string, document: AnyDocument, selected: boolean, zoneName?: string): Promise<void> => {
             const targetState = await store.fileState(targetPath);
             const vendorOverridePath = kind === "zone" && !targetState.exists ? await store.vendorZoneOverridePath(targetPath) : undefined;
-            items.push({ diagnostics: diagnosticsWithQuickFixes(document, knownActions, true), id: `${kind}:${sourcePath}`, kind, originalSourceHash, selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, vendorOverridePath, zoneName });
+            const relationshipSource = draftMap.get(sourcePath)?.source ?? sourceFiles.get(sourcePath)?.source ?? "";
+            const item: LegacyImportItem = { diagnostics: [], id: `${kind}:${sourcePath}`, kind, originalSourceHash, relationships: conversionRelationships(relationshipSource, source), selected, source, sourceHash: sha256(source), sourcePath, targetExists: targetState.exists, targetHash: targetState.hash, targetPath, vendorOverridePath, zoneName };
+            item.diagnostics = diagnosticsWithQuickFixes(document, knownActions, true).map((diagnostic) => annotateLegacyDiagnostic(diagnostic, item));
+            items.push(item);
         };
         await appendItem("surface", files.surface.sourcePath, files.surface.originalSourceHash, surfaceTargetPath, migratedSurface, surfaceDocument, includeSurface);
         for (const zone of normalZones) {
@@ -762,9 +848,17 @@ export class LegacyCsiSource {
             else selectedTargetPaths.set(targetKey, item.sourcePath);
         }
         if (widgetTarget === "existing" && selectedPaths.size && !targetSurface) addDiagnostic(diagnostics, "error", "legacy.widget.surface.missing", `Import Surface.txt or create Surfaces/User/${targetProfileId}.txt before importing its zones.`);
+        const itemsBySourcePath = new Map(items.map((item) => [item.sourcePath, item]));
+        const itemsByTargetPath = new Map(items.map((item) => [item.targetPath, item]));
+        const annotatedDiagnostics = diagnostics.map((diagnostic) => {
+            const item = itemsBySourcePath.get(diagnostic.path ?? "") ?? itemsByTargetPath.get(diagnostic.path ?? "");
+            if (item) return annotateLegacyDiagnostic(diagnostic, item);
+            if (diagnostic.path && sourceFiles.has(diagnostic.path)) return { ...diagnostic, legacyLocation: "source", legacySourceLine: diagnostic.line, legacySourcePath: diagnostic.path };
+            return diagnostic;
+        });
         return {
             dependencies: [...dependenciesByKey.values()].sort((left, right) => left.from.localeCompare(right.from) || left.type.localeCompare(right.type) || left.name.localeCompare(right.name)),
-            diagnostics,
+            diagnostics: annotatedDiagnostics,
             includeSurface,
             items,
             root: this.root,

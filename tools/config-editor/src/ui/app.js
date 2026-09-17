@@ -466,6 +466,12 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
             });
             row.append(location, document.createTextNode(" "));
         }
+        if (state.task === "legacy" && diagnostic.legacyLocation) {
+            const version = document.createElement("span");
+            version.className = "diagnostic-version";
+            version.textContent = translate(`legacy.diagnostic.${diagnostic.legacyLocation}`);
+            row.append(version, document.createTextNode(" "));
+        }
         const message = document.createElement("span");
         message.textContent = diagnostic.severity.toUpperCase() + " " + diagnostic.code + ": " + diagnostic.message;
         row.append(message);
@@ -480,7 +486,24 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
             });
             row.append(document.createTextNode(" "), relatedLink);
         }
-        if (diagnostic.fixes?.length) {
+        if (state.task === "legacy") {
+            const relatedLocation = legacyRelatedBlockLocation(diagnostic);
+            if (relatedLocation) {
+                const relatedButton = document.createElement("button");
+                relatedButton.className = "diagnostic-fix";
+                relatedButton.textContent = translate("legacy.related.open");
+                relatedButton.addEventListener("click", () => { void navigate(relatedLocation); });
+                row.append(relatedButton);
+            } else if (legacyHasRelatedBlock(diagnostic)) {
+                const unavailable = document.createElement("span");
+                unavailable.className = "secondary";
+                unavailable.textContent = translate("legacy.related.none");
+                row.append(document.createTextNode(" "), unavailable);
+            }
+        }
+        const legacyItem = state.task === "legacy" ? legacyItemForDiagnostic(diagnostic) : null;
+        const legacyFixAllowed = state.task !== "legacy" || diagnostic.legacyLocation === "source" && legacyItem && legacyStageForPath(legacyItem.sourcePath) === "prepare" || diagnostic.legacyLocation === "result" && legacyItem && legacyStageForPath(legacyItem.sourcePath) === "result";
+        if (diagnostic.fixes?.length && legacyFixAllowed) {
             const fixes = document.createElement("span");
             fixes.className = "diagnostic-fixes";
             for (const fix of diagnostic.fixes) {
@@ -498,6 +521,44 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
 
 function legacySourceForPath(sourcePath) {
     return state.legacy.preview?.items.find((candidate) => candidate.sourcePath === sourcePath) || state.legacy.preview?.sources?.find((candidate) => candidate.sourcePath === sourcePath);
+}
+
+function legacyItemForDiagnostic(diagnostic) {
+    return state.legacy.preview?.items.find((candidate) => candidate.sourcePath === diagnostic.legacySourcePath || candidate.sourcePath === diagnostic.path || candidate.targetPath === diagnostic.legacyResultPath || candidate.targetPath === diagnostic.path) || state.legacy.preview?.sources?.find((candidate) => candidate.sourcePath === diagnostic.legacySourcePath || candidate.sourcePath === diagnostic.path);
+}
+
+function legacyResultLineAfterEdits(item, generatedLine) {
+    if (!generatedLine) return undefined;
+    const generatedSource = state.legacy.generatedResults.get(item.sourcePath) ?? item.source;
+    const resultSource = state.legacy.resultDrafts.get(item.sourcePath)?.source ?? generatedSource;
+    if (resultSource === generatedSource) return generatedLine;
+    const generatedLines = generatedSource.split(/\r?\n/);
+    const expectedLine = generatedLines[generatedLine - 1];
+    if (expectedLine === undefined) return undefined;
+    const matchingLines = resultSource.split(/\r?\n/).reduce((lines, line, idx) => line === expectedLine ? lines.concat(idx + 1) : lines, []);
+    return matchingLines.length === 1 ? matchingLines[0] : undefined;
+}
+
+function legacyHasRelatedBlock(diagnostic) {
+    const item = legacyItemForDiagnostic(diagnostic);
+    if (!item) return false;
+    const sourceLine = diagnostic.legacySourceLine ?? (diagnostic.legacyLocation !== "result" ? diagnostic.line : undefined);
+    const resultLine = diagnostic.legacyResultLine ?? (diagnostic.legacyLocation === "result" ? diagnostic.line : undefined);
+    return item.relationships?.some((relationship) => sourceLine && relationship.sourceLines.includes(sourceLine) || resultLine && relationship.resultLines.includes(resultLine));
+}
+
+function legacyRelatedBlockLocation(diagnostic) {
+    const item = legacyItemForDiagnostic(diagnostic);
+    if (!item) return null;
+    const sourceLine = diagnostic.legacySourceLine ?? (diagnostic.legacyLocation !== "result" ? diagnostic.line : undefined);
+    const resultLine = diagnostic.legacyResultLine ?? (diagnostic.legacyLocation === "result" ? diagnostic.line : undefined);
+    const relationship = item.relationships?.find((candidate) => sourceLine && candidate.sourceLines.includes(sourceLine) || resultLine && candidate.resultLines.includes(resultLine));
+    if (!relationship) return null;
+    if (sourceLine) {
+        const adjustedLine = legacyResultLineAfterEdits(item, relationship.resultLines[0]);
+        return adjustedLine ? { legacyLocation: "result", legacyResultLine: relationship.resultLines[0], legacyResultPath: item.targetPath, legacySourcePath: item.sourcePath, line: adjustedLine, path: item.targetPath } : null;
+    }
+    return { legacyLocation: "source", legacyResultLine: relationship.resultLines[0], legacyResultPath: item.targetPath, legacySourceLine: relationship.sourceLines[0], legacySourcePath: item.sourcePath, line: relationship.sourceLines[0], path: item.sourcePath };
 }
 
 function diagnosticsForAllFiles() {
@@ -815,9 +876,12 @@ async function restoreEditorRoute(route) {
 
 async function navigateDiagnostic(diagnostic) {
     if (state.task === "legacy") {
-        const item = legacySourceForPath(diagnostic.path) || state.legacy.preview?.items.find((candidate) => candidate.targetPath === diagnostic.path);
+        const item = legacyItemForDiagnostic(diagnostic);
         if (item) {
-            openLegacyDraft(item, diagnostic.line);
+            const resultLocation = diagnostic.legacyLocation === "result" || diagnostic.path === item.targetPath && diagnostic.path !== item.sourcePath;
+            const line = resultLocation ? legacyResultLineAfterEdits(item, diagnostic.legacyResultLine ?? diagnostic.line) : diagnostic.legacySourceLine ?? diagnostic.line;
+            if (!line && diagnostic.line) showNotification(translate("legacy.related.none"), "warning");
+            openLegacyDraft(item, { line, side: resultLocation ? "result" : "source" });
             return;
         }
         showNotification(translate("legacy.source.unavailable", { path: diagnostic.path || "" }), "warning");
@@ -838,8 +902,20 @@ async function applyDiagnosticQuickFix(diagnostic, fix) {
     quickFixActive = true;
     try {
         if (state.task === "legacy") {
-            const item = legacySourceForPath(diagnostic.path) || state.legacy.preview?.items.find((candidate) => candidate.targetPath === diagnostic.path);
+            const item = legacyItemForDiagnostic(diagnostic);
             if (!item) throw new Error(translate("error.quickFixEditable"));
+            if (diagnostic.legacyLocation === "source") {
+                if (legacyStageForPath(item.sourcePath) !== "prepare") throw new Error(translate("legacy.quickFix.resultStage"));
+                const currentSource = state.legacy.sourceDrafts.get(item.sourcePath)?.source ?? legacyOriginalSourceForPath(item.sourcePath)?.source ?? item.source;
+                const result = await api("/api/quick-fix", { method: "POST", body: JSON.stringify({ diagnostic: { code: diagnostic.code, line: diagnostic.legacySourceLine ?? diagnostic.line, message: diagnostic.message }, fix: { data: fix.data, id: fix.id }, path: item.targetPath, source: currentSource }) });
+                state.legacy.sourceDrafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source: result.source });
+                await persistLegacyDraft(item.sourcePath);
+                const refreshedItem = legacySourceForPath(item.sourcePath);
+                if (refreshedItem) openLegacyDraft(refreshedItem, { line: diagnostic.legacySourceLine ?? diagnostic.line, side: "source" });
+                showReport(translate("status.appliedQuickFix", { fix: fix.label }));
+                return;
+            }
+            if (diagnostic.legacyLocation !== "result" || legacyStageForPath(item.sourcePath) !== "result") throw new Error(translate("legacy.quickFix.resultStage"));
             const currentSource = state.legacy.resultDrafts.get(item.sourcePath)?.source ?? item.source;
             if (["zone.bank.move-to-context", "zone.relationship.make-layer"].includes(fix.id)) {
                 const documentItems = state.legacy.preview?.items.filter((candidate) => candidate.selected && candidate.kind === "zone") ?? [];
@@ -855,7 +931,7 @@ async function applyDiagnosticQuickFix(diagnostic, fix) {
                 }
                 await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
                 const refreshedItem = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === item.sourcePath);
-                if (refreshedItem) openLegacyDraft(refreshedItem, diagnostic.line);
+                if (refreshedItem) openLegacyDraft(refreshedItem, { line: diagnostic.legacyResultLine ?? diagnostic.line, side: "result" });
                 showReport(translate("status.appliedQuickFix", { fix: fix.label }));
                 return;
             }
@@ -865,7 +941,7 @@ async function applyDiagnosticQuickFix(diagnostic, fix) {
             state.legacy.stages.set(item.sourcePath, "result");
             await persistLegacyDraft(item.sourcePath);
             const refreshedItem = state.legacy.preview?.items.find((candidate) => candidate.sourcePath === item.sourcePath);
-            if (refreshedItem) openLegacyDraft(refreshedItem, diagnostic.line);
+            if (refreshedItem) openLegacyDraft(refreshedItem, { line: diagnostic.legacyResultLine ?? diagnostic.line, side: "result" });
             showReport(translate("status.appliedQuickFix", { fix: fix.label }));
             return;
         }
@@ -1275,7 +1351,7 @@ function closeLegacyDraft() {
     updateLegacyZoneTreeSelection();
 }
 
-function openLegacyDraft(item, line) {
+function openLegacyDraft(item, location) {
     const changedItem = state.legacy.activeDraftPath !== item.sourcePath;
     state.legacy.activeDraftPath = item.sourcePath;
     elements.legacyDraftEmpty.hidden = true;
@@ -1299,7 +1375,14 @@ function openLegacyDraft(item, line) {
     setLegacySourceVisible(state.legacy.showSource);
     updateLegacyDraftState(item);
     updateLegacyZoneTreeSelection();
-    if (line) requestAnimationFrame(() => legacyDraftEditor.goToLine(line));
+    const targetLocation = typeof location === "number" ? { line: location, side: "source" } : location;
+    if (targetLocation?.line) requestAnimationFrame(() => {
+        if (targetLocation.side === "result") legacyResultEditor.goToLine(targetLocation.line);
+        else {
+            setLegacySourceVisible(true);
+            legacyDraftEditor.goToLine(targetLocation.line);
+        }
+    });
 }
 
 async function advanceLegacyDraftToResult(sourcePath) {
@@ -1307,7 +1390,7 @@ async function advanceLegacyDraftToResult(sourcePath) {
     const item = legacySourceForPath(sourcePath);
     if (!item) return;
     const sourceDiagnostics = state.legacy.preview?.diagnostics.filter((diagnostic) => diagnostic.path === item.sourcePath || diagnostic.path === item.targetPath) ?? [];
-    if ([...item.diagnostics, ...sourceDiagnostics].some((diagnostic) => diagnostic.severity === "error")) throw new Error(translate("legacy.stage.advanceBlocked"));
+    if ([...item.diagnostics, ...sourceDiagnostics].some((diagnostic) => diagnostic.severity === "error" && diagnostic.legacyLocation !== "result")) throw new Error(translate("legacy.stage.advanceBlocked"));
     state.legacy.generatedResults.set(sourcePath, item.source);
     state.legacy.resultDrafts.set(sourcePath, { originalSourceHash: item.originalSourceHash, source: item.source });
     state.legacy.stages.set(sourcePath, "result");

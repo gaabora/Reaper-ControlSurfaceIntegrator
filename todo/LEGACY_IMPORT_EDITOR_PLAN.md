@@ -64,14 +64,14 @@ Acceptance: source edits update the preview only in the first stage. Result edit
 
 Acceptance: the user can compare a source and result, give more width to either editor, hide either sidebar, and find the draft location without confusing it with the final import destination.
 
-## [ ] Stage 4: Correct Problems locations and linked navigation
+## ✅ Stage 4: Correct Problems locations and linked navigation
 
-- [ ] Separate source problems, conversion problems, and result problems. Label the file and version to which each problem belongs.
-- [ ] Open the correct editor and line from each diagnostic. Reveal the source panel when navigating to a source problem. Do not use an original Surface line number as a result line number.
-- [ ] Record source-to-result block and line relationships during conversion, including one-to-many output and retained `//!` lines.
-- [ ] Add Show related block in both directions. Use the conversion relationships rather than equal line numbers or matching text alone. Do not require continuous synchronized scrolling.
-- [ ] Adjust result locations after manual edits where the editor can retain the relationship. If an edited or removed block no longer has a reliable match, show that no exact match remains instead of navigating to an unrelated line.
-- [ ] Keep diagnostic fixes and editor permissions consistent with the current stage. A result fix must not edit a read-only preview or silently change the source draft.
+- ✅ Separate source problems, conversion problems, and result problems. Label the file and version to which each problem belongs.
+- ✅ Open the correct editor and line from each diagnostic. Reveal the source panel when navigating to a source problem. Do not use an original Surface line number as a result line number.
+- ✅ Record source-to-result block and line relationships during conversion, including one-to-many output and retained `//!` lines.
+- ✅ Add Show related block in both directions. Use the conversion relationships rather than equal line numbers or matching text alone. Do not require continuous synchronized scrolling.
+- ✅ Adjust result locations after manual edits where the editor can retain the relationship. If an edited or removed block no longer has a reliable match, show that no exact match remains instead of navigating to an unrelated line.
+- ✅ Keep diagnostic fixes and editor permissions consistent with the current stage. A result fix must not edit a read-only preview or silently change the source draft.
 
 Acceptance: clicking a problem in Surface.txt reaches the text that caused it. Related-block navigation still works for unchanged blocks after edits elsewhere. Lost relationships never produce a false exact location.
 
