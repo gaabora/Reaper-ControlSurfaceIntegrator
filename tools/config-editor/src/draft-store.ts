@@ -25,6 +25,10 @@ export class ConfigurationDraftStore {
         this.productRoot = path.resolve(productRoot);
     }
 
+    getDraftRoot(): string {
+        return this.draftRoot;
+    }
+
     async discard(relativePath: string): Promise<void> {
         await this.removeFileIfPresent(this.draftPath(relativePath));
     }

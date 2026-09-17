@@ -57,9 +57,14 @@ const elements = {
     legacyDraftDiscardAll: requiredElement("legacy-draft-discard-all"),
     legacyDraftAdvance: requiredElement("legacy-draft-advance"),
     legacyDraftBack: requiredElement("legacy-draft-back"),
+    legacyDraftEditors: requiredElement("legacy-draft-editors"),
+    legacyDraftEditorResizer: requiredElement("legacy-draft-editor-resizer"),
     legacyDraftEmpty: requiredElement("legacy-draft-empty"),
     legacyDraftEditor: requiredElement("legacy-draft-editor"),
     legacyDraftPanel: requiredElement("legacy-draft-panel"),
+    legacyDraftWorkspace: requiredElement("legacy-draft-workspace"),
+    legacyDraftRecovery: requiredElement("legacy-draft-recovery"),
+    legacyDraftShowSource: requiredElement("legacy-draft-show-source"),
     legacyDraftSource: requiredElement("legacy-draft-source"),
     legacyDraftStage: requiredElement("legacy-draft-stage"),
     legacyDraftTarget: requiredElement("legacy-draft-target"),
@@ -71,7 +76,11 @@ const elements = {
     legacyPath: requiredElement("legacy-path"),
     legacyPathFeedback: requiredElement("legacy-path-feedback"),
     legacyEditorLayout: requiredElement("legacy-editor-layout"),
+    legacyResultEditor: requiredElement("legacy-result-editor"),
+    legacyResultEditorMode: requiredElement("legacy-result-editor-mode"),
+    legacyResultEditorPanel: requiredElement("legacy-result-editor-panel"),
     legacyPreview: requiredElement("legacy-preview"),
+    legacyPreviewColumn: requiredElement("legacy-preview-column"),
     legacyPreviewToggle: requiredElement("legacy-preview-toggle"),
     legacyProductConfig: requiredElement("legacy-product-config"),
     legacyProblemsPanel: requiredElement("legacy-problems-panel"),
@@ -81,9 +90,15 @@ const elements = {
     legacySelectNone: requiredElement("legacy-select-none"),
     legacyStatus: requiredElement("legacy-status"),
     legacySourceStep: requiredElement("legacy-source-step"),
+    legacySourceEditorMode: requiredElement("legacy-source-editor-mode"),
+    legacySourceEditorPanel: requiredElement("legacy-source-editor-panel"),
     legacySurface: requiredElement("legacy-surface"),
     legacyTargetFeedback: requiredElement("legacy-target-feedback"),
     legacyTargetProfile: requiredElement("legacy-target-profile"),
+    legacySidebarResizer: requiredElement("legacy-sidebar-resizer"),
+    legacyTreeResizer: requiredElement("legacy-tree-resizer"),
+    legacyTreeToggle: requiredElement("legacy-tree-toggle"),
+    legacyZoneTreePanel: requiredElement("legacy-zone-tree-panel"),
     legacyWidgetMappings: requiredElement("legacy-widget-mappings"),
     legacyWidgetMappingsSection: requiredElement("legacy-widget-mappings-section"),
     legacyZones: requiredElement("legacy-zones"),
@@ -153,7 +168,7 @@ const state = {
     draftConflicts: new Set(),
     globalProblems: [],
     identity: null,
-    legacy: { activeDraftPath: "", collapsedFolders: new Set(), generatedResults: new Map(), originalTargetPaths: new Map(), preview: null, productConfig: null, profileAuthor: "user", resolutions: new Map(), resultDrafts: new Map(), selectedZonePaths: new Set(), sourceDrafts: new Map(), stages: new Map(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
+    legacy: { activeDraftPath: "", collapsedFolders: new Set(), draftFolder: "", generatedResults: new Map(), originalTargetPaths: new Map(), preview: null, productConfig: null, profileAuthor: "user", resolutions: new Map(), resultDrafts: new Map(), selectedZonePaths: new Set(), showSource: true, sourceDrafts: new Map(), stages: new Map(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
     problemFiles: new Map(),
     snippet: { choices: new Map(), insertionLine: 1, preview: null, treeEntries: [] },
     surfaceDesigner: false,
@@ -174,13 +189,19 @@ let quickFixActive = false;
 const codeEditor = createConfigurationEditor(elements.rawEditor, handleEditorChange);
 const legacyDraftEditor = createConfigurationEditor(elements.legacyDraftEditor, (source) => {
     const item = legacySourceForPath(state.legacy.activeDraftPath);
-    if (item) {
+    if (item && legacyStageForPath(item.sourcePath) === "prepare") {
         const draft = { originalSourceHash: item.originalSourceHash, source };
-        if (legacyStageForPath(item.sourcePath) === "prepare") {
-            state.legacy.sourceDrafts.set(item.sourcePath, draft);
-            legacyPreviewRevision += 1;
-        }
-        else state.legacy.resultDrafts.set(item.sourcePath, draft);
+        state.legacy.sourceDrafts.set(item.sourcePath, draft);
+        legacyPreviewRevision += 1;
+        updateLegacyZoneTreeSelection();
+        updateLegacyDraftState(item);
+        scheduleLegacyDraftUpdate();
+    }
+});
+const legacyResultEditor = createConfigurationEditor(elements.legacyResultEditor, (source) => {
+    const item = legacySourceForPath(state.legacy.activeDraftPath);
+    if (item && legacyStageForPath(item.sourcePath) === "result") {
+        state.legacy.resultDrafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source });
         updateLegacyZoneTreeSelection();
         updateLegacyDraftState(item);
         scheduleLegacyDraftUpdate();
@@ -188,6 +209,8 @@ const legacyDraftEditor = createConfigurationEditor(elements.legacyDraftEditor, 
 });
 legacyDraftEditor.setReadOnly(false);
 legacyDraftEditor.setVisible(false);
+legacyResultEditor.setReadOnly(true);
+legacyResultEditor.setVisible(false);
 const surfaceDesigner = createSurfaceDesigner({ addRow: elements.surfaceAddRow, inspector: elements.surfaceInspector, layout: elements.surfaceLayout, redo: elements.surfaceRedo, status: elements.surfaceDesignerStatus, undo: elements.surfaceUndo, widgetList: elements.surfaceWidgetList }, translate, {
     async applySource(source) {
         try {
@@ -333,6 +356,25 @@ function setLegacyPreviewCollapsed(collapsed) {
     elements.legacyPreviewToggle.title = translate(collapsed ? "legacy.panel.expand" : "legacy.panel.collapse");
     elements.legacyPreviewToggle.setAttribute("aria-label", elements.legacyPreviewToggle.title);
     elements.legacyPreviewToggle.setAttribute("aria-expanded", String(!collapsed));
+}
+
+function setLegacySourceVisible(visible) {
+    state.legacy.showSource = visible;
+    elements.legacyDraftEditors.classList.toggle("source-hidden", !visible);
+    elements.legacyDraftShowSource.textContent = translate(visible ? "legacy.draft.hideSource" : "legacy.draft.showSource");
+    elements.legacyDraftShowSource.setAttribute("aria-pressed", String(visible));
+    if (visible) requestAnimationFrame(() => {
+        legacyDraftEditor.setVisible(true);
+        legacyResultEditor.setVisible(true);
+    });
+}
+
+function setLegacyTreeCollapsed(collapsed) {
+    elements.legacyEditorLayout.classList.toggle("tree-collapsed", collapsed);
+    elements.legacyTreeToggle.textContent = collapsed ? "›" : "‹";
+    elements.legacyTreeToggle.title = translate(collapsed ? "legacy.panel.expandTree" : "legacy.panel.collapseTree");
+    elements.legacyTreeToggle.setAttribute("aria-label", elements.legacyTreeToggle.title);
+    elements.legacyTreeToggle.setAttribute("aria-expanded", String(!collapsed));
 }
 
 async function navigateToTask(task) {
@@ -1205,6 +1247,7 @@ function scheduleLegacyDraftUpdate() {
 async function restoreLegacyDrafts() {
     const query = new URLSearchParams({ surfaceName: elements.legacySurface.value, targetProfileId: state.legacy.targetProfileId });
     const result = await api(`/api/legacy/drafts?${query}`);
+    state.legacy.draftFolder = result.draftFolder || "";
     let restored = false;
     for (const draft of result.drafts) {
         const source = legacySourceForPath(draft.sourcePath);
@@ -1224,6 +1267,7 @@ async function restoreLegacyDrafts() {
 function closeLegacyDraft() {
     state.legacy.activeDraftPath = "";
     legacyDraftEditor.setVisible(false);
+    legacyResultEditor.setVisible(false);
     elements.legacyDraftPanel.hidden = true;
     elements.legacyDraftEmpty.hidden = false;
     setFeedback(elements.legacyDraftTargetFeedback, "");
@@ -1237,12 +1281,22 @@ function openLegacyDraft(item, line) {
     elements.legacyDraftEmpty.hidden = true;
     elements.legacyDraftPanel.hidden = false;
     legacyDraftEditor.setVisible(true);
-    elements.legacyDraftSource.textContent = translate("legacy.source") + ": " + item.sourcePath;
+    legacyResultEditor.setVisible(true);
+    const originalSource = legacyOriginalSourceForPath(item.sourcePath);
+    elements.legacyDraftSource.textContent = translate("legacy.draft.originalPath", { path: originalSource?.absoluteSourcePath ?? item.sourcePath });
+    elements.legacyDraftRecovery.textContent = state.legacy.draftFolder ? translate("legacy.draft.recovery", { path: state.legacy.draftFolder }) : "";
     elements.legacyDraftTarget.value = legacyDraftTargetPath(item);
     elements.legacyDraftTarget.readOnly = item.kind === "learn-fx";
     const stage = legacyStageForPath(item.sourcePath);
-    const source = stage === "prepare" ? state.legacy.sourceDrafts.get(item.sourcePath)?.source ?? legacyOriginalSourceForPath(item.sourcePath)?.source ?? item.source : state.legacy.resultDrafts.get(item.sourcePath)?.source ?? item.source;
+    const source = state.legacy.sourceDrafts.get(item.sourcePath)?.source ?? originalSource?.source ?? item.source;
+    const result = state.legacy.resultDrafts.get(item.sourcePath)?.source ?? state.legacy.generatedResults.get(item.sourcePath) ?? item.source;
+    legacyDraftEditor.setReadOnly(stage !== "prepare");
+    legacyResultEditor.setReadOnly(stage !== "result");
+    elements.legacySourceEditorMode.textContent = translate(stage === "prepare" ? "legacy.draft.editable" : "legacy.draft.readOnly");
+    elements.legacyResultEditorMode.textContent = translate(stage === "result" ? "legacy.draft.editable" : "legacy.draft.readOnly");
     legacyDraftEditor.setValue(source, changedItem);
+    legacyResultEditor.setValue(result, changedItem);
+    setLegacySourceVisible(state.legacy.showSource);
     updateLegacyDraftState(item);
     updateLegacyZoneTreeSelection();
     if (line) requestAnimationFrame(() => legacyDraftEditor.goToLine(line));
@@ -1752,6 +1806,7 @@ function renderLegacySelection(selection) {
     closeLegacyDraft();
     elements.legacyOperationReport.hidden = true;
     elements.legacyOperationReport.textContent = "";
+    state.legacy.draftFolder = "";
     state.legacy.generatedResults.clear();
     state.legacy.originalTargetPaths.clear();
     state.legacy.collapsedFolders.clear();
@@ -1810,6 +1865,7 @@ async function initialize(initialRoute) {
         state.legacy.profileAuthor = status.profileAuthor || "user";
         codeEditor.setActionCompletions(status.actions);
         legacyDraftEditor.setActionCompletions(status.actions);
+        legacyResultEditor.setActionCompletions(status.actions);
         const title = translate("app.title", { product: status.identity.displayName });
         elements.title.textContent = title;
         elements.pageTitle.textContent = translate("task.home.title");
@@ -1857,6 +1913,53 @@ async function initialize(initialRoute) {
 
 for (const button of document.querySelectorAll("[data-open-help]")) button.addEventListener("click", () => elements.helpDialog.showModal());
 elements.helpClose.addEventListener("click", () => elements.helpDialog.close());
+
+function startLegacyWidthResize(event, startWidth, maximumWidth, minimumWidth, setWidth, direction = 1) {
+    event.preventDefault();
+    const startPosition = event.clientX;
+    const resize = (moveEvent) => setWidth(Math.max(minimumWidth, Math.min(maximumWidth, startWidth + direction * (moveEvent.clientX - startPosition))));
+    const stop = () => { window.removeEventListener("pointermove", resize); window.removeEventListener("pointerup", stop); };
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", stop);
+}
+
+function legacyResizeKey(event, adjust) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    adjust(event.key === "ArrowLeft" ? -20 : 20);
+}
+
+function setLegacySourceEditorWidth(width) {
+    const editorWidth = elements.legacyDraftEditors.getBoundingClientRect().width;
+    elements.legacyDraftEditors.style.setProperty("--legacy-source-editor-width", Math.max(230, Math.min(editorWidth - 235, width)) + "px");
+}
+
+function setLegacyTreeWidth(width) {
+    const workspaceWidth = elements.legacyDraftWorkspace.getBoundingClientRect().width;
+    elements.legacyDraftWorkspace.style.setProperty("--legacy-tree-width", Math.max(180, Math.min(workspaceWidth - 240, width)) + "px");
+}
+
+function setLegacySidebarWidth(width) {
+    const layoutWidth = elements.legacyEditorLayout.getBoundingClientRect().width;
+    elements.legacyEditorLayout.style.setProperty("--legacy-sidebar-width", Math.max(330, Math.min(layoutWidth - 380, width)) + "px");
+}
+
+elements.legacyDraftEditorResizer.addEventListener("pointerdown", (event) => {
+    const bounds = elements.legacyDraftEditors.getBoundingClientRect();
+    startLegacyWidthResize(event, elements.legacySourceEditorPanel.getBoundingClientRect().width, bounds.width - 235, 230, setLegacySourceEditorWidth);
+});
+elements.legacyDraftEditorResizer.addEventListener("keydown", (event) => legacyResizeKey(event, (change) => setLegacySourceEditorWidth(elements.legacySourceEditorPanel.getBoundingClientRect().width + change)));
+
+elements.legacyTreeResizer.addEventListener("pointerdown", (event) => {
+    startLegacyWidthResize(event, elements.legacyZoneTreePanel.getBoundingClientRect().width, elements.legacyDraftWorkspace.getBoundingClientRect().width - 240, 180, setLegacyTreeWidth);
+});
+elements.legacyTreeResizer.addEventListener("keydown", (event) => legacyResizeKey(event, (change) => setLegacyTreeWidth(elements.legacyZoneTreePanel.getBoundingClientRect().width + change)));
+
+elements.legacySidebarResizer.addEventListener("pointerdown", (event) => {
+    const bounds = elements.legacyEditorLayout.getBoundingClientRect();
+    startLegacyWidthResize(event, elements.legacyPreviewColumn.getBoundingClientRect().width, bounds.width - 380, 330, setLegacySidebarWidth, -1);
+});
+elements.legacySidebarResizer.addEventListener("keydown", (event) => legacyResizeKey(event, (change) => setLegacySidebarWidth(elements.legacyPreviewColumn.getBoundingClientRect().width - change)));
 
 elements.legacyProblemsResizer.addEventListener("pointerdown", (event) => {
     const startHeight = elements.legacyProblemsPanel.getBoundingClientRect().height;
@@ -2279,6 +2382,8 @@ elements.stopServer.addEventListener("click", async () => {
         elements.serverStopped.hidden = false;
     } catch (error) { showError(error); }
 });
+elements.legacyDraftShowSource.addEventListener("click", () => setLegacySourceVisible(!state.legacy.showSource));
+elements.legacyTreeToggle.addEventListener("click", () => setLegacyTreeCollapsed(!elements.legacyEditorLayout.classList.contains("tree-collapsed")));
 elements.legacyPreviewToggle.addEventListener("click", () => setLegacyPreviewCollapsed(!elements.legacyEditorLayout.classList.contains("preview-collapsed")));
 elements.dataPath.addEventListener("input", () => setFeedback(elements.dataPathFeedback, ""));
 elements.legacyPath.addEventListener("input", () => setFeedback(elements.legacyPathFeedback, ""));

@@ -243,6 +243,7 @@ WidgetEnd
 
         const repeatedPreview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, preview.selectedZonePaths, [], false, [{ originalSourceHash: learnFx!.originalSourceHash, source: learnFx!.source, sourcePath: learnFx!.sourcePath }]);
         expect(repeatedPreview.items.find((item) => item.sourcePath === learnFx!.sourcePath)).toMatchObject({ kind: "learn-fx", targetPath: "Zones/User/faderportv2/LearnFX.fxzon" });
+        expect(repeatedPreview.sources.find((item) => item.sourcePath === learnFx!.sourcePath)).toMatchObject({ absoluteSourcePath: path.join(legacyRoot, "Surfaces", "FaderPortV2", "Zones", "FXWidgetLayout.zon"), source: "Zone FXWidgetLayout\n  Fader FXParam\nZoneEnd\n\n#WidgetType Fader\n" });
 
         const resolutions = preview.items.filter((item) => item.selected).map((item) => ({ action: "create" as const, id: item.id, sourceHash: item.sourceHash, targetHash: item.targetHash }));
         await source.import(await createStore(), knownActions, { includeSurface: true, resolutions, selectedZonePaths: preview.selectedZonePaths, surfaceName: "FaderPortV2", widgetMappings: [] });

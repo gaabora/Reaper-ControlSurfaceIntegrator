@@ -53,14 +53,14 @@ Acceptance: a numbered family is easy to compare line by line. Comments survive 
 
 Acceptance: source edits update the preview only in the first stage. Result edits survive navigation and restart. Returning to source preparation warns before losing manual result changes. No draft write changes the old CSI files.
 
-## [ ] Stage 3: Add comparison and adjustable panels
+## ✅ Stage 3: Add comparison and adjustable panels
 
-- [ ] Add Show source to switch between result-only view and two editors, with the source draft on the left and the converted result on the right.
-- [ ] Show the current stage and read-only state in the editor headings. Keep Move to result editing and Back to source preparation easy to find.
-- [ ] Add a draggable width divider between the editors.
-- [ ] Make the left file tree and right steps sidebar resizable and collapsible as complete panels. Keep an accessible way to reopen each panel.
-- [ ] Keep useful minimum widths and editor scrolling when space is limited. Provide keyboard controls for width changes as well as pointer dragging.
-- [ ] Show the original source path, intended import destination, and actual recovery-draft folder as separate values. Identify stored JSON recovery records as drafts, not ready-to-use configuration files. Get their locations from the server rather than constructing paths in the browser.
+- ✅ Add Show source to switch between result-only view and two editors, with the source draft on the left and the converted result on the right.
+- ✅ Show the current stage and read-only state in the editor headings. Keep Move to result editing and Back to source preparation easy to find.
+- ✅ Add a draggable width divider between the editors.
+- ✅ Make the left file tree and right steps sidebar resizable and collapsible as complete panels. Keep an accessible way to reopen each panel.
+- ✅ Keep useful minimum widths and editor scrolling when space is limited. Provide keyboard controls for width changes as well as pointer dragging.
+- ✅ Show the original source path, intended import destination, and actual recovery-draft folder as separate values. Identify stored JSON recovery records as drafts, not ready-to-use configuration files. Get their locations from the server rather than constructing paths in the browser.
 
 Acceptance: the user can compare a source and result, give more width to either editor, hide either sidebar, and find the draft location without confusing it with the final import destination.
 

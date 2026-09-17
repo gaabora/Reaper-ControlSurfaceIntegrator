@@ -66,6 +66,11 @@ describe("browser UI bindings", () => {
         expect(html).toContain('id="legacy-draft-stage"');
         expect(html).toContain('id="legacy-draft-advance"');
         expect(html).toContain('id="legacy-draft-back"');
+        expect(html).toContain('id="legacy-draft-show-source"');
+        expect(html).toContain('id="legacy-result-editor" class="code-editor"');
+        expect(html).toContain('id="legacy-draft-editor-resizer"');
+        expect(html).toContain('id="legacy-tree-resizer"');
+        expect(html).toContain('id="legacy-sidebar-resizer"');
         expect(html).toContain('id="legacy-target-profile"');
         expect(html).toContain('id="legacy-reload"');
         expect(html).toContain('id="help-dialog"');
@@ -93,8 +98,12 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain('sourceDraft');
         expect(EDITOR_JAVASCRIPT).toContain('resultDraft');
         expect(EDITOR_JAVASCRIPT).toContain('legacyPreviewRevision');
+        expect(EDITOR_JAVASCRIPT).toContain('setLegacySourceVisible');
+        expect(EDITOR_JAVASCRIPT).toContain('setLegacyTreeCollapsed');
+        expect(EDITOR_JAVASCRIPT).toContain('legacyResizeKey');
         expect(EDITOR_JAVASCRIPT).toContain('option.label = "[" + translatedCapabilities(candidate.capabilities) + "]"');
         expect(EDITOR_CSS).toContain(".legacy-zone-tree > ul { padding-left: 0; }");
+        expect(EDITOR_CSS).toContain(".legacy-draft-editors.source-hidden");
         expect(html).toContain('id="legacy-problems-resizer"');
         expect(EDITOR_JAVASCRIPT).toContain('legacyProblemsResizer.addEventListener("pointerdown"');
         expect(EDITOR_JAVASCRIPT).toContain("setLegacyZonesSelected(directoryZones, checkbox.checked)");

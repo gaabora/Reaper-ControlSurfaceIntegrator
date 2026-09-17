@@ -46,7 +46,9 @@ describe("local editor server", () => {
             expect((await saved.json()).dirty).toBeTrue();
             const restored = await fetch(new URL("/api/legacy/drafts?surfaceName=LegacySurface&targetProfileId=legacysurface", running.url), { headers });
             expect(restored.status).toBe(200);
-            expect(await restored.json()).toEqual({ drafts: [{ generatedResult: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n", originalSourceHash, originalTargetPath: "Surfaces/User/legacysurface.txt", resultDraft: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {}\n", sourceDraft: originalSource + "// source edit\n", sourcePath: "Surfaces/LegacySurface/Surface.txt", stage: "result", targetPath: "Surfaces/User/legacysurface.txt" }] });
+            const restoredPayload = await restored.json();
+            expect(restoredPayload.draftFolder).toBe(path.join(os.tmpdir(), "test-product-legacy-import-conf-editor", "drafts"));
+            expect(restoredPayload.drafts).toEqual([{ generatedResult: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n", originalSourceHash, originalTargetPath: "Surfaces/User/legacysurface.txt", resultDraft: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {}\n", sourceDraft: originalSource + "// source edit\n", sourcePath: "Surfaces/LegacySurface/Surface.txt", stage: "result", targetPath: "Surfaces/User/legacysurface.txt" }]);
         } finally {
             running.server.stop(true);
             if (temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}config-editor-server-legacy-draft-`)) await rm(temporaryRoot, { force: true, recursive: true });

@@ -349,7 +349,7 @@ export function startEditorServer(options: EditorServerOptions): RunningEditorSe
                 const targetProfileId = requestUrl.searchParams.get("targetProfileId") ?? "";
                 const root = legacySource!.getRoot();
                 const drafts = (await legacyDraftStore.list()).filter((draft) => draft.data?.root === root && draft.data.surfaceName === surfaceName && draft.data.targetProfileId === targetProfileId);
-                return jsonResponse({ drafts: drafts.map((draft) => ({ generatedResult: draft.data!.generatedResult || undefined, originalSourceHash: draft.originalHash, originalTargetPath: draft.data!.originalTargetPath, resultDraft: draft.data!.resultDraft || draft.source, sourceDraft: draft.data!.sourceDraft || draft.source, sourcePath: draft.data!.sourcePath, stage: draft.data!.stage || "result", targetPath: draft.data!.targetPath })) });
+                return jsonResponse({ draftFolder: legacyDraftStore.getDraftRoot(), drafts: drafts.map((draft) => ({ generatedResult: draft.data!.generatedResult || undefined, originalSourceHash: draft.originalHash, originalTargetPath: draft.data!.originalTargetPath, resultDraft: draft.data!.resultDraft || draft.source, sourceDraft: draft.data!.sourceDraft || draft.source, sourcePath: draft.data!.sourcePath, stage: draft.data!.stage || "result", targetPath: draft.data!.targetPath })) });
             }
             if (requestUrl.pathname === "/api/legacy/product-config" && request.method === "GET") return jsonResponse(await legacySource!.previewProductConfig(store));
             if (requestUrl.pathname === "/api/legacy/product-config/import" && request.method === "POST") {

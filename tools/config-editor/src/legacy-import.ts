@@ -75,6 +75,7 @@ export interface LegacyImportItem {
 }
 
 export interface LegacyImportSource {
+    absoluteSourcePath: string;
     kind: LegacyImportKind;
     originalSourceHash: string;
     source: string;
@@ -769,7 +770,7 @@ export class LegacyCsiSource {
             root: this.root,
             recommendedSourceMode,
             selectedZonePaths: [...selectedPaths].sort(),
-            sources: [...sourceFiles].map(([sourcePath, sourceFile]) => ({ kind: sourcePath === files.surface.sourcePath ? "surface" as const : zoneTargetPaths.has(sourcePath) ? "zone" as const : "learn-fx" as const, originalSourceHash: sourceFile.originalSourceHash, source: draftMap.get(sourcePath)?.source ?? sourceFile.source, sourcePath, targetPath: sourcePath === files.surface.sourcePath ? surfaceTargetPath : zoneTargetPaths.get(sourcePath) ?? (learnFxTargetPath || `Zones/User/${targetProfileId}/LearnFX.fxzon`) })),
+            sources: [...sourceFiles].map(([sourcePath, sourceFile]) => ({ absoluteSourcePath: path.join(this.root, ...sourcePath.split("/")), kind: sourcePath === files.surface.sourcePath ? "surface" as const : zoneTargetPaths.has(sourcePath) ? "zone" as const : "learn-fx" as const, originalSourceHash: sourceFile.originalSourceHash, source: sourceFile.source, sourcePath, targetPath: sourcePath === files.surface.sourcePath ? surfaceTargetPath : zoneTargetPaths.get(sourcePath) ?? (learnFxTargetPath || `Zones/User/${targetProfileId}/LearnFX.fxzon`) })),
             surfaceName: files.name,
             surfaceStableId: files.stableId,
             targetProfileId,

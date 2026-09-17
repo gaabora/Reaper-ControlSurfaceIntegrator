@@ -49,30 +49,36 @@
       <section id="workflow-legacy" class="workflow-panel legacy-workflow" hidden>
         <div id="legacy-editor-layout" class="legacy-editor-layout">
           <section class="legacy-draft-column">
-            <div class="legacy-draft-workspace">
-              <div class="legacy-zone-tree-panel">
-                <h2>{{legacy.zones.title}}</h2>
+            <div id="legacy-draft-workspace" class="legacy-draft-workspace">
+              <div id="legacy-zone-tree-panel" class="legacy-zone-tree-panel">
+                <div class="legacy-panel-heading"><h2>{{legacy.zones.title}}</h2><button id="legacy-tree-toggle" class="icon-button" title="{{legacy.panel.collapseTree}}" aria-label="{{legacy.panel.collapseTree}}" aria-expanded="true">‹</button></div>
                 <div id="legacy-zones" class="legacy-zone-tree secondary">{{legacy.zones.empty}}</div>
               </div>
+              <div id="legacy-tree-resizer" class="legacy-vertical-resizer" role="separator" aria-label="{{legacy.panel.resizeTree}}" aria-orientation="vertical" tabindex="0"></div>
               <div class="legacy-draft-stage">
                 <div id="legacy-draft-empty" class="legacy-draft-empty secondary">{{legacy.draft.empty}}</div>
                 <section id="legacy-draft-panel" class="legacy-draft-panel" hidden>
                   <div class="legacy-draft-header">
                     <div class="legacy-draft-fields">
-                      <strong>{{legacy.draft.title}}</strong><span id="legacy-draft-stage" class="secondary"></span><span id="legacy-draft-source" class="secondary"></span>
+                      <strong>{{legacy.draft.title}}</strong><span id="legacy-draft-stage" class="secondary"></span><span id="legacy-draft-source" class="secondary"></span><span id="legacy-draft-recovery" class="secondary"></span>
                       <label class="legacy-draft-target-row"><span>{{legacy.draft.target}}</span><input id="legacy-draft-target"></label>
                       <div id="legacy-draft-target-feedback" class="feedback danger" hidden></div>
                     </div>
-                    <div class="actions"><button id="legacy-draft-back" hidden>{{legacy.stage.back}}</button><button id="legacy-draft-advance">{{legacy.stage.advance}}</button><button id="legacy-draft-discard" disabled>{{legacy.draft.discard}}</button></div>
+                    <div class="actions"><button id="legacy-draft-show-source" aria-pressed="true">{{legacy.draft.hideSource}}</button><button id="legacy-draft-back" hidden>{{legacy.stage.back}}</button><button id="legacy-draft-advance">{{legacy.stage.advance}}</button><button id="legacy-draft-discard" disabled>{{legacy.draft.discard}}</button></div>
                   </div>
-                  <div id="legacy-draft-editor" class="code-editor"></div>
+                  <div id="legacy-draft-editors" class="legacy-draft-editors">
+                    <section id="legacy-source-editor-panel" class="legacy-source-editor-panel"><div class="legacy-editor-heading"><strong>{{legacy.draft.sourceHeading}}</strong><span id="legacy-source-editor-mode" class="secondary"></span></div><div id="legacy-draft-editor" class="code-editor"></div></section>
+                    <div id="legacy-draft-editor-resizer" class="legacy-vertical-resizer" role="separator" aria-label="{{legacy.panel.resizeEditors}}" aria-orientation="vertical" tabindex="0"></div>
+                    <section id="legacy-result-editor-panel" class="legacy-result-editor-panel"><div class="legacy-editor-heading"><strong>{{legacy.draft.resultHeading}}</strong><span id="legacy-result-editor-mode" class="secondary"></span></div><div id="legacy-result-editor" class="code-editor"></div></section>
+                  </div>
                 </section>
               </div>
             </div>
             <div id="legacy-problems-resizer" class="legacy-problems-resizer" title="{{legacy.problems.resize}}"></div>
             <section id="legacy-problems-panel" class="legacy-problems-panel"><h2>{{problems.title}}</h2><div id="legacy-diagnostics" class="secondary">{{problems.none}}</div></section>
           </section>
-          <section class="legacy-preview-column">
+          <div id="legacy-sidebar-resizer" class="legacy-vertical-resizer" role="separator" aria-label="{{legacy.panel.resizeSidebar}}" aria-orientation="vertical" tabindex="0"></div>
+          <section id="legacy-preview-column" class="legacy-preview-column">
             <button id="legacy-preview-toggle" class="legacy-preview-toggle" title="{{legacy.panel.collapse}}" aria-label="{{legacy.panel.collapse}}" aria-expanded="true">›</button>
             <div class="legacy-steps">
               <details id="legacy-source-step" class="legacy-step-panel" open>
