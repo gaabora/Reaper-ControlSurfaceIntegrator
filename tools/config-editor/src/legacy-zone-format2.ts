@@ -333,7 +333,8 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
             continue;
         }
         if (isUnsupportedLegacyAction(action)) {
-            appendUnconvertedLine(output, diagnostics, "legacy.zone.action.unsupported", `${action} belonged to a removed legacy workflow and was kept as a comment. Choose a current action if this control is still needed.`, content, line.lineNumber, options.targetPath, "warning");
+            output.push(`// Unsupported legacy action ${action}: ${content.trim()}`);
+            addDiagnostic(diagnostics, "warning", "legacy.zone.action.unsupported", `${action} belonged to a removed legacy workflow and was kept as a comment. Choose a current action if this control is still needed.`, line.lineNumber, options.targetPath);
             continue;
         }
         const modifierDeclaration = MODIFIER_ACTIONS.has(action);

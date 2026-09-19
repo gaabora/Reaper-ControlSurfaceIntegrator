@@ -168,7 +168,7 @@ const state = {
     draftConflicts: new Set(),
     globalProblems: [],
     identity: null,
-    legacy: { activeDraftPath: "", collapsedFolders: new Set(), draftFolder: "", generatedResults: new Map(), originalTargetPaths: new Map(), preview: null, productConfig: null, profileAuthor: "user", resolutions: new Map(), resultDrafts: new Map(), selectedZonePaths: new Set(), showSource: true, sourceDrafts: new Map(), stages: new Map(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
+    legacy: { activeDraftPath: "", collapsedFolders: new Set(), draftFolder: "", draftsRestored: false, generatedResults: new Map(), manualPreparePaths: new Set(), originalTargetPaths: new Map(), preview: null, productConfig: null, profileAuthor: "user", resolutions: new Map(), resultDrafts: new Map(), selectedZonePaths: new Set(), showSource: true, sourceDrafts: new Map(), stages: new Map(), surfaceName: "", targetPaths: new Map(), targetProfileId: "", widgetMappings: new Map() },
     problemFiles: new Map(),
     snippet: { choices: new Map(), insertionLine: 1, preview: null, treeEntries: [] },
     surfaceDesigner: false,
@@ -361,12 +361,11 @@ function setLegacyPreviewCollapsed(collapsed) {
 function setLegacySourceVisible(visible) {
     state.legacy.showSource = visible;
     elements.legacyDraftEditors.classList.toggle("source-hidden", !visible);
+    elements.legacySourceEditorPanel.hidden = !visible;
     elements.legacyDraftShowSource.textContent = translate(visible ? "legacy.draft.hideSource" : "legacy.draft.showSource");
     elements.legacyDraftShowSource.setAttribute("aria-pressed", String(visible));
-    if (visible) requestAnimationFrame(() => {
-        legacyDraftEditor.setVisible(true);
-        legacyResultEditor.setVisible(true);
-    });
+    legacyDraftEditor.setVisible(visible);
+    legacyResultEditor.setVisible(true);
 }
 
 function setLegacyTreeCollapsed(collapsed) {
@@ -442,7 +441,8 @@ function setSurfaceDesignerMode(enabled, updateRoute = true) {
     if (updateRoute) writeEditorRoute({ file: state.current?.path || "", line: undefined, view: state.surfaceDesigner ? "surface" : "edit" });
 }
 
-function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDiagnostic) {
+function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDiagnostic, options = {}) {
+    const previouslyOpenPaths = new Set([...container.querySelectorAll("details[open][data-problem-path]")].map((details) => details.dataset.problemPath));
     container.replaceChildren();
     if (!diagnostics.length) {
         container.className = "secondary";
@@ -450,7 +450,7 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
         return;
     }
     container.className = "";
-    for (const diagnostic of diagnostics) {
+    const appendDiagnostic = (parent, diagnostic, showPath = true) => {
         const actionable = Boolean(diagnostic.path || diagnostic.line);
         const row = document.createElement("div");
         row.className = "diagnostic " + (diagnostic.severity === "error" ? "danger" : diagnostic.severity);
@@ -459,7 +459,8 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
             location.className = "diagnostic-location";
             const targetPath = diagnostic.path || state.current?.path || "";
             location.href = editorRouteUrl(state.task === "legacy" ? { view: "legacy" } : { file: targetPath, line: diagnostic.line, panel: state.bottomPanel, view: "edit" }).href;
-            location.textContent = (diagnostic.path || "") + (diagnostic.path && diagnostic.line ? ": " : "") + (diagnostic.line ? translate("diagnostic.line", { line: diagnostic.line }).replace(/:\s*$/, "") : "");
+            const locationPath = showPath ? diagnostic.path || "" : "";
+            location.textContent = locationPath + (locationPath && diagnostic.line ? ": " : "") + (diagnostic.line ? translate("diagnostic.line", { line: diagnostic.line }).replace(/:\s*$/, "") : "");
             location.addEventListener("click", (event) => {
                 event.preventDefault();
                 void navigate(diagnostic);
@@ -515,7 +516,36 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
             }
             row.append(fixes);
         }
-        container.append(row);
+        parent.append(row);
+    };
+    if (!options.groupByFile) {
+        for (const diagnostic of diagnostics) appendDiagnostic(container, diagnostic, options.showPath !== false);
+        return;
+    }
+    const groupedDiagnostics = new Map();
+    for (const diagnostic of diagnostics) {
+        const groupPath = diagnostic.path || translate("problems.general");
+        const group = groupedDiagnostics.get(groupPath) || [];
+        group.push(diagnostic);
+        groupedDiagnostics.set(groupPath, group);
+    }
+    for (const [groupPath, group] of groupedDiagnostics) {
+        const details = document.createElement("details");
+        details.className = "diagnostic-file-group";
+        details.dataset.problemPath = groupPath;
+        details.open = groupedDiagnostics.size === 1 || previouslyOpenPaths.has(groupPath);
+        const summary = document.createElement("summary");
+        const pathLabel = document.createElement("span");
+        pathLabel.textContent = groupPath;
+        const count = document.createElement("span");
+        count.className = "badge";
+        count.textContent = String(group.length);
+        summary.append(pathLabel, count);
+        const list = document.createElement("div");
+        list.className = "diagnostic-file-list";
+        for (const diagnostic of group) appendDiagnostic(list, diagnostic, false);
+        details.append(summary, list);
+        container.append(details);
     }
 }
 
@@ -572,8 +602,8 @@ function recordFileProblems(relativePath, diagnostics) {
 function renderProblems() {
     const currentDiagnostics = state.current?.document.diagnostics || [];
     const allDiagnostics = diagnosticsForAllFiles();
-    renderDiagnosticsIn(elements.diagnostics, currentDiagnostics);
-    renderDiagnosticsIn(elements.allDiagnostics, allDiagnostics);
+    renderDiagnosticsIn(elements.diagnostics, currentDiagnostics, navigateDiagnostic, { showPath: false });
+    renderDiagnosticsIn(elements.allDiagnostics, allDiagnostics, navigateDiagnostic, { groupByFile: true });
     elements.currentProblemCount.textContent = String(currentDiagnostics.length);
     elements.allProblemCount.textContent = String(allDiagnostics.length);
     elements.problemCount.textContent = String(allDiagnostics.length);
@@ -750,6 +780,7 @@ function renderDocument() {
     elements.documentMode.textContent = current ? (current.writable ? translate("document.editable") : translate("document.readOnly")) : "";
     codeEditor.setReadOnly(!current || !current.writable);
     codeEditor.setValue(current?.source || "", documentPath !== state.renderedDocumentPath);
+    codeEditor.setDiagnostics(current?.document.diagnostics || []);
     state.renderedDocumentPath = documentPath;
     elements.save.disabled = !current || !current.writable || !state.batch.has(current.path);
     elements.discardChanges.disabled = !current || !current.writable || !state.batch.has(current.path) || Boolean(current.draftConflict);
@@ -1337,7 +1368,12 @@ async function restoreLegacyDrafts() {
         if (source.kind === "zone" || source.kind === "learn-fx") state.legacy.selectedZonePaths.add(draft.sourcePath);
         restored = true;
     }
+    state.legacy.draftsRestored = true;
     if (restored) await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
+    else {
+        await autoAdvanceReadyLegacyDrafts();
+        renderLegacyPreview();
+    }
 }
 
 function closeLegacyDraft() {
@@ -1372,6 +1408,10 @@ function openLegacyDraft(item, location) {
     elements.legacyResultEditorMode.textContent = translate(stage === "result" ? "legacy.draft.editable" : "legacy.draft.readOnly");
     legacyDraftEditor.setValue(source, changedItem);
     legacyResultEditor.setValue(result, changedItem);
+    const itemDiagnostics = [...item.diagnostics, ...(state.legacy.preview?.diagnostics || []).filter((diagnostic) => legacyItemForDiagnostic(diagnostic)?.sourcePath === item.sourcePath)];
+    const uniqueDiagnostics = [...new Map(itemDiagnostics.map((diagnostic) => [diagnosticIdentity(diagnostic), diagnostic])).values()];
+    legacyDraftEditor.setDiagnostics(uniqueDiagnostics.filter((diagnostic) => diagnostic.legacyLocation !== "result").map((diagnostic) => ({ ...diagnostic, line: diagnostic.legacySourceLine ?? diagnostic.line })));
+    legacyResultEditor.setDiagnostics(uniqueDiagnostics.filter((diagnostic) => diagnostic.legacyLocation === "result").map((diagnostic) => ({ ...diagnostic, line: legacyResultLineAfterEdits(item, diagnostic.legacyResultLine ?? diagnostic.line) })));
     setLegacySourceVisible(state.legacy.showSource);
     updateLegacyDraftState(item);
     updateLegacyZoneTreeSelection();
@@ -1394,6 +1434,7 @@ async function advanceLegacyDraftToResult(sourcePath) {
     state.legacy.generatedResults.set(sourcePath, item.source);
     state.legacy.resultDrafts.set(sourcePath, { originalSourceHash: item.originalSourceHash, source: item.source });
     state.legacy.stages.set(sourcePath, "result");
+    state.legacy.manualPreparePaths.delete(sourcePath);
     await persistLegacyDraft(sourcePath);
     const refreshedItem = legacySourceForPath(sourcePath);
     if (refreshedItem) openLegacyDraft(refreshedItem);
@@ -1405,6 +1446,7 @@ async function returnLegacyDraftToPrepare(sourcePath) {
     state.legacy.resultDrafts.delete(sourcePath);
     state.legacy.stages.delete(sourcePath);
     state.legacy.generatedResults.delete(sourcePath);
+    state.legacy.manualPreparePaths.add(sourcePath);
     await persistLegacyDraft(sourcePath);
     await refreshLegacyPreview([...state.legacy.selectedZonePaths]);
     const refreshedItem = legacySourceForPath(sourcePath);
@@ -1421,6 +1463,23 @@ function legacyItemAlreadyImported(item) {
 
 function legacyItemHasConflict(item) {
     return item.targetExists || Boolean(item.vendorOverridePath);
+}
+
+function legacyItemHasSourceErrors(item) {
+    const previewDiagnostics = state.legacy.preview?.diagnostics || [];
+    const diagnostics = [...item.diagnostics, ...previewDiagnostics.filter((diagnostic) => legacyItemForDiagnostic(diagnostic)?.sourcePath === item.sourcePath)];
+    return diagnostics.some((diagnostic) => diagnostic.severity === "error" && ["conversion", "source"].includes(diagnostic.legacyLocation));
+}
+
+async function autoAdvanceReadyLegacyDrafts() {
+    if (!state.legacy.draftsRestored) return;
+    const readyItems = selectedLegacyItems().filter((item) => !legacyItemAlreadyImported(item) && legacyStageForPath(item.sourcePath) === "prepare" && !state.legacy.manualPreparePaths.has(item.sourcePath) && !legacyItemHasSourceErrors(item));
+    for (const item of readyItems) {
+        state.legacy.generatedResults.set(item.sourcePath, item.source);
+        state.legacy.resultDrafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source: item.source });
+        state.legacy.stages.set(item.sourcePath, "result");
+    }
+    await Promise.all(readyItems.map((item) => persistLegacyDraft(item.sourcePath, false)));
 }
 
 function resolutionFor(item) {
@@ -1449,9 +1508,9 @@ function updateLegacyImportButton() {
     let ready = false;
     let statusClass = "danger";
     if (preview && !selectedItems.length) message = translate("legacy.import.selectFiles");
-    else if (preview && preparingItems.length) message = translate("legacy.import.finishPreparation", { count: preparingItems.length });
     else if (preview && mappingErrorCount) message = translate("legacy.import.resolveMappings", { count: mappingErrorCount });
     else if (preview && errorCount) message = translate("legacy.import.fixErrors", { count: errorCount });
+    else if (preview && preparingItems.length) message = translate("legacy.import.finishPreparation", { count: preparingItems.length });
     else if (preview && unresolvedConflictCount) message = translate("legacy.import.resolveConflicts", { count: unresolvedConflictCount });
     else if (preview && !pendingItems.length) {
         message = translate("legacy.import.identical");
@@ -1725,7 +1784,7 @@ function renderLegacyPreview() {
     }
     elements.legacyStatus.className = preview.valid ? "" : "diagnostic danger";
     elements.legacyStatus.textContent = translate(preview.valid ? "legacy.preview.valid" : "legacy.preview.invalid");
-    renderDiagnosticsIn(elements.legacyDiagnostics, preview.diagnostics);
+    renderDiagnosticsIn(elements.legacyDiagnostics, preview.diagnostics, navigateDiagnostic, { groupByFile: true });
     const selectedItems = selectedLegacyItems();
     elements.legacyConflictAll.disabled = !selectedItems.some((item) => legacyItemHasConflict(item) && !legacyItemAlreadyImported(item));
     if (!selectedItems.length) {
@@ -1838,6 +1897,8 @@ async function refreshLegacyPreview(selectedZonePaths, useExistingSurface = uses
     state.legacy.widgetMappings = new Map(result.preview.widgetMappings.filter((issue) => issue.selectedTarget).map((issue) => [issue.sourceWidget, issue.selectedTarget]));
     elements.legacySelectAll.disabled = false;
     elements.legacySelectNone.disabled = false;
+    await autoAdvanceReadyLegacyDrafts();
+    if (revision !== legacyPreviewRevision) return;
     renderLegacyPreview();
 }
 
@@ -1890,8 +1951,10 @@ function renderLegacySelection(selection) {
     elements.legacyOperationReport.hidden = true;
     elements.legacyOperationReport.textContent = "";
     state.legacy.draftFolder = "";
+    state.legacy.draftsRestored = false;
     state.legacy.generatedResults.clear();
     state.legacy.originalTargetPaths.clear();
+    state.legacy.manualPreparePaths.clear();
     state.legacy.collapsedFolders.clear();
     state.legacy.preview = null;
     state.legacy.productConfig = null;
@@ -2120,8 +2183,10 @@ elements.legacySurface.addEventListener("change", async () => {
         if (state.legacy.activeDraftPath) await persistLegacyDraft(state.legacy.activeDraftPath, false);
         closeLegacyDraft();
         state.legacy.collapsedFolders.clear();
+        state.legacy.draftsRestored = false;
         state.legacy.generatedResults.clear();
         state.legacy.originalTargetPaths.clear();
+        state.legacy.manualPreparePaths.clear();
         state.legacy.resolutions.clear();
         state.legacy.resultDrafts.clear();
         state.legacy.selectedZonePaths.clear();
@@ -2150,9 +2215,11 @@ elements.legacyTargetProfile.addEventListener("change", async () => {
         window.clearTimeout(legacyDraftTimer);
         if (state.legacy.activeDraftPath) await persistLegacyDraft(state.legacy.activeDraftPath, false);
         setFeedback(elements.legacyTargetFeedback, "");
+        state.legacy.draftsRestored = false;
         state.legacy.targetProfileId = elements.legacyTargetProfile.value.trim();
         state.legacy.generatedResults.clear();
         state.legacy.originalTargetPaths.clear();
+        state.legacy.manualPreparePaths.clear();
         state.legacy.resultDrafts.clear();
         state.legacy.sourceDrafts.clear();
         state.legacy.stages.clear();
@@ -2215,6 +2282,7 @@ elements.legacyDraftDiscardAll.addEventListener("click", () => showDiscardConfir
     await api("/api/legacy/drafts/discard-all", { method: "POST", body: JSON.stringify({ surfaceName: elements.legacySurface.value, targetProfileId: state.legacy.targetProfileId }) });
     for (const sourcePath of new Set([...state.legacy.sourceDrafts.keys(), ...state.legacy.resultDrafts.keys(), ...state.legacy.targetPaths.keys()])) if (legacySourceForPath(sourcePath)?.kind === "learn-fx") state.legacy.selectedZonePaths.delete(sourcePath);
     state.legacy.generatedResults.clear();
+    state.legacy.manualPreparePaths.clear();
     state.legacy.resultDrafts.clear();
     state.legacy.sourceDrafts.clear();
     state.legacy.stages.clear();

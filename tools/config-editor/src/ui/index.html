@@ -48,8 +48,7 @@
       <section id="workspace" class="workspace">
       <section id="workflow-legacy" class="workflow-panel legacy-workflow" hidden>
         <div id="legacy-editor-layout" class="legacy-editor-layout">
-          <section class="legacy-draft-column">
-            <div id="legacy-draft-workspace" class="legacy-draft-workspace">
+          <div id="legacy-draft-workspace" class="legacy-draft-workspace">
               <div id="legacy-zone-tree-panel" class="legacy-zone-tree-panel">
                 <div class="legacy-panel-heading"><h2>{{legacy.zones.title}}</h2><button id="legacy-tree-toggle" class="icon-button" title="{{legacy.panel.collapseTree}}" aria-label="{{legacy.panel.collapseTree}}" aria-expanded="true">‹</button></div>
                 <div id="legacy-zones" class="legacy-zone-tree secondary">{{legacy.zones.empty}}</div>
@@ -73,13 +72,9 @@
                   </div>
                 </section>
               </div>
-            </div>
-            <div id="legacy-problems-resizer" class="legacy-problems-resizer" title="{{legacy.problems.resize}}"></div>
-            <section id="legacy-problems-panel" class="legacy-problems-panel"><h2>{{problems.title}}</h2><div id="legacy-diagnostics" class="secondary">{{problems.none}}</div></section>
-          </section>
           <div id="legacy-sidebar-resizer" class="legacy-vertical-resizer" role="separator" aria-label="{{legacy.panel.resizeSidebar}}" aria-orientation="vertical" tabindex="0"></div>
           <section id="legacy-preview-column" class="legacy-preview-column">
-            <button id="legacy-preview-toggle" class="legacy-preview-toggle" title="{{legacy.panel.collapse}}" aria-label="{{legacy.panel.collapse}}" aria-expanded="true">›</button>
+            <div class="legacy-panel-heading legacy-preview-panel-heading"><h2>{{legacy.sidebar.title}}</h2><button id="legacy-preview-toggle" class="icon-button legacy-preview-toggle" title="{{legacy.panel.collapse}}" aria-label="{{legacy.panel.collapse}}" aria-controls="legacy-preview-column" aria-expanded="true">›</button></div>
             <div class="legacy-steps">
               <details id="legacy-source-step" class="legacy-step-panel" open>
                 <summary><span class="step-number">1</span><span><strong>{{legacy.step.source.title}}</strong><small>{{legacy.step.source.description}}</small></span></summary>
@@ -121,6 +116,9 @@
             </div>
             <div class="legacy-import-bar"><a id="legacy-import-reason" class="danger">{{legacy.import.selectSurface}}</a><button id="legacy-import" class="primary" disabled>{{action.import}}</button></div>
           </section>
+          </div>
+          <div id="legacy-problems-resizer" class="legacy-problems-resizer" title="{{legacy.problems.resize}}"></div>
+          <section id="legacy-problems-panel" class="legacy-problems-panel"><h2>{{problems.title}}</h2><div id="legacy-diagnostics" class="secondary">{{problems.none}}</div></section>
         </div>
       </section>
       <section id="workflow-edit" class="document-workflow" hidden>

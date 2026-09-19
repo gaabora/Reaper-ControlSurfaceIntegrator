@@ -37,7 +37,9 @@ describe("browser UI bindings", () => {
         expect(codeEditorJavascript).toContain('key: "Mod-/", run: toggleLineComment');
         expect(codeEditorJavascript).toContain("autocompletion");
         expect(codeEditorJavascript).toContain("setActionCompletions");
-        expect(EDITOR_JAVASCRIPT).toContain("legacySourceForPath(diagnostic.path)");
+        expect(codeEditorJavascript).toContain("setDiagnostics(diagnostics)");
+        expect(codeEditorJavascript).toContain("cm-diagnostic-mark");
+        expect(EDITOR_JAVASCRIPT).toContain("legacyItemForDiagnostic(diagnostic)");
         expect(EDITOR_JAVASCRIPT).toContain("legacyItemAlreadyImported(item)");
         expect(EDITOR_JAVASCRIPT).toContain('["conversion", "source"].includes(diagnostic.legacyLocation)');
         expect(EDITOR_JAVASCRIPT).toContain('translate("legacy.quickFix.sourceStage")');
@@ -49,6 +51,10 @@ describe("browser UI bindings", () => {
         expect(html).toContain('id="app-menu"');
         expect(html).toContain('id="stop-server"');
         expect(html).toContain('id="legacy-preview-toggle"');
+        expect(html).toContain('class="legacy-panel-heading legacy-preview-panel-heading"');
+        expect(html).not.toContain('class="legacy-preview-toggle-rail"');
+        expect(EDITOR_CSS).toContain('--legacy-sidebar-track: 34px;');
+        expect(EDITOR_CSS).toContain('#legacy-sidebar-resizer { min-width: 0; visibility: hidden; pointer-events: none; }');
         expect(html).not.toContain('id="back-to-tasks"');
         expect(EDITOR_CSS).not.toContain(".surface-row-actions");
         expect(surfaceDesignerJavascript).toContain("groupedRowCells(row)");
@@ -104,10 +110,16 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain('legacyPreviewRevision');
         expect(EDITOR_JAVASCRIPT).toContain('setLegacySourceVisible');
         expect(EDITOR_JAVASCRIPT).toContain('setLegacyTreeCollapsed');
+        expect(EDITOR_JAVASCRIPT).toContain('autoAdvanceReadyLegacyDrafts');
+        expect(EDITOR_JAVASCRIPT).toContain('["conversion", "source"].includes(diagnostic.legacyLocation)');
         expect(EDITOR_JAVASCRIPT).toContain('legacyResizeKey');
         expect(EDITOR_JAVASCRIPT).toContain('option.label = "[" + translatedCapabilities(candidate.capabilities) + "]"');
         expect(EDITOR_CSS).toContain(".legacy-zone-tree > ul { padding-left: 0; }");
         expect(EDITOR_CSS).toContain(".legacy-draft-editors.source-hidden");
+        expect(EDITOR_CSS).toContain(".legacy-draft-editors.source-hidden { grid-template-columns: minmax(0, 1fr); }");
+        expect(EDITOR_JAVASCRIPT).toContain('legacySourceEditorPanel.hidden = !visible');
+        expect(EDITOR_JAVASCRIPT).toContain("{ groupByFile: true }");
+        expect(EDITOR_CSS).toContain(".diagnostic-file-group");
         expect(html).toContain('id="legacy-problems-resizer"');
         expect(EDITOR_JAVASCRIPT).toContain('legacyProblemsResizer.addEventListener("pointerdown"');
         expect(EDITOR_JAVASCRIPT).toContain("setLegacyZonesSelected(directoryZones, checkbox.checked)");

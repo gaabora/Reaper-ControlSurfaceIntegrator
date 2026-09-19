@@ -2,8 +2,8 @@ import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab, redo, toggleLineComment, undo } from "@codemirror/commands";
 import { bracketMatching, HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState } from "@codemirror/state";
-import { drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
+import { Compartment, EditorState, StateEffect, StateField } from "@codemirror/state";
+import { Decoration, drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, rectangularSelection } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
 const BLOCK_KEYWORDS = new Set(["Binding", "BindingEnd", "FXWidgets", "GeneratedBindings", "IncludedZones", "IncludedZonesEnd", "OSKLayout", "OSKLayoutEnd", "Snippet", "SnippetEnd", "SubZones", "SubZonesEnd", "Widget", "WidgetEnd", "Zone", "ZoneEnd"]);
@@ -84,6 +84,36 @@ const configurationEditorTheme = EditorView.theme({
     ".cm-selectionMatch.cm-selectionMatch-main": { backgroundColor: "#5d794f" },
 }, { dark: true });
 
+const setDiagnosticDecorations = StateEffect.define();
+const diagnosticDecorations = StateField.define({
+    create() { return Decoration.none; },
+    provide: (field) => EditorView.decorations.from(field),
+    update(decorations, transaction) {
+        for (const effect of transaction.effects) if (effect.is(setDiagnosticDecorations)) return effect.value;
+        return decorations.map(transaction.changes);
+    },
+});
+
+function decorationsForDiagnostics(document, diagnostics) {
+    const diagnosticsByLine = new Map();
+    for (const diagnostic of diagnostics || []) {
+        if (!diagnostic.line) continue;
+        const lineNumber = Math.max(1, Math.min(Number(diagnostic.line) || 1, document.lines));
+        const existing = diagnosticsByLine.get(lineNumber) || [];
+        existing.push(diagnostic);
+        diagnosticsByLine.set(lineNumber, existing);
+    }
+    const ranges = [];
+    for (const [lineNumber, lineDiagnostics] of diagnosticsByLine) {
+        const line = document.line(lineNumber);
+        const severity = lineDiagnostics.some((diagnostic) => diagnostic.severity === "error") ? "error" : "warning";
+        const title = lineDiagnostics.map((diagnostic) => `${diagnostic.severity.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}`).join("\n");
+        ranges.push(Decoration.line({ attributes: { class: `cm-diagnostic-line cm-diagnostic-line-${severity}`, title } }).range(line.from));
+        if (line.from < line.to) ranges.push(Decoration.mark({ attributes: { class: `cm-diagnostic-mark cm-diagnostic-mark-${severity}`, title } }).range(line.from, line.to));
+    }
+    return Decoration.set(ranges, true);
+}
+
 export function createConfigurationEditor(parent, onChange) {
     const editable = new Compartment();
     const completion = new Compartment();
@@ -105,6 +135,7 @@ export function createConfigurationEditor(parent, onChange) {
             dropCursor(),
             EditorState.allowMultipleSelections.of(true),
             configurationLanguage,
+            diagnosticDecorations,
             configurationLanguage.data.of({ commentTokens: { line: "//" } }),
             configurationEditorTheme,
             syntaxHighlighting(configurationHighlightStyle),
@@ -142,6 +173,9 @@ export function createConfigurationEditor(parent, onChange) {
         setActionCompletions(actions) {
             actionCompletions = (actions || []).map((action) => ({ detail: action.detail || undefined, label: action.label, type: "function" }));
             view.dispatch({ effects: completion.reconfigure(autocompletion({ override: [completeAction] })) });
+        },
+        setDiagnostics(diagnostics) {
+            view.dispatch({ effects: setDiagnosticDecorations.of(decorationsForDiagnostics(view.state.doc, diagnostics)) });
         },
         setValue(value, resetState = false) {
             const source = String(value ?? "");

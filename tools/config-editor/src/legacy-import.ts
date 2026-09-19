@@ -159,8 +159,9 @@ function conversionRelationships(source: string, result: string): LegacyImportRe
         const text = sourceLines[sourceLine - 1].trim();
         if (!text) continue;
         const retainedCommentLines = resultLinesByText.get(`//! ${text.replace(/^\/\/!?\s*/, "")}`) ?? [];
+        const unsupportedActionLines = resultLines.reduce((lines, resultText, idx) => resultText.trim().endsWith(`: ${text}`) && resultText.trim().startsWith("// Unsupported legacy action ") ? lines.concat(idx + 1) : lines, [] as number[]);
         const exactLines = resultLinesByText.get(text) ?? [];
-        const matchingLines = retainedCommentLines.length === 1 ? retainedCommentLines : exactLines.length === 1 ? exactLines : [];
+        const matchingLines = retainedCommentLines.length === 1 ? retainedCommentLines : unsupportedActionLines.length === 1 ? unsupportedActionLines : exactLines.length === 1 ? exactLines : [];
         if (matchingLines.length) addRelationship(sourceLine, matchingLines[0]);
         const blockMatch = text.match(/^([A-Za-z][A-Za-z0-9_]*)\b/);
         if (!blockMatch || /^Zone\b/i.test(text)) continue;
@@ -864,7 +865,7 @@ export class LegacyCsiSource {
             root: this.root,
             recommendedSourceMode,
             selectedZonePaths: [...selectedPaths].sort(),
-            sources: [...sourceFiles].map(([sourcePath, sourceFile]) => ({ absoluteSourcePath: path.join(this.root, ...sourcePath.split("/")), kind: sourcePath === files.surface.sourcePath ? "surface" as const : zoneTargetPaths.has(sourcePath) ? "zone" as const : "learn-fx" as const, originalSourceHash: sourceFile.originalSourceHash, source: sourceFile.source, sourcePath, targetPath: sourcePath === files.surface.sourcePath ? surfaceTargetPath : zoneTargetPaths.get(sourcePath) ?? (learnFxTargetPath || `Zones/User/${targetProfileId}/LearnFX.fxzon`) })),
+            sources: [...sourceFiles].map(([sourcePath, sourceFile]) => ({ absoluteSourcePath: sourcePath === files.surface.sourcePath ? path.join(this.root, ...sourcePath.split("/")) : path.join(this.root, "Surfaces", surfaceName, ...sourcePath.split("/")), kind: sourcePath === files.surface.sourcePath ? "surface" as const : zoneTargetPaths.has(sourcePath) ? "zone" as const : "learn-fx" as const, originalSourceHash: sourceFile.originalSourceHash, source: sourceFile.source, sourcePath, targetPath: sourcePath === files.surface.sourcePath ? surfaceTargetPath : zoneTargetPaths.get(sourcePath) ?? (learnFxTargetPath || `Zones/User/${targetProfileId}/LearnFX.fxzon`) })),
             surfaceName: files.name,
             surfaceStableId: files.stableId,
             targetProfileId,
