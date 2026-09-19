@@ -118,6 +118,7 @@ const english = {
     "legacy.import.selectFiles": "Select at least one file.",
     "legacy.import.selectSurface": "Choose a legacy surface.",
     "legacy.quickFix.resultStage": "Move this file to Edit result before applying a result fix.",
+    "legacy.quickFix.sourceStage": "Return this file to Prepare source before applying a source or conversion fix.",
     "legacy.related.none": "No exact related block remains after result edits.",
     "legacy.related.open": "Show related block",
     "legacy.source.unavailable": "Legacy import source is not available: {path}",

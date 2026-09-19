@@ -466,6 +466,21 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
             });
             row.append(location, document.createTextNode(" "));
         }
+        if (state.task === "legacy") {
+            const relatedLocation = legacyRelatedBlockLocation(diagnostic);
+            if (relatedLocation) {
+                const relatedButton = document.createElement("button");
+                relatedButton.className = "diagnostic-fix";
+                relatedButton.textContent = translate("legacy.related.open");
+                relatedButton.addEventListener("click", () => { void navigate(relatedLocation); });
+                row.append(relatedButton, document.createTextNode(" "));
+            } else if (legacyHasRelatedBlock(diagnostic)) {
+                const unavailable = document.createElement("span");
+                unavailable.className = "secondary";
+                unavailable.textContent = translate("legacy.related.none");
+                row.append(unavailable, document.createTextNode(" "));
+            }
+        }
         if (state.task === "legacy" && diagnostic.legacyLocation) {
             const version = document.createElement("span");
             version.className = "diagnostic-version";
@@ -486,23 +501,8 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
             });
             row.append(document.createTextNode(" "), relatedLink);
         }
-        if (state.task === "legacy") {
-            const relatedLocation = legacyRelatedBlockLocation(diagnostic);
-            if (relatedLocation) {
-                const relatedButton = document.createElement("button");
-                relatedButton.className = "diagnostic-fix";
-                relatedButton.textContent = translate("legacy.related.open");
-                relatedButton.addEventListener("click", () => { void navigate(relatedLocation); });
-                row.append(relatedButton);
-            } else if (legacyHasRelatedBlock(diagnostic)) {
-                const unavailable = document.createElement("span");
-                unavailable.className = "secondary";
-                unavailable.textContent = translate("legacy.related.none");
-                row.append(document.createTextNode(" "), unavailable);
-            }
-        }
         const legacyItem = state.task === "legacy" ? legacyItemForDiagnostic(diagnostic) : null;
-        const legacyFixAllowed = state.task !== "legacy" || diagnostic.legacyLocation === "source" && legacyItem && legacyStageForPath(legacyItem.sourcePath) === "prepare" || diagnostic.legacyLocation === "result" && legacyItem && legacyStageForPath(legacyItem.sourcePath) === "result";
+        const legacyFixAllowed = state.task !== "legacy" || ["conversion", "source"].includes(diagnostic.legacyLocation) && legacyItem && legacyStageForPath(legacyItem.sourcePath) === "prepare" || diagnostic.legacyLocation === "result" && legacyItem && legacyStageForPath(legacyItem.sourcePath) === "result";
         if (diagnostic.fixes?.length && legacyFixAllowed) {
             const fixes = document.createElement("span");
             fixes.className = "diagnostic-fixes";
@@ -904,8 +904,8 @@ async function applyDiagnosticQuickFix(diagnostic, fix) {
         if (state.task === "legacy") {
             const item = legacyItemForDiagnostic(diagnostic);
             if (!item) throw new Error(translate("error.quickFixEditable"));
-            if (diagnostic.legacyLocation === "source") {
-                if (legacyStageForPath(item.sourcePath) !== "prepare") throw new Error(translate("legacy.quickFix.resultStage"));
+            if (["conversion", "source"].includes(diagnostic.legacyLocation)) {
+                if (legacyStageForPath(item.sourcePath) !== "prepare") throw new Error(translate("legacy.quickFix.sourceStage"));
                 const currentSource = state.legacy.sourceDrafts.get(item.sourcePath)?.source ?? legacyOriginalSourceForPath(item.sourcePath)?.source ?? item.source;
                 const result = await api("/api/quick-fix", { method: "POST", body: JSON.stringify({ diagnostic: { code: diagnostic.code, line: diagnostic.legacySourceLine ?? diagnostic.line, message: diagnostic.message }, fix: { data: fix.data, id: fix.id }, path: item.targetPath, source: currentSource }) });
                 state.legacy.sourceDrafts.set(item.sourcePath, { originalSourceHash: item.originalSourceHash, source: result.source });

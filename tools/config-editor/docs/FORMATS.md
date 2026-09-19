@@ -53,6 +53,15 @@ Current Surface files use `@Meta { Version=2 Protocol=MIDI|OSC Channels=<positiv
 
 `OSKLayout { Row { ... } }` has no separate version. If a legacy Surface has no explicit layout, the importer creates an editable initial layout from usable Input widgets. A fader occupies seven rows while buttons and rotaries fill the remaining cells in source order.
 
+### X32 feedback during legacy import
+
+OSC `Feedback State` supports `ActiveOnly=true` for both `OSCInt` and `OSCFloat`. It sends `OnValue` for a nonzero state and sends nothing for zero or clear updates. The default is `ActiveOnly=false`, which sends `OffValue` for zero and clear updates.
+
+- `FB_X32IntProcessor` becomes integer `Value` feedback for ordinary addresses. A numbered address such as `/-stat/selidx/70` becomes `Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=70 ActiveOnly=true }`. A nonzero state selects channel index 70. Zero state and clear updates send nothing, so other Widgets do not reset the selection. Index 0 and leading zeros are supported.
+- `FB_X32Processor` with a `Control` line at the same OSC address becomes numeric `Value` feedback. `/config/name` becomes `Text` feedback and `/config/color` becomes `Color` feedback with the X32 palette.
+- For another `FB_X32Processor` address, the import Problem offers four source-draft quick fixes: `Text`, `X32 palette Color`, numeric `Value`, and `State`. Choose the data that the address sends. For example, choose `Text` for a label, `Color` for an X32 palette color, `Value` for a number, or `State` for an off/on value.
+- The quick fix adds `// @x32-feedback=<type>` to the old processor line. It changes only the import draft. You can select a different type before import. The converted Surface does not keep this hint.
+
 ## Legacy Surface 1
 
 The surface document contains named hardware `Widget` blocks plus optional value blocks:

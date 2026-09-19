@@ -14,6 +14,11 @@ describe("Surface I/O schema", () => {
         const schema = await loadSurfaceIoSchema(schemaPath);
 
         expect(schema.version).toBe(1);
+        for (const encoding of ["OSCInt", "OSCFloat"]) {
+            expect(findSurfaceIoRepresentation(schema, "Feedback", "State", "OSC", encoding)?.optional).toContain("ActiveOnly");
+            const representation = schema.records.find((record) => record.kind === "Representation" && record.properties.get("Representation") === "State" && record.properties.get("Protocol") === "OSC" && record.properties.get("Encoding") === encoding);
+            expect(representation?.properties.get("Rules")).toContain("ActiveOnly:Boolean");
+        }
         expect(findSurfaceIoRepresentation(schema, "Feedback", "Ring", "MIDI", "MIDI7")?.required).toEqual(["Message", "RingProfile", "StyleTarget"]);
         expect(findSurfaceIoRepresentation(schema, "Feedback", "Ring", "MIDI", "MIDISysEx")?.required).toEqual(["Payload", "RingProfile"]);
         expect(findSurfaceIoRepresentation(schema, "Feedback", "Ring", "OSC", "OSCInt")?.required).toEqual(["ValueAddress", "RingProfile"]);

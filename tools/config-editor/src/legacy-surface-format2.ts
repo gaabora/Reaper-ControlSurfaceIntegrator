@@ -16,7 +16,9 @@ export interface LegacySurfaceProcessorTarget {
 
 export type LegacyMcuMeterMode = "IconV1M" | "MCU" | "SSLNucleus2" | "XTouch";
 
-type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportScribbleMode" | "faderportTwoStateRgb" | "iconDisplay" | "iconTrackColorDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "oscIntFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch" | "x32Fader" | "x32FaderFeedback" | "x32Rotary" | "x32RotaryAcknowledge" | "xTouchDisplay";
+type LegacySurfaceProcessorConversionKind = "anyPress" | "asparionDisplay" | "asparionMeter" | "asparionRgb" | "asparionRing" | "bar" | "encoder" | "fader7" | "fader7Feedback" | "fader14" | "fader14Feedback" | "faderSplit" | "faderSplitFeedback" | "faderportMeter" | "faderportRgb" | "faderportScribble" | "faderportScribbleMode" | "faderportTwoStateRgb" | "iconDisplay" | "iconTrackColorDisplay" | "mcuAssignment" | "mcuDisplay" | "mcuMeter" | "mcuTime" | "midiPalette" | "oscControl" | "oscFeedback" | "oscIntFeedback" | "press" | "qconMasterMeter" | "ring" | "sce24Ring" | "sce24State" | "sce24Text" | "state" | "touch" | "x32ControlFeedback" | "x32Fader" | "x32FaderFeedback" | "x32Rotary" | "x32RotaryAcknowledge" | "xTouchDisplay";
+
+type LegacyX32FeedbackKind = "Color" | "State" | "Text" | "Value";
 
 interface LegacySurfaceProcessorConversionDefinition {
     kind: LegacySurfaceProcessorConversionKind;
@@ -90,7 +92,8 @@ const LEGACY_SURFACE_PROCESSOR_CONVERSIONS = new Map<string, LegacySurfaceProces
         ],
     }],
     ["fb_intprocessor", { kind: "oscIntFeedback", targets: [{ direction: "Feedback", encoding: "OSCInt", primitive: "Value", protocol: "OSC" }] }],
-    ["fb_x32intprocessor", { kind: "oscIntFeedback", targets: [{ direction: "Feedback", encoding: "OSCInt", primitive: "Value", protocol: "OSC" }] }],
+    ["fb_x32intprocessor", { kind: "oscIntFeedback", targets: [{ direction: "Feedback", encoding: "OSCInt", primitive: "Value", protocol: "OSC" }, { direction: "Feedback", encoding: "OSCInt", primitive: "State", protocol: "OSC" }] }],
+    ["fb_x32processor", { kind: "x32ControlFeedback", targets: [{ direction: "Feedback", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
     ["fb_x32faderprocessor", { kind: "x32FaderFeedback", targets: [{ direction: "Feedback", encoding: "OSCFloat", primitive: "Value", protocol: "OSC" }] }],
     ["fb_x32rotarytoencoder", { kind: "x32RotaryAcknowledge", targets: [{ direction: "Input", encoding: "OSCInt", primitive: "Encoder", protocol: "OSC" }] }],
     ["fb_twostate", { kind: "state", targets: [{ direction: "Feedback", encoding: "MIDIExact", primitive: "State", protocol: "MIDI" }] }],
@@ -269,6 +272,26 @@ function paletteProfiles(widgets: SurfaceWidget[]): string[] {
     if (!widgets.some((widget) => widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "fb_mft_rgb"))) return [];
     const entries = mftPaletteEntries();
     return ["ColorProfile Palette128 {", "  Match=Nearest", "  Default=0", ...entries.map((color, value) => `  Entry Color=${rgbHex(color.red, color.green, color.blue)} Value=${value}`), "}", ""];
+}
+
+function x32FeedbackHint(sourceLines: ReturnType<typeof splitSourceLines>, lineNumber: number): LegacyX32FeedbackKind | undefined {
+    const hint = sourceLines[lineNumber - 1]?.text.match(/\/\/\s*@x32-feedback=(Color|State|Text|Value)\s*$/i)?.[1];
+    return hint ? (hint[0].toUpperCase() + hint.slice(1).toLowerCase()) as LegacyX32FeedbackKind : undefined;
+}
+
+function isX32FeedbackHint(comment: string): boolean {
+    return /^\/\/\s*@x32-feedback=(Color|State|Text|Value)\s*$/i.test(comment);
+}
+
+function x32ColorProfile(sourceLines: ReturnType<typeof splitSourceLines>): string[] {
+    const usesColor = sourceLines.some((line) => {
+        const tokens = tokenizeLine(analysisText(line));
+        if (tokens[0]?.toLowerCase() !== "fb_x32processor" || tokens.length !== 2) return false;
+        const hint = x32FeedbackHint(sourceLines, line.lineNumber);
+        return hint ? hint === "Color" : tokens[1].endsWith("/config/color");
+    });
+    if (!usesColor) return [];
+    return ["ColorProfile X32Colors {", "  Match=Nearest", "  Default=0", "  Entry Color=#000000 Value=0", "  Entry Color=#FF0000 Value=1", "  Entry Color=#00FF00 Value=2", "  Entry Color=#FFFF00 Value=3", "  Entry Color=#0000FF Value=4", "  Entry Color=#FF00FF Value=5", "  Entry Color=#00FFFF Value=6", "  Entry Color=#FFFFFF Value=7", "}", ""];
 }
 
 function textProfiles(widgets: SurfaceWidget[]): string[] {
@@ -457,14 +480,10 @@ function sysExTextPayload(values: string[]): string {
     return `[ ${values.map(midiByte).join(", ")}, Text ]`;
 }
 
-function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: number, diagnostics: Diagnostic[], documentPath: string, scribbleStripMode?: number): string | undefined {
+function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: number, sourceLines: ReturnType<typeof splitSourceLines>, diagnostics: Diagnostic[], documentPath: string, scribbleStripMode?: number): string | undefined {
     const processor = (tokens[0] ?? "").toLowerCase();
     const conversion = LEGACY_SURFACE_PROCESSOR_CONVERSIONS.get(processor);
     if (!conversion) {
-        if (processor === "fb_x32processor") {
-            addDiagnostic(diagnostics, "error", "legacy.surface.x32-feedback.ambiguous", "FB_X32Processor sends numeric and palette-color feedback to the same OSC address. Choose the required typed Value, State, or Color feedback before import.", lineNumber, documentPath);
-            return undefined;
-        }
         addDiagnostic(diagnostics, "error", "legacy.surface.processor.unsupported", `Legacy Surface processor is not converted yet: ${tokens[0]}`, lineNumber, documentPath);
         return undefined;
     }
@@ -478,10 +497,25 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
     }
     if (conversion.kind === "oscIntFeedback" && tokens.length === 2) {
         if (processor === "fb_x32intprocessor" && tokens[1].includes("/-stat/selidx/")) {
-            addDiagnostic(diagnostics, "error", "legacy.surface.x32-int.address-rewrite.unsupported", "This FB_X32IntProcessor conditionally rewrites /-stat/selidx/<number> to /-stat/selidx. Format 2 cannot preserve that conditional address behavior yet.", lineNumber, documentPath);
-            return undefined;
+            const selectionIndex = tokens[1].match(/^\/-stat\/selidx\/(\d+)$/)?.[1];
+            if (selectionIndex === undefined || Number(selectionIndex) > 2147483647) {
+                addDiagnostic(diagnostics, "error", "legacy.surface.x32-int.selection-address.invalid", `Cannot read the X32 selection number from "${tokens[1]}". Use "/-stat/selidx/<number>" with an integer from 0 through 2147483647, for example "/-stat/selidx/70". Correct the address in Prepare source.`, lineNumber, documentPath);
+                return undefined;
+            }
+            return `Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=${Number(selectionIndex)} ActiveOnly=true }`;
         }
         return `Feedback Value { Encoding=OSCInt Address=${JSON.stringify(tokens[1])} }`;
+    }
+    if (conversion.kind === "x32ControlFeedback" && tokens.length === 2) {
+        const pairedControl = widget.body.some((line) => (line.tokens[0] ?? "").toLowerCase() === "control" && line.tokens[1] === tokens[1]);
+        if (pairedControl) return `Feedback Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} }`;
+        const feedbackKind = x32FeedbackHint(sourceLines, lineNumber) ?? (tokens[1].endsWith("/config/name") ? "Text" : tokens[1].endsWith("/config/color") ? "Color" : undefined);
+        if (feedbackKind === "Text") return `Feedback Text { Encoding=OSCString Address=${JSON.stringify(tokens[1])} }`;
+        if (feedbackKind === "Color") return `Feedback Color { Encoding=OSCInt Address=${JSON.stringify(tokens[1])} ColorProfile=X32Colors }`;
+        if (feedbackKind === "State") return `Feedback State { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} }`;
+        if (feedbackKind === "Value") return `Feedback Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} }`;
+        addDiagnostic(diagnostics, "error", "legacy.surface.x32-feedback.ambiguous", `FB_X32Processor at ${tokens[1]} has no input that identifies its feedback type. Choose Text for a name, X32 palette Color for a color, Value for a number, or State for an off/on value.`, lineNumber, documentPath);
+        return undefined;
     }
     if (conversion.kind === "x32Fader" && tokens.length === 2) return `Input Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} ValueProfile=X32FaderCurve }`;
     if (conversion.kind === "x32FaderFeedback" && tokens.length === 2) return `Feedback Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} ValueProfile=X32FaderCurve EchoGuardMs=30 }`;
@@ -894,7 +928,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const sourceLines = splitSourceLines(source);
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...x32ColorProfile(sourceLines), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     const usedCommentLines = new Set<number>();
     const convertedWidgets: ConvertedSurfaceWidget[] = [];
     for (const [widgetIdx, widget] of document.semantic.widgets.entries()) {
@@ -923,12 +957,16 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
                     emittedCommentLines.add(comment.lineNumber);
                 }
             }
-            const converted = convertProcessor(widget, line.tokens, line.lineNumber, diagnostics, documentPath, scribbleStripMode);
+            const converted = convertProcessor(widget, line.tokens, line.lineNumber, sourceLines, diagnostics, documentPath, scribbleStripMode);
             const inlineComment = legacyInlineComment(line.text);
+            const outputComment = (line.tokens[0] ?? "").toLowerCase() === "fb_x32processor" && isX32FeedbackHint(inlineComment) ? "" : inlineComment;
             if (converted === undefined) body.push(`//! ${analysisText(line)}`);
-            else if (converted && inlineComment && line.lineNumber === lastCommandLine) trailingComments.push(inlineComment);
-            else if (converted) body.push(appendInlineComment(converted, inlineComment));
-            else if (inlineComment) body.push(inlineComment);
+            else if (converted && outputComment && line.lineNumber === lastCommandLine) {
+                body.push(converted);
+                trailingComments.push(outputComment);
+            }
+            else if (converted) body.push(appendInlineComment(converted, outputComment));
+            else if (outputComment) body.push(outputComment);
         }
         const headerComment = legacyInlineComment(sourceLines[widget.line - 1]?.text ?? "");
         if (headerComment) leadingComments.unshift(headerComment);

@@ -106,6 +106,16 @@ function commentOutDocument(context: QuickFixContext): string {
     return serializeDocument(context.document);
 }
 
+function selectLegacyX32Feedback(context: QuickFixContext, fix: DiagnosticQuickFix): string {
+    const feedbackType = fix.data?.feedbackType;
+    if (!feedbackType || !["Color", "State", "Text", "Value"].includes(feedbackType)) throw new QuickFixError("quick-fix.value", "The selected X32 feedback type is not available");
+    const line = context.diagnostic.line ? context.document.lines[context.diagnostic.line - 1] : undefined;
+    if (!line || !/^\s*FB_X32Processor\s+\S+/i.test(line.text)) throw new QuickFixError("quick-fix.source", "The FB_X32Processor line is no longer available");
+    const hint = `// @x32-feedback=${feedbackType}`;
+    line.text = /\/\/\s*@x32-feedback=(Color|State|Text|Value)\s*$/i.test(line.text) ? line.text.replace(/\/\/\s*@x32-feedback=(Color|State|Text|Value)\s*$/i, hint) : `${line.text.trimEnd()} ${hint}`;
+    return serializeDocument(context.document);
+}
+
 export interface QuickFixDocumentSource {
     path: string;
     source: string;
@@ -325,6 +335,17 @@ const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
         apply: (context) => commentOutDocument(context),
         fixes: (context) => context.diagnostic.code === "legacy.learn-fx.source.duplicate" ? [{ id: "legacy.learn-fx.duplicate.comment-out", label: "Comment out this duplicate file" }] : [],
         id: "legacy.learn-fx.duplicate.comment-out",
+    },
+    {
+        acceptsSetDiagnostic: true,
+        apply: (context, fix) => selectLegacyX32Feedback(context, fix),
+        fixes: (context) => context.diagnostic.code === "legacy.surface.x32-feedback.ambiguous" ? [
+            { data: { feedbackType: "Text" }, id: "legacy.surface.x32-feedback.select", label: "Use Text feedback" },
+            { data: { feedbackType: "Color" }, id: "legacy.surface.x32-feedback.select", label: "Use X32 palette Color feedback" },
+            { data: { feedbackType: "Value" }, id: "legacy.surface.x32-feedback.select", label: "Use numeric Value feedback" },
+            { data: { feedbackType: "State" }, id: "legacy.surface.x32-feedback.select", label: "Use State feedback" },
+        ] : [],
+        id: "legacy.surface.x32-feedback.select",
     },
     {
         acceptsSetDiagnostic: true,

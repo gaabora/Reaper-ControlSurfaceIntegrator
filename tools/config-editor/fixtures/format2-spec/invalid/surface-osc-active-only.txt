@@ -1,0 +1,5 @@
+@Meta { Version=2 Protocol=OSC Channels=1 Name="Invalid ActiveOnly value" }
+
+Widget Select1 {
+  Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=70 ActiveOnly=maybe }
+}

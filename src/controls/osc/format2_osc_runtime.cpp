@@ -157,6 +157,7 @@ private:
     bool const integer_;
     double const offValue_;
     double const onValue_;
+    bool const activeOnly_;
 
     void SendValue(double value) {
         if (this->integer_) this->surface_->SendOSCMessage(this->address_.c_str(), (int) value);
@@ -164,15 +165,17 @@ private:
     }
 
 public:
-    Format2OscStateFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& address, bool integer, double offValue, double onValue) : FeedbackProcessor(csi, widget), surface_(surface), address_(address), integer_(integer), offValue_(offValue), onValue_(onValue) {}
+    Format2OscStateFeedbackProcessor(CSurfIntegrator* const csi, OSC_ControlSurface* surface, Widget* widget, const string& address, bool integer, double offValue, double onValue, bool activeOnly) : FeedbackProcessor(csi, widget), surface_(surface), address_(address), integer_(integer), offValue_(offValue), onValue_(onValue), activeOnly_(activeOnly) {}
 
     virtual void ForceValue(const PropertyList& properties, double value) override {
         this->lastDoubleValue_ = value;
+        if (this->activeOnly_ && value == 0.0) return;
         this->SendValue(value == 0.0 ? this->offValue_ : this->onValue_);
     }
 
     virtual void ForceClear() override {
         this->lastDoubleValue_ = 0.0;
+        if (this->activeOnly_) return;
         this->SendValue(this->offValue_);
     }
 };
@@ -458,7 +461,9 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "State") {
                 const std::optional<double> offValue = ReadFormat2OscFiniteProperty(primitive, "OffValue");
                 const std::optional<double> onValue = ReadFormat2OscFiniteProperty(primitive, "OnValue");
-                widget->GetFeedbackProcessors().push_back(make_unique<Format2OscStateFeedbackProcessor>(surface->csi_, surface, widget, address, primitive.encoding == Format2Encoding::OscInt, offValue.value_or(0.0), onValue.value_or(1.0)));
+                const Format2PropertySyntax* activeOnlyProperty = FindProperty(primitive, "ActiveOnly");
+                const bool activeOnly = activeOnlyProperty && !activeOnlyProperty->value.list && activeOnlyProperty->value.scalar.text == "true";
+                widget->GetFeedbackProcessors().push_back(make_unique<Format2OscStateFeedbackProcessor>(surface->csi_, surface, widget, address, primitive.encoding == Format2Encoding::OscInt, offValue.value_or(0.0), onValue.value_or(1.0), activeOnly));
                 widget->MarkOskToggleFeedback();
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Text") {
                 widget->GetFeedbackProcessors().push_back(make_unique<Format2OscStringFeedbackProcessor>(surface->csi_, surface, widget, address, FindFormat2TextProfile(parsed.surface, primitive)));

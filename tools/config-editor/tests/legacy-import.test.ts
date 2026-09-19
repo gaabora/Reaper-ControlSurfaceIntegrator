@@ -648,17 +648,76 @@ WidgetEnd
         expect(normalizeTrimLineEnd(conversion.source)).toBe(normalizeTrimLineEnd(expectedSurface));
     });
 
-    test("blocks conditional X32 integer address rewriting", () => {
-        const conversion = convertLegacySurfaceToFormat2("Widget Select1\n  FB_X32IntProcessor /-stat/selidx/01\nWidgetEnd\n", "X32 selection", "Surfaces/User/x32-selection.txt");
+    test.each(["00", "01", "16", "70"])("converts X32 selection %s to active-only integer state feedback", (selectionIndex) => {
+        const conversion = convertLegacySurfaceToFormat2(`Widget Select1\n  FB_X32IntProcessor "/-stat/selidx/${selectionIndex}"\nWidgetEnd\n`, "X32 selection", "Surfaces/User/x32-selection.txt");
 
-        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.x32-int.address-rewrite.unsupported", line: 2 }));
-        expect(conversion.source).not.toContain("Feedback Value");
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain(`Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=${Number(selectionIndex)} ActiveOnly=true }`);
+        expect(conversion.source).not.toContain("//! FB_X32IntProcessor");
     });
 
-    test("explains ambiguous combined X32 value and color feedback", () => {
+    test("keeps 32 X32 selection widgets on one shared output address", () => {
+        const source = Array.from({ length: 32 }, (unusedEntry, idx) => `Widget TrackSelect${idx + 1}\n  AnyPress /-stat/selidx/${String(idx).padStart(2, "0")}\n  FB_X32IntProcessor /-stat/selidx/${String(idx).padStart(2, "0")}\nWidgetEnd\n`).join("");
+        const conversion = convertLegacySurfaceToFormat2(source, "X32 selection", "Surfaces/User/x32-selection.txt");
+        const document = parseSurface(conversion.source, "Surfaces/User/x32-selection.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(document.diagnostics).toEqual([]);
+        expect(document.semantic.widgets).toHaveLength(32);
+        for (let idx = 0; idx < 32; idx++) expect(conversion.source).toContain(`Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=${idx} ActiveOnly=true }`);
+    });
+
+    test.each(["invalid", "-1", "1.5", "2147483648"])("preserves an invalid X32 selection number %s for correction", (selectionIndex) => {
+        const conversion = convertLegacySurfaceToFormat2(`Widget Select1\n  FB_X32IntProcessor /-stat/selidx/${selectionIndex}\nWidgetEnd\n`, "X32 selection", "Surfaces/User/x32-selection.txt");
+
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.x32-int.selection-address.invalid", line: 2, severity: "error" }));
+        expect(conversion.source).toContain(`//! FB_X32IntProcessor /-stat/selidx/${selectionIndex}`);
+    });
+
+    test("creates the X32 palette for a quoted color address", () => {
+        const conversion = convertLegacySurfaceToFormat2('Widget TrackColor\n  FB_X32Processor "/ch/17/config/color"\nWidgetEnd\n', "X32 color", "Surfaces/User/x32.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("ColorProfile X32Colors {");
+        expect(conversion.source).toContain('Feedback Color { Encoding=OSCInt Address="/ch/17/config/color" ColorProfile=X32Colors }');
+    });
+
+    test("keeps the final converted command and its comment", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget TrackName\n  FB_X32Processor /ch/01/config/name // track name\nWidgetEnd\n", "X32 name", "Surfaces/User/x32.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain('Feedback Text { Encoding=OSCString Address="/ch/01/config/name" }');
+        expect(conversion.source).toContain("// track name");
+    });
+
+    test("converts X32 feedback paired with a matching Control input", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget MasterPan\n  Control /main/st/mix/pan\n  FB_X32Processor /main/st/mix/pan\nWidgetEnd\n", "X32 feedback", "Surfaces/User/x32-feedback.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain('Feedback Value { Encoding=OSCFloat Address="/main/st/mix/pan" }');
+    });
+
+    test("converts X32 configuration names and colors to their documented feedback types", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget TrackName\n  FB_X32Processor /ch/17/config/name\nWidgetEnd\n\nWidget TrackColor\n  FB_X32Processor /ch/17/config/color\nWidgetEnd\n", "X32 configuration", "Surfaces/User/x32-configuration.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain('Feedback Text { Encoding=OSCString Address="/ch/17/config/name" }');
+        expect(conversion.source).toContain("ColorProfile X32Colors {");
+        expect(conversion.source).toContain('Feedback Color { Encoding=OSCInt Address="/ch/17/config/color" ColorProfile=X32Colors }');
+    });
+
+    test("uses an X32 feedback hint selected by a quick fix", () => {
+        const conversion = convertLegacySurfaceToFormat2("Widget Custom\n  FB_X32Processor /custom/value // @x32-feedback=State\nWidgetEnd\n", "X32 feedback hint", "Surfaces/User/x32-feedback-hint.txt");
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain('Feedback State { Encoding=OSCFloat Address="/custom/value" }');
+        expect(conversion.source).not.toContain("@x32-feedback");
+    });
+
+    test("reports X32 feedback without a matching Control input", () => {
         const conversion = convertLegacySurfaceToFormat2("Widget Mute1\n  FB_X32Processor /ch/01/mix/on\nWidgetEnd\n", "X32 feedback", "Surfaces/User/x32-feedback.txt");
 
-        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.x32-feedback.ambiguous", line: 2, message: expect.stringContaining("numeric and palette-color feedback") }));
+        expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.surface.x32-feedback.ambiguous", line: 2, message: expect.stringContaining("Choose Text") }));
     });
 
     test("matches the X32 OSC golden Surface", async () => {

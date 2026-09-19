@@ -39,6 +39,10 @@ describe("browser UI bindings", () => {
         expect(codeEditorJavascript).toContain("setActionCompletions");
         expect(EDITOR_JAVASCRIPT).toContain("legacySourceForPath(diagnostic.path)");
         expect(EDITOR_JAVASCRIPT).toContain("legacyItemAlreadyImported(item)");
+        expect(EDITOR_JAVASCRIPT).toContain('["conversion", "source"].includes(diagnostic.legacyLocation)');
+        expect(EDITOR_JAVASCRIPT).toContain('translate("legacy.quickFix.sourceStage")');
+        expect(EDITOR_JAVASCRIPT.indexOf('row.append(location, document.createTextNode(" "))')).toBeLessThan(EDITOR_JAVASCRIPT.indexOf('translate("legacy.related.open")'));
+        expect(EDITOR_JAVASCRIPT.indexOf('translate("legacy.related.open")')).toBeLessThan(EDITOR_JAVASCRIPT.indexOf('version.className = "diagnostic-version"'));
         expect(EDITOR_JAVASCRIPT).not.toContain("JSON.stringify(error.details");
         expect(html).toContain('id="task-home"');
         expect(html).toContain('id="task-load-status"');

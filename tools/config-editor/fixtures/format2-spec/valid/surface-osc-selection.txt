@@ -1,0 +1,11 @@
+@Meta { Version=2 Protocol=OSC Channels=2 Name="Shared selection feedback" }
+
+Widget Select1 {
+  Input Press { Encoding=OSCInt Address="/-stat/selidx/00" Match=Any }
+  Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=0 ActiveOnly=true }
+}
+
+Widget Select2 {
+  Input Press { Encoding=OSCInt Address="/-stat/selidx/70" Match=Any }
+  Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=70 ActiveOnly=true }
+}

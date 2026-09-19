@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parseByPath } from "../src/formats.ts";
 import { addLegacyBankContextQuickFixes, addLegacyExitLayerQuickFixes, applyQuickFix, applyQuickFixSet, diagnosticWithQuickFixes, diagnosticsWithQuickFixes, QuickFixError } from "../src/quick-fixes.ts";
 import { convertLegacyZoneToFormat2 } from "../src/legacy-zone-format2.ts";
+import { convertLegacySurfaceToFormat2 } from "../src/legacy-surface-format2.ts";
 import { validateDocumentSet } from "../src/validation.ts";
 
 const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "GoHome", "GoZone", "LearnFocusedFX", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
@@ -25,6 +26,31 @@ describe("diagnostic quick fix registry", () => {
         const document = parseByPath(source, relativePath, knownActions);
         expect(diagnosticsWithQuickFixes(document, knownActions, false).some((diagnostic) => diagnostic.fixes?.length)).toBeFalse();
         expect(() => applyQuickFix("// @format zone 1\n" + source, relativePath, knownActions, { diagnostic: { code: "zone.format.missing", message: "Zone has no // @format zone 1 marker" }, fix: { id: "zone.format.add" } })).toThrow(QuickFixError);
+    });
+
+    test("offers explicit X32 feedback choices and records the selected type in the source draft", () => {
+        const relativePath = "Surfaces/User/x32.txt";
+        const source = "Widget Custom\n  FB_X32Processor /custom/value\nWidgetEnd\n";
+        const document = parseByPath(source, relativePath, knownActions);
+        const diagnostic = diagnosticWithQuickFixes(document, { code: "legacy.surface.x32-feedback.ambiguous", line: 2, message: "X32 feedback type is unknown", severity: "error" }, knownActions, true);
+
+        expect(diagnostic.fixes?.map((fix) => fix.label)).toEqual(["Use Text feedback", "Use X32 palette Color feedback", "Use numeric Value feedback", "Use State feedback"]);
+        const result = applyQuickFix(source, relativePath, knownActions, { diagnostic, fix: diagnostic.fixes![0] });
+        expect(result.source).toContain("FB_X32Processor /custom/value // @x32-feedback=Text");
+    });
+
+    test("keeps X32 feedback after a source quick fix on a commented command", () => {
+        const relativePath = "Surfaces/User/x32.txt";
+        const source = "Widget Custom\n  FB_X32Processor /custom/value // custom label\nWidgetEnd\n";
+        const conversion = convertLegacySurfaceToFormat2(source, "X32", relativePath);
+        const document = parseByPath(source, relativePath, knownActions);
+        const diagnostic = diagnosticWithQuickFixes(document, conversion.diagnostics.find((entry) => entry.code === "legacy.surface.x32-feedback.ambiguous")!, knownActions, true);
+        const fixed = applyQuickFix(source, relativePath, knownActions, { diagnostic, fix: diagnostic.fixes![0] });
+        const result = convertLegacySurfaceToFormat2(fixed.source, "X32", relativePath);
+
+        expect(result.diagnostics).toEqual([]);
+        expect(result.source).toContain('Feedback Text { Encoding=OSCString Address="/custom/value" }');
+        expect(result.source).toContain("// custom label");
     });
 
     test("converts an unsupported single-slash comment without saving", () => {
