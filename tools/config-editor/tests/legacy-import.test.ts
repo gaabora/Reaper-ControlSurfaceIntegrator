@@ -207,6 +207,17 @@ WidgetEnd
         expect(conversion.source).toContain('(Hold)+Play Reaper 40044 DelayMs=500 RepeatIntervalMs=100 OSD="Repeat action"');
     });
 
+    test("best-effort converts commented legacy bindings without diagnostics", () => {
+        const source = "Zone Home\n//   InvertFB+MixBusBank1Mute| TrackSendMute\n// / //  MixBusBank1Solo|  &#x20;\n// ordinary explanation stays unchanged\n// Encoder Action [ broken\nZoneEnd\n";
+        const conversion = convertLegacyZoneToFormat2(source, { profile: "Main", targetPath: "Zones/User/test/Main/Home.zon" });
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("//   MixBusBank1Mute# TrackSendMute Feedback=Invert");
+        expect(conversion.source).toContain("// / //  MixBusBank1Solo# &#x20;");
+        expect(conversion.source).toContain("// ordinary explanation stays unchanged");
+        expect(conversion.source).toContain("// Encoder Action [ broken");
+    });
+
     test("combines legacy Learn FX layout and generated bindings", () => {
         const layout = migrateLegacyCommentSyntax("Zone FXWidgetLayout\n  Fader FXParam\n  RotaryBig FXParam\nZoneEnd\n\n#WidgetType Fader\n#WidgetType RotaryBig RingStyle=Dot\n/ #RingStyle Fill\n");
         const prologue = migrateLegacyCommentSyntax("Zone FXPrologue\n  /OnZoneActivation ToggleUseLocalModifiers\nZoneEnd\n");

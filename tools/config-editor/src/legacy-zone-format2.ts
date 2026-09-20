@@ -229,6 +229,23 @@ function appendUnconvertedLine(output: string[], diagnostics: Diagnostic[], code
     addDiagnostic(diagnostics, severity, code, message, lineNumber, documentPath);
 }
 
+function convertCommentedLegacyLine(text: string, zoneName: string, options: LegacyZoneFormat2Options): string[] | undefined {
+    const match = text.match(/^(\s*(?:\/+\s*)+)(\S.*)$/);
+    if (!match) return undefined;
+    const commentPrefix = match[1];
+    const content = match[2];
+    const sourceLine = splitSourceLines(content)[0];
+    if (!sourceLine) return undefined;
+    initializeLine(sourceLine);
+    if (sourceLine.tokens.length < 2 || !/[|+]$/.test(sourceLine.tokens[0]) && !/^[A-Z_]/.test(sourceLine.tokens[1])) return undefined;
+    const conversion = convertLegacyZoneToFormat2(`Zone ${zoneName}\n${content}\nZoneEnd\n`, options);
+    const convertedLines = conversion.source.split("\n").slice(1);
+    while (convertedLines[0] === "") convertedLines.shift();
+    while (convertedLines.at(-1) === "") convertedLines.pop();
+    if (!convertedLines.length || convertedLines.some((line) => line.trimStart().startsWith("//!"))) return undefined;
+    return convertedLines.map((line) => `${commentPrefix}${line}`);
+}
+
 export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFormat2Options): LegacyZoneFormat2Conversion {
     const diagnostics: Diagnostic[] = [];
     const lines = splitSourceLines(source);
@@ -266,7 +283,7 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         const text = initializeLine(line);
         if (/^\/\/\s*@format\s+zone\s+1$/i.test(text)) continue;
         if (!text || line.kind === "comment") {
-            if (line.kind === "comment") output.push(text);
+            if (line.kind === "comment") output.push(...(convertCommentedLegacyLine(line.text, zoneName, options) ?? [text]));
             else appendBlank();
             continue;
         }
