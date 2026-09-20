@@ -65,6 +65,13 @@ static bool IsFormat2QuotedMetadataKey(const std::string& key) {
     return key == "Name" || key == "Description" || key == "MatchFX" || key == "Alias";
 }
 
+static const char* Format2DocumentHeader(Format2DocumentKind kind) {
+    if (kind == Format2DocumentKind::Surface) return "@Surface";
+    if (kind == Format2DocumentKind::LearnFx) return "@LearnFX";
+    if (kind == Format2DocumentKind::Snippet) return "@Snippet";
+    return "@Zone";
+}
+
 class Format2DocumentParser {
 public:
     Format2DocumentParser(const std::string& source, const std::string& sourcePath, Format2DocumentKind kind) {
@@ -102,15 +109,16 @@ private:
 
     void ParseMetadata() {
         this->SkipNewLines();
-        if (this->AtEnd() || this->CurrentToken().kind != Format2TokenKind::Bare || this->CurrentToken().text != "@Meta") {
-            this->AddDiagnostic("format2.metadata.required", "The first significant element must be @Meta", this->CurrentToken().location);
+        const std::string documentHeader = Format2DocumentHeader(this->result_.kind);
+        if (this->AtEnd() || this->CurrentToken().kind != Format2TokenKind::Bare || this->CurrentToken().text != documentHeader) {
+            this->AddDiagnostic("format2.metadata.required", "The first significant element must be " + documentHeader, this->CurrentToken().location);
             this->result_.bodyTokenIndex = this->tokenIndex_;
             return;
         }
         this->Advance();
         this->SkipNewLines();
         if (this->CurrentToken().kind != Format2TokenKind::LeftBrace) {
-            this->AddDiagnostic("format2.metadata.block", "@Meta must be followed by a brace block", this->CurrentToken().location);
+            this->AddDiagnostic("format2.metadata.block", documentHeader + " must be followed by a brace block", this->CurrentToken().location);
             this->result_.bodyTokenIndex = this->tokenIndex_;
             return;
         }
@@ -163,7 +171,7 @@ private:
         }
 
         if (this->CurrentToken().kind != Format2TokenKind::RightBrace) {
-            this->AddDiagnostic("format2.metadata.unclosed", "@Meta block is not closed before EOF", this->CurrentToken().location);
+            this->AddDiagnostic("format2.metadata.unclosed", documentHeader + " block is not closed before EOF", this->CurrentToken().location);
             this->result_.bodyTokenIndex = this->tokenIndex_;
             return;
         }
@@ -186,7 +194,7 @@ private:
         const Format2MetadataEntry* version = this->FindMetadataEntry("Version");
         if (!version) {
             const Format2SourceLocation location = this->result_.metadata.entries.empty() ? this->CurrentToken().location : this->result_.metadata.entries.front().nameLocation;
-            this->AddDiagnostic("format2.metadata.version.required", "@Meta requires Version=2", location);
+            this->AddDiagnostic("format2.metadata.version.required", std::string(Format2DocumentHeader(this->result_.kind)) + " requires Version=2", location);
         } else if (version->quoted || version->value != "2") {
             this->AddDiagnostic("format2.metadata.version.value", "Version must be the unquoted integer 2", version->valueLocation);
         } else {

@@ -251,7 +251,7 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
     const diagnostics: Diagnostic[] = [];
     const lines = splitSourceLines(source);
     const firstConfigurationLine = lines.map(analysisText).find((text) => text && !text.startsWith("//"));
-    if (firstConfigurationLine?.replace(/^\uFEFF/, "").startsWith("@Meta")) return { diagnostics, source };
+    if (firstConfigurationLine?.replace(/^\uFEFF/, "").startsWith("@Zone")) return { diagnostics, source };
     const header = lines.find((line) => {
         initializeLine(line);
         return line.tokens[0] === "Zone";
@@ -269,7 +269,7 @@ export function convertLegacyZoneToFormat2(source: string, options: LegacyZoneFo
         return MODIFIER_ACTIONS.has(line.tokens[1]) ? [line.tokens[1]] : [];
     }));
     const headerComment = header ? inlineComment(header.text).comment : "";
-    const output: string[] = [`@Meta { Version=2${metadata.length ? ` ${metadata.join(" ")}` : ""} }`, ...(headerComment ? [headerComment] : []), ""];
+    const output: string[] = [`@Zone { Version=2${metadata.length ? ` ${metadata.join(" ")}` : ""} }`, ...(headerComment ? [headerComment] : []), ""];
     let section: "included" | "layers" | undefined;
     let sectionStart = 0;
     let sectionEntries = 0;

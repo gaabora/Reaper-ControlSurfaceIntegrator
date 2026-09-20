@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="QCon master" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="QCon master" }
 
 MeterProfile QConMasterMeter {
   Mode=Steps

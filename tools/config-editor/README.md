@@ -90,7 +90,7 @@ Choose `Edit configuration` and open an editable Zone below `Zones/User`. The sn
 
 An exact Widget name is accepted automatically. The dialog opens only when a Surface must be selected or a snippet Widget must map to another Surface Widget. An alternate mapping requires explicit confirmation. The editor then validates the resulting normal Zone bindings against the selected Surface.
 
-The resolved format 2 binding lines are inserted after the current cursor line, or after `@Meta` when the cursor is inside metadata. The editor does not add an application ID, generated wrapper, or hidden marker comments. Snippet insertion changes only the current recovery draft. It does not save the Zone.
+The resolved format 2 binding lines are inserted after the current cursor line, or after `@Zone` when the cursor is inside metadata. The editor does not add an application ID, generated wrapper, or hidden marker comments. Snippet insertion changes only the current recovery draft. It does not save the Zone.
 
 Open a snippet from the configuration tree to edit its text. Built-in snippets stay read-only until `Make editable copy` creates the matching user file.
 

@@ -46,7 +46,7 @@ function convertedGeneratedBody(source: LegacyLearnFxSource, diagnostics: Diagno
 export function convertLegacyLearnFxToFormat2(sources: LegacyLearnFxSources): LegacyLearnFxConversion {
     const diagnostics: Diagnostic[] = [];
     const firstConfigurationLine = splitSourceLines(sources.layout.source).map((line) => initializeLine(line)).find((line) => line && !line.startsWith("//"));
-    if (firstConfigurationLine?.replace(/^\uFEFF/, "").startsWith("@Meta")) return { diagnostics, source: sources.layout.source };
+    if (firstConfigurationLine?.replace(/^\uFEFF/, "").startsWith("@LearnFX")) return { diagnostics, source: sources.layout.source };
     const bindings = layoutBindings(sources.layout);
     const entries: string[] = [];
     const selectors = new Set<string>();
@@ -83,7 +83,7 @@ export function convertLegacyLearnFxToFormat2(sources: LegacyLearnFxSources): Le
 
     const generatedGroups = [sources.prologue, sources.epilogue].map((source) => source ? convertedGeneratedBody(source, diagnostics) : []).filter((lines) => lines.length);
     const generated = generatedGroups.flatMap((lines, groupIdx) => groupIdx ? ["", ...lines] : lines);
-    const output = ["@Meta { Version=2 }", "", "FXWidgets {", ...entries, "}"];
+    const output = ["@LearnFX { Version=2 }", "", "FXWidgets {", ...entries, "}"];
     if (generated.some((line) => line.trim())) output.push("", "GeneratedBindings {", ...generated.map((line) => line ? `  ${line}` : ""), "}");
     return { diagnostics, source: output.join("\n") + "\n" };
 }

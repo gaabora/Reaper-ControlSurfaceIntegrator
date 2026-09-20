@@ -158,7 +158,7 @@ function makeZoneLayer(context: QuickFixContext): string {
     if (context.document.format !== "zone" || context.document.version !== "2") throw new QuickFixError("quick-fix.format", "Only a format 2 Zone can become a layer");
     const semantic = context.document.semantic as ZoneSemantic;
     if (semantic.target || semantic.role && semantic.role !== "Layer") throw new QuickFixError("quick-fix.context", "This Zone already has an incompatible Role or Target");
-    const metadataLine = context.document.lines.find((line) => line.text.trimStart().startsWith("@Meta"));
+    const metadataLine = context.document.lines.find((line) => line.text.trimStart().startsWith("@Zone"));
     if (!metadataLine) throw new QuickFixError("quick-fix.source", "The Zone metadata line is not available");
     if (semantic.role !== "Layer") metadataLine.text = metadataLine.text.replace(/\s*\}(\s*(?:\/\/.*)?)$/, " Role=Layer }$1");
     for (const binding of semantic.bindings) {
@@ -298,7 +298,7 @@ function convertLegacyNamedBank(context: QuickFixContext): string {
     const bindingMatch = line?.text.match(/^(\s*\S+\s+Bank\s+)\S+\s+-?\d+(.*)$/);
     if (!line || !bindingMatch) throw new QuickFixError("quick-fix.source", "The legacy named Bank parameters are no longer available");
     line.text = bindingMatch[1] + bank.amount + bindingMatch[2];
-    const metadataStartIdx = context.document.lines.findIndex((candidate) => candidate.text.trimStart().startsWith("@Meta"));
+    const metadataStartIdx = context.document.lines.findIndex((candidate) => candidate.text.trimStart().startsWith("@Zone"));
     const metadataLine = metadataStartIdx >= 0 ? context.document.lines.slice(metadataStartIdx).find((candidate) => candidate.text.includes("}")) : undefined;
     if (!metadataLine) throw new QuickFixError("quick-fix.source", "The Zone metadata block is not available");
     const additions = [!(context.document.semantic as ZoneSemantic).target ? `Target=${bank.target}` : "", !(context.document.semantic as ZoneSemantic).bankTarget ? `BankTarget=${bank.bankTarget}` : ""].filter(Boolean).join(" ");
@@ -422,7 +422,7 @@ const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
     },
     {
         apply: (context) => convertLegacyNamedBank(context),
-        fixes: (context) => context.diagnostic.code === "format2.zone.action.bank-amount" && legacyNamedBankAtDiagnosticLine(context) ? [{ id: "zone.bank.convert-legacy-target", label: "Move the Bank target to @Meta" }] : [],
+        fixes: (context) => context.diagnostic.code === "format2.zone.action.bank-amount" && legacyNamedBankAtDiagnosticLine(context) ? [{ id: "zone.bank.convert-legacy-target", label: "Move the Bank target to @Zone" }] : [],
         id: "zone.bank.convert-legacy-target",
     },
 ];

@@ -2156,8 +2156,8 @@ function setLegacyTreeWidth(width) {
 }
 
 function setLegacySidebarWidth(width) {
-    const layoutWidth = elements.legacyEditorLayout.getBoundingClientRect().width;
-    elements.legacyEditorLayout.style.setProperty("--legacy-sidebar-width", Math.max(330, Math.min(layoutWidth - 380, width)) + "px");
+    const workspaceWidth = elements.legacyDraftWorkspace.getBoundingClientRect().width;
+    elements.legacyDraftWorkspace.style.setProperty("--legacy-sidebar-width", Math.max(330, Math.min(workspaceWidth - 380, width)) + "px");
 }
 
 elements.legacyDraftEditorResizer.addEventListener("pointerdown", (event) => {
@@ -2172,7 +2172,7 @@ elements.legacyTreeResizer.addEventListener("pointerdown", (event) => {
 elements.legacyTreeResizer.addEventListener("keydown", (event) => legacyResizeKey(event, (change) => setLegacyTreeWidth(elements.legacyZoneTreePanel.getBoundingClientRect().width + change)));
 
 elements.legacySidebarResizer.addEventListener("pointerdown", (event) => {
-    const bounds = elements.legacyEditorLayout.getBoundingClientRect();
+    const bounds = elements.legacyDraftWorkspace.getBoundingClientRect();
     startLegacyWidthResize(event, elements.legacyPreviewColumn.getBoundingClientRect().width, bounds.width - 380, 330, setLegacySidebarWidth, -1);
 });
 elements.legacySidebarResizer.addEventListener("keydown", (event) => legacyResizeKey(event, (change) => setLegacySidebarWidth(elements.legacyPreviewColumn.getBoundingClientRect().width - change)));

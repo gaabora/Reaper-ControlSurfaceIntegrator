@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=2 Name="iCON V1X" }
+@Surface { Version=2 Protocol=MIDI Channels=2 Name="iCON V1X" }
 
 TextProfile Display7 {
   Encoding=ASCII7

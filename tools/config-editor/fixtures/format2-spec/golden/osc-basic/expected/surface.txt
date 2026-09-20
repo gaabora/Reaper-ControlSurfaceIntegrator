@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=OSC Channels=1 Name="Imported OSC controls" }
+@Surface { Version=2 Protocol=OSC Channels=1 Name="Imported OSC controls" }
 
 Widget Trigger {
   Input Press { Encoding=OSCFloat Address="/trigger" Match=Any }

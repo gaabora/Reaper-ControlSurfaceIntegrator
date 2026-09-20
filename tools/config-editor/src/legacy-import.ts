@@ -172,7 +172,7 @@ function conversionRelationships(source: string, result: string): LegacyImportRe
         addRelationship(sourceLine, resultBlockLines[0], sourceEnd || sourceLine, blockEnd(resultLines, resultBlockLines[0]));
     }
     const zoneHeader = sourceLines.findIndex((line) => /^\s*Zone\b/i.test(line));
-    const metaLine = resultLines.findIndex((line) => /^\s*@Meta\b/i.test(line));
+    const metaLine = resultLines.findIndex((line) => /^\s*@Zone\b/i.test(line));
     if (zoneHeader >= 0 && metaLine >= 0) addRelationship(zoneHeader + 1, metaLine + 1, zoneHeader + 1, blockEnd(resultLines, metaLine + 1));
     return relationships;
 }
@@ -772,7 +772,7 @@ export class LegacyCsiSource {
             zoneMigrationDiagnostics.get(zone.sourcePath)!.push(...conversion.diagnostics);
             migratedZoneSources.set(zone.sourcePath, migratedSource);
             const zoneDocument = store.parseDocument(targetPath, migratedSource);
-            if (draftMap.has(zone.sourcePath) && preparedSource.trimStart().startsWith("@Meta")) {
+            if (draftMap.has(zone.sourcePath) && preparedSource.trimStart().startsWith("@Zone")) {
                 const semantic = zoneDocument.semantic as ZoneSemantic;
                 for (const binding of semantic.bindings) {
                     if (binding.action === "LeaveSubZone" && !layerNames.has(zoneName.toLowerCase())) addDiagnostic(zoneMigrationDiagnostics.get(zone.sourcePath)!, "error", "legacy.zone.exit.context", `Zone ${zoneName} is not a layer. Choose whether this binding returns Home or the Zone becomes a Layer.`, binding.line, targetPath);

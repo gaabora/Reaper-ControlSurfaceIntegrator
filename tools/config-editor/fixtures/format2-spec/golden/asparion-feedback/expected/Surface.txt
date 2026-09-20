@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=8 Name="Asparion" }
+@Surface { Version=2 Protocol=MIDI Channels=8 Name="Asparion" }
 
 RingProfile AsparionRing {
   Segments=128

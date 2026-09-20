@@ -129,8 +129,8 @@ describe("configuration store", () => {
         await mkdir(mainRoot, { recursive: true });
         const sourcePath = "Zones/User/profile/Main/old-name.zon";
         const parentPath = "Zones/User/profile/Main/home.zon";
-        const source = "@Meta { Version=2 }\n\nPlay Play\n";
-        const parent = "@Meta { Version=2 Role=Home }\n\nold-name GoZone old-name\n";
+        const source = "@Zone { Version=2 }\n\nPlay Play\n";
+        const parent = "@Zone { Version=2 Role=Home }\n\nold-name GoZone old-name\n";
         await writeFile(path.join(productRoot, sourcePath), source, "utf8");
         await writeFile(path.join(productRoot, parentPath), parent, "utf8");
         const store = await createStore();
@@ -146,7 +146,7 @@ describe("configuration store", () => {
         const userRoot = path.join(productRoot, "Zones", "User", "faderportv2", "Main");
         await mkdir(userRoot, { recursive: true });
         const sourcePath = "Zones/User/faderportv2/Main/current.zon";
-        await writeFile(path.join(productRoot, sourcePath), "@Meta { Version=2 }\n\nPlay Play\n", "utf8");
+        await writeFile(path.join(productRoot, sourcePath), "@Zone { Version=2 }\n\nPlay Play\n", "utf8");
         const store = await createStore();
         const opened = await store.openDocument(sourcePath);
         await expect(store.renameZone({ newId: "home", originalHash: opened.hash, path: sourcePath, source: opened.source })).rejects.toThrow("already exists in the profile");

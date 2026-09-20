@@ -67,42 +67,42 @@ describe("legacy Zone readiness", () => {
     test("an unmatched relation end cannot remove the generated metadata", () => {
         const conversion = convertLegacyZoneToFormat2("Zone Home\nIncludedZonesEnd\nZoneEnd\n", { profile: "Main", targetPath: profileRoot + "Home.zon" });
         expect(conversion.diagnostics).toContainEqual(expect.objectContaining({ code: "legacy.zone.reference.end", severity: "error" }));
-        expect(conversion.source).toStartWith("@Meta { Version=2 Role=Home }");
+        expect(conversion.source).toStartWith("@Zone { Version=2 Role=Home }");
     });
 
     test.each(["Bank SelectedTrackSend -1", "Bank", "Bank 1.0", "Bank \"1\"", "Bank 1 2"])("rejects runtime-invalid arguments: %s", (action) => {
-        const document = parseByPath(`@Meta { Version=2 Target=SelectedTrack BankTarget=Sends }\nPrev ${action}\n`, profileRoot + "SelectedTrackSend.zon");
+        const document = parseByPath(`@Zone { Version=2 Target=SelectedTrack BankTarget=Sends }\nPrev ${action}\n`, profileRoot + "SelectedTrackSend.zon");
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.action.bank-amount", line: 2 }));
     });
 
     test("checks empty inline and multiline relations and lifecycle actions", () => {
-        const document = parseByPath('@Meta { Version=2 Role=Home }\nIncludedZones {}\nZoneLayers {\n// empty\n}\nOn SurfaceInitialization {\nBank "1"\nExitZoneLayer\n}\n', profileRoot + "Home.zon");
+        const document = parseByPath('@Zone { Version=2 Role=Home }\nIncludedZones {}\nZoneLayers {\n// empty\n}\nOn SurfaceInitialization {\nBank "1"\nExitZoneLayer\n}\n', profileRoot + "Home.zon");
         expect(document.diagnostics.filter((diagnostic) => diagnostic.code === "format2.zone.reference.required").map((diagnostic) => diagnostic.line)).toEqual([2, 3]);
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.action.bank-amount", line: 7 }));
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.action.layer-only", line: 8 }));
     });
 
     test("checks lifecycle navigation and Home targets across files", () => {
-        const home = parseByPath("@Meta { Version=2 Role=Home }\nOn SurfaceInitialization {\nGoZone SelectedTracks\n}\n", profileRoot + "Home.zon");
-        const tracks = parseByPath("@Meta { Version=2 Target=SelectedTracks }\nPrev GoZone Home\n", profileRoot + "SelectedTracks.zon");
+        const home = parseByPath("@Zone { Version=2 Role=Home }\nOn SurfaceInitialization {\nGoZone SelectedTracks\n}\n", profileRoot + "Home.zon");
+        const tracks = parseByPath("@Zone { Version=2 Target=SelectedTracks }\nPrev GoZone Home\n", profileRoot + "SelectedTracks.zon");
         expect(validateDocumentSet([home, tracks], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "format2.zone-profile.navigation.home", path: tracks.path, line: 2 }));
         expect(validateDocumentSet([home], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "zones.dependency.missing", severity: "warning", line: 3 }));
     });
 
     test("a broken destination is unavailable even when its name exists", () => {
-        const home = parseByPath("@Meta { Version=2 Role=Home }\nButton GoZone SelectedTracks\n", profileRoot + "Home.zon");
-        const tracks = parseByPath("@Meta { Version=2 Target=SelectedTracks }\nPrev Bank SelectedTracks -8\n", profileRoot + "SelectedTracks.zon");
+        const home = parseByPath("@Zone { Version=2 Role=Home }\nButton GoZone SelectedTracks\n", profileRoot + "Home.zon");
+        const tracks = parseByPath("@Zone { Version=2 Target=SelectedTracks }\nPrev Bank SelectedTracks -8\n", profileRoot + "SelectedTracks.zon");
         expect(validateDocumentSet([home, tracks], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "zones.dependency.missing", severity: "warning", path: home.path }));
     });
 
     test("reports a missing Home only when validating a complete profile", () => {
-        const transport = parseByPath("@Meta { Version=2 }\nPlay Play\n", profileRoot + "Transport.zon");
+        const transport = parseByPath("@Zone { Version=2 }\nPlay Play\n", profileRoot + "Transport.zon");
         expect(validateDocumentSet([transport])).toEqual([]);
         expect(validateDocumentSet([transport], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "format2.zone-profile.home.missing" }));
     });
 
     test("reports legacy Vendor content instead of approving a mixed runtime profile", () => {
-        const home = parseByPath("@Meta { Version=2 Role=Home }\nPlay Play\n", profileRoot + "Home.zon");
+        const home = parseByPath("@Zone { Version=2 Role=Home }\nPlay Play\n", profileRoot + "Home.zon");
         const vendor = parseByPath("Zone Home\nPlay Play\nZoneEnd\n", "Zones/Vendor/faderportv2/Main/Home.zon");
         expect(validateDocumentSet([vendor, home], { completeProfiles: true })).toContainEqual(expect.objectContaining({ code: "format2.zone-profile.legacy", path: vendor.path }));
     });

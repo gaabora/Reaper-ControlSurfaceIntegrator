@@ -920,7 +920,7 @@ function appendConvertedSurfaceWidget(output: string[], widget: ConvertedSurface
 }
 
 export function convertLegacySurfaceToFormat2(source: string, surfaceName: string, documentPath: string, meterMode: LegacyMcuMeterMode = "XTouch", scribbleStripMode?: number): LegacySurfaceConversion {
-    if (/^\s*(?:\uFEFF)?@Meta\s*\{[^}]*\bVersion=2\b/i.test(source)) {
+    if (/^\s*(?:\uFEFF)?@Surface\s*\{[^}]*\bVersion=2\b/i.test(source)) {
         const currentDocument = parseSurface(source, documentPath);
         return { diagnostics: currentDocument.diagnostics, source };
     }
@@ -928,7 +928,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const sourceLines = splitSourceLines(source);
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Meta { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...x32ColorProfile(sourceLines), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Surface { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...x32ColorProfile(sourceLines), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
     const usedCommentLines = new Set<number>();
     const convertedWidgets: ConvertedSurfaceWidget[] = [];
     for (const [widgetIdx, widget] of document.semantic.widgets.entries()) {

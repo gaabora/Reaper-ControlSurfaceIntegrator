@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=OSC Channels=1 Name="Invalid OSC ring address" }
+@Surface { Version=2 Protocol=OSC Channels=1 Name="Invalid OSC ring address" }
 
 RingProfile Ring {
   Quantize=Floor

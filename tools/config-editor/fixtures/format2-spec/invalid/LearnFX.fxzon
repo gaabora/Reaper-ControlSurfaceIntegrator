@@ -1,4 +1,4 @@
-@Meta { Version=2 }
+@LearnFX { Version=2 }
 
 FXWidgets {
   Parameter Rotary*

@@ -130,6 +130,8 @@ describe("browser UI bindings", () => {
         expect(EDITOR_CSS).toContain(".async-control-spinner");
         expect(html).toContain('id="legacy-problems-resizer"');
         expect(EDITOR_JAVASCRIPT).toContain('legacyProblemsResizer.addEventListener("pointerdown"');
+        expect(EDITOR_JAVASCRIPT).toContain('legacyDraftWorkspace.style.setProperty("--legacy-sidebar-width"');
+        expect(EDITOR_JAVASCRIPT).toContain('const bounds = elements.legacyDraftWorkspace.getBoundingClientRect();');
         expect(EDITOR_JAVASCRIPT).toContain("setLegacyZonesSelected(directoryZones, checkbox.checked)");
         expect(EDITOR_JAVASCRIPT).not.toContain("if (!hadPreview)");
         expect(html).toContain('id="snippet-bindings"');

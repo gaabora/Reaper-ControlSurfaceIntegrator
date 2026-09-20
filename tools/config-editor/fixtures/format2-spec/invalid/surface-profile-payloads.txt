@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="Invalid profile payload fields" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="Invalid profile payload fields" }
 
 RingProfile Ring {
   Quantize=Floor

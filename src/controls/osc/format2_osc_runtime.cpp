@@ -404,7 +404,7 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
     const string source = sourceBuffer.str();
     const size_t contentStart = source.compare(0, 3, "\xEF\xBB\xBF") == 0 ? 3 : 0;
     const size_t firstText = source.find_first_not_of(" \t\r\n", contentStart);
-    if (firstText == string::npos || source.compare(firstText, 5, "@Meta") != 0) {
+    if (firstText == string::npos || source.compare(firstText, 8, "@Surface") != 0) {
         LogToConsole("[ERROR] OSC Surface %s is not format 2. Import it with the configuration editor first.\n", GetRelativePath(filePath.c_str()).c_str());
         return Format2OscRuntimeLoadResult::Rejected;
     }

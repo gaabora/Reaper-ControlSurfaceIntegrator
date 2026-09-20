@@ -114,7 +114,7 @@ function parseFormat2Surface(source: string, documentPath?: string): LosslessDoc
         const text = initializeLine(line);
         if (!text || line.kind === "comment") continue;
         const delta = braceDelta(text);
-        if (!metadataFound && line.tokens[0] === "@Meta") {
+        if (!metadataFound && line.tokens[0] === "@Surface") {
             metadataFound = true;
             line.kind = "format";
             if (!/(?:^|\s)Version=2(?=\s|})/.test(text)) addDiagnostic(diagnostics, "error", "surface.format.version", "Format 2 Surface requires Version=2", line.lineNumber, documentPath);
@@ -174,13 +174,13 @@ function parseFormat2Surface(source: string, documentPath?: string): LosslessDoc
             line.kind = "block-start";
         } else line.kind = text === "}" ? "block-end" : "entry";
     }
-    if (!metadataFound) addDiagnostic(diagnostics, "error", "surface.format.missing", "Format 2 Surface requires @Meta", undefined, documentPath);
+    if (!metadataFound) addDiagnostic(diagnostics, "error", "surface.format.missing", "Format 2 Surface requires @Surface", undefined, documentPath);
     if (currentWidget) addDiagnostic(diagnostics, "error", "surface.widget.unclosed", `Widget ${currentWidget.name} has no closing brace`, currentWidget.line, documentPath);
     return { diagnostics, format: "surface", lines, path: documentPath, semantic: { channels: channelCount, oskLayout: layout, widgets }, source, version: "2" };
 }
 
 export function parseSurface(source: string, documentPath?: string): LosslessDocument<SurfaceSemantic> {
-    if (/^\s*(?:\uFEFF)?@Meta\b/.test(source)) return parseFormat2Surface(source, documentPath);
+    if (/^\s*(?:\uFEFF)?@/.test(source)) return parseFormat2Surface(source, documentPath);
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
     const widgets: SurfaceWidget[] = [];

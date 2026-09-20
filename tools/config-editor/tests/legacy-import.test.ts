@@ -122,7 +122,7 @@ WidgetEnd
 `;
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "FaderPortV2", "Surfaces/User/faderportv2.txt");
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toStartWith('@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPortV2" }');
+        expect(conversion.source).toStartWith('@Surface { Version=2 Protocol=MIDI Channels=1 Name="FaderPortV2" }');
         expect(conversion.source).toContain("Input Value { Encoding=MIDI14 Status=0xE0 }");
         expect(conversion.source).toContain("RingProfile RotaryRing {");
         expect(conversion.source).toContain("Feedback Ring { Encoding=MIDI7 Message=[ 0xB0, 0x30 ] RingProfile=RotaryRing StyleTarget=Value StyleShift=4 StyleCombine=BitOr }");
@@ -237,7 +237,7 @@ WidgetEnd
         });
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toBe("@Meta { Version=2 }\n\nFXWidgets {\n  Parameter Fader\n  Parameter RotaryBig RingStyle=Dot\n}\n\nGeneratedBindings {\n  On ZoneDeactivation {\n    HideFXSlot\n  }\n\n  Bypass ClearFXSlot\n}\n");
+        expect(conversion.source).toBe("@LearnFX { Version=2 }\n\nFXWidgets {\n  Parameter Fader\n  Parameter RotaryBig RingStyle=Dot\n}\n\nGeneratedBindings {\n  On ZoneDeactivation {\n    HideFXSlot\n  }\n\n  Bypass ClearFXSlot\n}\n");
     });
 
     test("shows one LearnFX.fxzon import item instead of legacy Learn pseudo-zones", async () => {
@@ -650,7 +650,7 @@ WidgetEnd
         const conversion = convertLegacySurfaceToFormat2(legacySurface, "Generic OSC", "Surfaces/User/generic-osc.txt");
 
         expect(conversion.diagnostics).toEqual([]);
-        expect(conversion.source).toStartWith('@Meta { Version=2 Protocol=OSC Channels=1 Name="Generic OSC" }');
+        expect(conversion.source).toStartWith('@Surface { Version=2 Protocol=OSC Channels=1 Name="Generic OSC" }');
         expect(conversion.source).toContain('Input Value { Encoding=OSCFloat Address="/ControlA" }');
         expect(conversion.source).toContain('Feedback Value { Encoding=OSCFloat Address="/ControlA" }');
         expect(conversion.source).toContain('Feedback Text { Encoding=OSCString Address="/ControlA" }');
@@ -837,7 +837,7 @@ WidgetEnd
         const source = await LegacyCsiSource.create(legacyRoot);
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
         expect(preview.valid).toBeTrue();
-        expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source).toStartWith("@Meta { Version=2 Role=Home }\n\n// disabled binding\n");
+        expect(preview.items.find((item) => item.sourcePath === "Zones/HomeZones/Home.zon")?.source).toStartWith("@Zone { Version=2 Role=Home }\n\n// disabled binding\n");
         expect(await readFile(sourcePath, "utf8")).toBe(legacySource);
     });
 
@@ -927,10 +927,10 @@ WidgetEnd
             "Zones/User/faderportv2/Main/HomeZones/Home.zon",
             "Zones/User/faderportv2/FX/ReaEQ.zon",
         ]);
-        expect(preview.items.every((item) => item.source.startsWith("@Meta { Version=2"))).toBeTrue();
+        expect(preview.items.every((item) => item.source.startsWith(item.kind === "surface" ? "@Surface { Version=2" : item.kind === "learn-fx" ? "@LearnFX { Version=2" : "@Zone { Version=2"))).toBeTrue();
         expect(preview.items.some((item) => item.sourcePath.endsWith("GoZones.zon"))).toBeFalse();
         expect(preview.items.some((item) => item.sourcePath.endsWith("Empty.zon") || item.sourcePath.endsWith("Comments.zon"))).toBeFalse();
-        expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.source).toStartWith("@Meta { Version=2 Target=Tracks }");
+        expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.source).toStartWith("@Zone { Version=2 Target=Tracks }");
         expect(preview.dependencies).toContainEqual({ from: "Zones/HomeZones/Home.zon", matches: ["Zones/GoZones/Transport.zon"], name: "Transport", selected: true, type: "GoZone" });
     });
 
@@ -948,7 +948,7 @@ WidgetEnd
     test("marks a selected Vendor Zone ID as an explicit User override", async () => {
         const vendorPath = path.join(productRoot, "Zones", "Vendor", "faderportv2", "Main", "Existing", "Transport.zon");
         await mkdir(path.dirname(vendorPath), { recursive: true });
-        await writeFile(vendorPath, "@Meta { Version=2 Target=Tracks }\n\nPlay Play\n", "utf8");
+        await writeFile(vendorPath, "@Zone { Version=2 Target=Tracks }\n\nPlay Play\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/GoZones/Transport.zon"], [], false, [], "faderportv2");
         expect(preview.items.find((item) => item.sourcePath === "Zones/GoZones/Transport.zon")?.vendorOverridePath).toBe("Zones/Vendor/faderportv2/Main/Existing/Transport.zon");
@@ -985,7 +985,7 @@ WidgetEnd
         const source = "Zone Channel TrackNavigator\n  Link Control Blink { 40 20 0 120 120 0 }\n  Rotary| TrackVolume\nZoneEnd\n";
         const conversion = convertLegacyZoneToFormat2(source, { profile: "Main", targetPath: "Zones/User/test/Main/Channel.zon" });
 
-        expect(conversion.source).toStartWith("@Meta { Version=2 Target=Tracks }");
+        expect(conversion.source).toStartWith("@Zone { Version=2 Target=Tracks }");
         expect(conversion.source).toContain("Link Modifier Control Blink=Active Animation=BlinkNormal StateColors=[ #281400, #787800 ]");
         const document = parseByPath(conversion.source, "/config/Zones/User/test/Main/Channel.zon");
         expect(document.diagnostics).not.toContainEqual(expect.objectContaining({ code: "format2.zone.modifier.property" }));
@@ -1016,7 +1016,7 @@ WidgetEnd
     test("resolves an import dependency from the active target profile", async () => {
         const targetZonePath = path.join(productRoot, "Zones", "User", "faderportv2", "Main", "GoZones", "Transport.zon");
         await mkdir(path.dirname(targetZonePath), { recursive: true });
-        await writeFile(targetZonePath, "@Meta { Version=2 }\nPlay Play\n", "utf8");
+        await writeFile(targetZonePath, "@Zone { Version=2 }\nPlay Play\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true, ["Zones/HomeZones/Home.zon"]);
 
@@ -1039,15 +1039,15 @@ WidgetEnd
 
         expect(report.created).toHaveLength(5);
         const importedSurface = await readFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "utf8");
-        expect(importedSurface).toStartWith("@Meta { Version=2 Protocol=MIDI");
+        expect(importedSurface).toStartWith("@Surface { Version=2 Protocol=MIDI");
         expect(importedSurface).toContain("Widget Play {");
         expect(importedSurface).toContain("OSKLayout {");
         const importedHome = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "Main", "HomeZones", "Home.zon"), "utf8");
         const importedFx = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "FX", "ReaEQ.zon"), "utf8");
         const importedLearnFx = await readFile(path.join(productRoot, "Zones", "User", "faderportv2", "LearnFX.fxzon"), "utf8");
-        expect(importedHome).toStartWith("@Meta { Version=2 Role=Home }");
-        expect(importedFx).toStartWith('@Meta { Version=2 MatchFX="ReaEQ" }');
-        expect(importedLearnFx).toStartWith("@Meta { Version=2 }");
+        expect(importedHome).toStartWith("@Zone { Version=2 Role=Home }");
+        expect(importedFx).toStartWith('@Zone { Version=2 MatchFX="ReaEQ" }');
+        expect(importedLearnFx).toStartWith("@LearnFX { Version=2 }");
         for (const [targetPath, importedSource] of [["Surfaces/User/faderportv2.txt", importedSurface], ["Zones/User/faderportv2/Main/HomeZones/Home.zon", importedHome], ["Zones/User/faderportv2/FX/ReaEQ.zon", importedFx], ["Zones/User/faderportv2/LearnFX.fxzon", importedLearnFx]]) {
             const document = parseByPath(importedSource, targetPath, knownActions);
             expect(document.version).toBe("2");
@@ -1087,7 +1087,7 @@ WidgetEnd
         const store = await createStore();
         const preview = await source.preview(store, knownActions, "XTouchMiniMC", true);
         expect(preview.valid).toBeTrue();
-        expect(preview.items.find((item) => item.kind === "surface")?.source).toStartWith('@Meta { Version=2 Protocol=MIDI Channels=8 Name="XTouchMiniMC" }');
+        expect(preview.items.find((item) => item.kind === "surface")?.source).toStartWith('@Surface { Version=2 Protocol=MIDI Channels=8 Name="XTouchMiniMC" }');
         expect(preview.items.find((item) => item.kind === "surface")?.source).toContain('Widget ButtonB7 {\n  Alias="Play"');
         expect(preview.items.find((item) => item.sourcePath === "Zones/Channel.zon")?.source).toContain("Rotary# TrackVolume");
         expect(preview.items.find((item) => item.sourcePath === "Zones/Channel.zon")?.source).toContain("RotaryPush# TrackSelect");
@@ -1116,7 +1116,7 @@ WidgetEnd
 
     test("requires a compatible widget mapping and rewrites every selected binding", async () => {
         await mkdir(path.join(productRoot, "Zones/User/faderportv2/Main"), { recursive: true });
-        await writeFile(path.join(productRoot, "Zones/User/faderportv2/Main/Transport.zon"), "@Meta { Version=2 }\nStop Play\n", "utf8");
+        await writeFile(path.join(productRoot, "Zones/User/faderportv2/Main/Transport.zon"), "@Zone { Version=2 }\nStop Play\n", "utf8");
         await writeFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "Widget Play\n  Encoder b0 10 7f\nWidgetEnd\nWidget Stop\n  Press 90 5d 7f 90 5d 00\nWidgetEnd\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();
@@ -1213,7 +1213,7 @@ WidgetEnd
         const selectedZonePaths = [homePath, "Zones/GoZones/Transport.zon"];
         const initial = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths);
         const initialZone = initial.items.find((item) => item.sourcePath === homePath)!;
-        const draftSource = "@Meta { Version=2 Role=Home }\n(Press)+Play GoZone Transport\n(Press)+Play TrackVolume\n(Press)+Play TrackPan\n(Press)+Play TrackPan\n";
+        const draftSource = "@Zone { Version=2 Role=Home }\n(Press)+Play GoZone Transport\n(Press)+Play TrackVolume\n(Press)+Play TrackPan\n(Press)+Play TrackPan\n";
         const drafts = [{ originalSourceHash: initialZone.originalSourceHash, source: draftSource, sourcePath: initialZone.sourcePath }];
         const preview = await source.preview(store, knownActions, "FaderPortV2", true, selectedZonePaths, [], false, drafts);
         const unreachable = preview.diagnostics.find((diagnostic) => diagnostic.code === "format2.zone.gesture.unreachable" && diagnostic.line === 3);
@@ -1246,7 +1246,7 @@ WidgetEnd
 
     test("uses the existing surface when the imported surface conflict is skipped", async () => {
         await mkdir(path.join(productRoot, "Zones/User/faderportv2/Main"), { recursive: true });
-        await writeFile(path.join(productRoot, "Zones/User/faderportv2/Main/Transport.zon"), "@Meta { Version=2 }\nStop Play\n", "utf8");
+        await writeFile(path.join(productRoot, "Zones/User/faderportv2/Main/Transport.zon"), "@Zone { Version=2 }\nStop Play\n", "utf8");
         await writeFile(path.join(productRoot, "Surfaces", "User", "faderportv2.txt"), "Widget Play\n  Encoder b0 10 7f\nWidgetEnd\nWidget Stop\n  Press 90 5d 7f 90 5d 00\nWidgetEnd\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();
@@ -1268,7 +1268,7 @@ WidgetEnd
 
     test("blocks Skip when it retains an invalid destination required by Home", async () => {
         const targetPath = "Zones/User/faderportv2/Main/GoZones/Transport.zon";
-        const invalidSource = "@Meta { Version=2 }\nPlay Bank SelectedTracks -1\n";
+        const invalidSource = "@Zone { Version=2 }\nPlay Bank SelectedTracks -1\n";
         await mkdir(path.dirname(path.join(productRoot, targetPath)), { recursive: true });
         await writeFile(path.join(productRoot, targetPath), invalidSource, "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
@@ -1284,7 +1284,7 @@ WidgetEnd
     test("blocks Rename when the retained destination creates a second Home", async () => {
         const targetPath = "Zones/User/faderportv2/Main/HomeZones/Home.zon";
         await mkdir(path.dirname(path.join(productRoot, targetPath)), { recursive: true });
-        await writeFile(path.join(productRoot, targetPath), "@Meta { Version=2 Role=Home }\nPlay Play\n", "utf8");
+        await writeFile(path.join(productRoot, targetPath), "@Zone { Version=2 Role=Home }\nPlay Play\n", "utf8");
         const source = await LegacyCsiSource.create(legacyRoot);
         const store = await createStore();
         const preview = await source.preview(store, knownActions, "FaderPortV2", true);

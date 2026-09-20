@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="MCU displays" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="MCU displays" }
 
 TextProfile MCUTimeCharacters {
   Encoding=ASCII7

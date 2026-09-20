@@ -41,7 +41,7 @@ Page Home {
 - `Page`, `Device`, and Page-local `Surface` IDs are unquoted. They start with an ASCII letter and contain only ASCII letters, digits, or `_`.
 - Root `Settings` values apply to the product. A nested `Settings` block in a `Device` overrides the allowed values for that Device.
 - A Page `Surface` uses a separate local ID and references one `Device`. `Template`, `MainProfile`, and `FXProfile` are stable resource IDs.
-- `Channels` belongs to the referenced Surface `@Meta`, not to the I/O Device. Assigning one Device to Surface templates with different channel counts is an error.
+- `Channels` belongs to the referenced `@Surface` header, not to the I/O Device. Assigning one Device to Surface templates with different channel counts is an error.
 - `Link` blocks connect two Page-local Surface IDs and declare a non-empty `Share=[ ... ]` category list.
 - Only `//` starts a comment. `#` is invalid in the product configuration.
 - Unknown blocks and properties are errors.
@@ -49,7 +49,7 @@ Page Home {
 
 ## Surface 2
 
-Current Surface files use `@Meta { Version=2 Protocol=MIDI|OSC Channels=<positive integer> ... }`, brace blocks, and universal `Input` and `Feedback` primitives. The legacy importer converts supported processor lines to this format and reports an error for a processor that it cannot preserve.
+Current Surface files use `@Surface { Version=2 Protocol=MIDI|OSC Channels=<positive integer> ... }`, brace blocks, and universal `Input` and `Feedback` primitives. The legacy importer converts supported processor lines to this format and reports an error for a processor that it cannot preserve.
 
 `OSKLayout { Row { ... } }` has no separate version. If a legacy Surface has no explicit layout, the importer creates an editable initial layout from usable Input widgets. A fader occupies seven rows while buttons and rotaries fill the remaining cells in source order.
 
@@ -113,10 +113,10 @@ ZoneEnd
 
 ## Zone 2
 
-Format 2 Zone files start with `@Meta { Version=2 ... }`. A normal `Bank <amount>` binding uses the Zone `Target` and optional `BankTarget`. One binding can select a different child collection by supplying both action properties:
+Format 2 Zone files start with `@Zone { Version=2 ... }`. A normal `Bank <amount>` binding uses the Zone `Target` and optional `BankTarget`. One binding can select a different child collection by supplying both action properties:
 
 ```text
-@Meta { Version=2 Target=Tracks BankTarget=FX }
+@Zone { Version=2 Target=Tracks BankTarget=FX }
 
 Left  Bank -1 Target=SelectedTrack BankTarget=FX
 Right Bank 1 Target=SelectedTrack BankTarget=FX
@@ -129,14 +129,14 @@ The paired override accepts `Target=Tracks|SelectedTrack` with `BankTarget=Sends
 Snippets are direct Zone fragments:
 
 ```text
-@Meta { Version=2 Name="Transport controls" }
+@Snippet { Version=2 Name="Transport controls" }
 
 play Play
 [Shift]+play Reaper 40044
 stop Stop
 ```
 
-- The first significant line is `@Meta { Version=2 }`.
+- The first significant line is `@Snippet { Version=2 }`.
 - The remaining lines use the normal format 2 Zone binding grammar.
 - Exact Widget names are mapped automatically. A different Widget requires user confirmation.
 - The editor inserts resolved lines directly into the unsaved Zone draft. It does not add application IDs or hidden marker comments.

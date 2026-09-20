@@ -120,7 +120,7 @@ describe("diagnostic quick fix registry", () => {
 
     test("can comment out an unknown action line", () => {
         const relativePath = "Zones/User/test/Main/Home.zon";
-        const source = "@Meta { Version=2 Role=Home }\nButton the\n";
+        const source = "@Zone { Version=2 Role=Home }\nButton the\n";
         const document = parseByPath(source, relativePath, knownActions);
         const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "zone.action.unknown")!;
         const fix = diagnostic.fixes!.find((candidate) => candidate.id === "zone.action.comment-out")!;
@@ -143,7 +143,7 @@ describe("diagnostic quick fix registry", () => {
 
     test("can comment out an unknown lifecycle action line", () => {
         const relativePath = "Zones/User/test/Main/Home.zon";
-        const source = "@Meta { Version=2 Role=Home }\nOn Activate {\n  the\n}\n";
+        const source = "@Zone { Version=2 Role=Home }\nOn Activate {\n  the\n}\n";
         const document = parseByPath(source, relativePath, knownActions);
         const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "zone.action.unknown")!;
         const fix = diagnostic.fixes!.find((candidate) => candidate.id === "zone.action.comment-out")!;
@@ -153,7 +153,7 @@ describe("diagnostic quick fix registry", () => {
 
     test("offers safe fixes for duplicate and unreachable gesture bindings", () => {
         const relativePath = "Zones/User/test/Main/Home.zon";
-        const source = "@Meta { Version=2 Role=Home }\n(Press)+Play TrackPan\n(Press)+Play TrackPan\n(Press)+Stop GoZone Mixer\n(Press)+Stop Play\n";
+        const source = "@Zone { Version=2 Role=Home }\n(Press)+Play TrackPan\n(Press)+Play TrackPan\n(Press)+Stop GoZone Mixer\n(Press)+Stop Play\n";
         const actionTraits = new Map([
             ["GoZone", { changesContext: true, changesModifier: false }],
             ["Play", { changesContext: false, changesModifier: false }],
@@ -171,7 +171,7 @@ describe("diagnostic quick fix registry", () => {
 
     test("offers independent navigation and layer fixes for an invalid EnterZoneLayer target", () => {
         const homePath = "Zones/User/test/Main/Home.zon";
-        const homeSource = "@Meta { Version=2 Role=Home }\nButton EnterZoneLayer Metronome\n";
+        const homeSource = "@Zone { Version=2 Role=Home }\nButton EnterZoneLayer Metronome\n";
         const home = parseByPath(homeSource, homePath, knownActions);
         const profileDiagnostic = { code: "format2.zone-profile.layer.role", line: 2, message: "EnterZoneLayer target 'Metronome' must declare Role=Layer", path: homePath, severity: "error" as const };
         const homeDiagnostic = diagnosticWithQuickFixes(home, profileDiagnostic, knownActions, true);
@@ -179,20 +179,20 @@ describe("diagnostic quick fix registry", () => {
         expect(applyQuickFix(homeSource, homePath, knownActions, { diagnostic: profileDiagnostic, fix: homeDiagnostic.fixes![0] }).source).toContain("Button GoZone Metronome");
 
         const metronomePath = "Zones/User/test/Main/Metronome.zon";
-        const metronomeSource = "@Meta { Version=2 }\nBack GoHome\n";
+        const metronomeSource = "@Zone { Version=2 }\nBack GoHome\n";
         const metronome = parseByPath(metronomeSource, metronomePath, knownActions);
         const targetDiagnostic = { code: "format2.zone-profile.layer.role-target", line: 1, message: "Alternative: make Zone 'Metronome' a Layer and use ExitZoneLayer for its exit.", path: metronomePath, severity: "error" as const };
         const metronomeDiagnostic = diagnosticWithQuickFixes(metronome, targetDiagnostic, knownActions, true);
         expect(metronomeDiagnostic.fixes?.map((fix) => fix.label)).toEqual(["Make this Zone a Layer"]);
         const layer = applyQuickFix(metronomeSource, metronomePath, knownActions, { diagnostic: targetDiagnostic, fix: metronomeDiagnostic.fixes![0] });
-        expect(layer.source).toContain("@Meta { Version=2 Role=Layer }");
+        expect(layer.source).toContain("@Zone { Version=2 Role=Layer }");
         expect(layer.source).toContain("Back ExitZoneLayer");
         expect(layer.document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     });
 
     test("offers GoHome when ExitZoneLayer is used outside a layer", () => {
         const relativePath = "Zones/User/test/Main/Metronome.zon";
-        const source = "@Meta { Version=2 }\nBack ExitZoneLayer\n";
+        const source = "@Zone { Version=2 }\nBack ExitZoneLayer\n";
         const document = parseByPath(source, relativePath, knownActions);
         const diagnostic = diagnosticsWithQuickFixes(document, knownActions, true).find((candidate) => candidate.code === "format2.zone.action.layer-only");
         expect(diagnostic?.fixes?.map((fix) => fix.label)).toEqual(["Use GoHome instead"]);
@@ -202,7 +202,7 @@ describe("diagnostic quick fix registry", () => {
     test("offers complete Home and Layer fixes for an ambiguous legacy exit", () => {
         const homePath = "Zones/User/test/Main/Home.zon";
         const targetPath = "Zones/User/test/Main/Metronome.zon";
-        const homeSource = "@Meta { Version=2 Role=Home }\nButton GoZone Metronome\n";
+        const homeSource = "@Zone { Version=2 Role=Home }\nButton GoZone Metronome\n";
         const conversion = convertLegacyZoneToFormat2("Zone Metronome\nBack LeaveSubZone\nZoneEnd\n", { profile: "Main", targetPath });
         const homeDocument = parseByPath(homeSource, homePath, knownActions);
         const targetDocument = parseByPath(conversion.source, targetPath, knownActions);
@@ -217,15 +217,15 @@ describe("diagnostic quick fix registry", () => {
         const layer = applyQuickFixSet([{ path: targetPath, source: conversion.source }, { path: homePath, source: homeSource }], knownActions, { diagnostic, fix: diagnostic.fixes![0] });
         expect(layer.changes.find((change) => change.path === homePath)?.source).toContain("ZoneLayers {\n  Metronome\n}");
         expect(layer.changes.find((change) => change.path === homePath)?.source).toContain("Button EnterZoneLayer Metronome");
-        expect(layer.changes.find((change) => change.path === targetPath)?.source).toContain("@Meta { Version=2 Role=Layer }");
+        expect(layer.changes.find((change) => change.path === targetPath)?.source).toContain("@Zone { Version=2 Role=Layer }");
         expect(layer.changes.find((change) => change.path === targetPath)?.source).toContain("Back ExitZoneLayer");
     });
 
     test("moves a named Bank binding to the Zone that owns its context", () => {
         const sourcePath = "Zones/User/test/Main/LinkLock.zon";
         const destinationPath = "Zones/User/test/Main/SelectedTrackFXMenu.zon";
-        const source = "@Meta { Version=2 Role=Layer }\nPrev Bank SelectedTrackFXMenu -1\n";
-        const destination = "@Meta { Version=2 Target=SelectedTrack BankTarget=FX }\nPlay Play\n";
+        const source = "@Zone { Version=2 Role=Layer }\nPrev Bank SelectedTrackFXMenu -1\n";
+        const destination = "@Zone { Version=2 Target=SelectedTrack BankTarget=FX }\nPlay Play\n";
         const diagnostic = { code: "legacy.zone.bank.context", line: 2, message: "Wrong Bank context", path: sourcePath, severity: "error" as const };
         const sourceDocument = parseByPath(source, sourcePath, knownActions);
         const destinationDocument = parseByPath(destination, destinationPath, knownActions);
@@ -243,8 +243,8 @@ describe("diagnostic quick fix registry", () => {
     test("moves only the Bank binding selected by its diagnostic line", () => {
         const sourcePath = "Zones/User/test/Main/LinkLock.zon";
         const destinationPath = "Zones/User/test/Main/SelectedTrackFXMenu.zon";
-        const source = "@Meta { Version=2 Role=Layer }\nPrev Bank SelectedTrackFXMenu -1\nNext Bank SelectedTrackFXMenu 1\n";
-        const destination = "@Meta { Version=2 Target=SelectedTrack BankTarget=FX }\n";
+        const source = "@Zone { Version=2 Role=Layer }\nPrev Bank SelectedTrackFXMenu -1\nNext Bank SelectedTrackFXMenu 1\n";
+        const destination = "@Zone { Version=2 Target=SelectedTrack BankTarget=FX }\n";
         const diagnostic = { code: "legacy.zone.bank.context", line: 2, message: "Wrong Bank context", path: sourcePath, severity: "error" as const };
         const sourceDocument = parseByPath(source, sourcePath, knownActions);
         const destinationDocument = parseByPath(destination, destinationPath, knownActions);
@@ -273,14 +273,14 @@ describe("diagnostic quick fix registry", () => {
 
     test("moves a legacy named Bank target into format 2 metadata", () => {
         const relativePath = "Zones/User/test/Main/SelectedTrack.zon";
-        const source = "@Meta { Version=2 Target=SelectedTrack }\nPrev Bank SelectedTrackFXMenu -1\nNext Bank SelectedTrackFXMenu 1\n";
+        const source = "@Zone { Version=2 Target=SelectedTrack }\nPrev Bank SelectedTrackFXMenu -1\nNext Bank SelectedTrackFXMenu 1\n";
         const firstDocument = parseByPath(source, relativePath, knownActions);
         const firstDiagnostic = diagnosticsWithQuickFixes(firstDocument, knownActions, true).find((candidate) => candidate.code === "format2.zone.action.bank-amount" && candidate.line === 2)!;
         const firstResult = applyQuickFix(source, relativePath, knownActions, { diagnostic: firstDiagnostic, fix: firstDiagnostic.fixes![0] });
         const secondDiagnostic = diagnosticsWithQuickFixes(firstResult.document, knownActions, true).find((candidate) => candidate.code === "format2.zone.action.bank-amount" && candidate.line === 3)!;
         const secondResult = applyQuickFix(firstResult.source, relativePath, knownActions, { diagnostic: secondDiagnostic, fix: secondDiagnostic.fixes![0] });
 
-        expect(secondResult.source).toBe("@Meta { Version=2 Target=SelectedTrack BankTarget=FX }\nPrev Bank -1\nNext Bank 1\n");
+        expect(secondResult.source).toBe("@Zone { Version=2 Target=SelectedTrack BankTarget=FX }\nPrev Bank -1\nNext Bank 1\n");
         expect(secondResult.document.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     });
 });

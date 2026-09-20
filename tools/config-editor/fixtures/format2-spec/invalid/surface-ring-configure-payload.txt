@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="Invalid ring configuration" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="Invalid ring configuration" }
 
 RingProfile Ring {
   Segments=11

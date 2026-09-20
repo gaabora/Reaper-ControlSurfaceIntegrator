@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=8 Name="XTouchMiniMC" }
+@Surface { Version=2 Protocol=MIDI Channels=8 Name="XTouchMiniMC" }
 
 EncoderProfile RotaryWidgetClass {
   Delta=0.003

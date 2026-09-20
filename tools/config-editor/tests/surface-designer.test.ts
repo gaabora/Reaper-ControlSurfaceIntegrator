@@ -13,7 +13,7 @@ const schemaRecord = (lineType: "Spacer" | "Widget") => {
     return { ...record, properties: Object.fromEntries(record.properties) };
 };
 
-const source = `@Meta { Version=2 Protocol=MIDI Channels=1 Name="Designer test" }
+const source = `@Surface { Version=2 Protocol=MIDI Channels=1 Name="Designer test" }
 // Definition comment
 Widget Fader {
   Input Value { Encoding=MIDI14 Status=0xE0 }

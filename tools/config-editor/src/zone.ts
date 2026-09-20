@@ -107,7 +107,7 @@ function parseFormat2BindingExpression(expression: string): { inputSelectors: st
     }
 }
 
-function parseFormat2Zone(source: string, documentPath?: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema, actionTraits: ReadonlyMap<string, ActionTraits> = new Map()): LosslessDocument<ZoneSemantic> {
+function parseFormat2Zone(source: string, documentPath?: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema, actionTraits: ReadonlyMap<string, ActionTraits> = new Map(), documentHeader = "@Zone"): LosslessDocument<ZoneSemantic> {
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
     const semantic: ZoneSemantic = { bindings: [], dependencies: [], dependencyReferences: [], includedZones: [], modifierDeclarations: [], subZones: [] };
@@ -181,15 +181,15 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         if (!text || line.kind === "comment") continue;
         const delta = braceDelta(text);
         if (!metadataLine) {
-            if (line.tokens[0] !== "@Meta") {
+            if (line.tokens[0] !== documentHeader) {
                 line.kind = "unknown";
-                addDiagnostic(diagnostics, "error", "format2.metadata.required", "The first configuration line must be an @Meta block", line.lineNumber, documentPath);
+                addDiagnostic(diagnostics, "error", "format2.metadata.required", `The first configuration line must be a ${documentHeader} block`, line.lineNumber, documentPath);
                 continue;
             }
             metadataLine = line.lineNumber;
             metadataDepth = delta;
             line.kind = "format";
-            if (!text.includes("{")) addDiagnostic(diagnostics, "error", "format2.metadata.block", "@Meta must start a brace block", line.lineNumber, documentPath);
+            if (!text.includes("{")) addDiagnostic(diagnostics, "error", "format2.metadata.block", `${documentHeader} must start a brace block`, line.lineNumber, documentPath);
             addMetadata(text, line.lineNumber);
             continue;
         }
@@ -305,8 +305,8 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         if (knownActions && !knownActions.has(action)) addDiagnostic(diagnostics, "warning", "zone.action.unknown", `Unknown runtime action: ${action}`, line.lineNumber, documentPath);
     }
 
-    if (!metadataLine) addDiagnostic(diagnostics, "error", "format2.metadata.required", "Format 2 Zone requires @Meta", undefined, documentPath);
-    if (metadataDepth > 0) addDiagnostic(diagnostics, "error", "format2.metadata.unclosed", "@Meta block has no closing brace", metadataLine, documentPath);
+    if (!metadataLine) addDiagnostic(diagnostics, "error", "format2.metadata.required", `This format 2 document requires ${documentHeader}`, undefined, documentPath);
+    if (metadataDepth > 0) addDiagnostic(diagnostics, "error", "format2.metadata.unclosed", `${documentHeader} block has no closing brace`, metadataLine, documentPath);
     if (relation) addDiagnostic(diagnostics, "error", "format2.zone.reference.unclosed", "Zone relation block has no closing brace", undefined, documentPath);
     if (lifecycleDepth > 0) addDiagnostic(diagnostics, "error", "format2.zone.lifecycle.unclosed", "Lifecycle block has no closing brace", undefined, documentPath);
     const modifierNames = new Set<string>();
@@ -330,7 +330,7 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
         else addDiagnostic(diagnostics, "error", "format2.zone.binding.modifier-source", `Unknown or incorrectly cased modifier source: ${binding.modifierSource}`, binding.line, documentPath);
     }
     const version = metadata.get("Version");
-    if (!version || version.value !== "2") addDiagnostic(diagnostics, "error", "format2.metadata.version", "@Meta requires Version=2", version?.line ?? metadataLine, documentPath);
+    if (!version || version.value !== "2") addDiagnostic(diagnostics, "error", "format2.metadata.version", `${documentHeader} requires Version=2`, version?.line ?? metadataLine, documentPath);
     semantic.role = metadata.get("Role")?.value;
     if (semantic.role !== "Layer" || /(?:^|[\\/])FX[\\/]/i.test(documentPath ?? "")) {
         for (const entry of layerActions) addDiagnostic(diagnostics, "error", "format2.zone.action.layer-only", `${entry.action} is valid only in a Main zone with Role=Layer`, entry.line, documentPath);
@@ -347,9 +347,9 @@ function parseFormat2Zone(source: string, documentPath?: string, knownActions?: 
     return { diagnostics, format: "zone", lines, path: documentPath, semantic, source, version: "2" };
 }
 
-export function parseZone(source: string, documentPath?: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema, actionTraits?: ReadonlyMap<string, ActionTraits>): LosslessDocument<ZoneSemantic> {
+export function parseZone(source: string, documentPath?: string, knownActions?: Set<string>, settingsSchema?: SettingsSchema, actionTraits?: ReadonlyMap<string, ActionTraits>, documentHeader = "@Zone"): LosslessDocument<ZoneSemantic> {
     const firstConfigurationLine = splitSourceLines(source).map(analysisText).find((text) => text && !text.startsWith("//"));
-    if (firstConfigurationLine?.replace(/^\uFEFF/, "").startsWith("@Meta")) return parseFormat2Zone(source, documentPath, knownActions, settingsSchema, actionTraits);
+    if (firstConfigurationLine?.replace(/^\uFEFF/, "").startsWith("@")) return parseFormat2Zone(source, documentPath, knownActions, settingsSchema, actionTraits, documentHeader);
     const lines = splitSourceLines(source);
     const diagnostics: Diagnostic[] = [];
     const semantic: ZoneSemantic = { bindings: [], dependencies: [], dependencyReferences: [], includedZones: [], modifierDeclarations: [], subZones: [] };

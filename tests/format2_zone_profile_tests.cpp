@@ -33,50 +33,50 @@ static bool HasLearnFxSurfaceDiagnostic(const Format2LearnFxSurfaceResolveResult
 
 static void TestValidProfile() {
     std::vector<Format2ZoneSource> sources;
-    sources.push_back(ParseSource("@Meta { Version=2 Role=Home }\n\nIncludedZones {\n  Track\n}\nZoneLayers {\n  Pan\n}\nPlay Play\n", "Home.zon"));
-    sources.push_back(ParseSource("@Meta { Version=2 Target=Tracks }\n\nFader# TrackVolume\n", "Track.zon"));
-    sources.push_back(ParseSource("@Meta { Version=2 Role=Layer }\n\nRotary# TrackPan\n", "Pan.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Role=Home }\n\nIncludedZones {\n  Track\n}\nZoneLayers {\n  Pan\n}\nPlay Play\n", "Home.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Target=Tracks }\n\nFader# TrackVolume\n", "Track.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Role=Layer }\n\nRotary# TrackPan\n", "Pan.zon"));
     Require(ResolveFormat2ZoneProfile("test", sources).IsValid(), "valid profile");
 }
 
 static void TestHomeRules() {
-    std::vector<Format2ZoneSource> missingHome = {ParseSource("@Meta { Version=2 Target=Tracks }\n", "Track.zon")};
+    std::vector<Format2ZoneSource> missingHome = {ParseSource("@Zone { Version=2 Target=Tracks }\n", "Track.zon")};
     Require(HasDiagnostic(ResolveFormat2ZoneProfile("test", missingHome), "format2.zone-profile.home.missing"), "missing Home role");
 
-    std::vector<Format2ZoneSource> duplicateHome = {ParseSource("@Meta { Version=2 Role=Home }\n", "Home.zon"), ParseSource("@Meta { Version=2 Role=Home }\n", "Other.zon")};
+    std::vector<Format2ZoneSource> duplicateHome = {ParseSource("@Zone { Version=2 Role=Home }\n", "Home.zon"), ParseSource("@Zone { Version=2 Role=Home }\n", "Other.zon")};
     Require(HasDiagnostic(ResolveFormat2ZoneProfile("test", duplicateHome), "format2.zone-profile.home.duplicate"), "duplicate Home role");
 }
 
 static void TestReferenceRules() {
-    std::vector<Format2ZoneSource> missingReference = {ParseSource("@Meta { Version=2 Role=Home }\n\nIncludedZones { Missing }\n", "Home.zon")};
+    std::vector<Format2ZoneSource> missingReference = {ParseSource("@Zone { Version=2 Role=Home }\n\nIncludedZones { Missing }\n", "Home.zon")};
     Require(HasDiagnostic(ResolveFormat2ZoneProfile("test", missingReference), "format2.zone-profile.reference.missing"), "missing structural reference");
 
-    std::vector<Format2ZoneSource> wrongLayer = {ParseSource("@Meta { Version=2 Role=Home }\n\nZoneLayers { Track }\n", "Home.zon"), ParseSource("@Meta { Version=2 Target=Tracks }\n", "Track.zon")};
+    std::vector<Format2ZoneSource> wrongLayer = {ParseSource("@Zone { Version=2 Role=Home }\n\nZoneLayers { Track }\n", "Home.zon"), ParseSource("@Zone { Version=2 Target=Tracks }\n", "Track.zon")};
     Require(HasDiagnostic(ResolveFormat2ZoneProfile("test", wrongLayer), "format2.zone-profile.layer.role"), "ZoneLayers role");
 
-    std::vector<Format2ZoneSource> includedLayer = {ParseSource("@Meta { Version=2 Role=Home }\n\nIncludedZones { Pan }\n", "Home.zon"), ParseSource("@Meta { Version=2 Role=Layer }\n", "Pan.zon")};
+    std::vector<Format2ZoneSource> includedLayer = {ParseSource("@Zone { Version=2 Role=Home }\n\nIncludedZones { Pan }\n", "Home.zon"), ParseSource("@Zone { Version=2 Role=Layer }\n", "Pan.zon")};
     Require(HasDiagnostic(ResolveFormat2ZoneProfile("test", includedLayer), "format2.zone-profile.included.layer"), "IncludedZones layer rejection");
 }
 
 static void TestStructuralCycle() {
     std::vector<Format2ZoneSource> sources;
-    sources.push_back(ParseSource("@Meta { Version=2 Role=Home }\n\nIncludedZones { Track }\n", "Home.zon"));
-    sources.push_back(ParseSource("@Meta { Version=2 Target=Tracks }\n\nIncludedZones { Home }\n", "Track.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Role=Home }\n\nIncludedZones { Track }\n", "Home.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Target=Tracks }\n\nIncludedZones { Home }\n", "Track.zon"));
     Require(HasDiagnostic(ResolveFormat2ZoneProfile("test", sources), "format2.zone-profile.reference.cycle"), "structural cycle");
 }
 
 static void TestPartiallyInvalidUserOverrideRemainsAvailable() {
     std::vector<Format2ZoneSource> sources;
-    sources.push_back(ParseSource("@Meta { Version=2 Role=Home }\n\nPlay Play\n", "Home.zon"));
-    sources.push_back(ParseSource("@Meta { Version=2 Target=Tracks }\n\nFader# TrackVolume\n", "Track.zon"));
-    sources.push_back(ParseSource("@Meta { Version=2 Target=Tracks }\n\nFader#\n", "Track.zon", Format2ZoneSourceLayer::User));
+    sources.push_back(ParseSource("@Zone { Version=2 Role=Home }\n\nPlay Play\n", "Home.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Target=Tracks }\n\nFader# TrackVolume\n", "Track.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Target=Tracks }\n\nFader#\n", "Track.zon", Format2ZoneSourceLayer::User));
     const Format2ZoneProfileResolveResult result = ResolveFormat2ZoneProfile("test", sources);
     Require(result.IsValid(), "partially invalid User override keeps profile usable");
     for (const Format2ActiveZoneSource& activeZone : result.activeZones) if (activeZone.canonicalId == "track") Require(activeZone.available, "partially invalid User override loads its valid bindings");
 }
 
 static void TestMissingNavigationTarget() {
-    std::vector<Format2ZoneSource> sources = {ParseSource("@Meta { Version=2 Role=Home }\nButtonA GoZone Mixer\n", "Home.zon")};
+    std::vector<Format2ZoneSource> sources = {ParseSource("@Zone { Version=2 Role=Home }\nButtonA GoZone Mixer\n", "Home.zon")};
     const Format2ZoneProfileResolveResult result = ResolveFormat2ZoneProfile("test", sources);
     Require(HasDiagnostic(result, "format2.zone-profile.navigation.missing"), "missing navigation reference");
     for (const Format2ZoneProfileDiagnostic& diagnostic : result.diagnostics) if (diagnostic.code == "format2.zone-profile.navigation.missing") Require(diagnostic.location.line == 2, "navigation diagnostic line");
@@ -84,9 +84,9 @@ static void TestMissingNavigationTarget() {
 
 static void TestNavigationRoleRules() {
     std::vector<Format2ZoneSource> sources;
-    sources.push_back(ParseSource("@Meta { Version=2 Role=Home }\nButtonA GoZone Home\nButtonB GoZone Pan\nButtonC EnterZoneLayer Mixer\nButtonD EnterZoneLayer Pan\n", "Home.zon"));
-    sources.push_back(ParseSource("@Meta { Version=2 Target=Tracks }\nFader# TrackVolume\n", "Mixer.zon"));
-    sources.push_back(ParseSource("@Meta { Version=2 Role=Layer }\nRotary# TrackPan\n", "Pan.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Role=Home }\nButtonA GoZone Home\nButtonB GoZone Pan\nButtonC EnterZoneLayer Mixer\nButtonD EnterZoneLayer Pan\n", "Home.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Target=Tracks }\nFader# TrackVolume\n", "Mixer.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Role=Layer }\nRotary# TrackPan\n", "Pan.zon"));
     const Format2ZoneProfileResolveResult result = ResolveFormat2ZoneProfile("test", sources);
     Require(HasDiagnostic(result, "format2.zone-profile.navigation.home"), "GoZone Home rejection");
     Require(HasDiagnostic(result, "format2.zone-profile.navigation.layer"), "GoZone Layer rejection");
@@ -96,51 +96,51 @@ static void TestNavigationRoleRules() {
 
 static void TestDeclaredLayerNavigation() {
     std::vector<Format2ZoneSource> sources;
-    sources.push_back(ParseSource("@Meta { Version=2 Role=Home }\nZoneLayers {\n Pan\n}\nButtonA EnterZoneLayer Pan\n", "Home.zon"));
-    sources.push_back(ParseSource("@Meta { Version=2 Role=Layer }\nRotary# TrackPan\n", "Pan.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Role=Home }\nZoneLayers {\n Pan\n}\nButtonA EnterZoneLayer Pan\n", "Home.zon"));
+    sources.push_back(ParseSource("@Zone { Version=2 Role=Layer }\nRotary# TrackPan\n", "Pan.zon"));
     Require(ResolveFormat2ZoneProfile("test", sources).IsValid(), "declared layer navigation");
 }
 
 static void TestLayerOnlyAction() {
-    const Format2ZoneParseResult normalZone = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nButtonA ExitZoneLayer\n", "Home.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult normalZone = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Home }\nButtonA ExitZoneLayer\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(HasParseDiagnostic(normalZone, "format2.zone.action.layer-only"), "ExitZoneLayer normal-zone rejection");
 
-    const Format2ZoneParseResult layer = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Layer }\nButtonA ExitZoneLayer\n", "Pan.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult layer = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Layer }\nButtonA ExitZoneLayer\n", "Pan.zon", Format2DocumentKind::MainZone);
     Require(layer.IsValid(), "ExitZoneLayer layer acceptance");
 }
 
 static void TestBankBindingContextOverride() {
-    const Format2ZoneParseResult valid = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Target=Tracks BankTarget=FX }\nLeft Bank -1 Target=SelectedTrack BankTarget=FX\n", "TrackFXMenu.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult valid = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Target=Tracks BankTarget=FX }\nLeft Bank -1 Target=SelectedTrack BankTarget=FX\n", "TrackFXMenu.zon", Format2DocumentKind::MainZone);
     Require(valid.IsValid(), "Bank binding context override acceptance");
 
-    const Format2ZoneParseResult missingPair = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nLeft Bank -1 Target=SelectedTrack\n", "Home.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult missingPair = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Home }\nLeft Bank -1 Target=SelectedTrack\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(HasParseDiagnostic(missingPair, "format2.zone.action.bank-context-pair"), "Bank binding context pair requirement");
 
-    const Format2ZoneParseResult invalidPair = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nLeft Bank -1 Target=MasterTrack BankTarget=Sends\n", "Home.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult invalidPair = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Home }\nLeft Bank -1 Target=MasterTrack BankTarget=Sends\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(HasParseDiagnostic(invalidPair, "format2.zone.action.bank-context"), "Bank binding context compatibility");
 }
 
 static void TestTerminalModifierSource() {
-    const Format2ZoneParseResult parsed = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nLayerB Modifier Option\n(DoublePress)+[Option] ToggleOSK\n", "Home.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult parsed = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Home }\nLayerB Modifier Option\n(DoublePress)+[Option] ToggleOSK\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(parsed.IsValid(), "terminal Modifier source acceptance");
     Require(parsed.zone.bindings.size() == 1, "terminal Modifier source binding count");
     Require(parsed.zone.bindings.front().modifierSource && *parsed.zone.bindings.front().modifierSource == "Option", "terminal Modifier source name");
     Require(parsed.zone.bindings.front().widget.baseName == "LayerB", "terminal Modifier source Widget resolution");
 
-    const Format2ZoneParseResult unknown = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\n(DoublePress)+[Fine] ToggleOSK\n", "Home.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult unknown = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Home }\n(DoublePress)+[Fine] ToggleOSK\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(HasParseDiagnostic(unknown, "format2.zone.binding.modifier-source"), "unknown terminal Modifier source rejection");
 }
 
 static void TestModifierBlink() {
-    const Format2ZoneParseResult defaultBlink = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink\n", "Home.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult defaultBlink = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Home }\nSection Modifier Nudge Blink\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(defaultBlink.IsValid(), "Modifier default Blink parse");
     Require(defaultBlink.zone.modifiers.size() == 1 && defaultBlink.zone.modifiers[0].blink && defaultBlink.zone.modifiers[0].blinkIntervalMs == -1, "Modifier default Blink values");
 
-    const Format2ZoneParseResult explicitBlink = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=750\n", "Home.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult explicitBlink = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Home }\nSection Modifier Nudge Blink=750\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(explicitBlink.IsValid(), "Modifier explicit Blink parse");
     Require(explicitBlink.zone.modifiers.size() == 1 && explicitBlink.zone.modifiers[0].blink && explicitBlink.zone.modifiers[0].blinkIntervalMs == 750, "Modifier explicit Blink values");
 
-    const Format2ZoneParseResult invalidBlink = ParseFormat2ZoneDocumentSource("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=fast\n", "Home.zon", Format2DocumentKind::MainZone);
+    const Format2ZoneParseResult invalidBlink = ParseFormat2ZoneDocumentSource("@Zone { Version=2 Role=Home }\nSection Modifier Nudge Blink=fast\n", "Home.zon", Format2DocumentKind::MainZone);
     Require(HasParseDiagnostic(invalidBlink, "format2.zone.modifier.blink"), "invalid Modifier Blink interval");
 }
 
@@ -161,7 +161,7 @@ static void TestProfileLoader() {
 }
 
 static void TestLearnFxSurfaceResolution() {
-    const Format2LearnFxParseResult learnFx = ParseFormat2LearnFxDocumentSource("@Meta { Version=2 }\nFXWidgets {\n Parameter Rotary#\n NameDisplay Name#\n ValueDisplay Value#\n}\n", "LearnFX.fxzon");
+    const Format2LearnFxParseResult learnFx = ParseFormat2LearnFxDocumentSource("@LearnFX { Version=2 }\nFXWidgets {\n Parameter Rotary#\n NameDisplay Name#\n ValueDisplay Value#\n}\n", "LearnFX.fxzon");
     Format2SurfaceParseResult surface;
     surface.document.metadata.channels = 2;
     surface.surface.widgets = {
@@ -175,7 +175,7 @@ static void TestLearnFxSurfaceResolution() {
 }
 
 static void TestLearnFxSurfaceErrors() {
-    const Format2LearnFxParseResult learnFx = ParseFormat2LearnFxDocumentSource("@Meta { Version=2 }\nFXWidgets {\n Parameter Fader#\n ValueDisplay Fader1\n}\n", "LearnFX.fxzon");
+    const Format2LearnFxParseResult learnFx = ParseFormat2LearnFxDocumentSource("@LearnFX { Version=2 }\nFXWidgets {\n Parameter Fader#\n ValueDisplay Fader1\n}\n", "LearnFX.fxzon");
     Format2SurfaceParseResult surface;
     surface.document.metadata.channels = 2;
     surface.surface.widgets = {{"Fader1", {}, {}, 1, {Format2Capability::Absolute}, {}}};
@@ -187,58 +187,58 @@ static void TestLearnFxSurfaceErrors() {
 }
 
 static void TestExactWidgetSourceEdit() {
-    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play Play", "Stop Stop"};
+    const std::vector<std::string> source = {"@Zone { Version=2 Role=Home }", "", "Play Play", "Stop Stop"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {"[Shift]+Play Reaper 40044"});
     Require(result.success, "exact Widget source edit");
-    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "[Shift]+Play Reaper 40044", "Stop Stop"}), "exact Widget replacement");
+    Require(result.lines == std::vector<std::string>({"@Zone { Version=2 Role=Home }", "", "[Shift]+Play Reaper 40044", "Stop Stop"}), "exact Widget replacement");
 }
 
 static void TestChannelFamilySourceEdit() {
-    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Fader# TrackVolume", "Play Play"};
+    const std::vector<std::string> source = {"@Zone { Version=2 Role=Home }", "", "Fader# TrackVolume", "Play Play"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Fader2", 8, {"Fader2 TrackPan"});
     Require(result.success, "channel-family source edit");
     Require(result.editedChannelFamily, "channel-family edit status");
     Require(result.channelFamilyBaseName == "Fader", "channel-family edit base name");
     Require(result.parsed.zone.bindings.size() == 2, "channel-family edited document parse result");
-    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "Fader# TrackPan", "Play Play"}), "channel-family mapping remains one unit");
+    Require(result.lines == std::vector<std::string>({"@Zone { Version=2 Role=Home }", "", "Fader# TrackPan", "Play Play"}), "channel-family mapping remains one unit");
 }
 
 static void TestMixedWidgetSourceEditRejection() {
-    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Fader# TrackVolume", "Fader2 TrackPan"};
+    const std::vector<std::string> source = {"@Zone { Version=2 Role=Home }", "", "Fader# TrackVolume", "Fader2 TrackPan"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Fader2", 8, {"Fader2 TrackPanWidth"});
     Require(!result.success, "mixed exact and family Widget edit rejection");
 }
 
 static void TestWidgetSourceEditPreservesComment() {
-    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play FixedTextDisplay \"a \\\"quoted\\\" // value\" // transport", "Stop Stop"};
+    const std::vector<std::string> source = {"@Zone { Version=2 Role=Home }", "", "Play FixedTextDisplay \"a \\\"quoted\\\" // value\" // transport", "Stop Stop"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {"Play Reaper 40044"});
     Require(result.success, "Widget source edit with inline comment");
-    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "Play Reaper 40044 // transport", "Stop Stop"}), "Widget source comment preservation");
+    Require(result.lines == std::vector<std::string>({"@Zone { Version=2 Role=Home }", "", "Play Reaper 40044 // transport", "Stop Stop"}), "Widget source comment preservation");
 }
 
 static void TestWidgetSourceEditRemovesBindings() {
-    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play Play", "Stop Stop"};
+    const std::vector<std::string> source = {"@Zone { Version=2 Role=Home }", "", "Play Play", "Stop Stop"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {});
     Require(result.success, "Widget source binding removal");
-    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "Stop Stop"}), "Widget source binding removal result");
+    Require(result.lines == std::vector<std::string>({"@Zone { Version=2 Role=Home }", "", "Stop Stop"}), "Widget source binding removal result");
 }
 
 static void TestInvalidWidgetSourceEditRejection() {
-    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Play Play"};
+    const std::vector<std::string> source = {"@Zone { Version=2 Role=Home }", "", "Play Play"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Play", 1, {"Play"});
     Require(!result.success, "invalid Widget source edit rejection");
     Require(result.lines.empty(), "invalid Widget source edit does not return writable lines");
 }
 
 static void TestModifierSourceEdit() {
-    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "ShiftButton Modifier Shift", "Stop Stop"};
+    const std::vector<std::string> source = {"@Zone { Version=2 Role=Home }", "", "ShiftButton Modifier Shift", "Stop Stop"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "ShiftButton", 1, {"ShiftButton Modifier Shift Mode=Momentary"});
     Require(result.success, "Modifier source edit");
-    Require(result.lines == std::vector<std::string>({"@Meta { Version=2 Role=Home }", "", "ShiftButton Modifier Shift Mode=Momentary", "Stop Stop"}), "Modifier source replacement");
+    Require(result.lines == std::vector<std::string>({"@Zone { Version=2 Role=Home }", "", "ShiftButton Modifier Shift Mode=Momentary", "Stop Stop"}), "Modifier source replacement");
 }
 
 static void TestModifierAndChannelFamilySourceEditRejection() {
-    const std::vector<std::string> source = {"@Meta { Version=2 Role=Home }", "", "Fader# TrackVolume", "Fader2 Modifier Shift"};
+    const std::vector<std::string> source = {"@Zone { Version=2 Role=Home }", "", "Fader# TrackVolume", "Fader2 Modifier Shift"};
     const Format2ZoneWidgetEditResult result = EditFormat2ZoneWidgetSource("Home.zon", source, "Fader2", 8, {"Fader2 TrackPan"});
     Require(!result.success, "exact Modifier and channel-family source edit rejection");
 }

@@ -9,9 +9,9 @@ import { ConfigurationStore } from "../src/store.ts";
 
 const identity: EditorProductIdentity = { configFilename: "TestProduct.conf", displayName: "Test Product", packagePrefix: "TestProduct", productId: "test-product", resourceDirectory: "TestProduct" };
 const knownActions = new Set(["Play", "Record", "Stop"]);
-const snippetSource = "@Meta { Version=2 Name=Transport }\n\nplay Play\nstop Stop\n";
-const surfaceSource = "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5e,0x7f] Off=[0x90,0x5e,0x00] }\n}\nWidget Stop {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5d,0x7f] Off=[0x90,0x5d,0x00] }\n}\nWidget Record {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5c,0x7f] Off=[0x90,0x5c,0x00] }\n}\nWidget Rotary {\n  Input Encoder { Encoding=MIDI7 Message=[0xb0,0x10] Mode=Relative7Bit }\n}\n";
-const zoneSource = "@Meta { Version=2 Role=Home }\n\nRecord Record\n";
+const snippetSource = "@Snippet { Version=2 Name=Transport }\n\nplay Play\nstop Stop\n";
+const surfaceSource = "@Surface { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5e,0x7f] Off=[0x90,0x5e,0x00] }\n}\nWidget Stop {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5d,0x7f] Off=[0x90,0x5d,0x00] }\n}\nWidget Record {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5c,0x7f] Off=[0x90,0x5c,0x00] }\n}\nWidget Rotary {\n  Input Encoder { Encoding=MIDI7 Message=[0xb0,0x10] Mode=Relative7Bit }\n}\n";
+const zoneSource = "@Zone { Version=2 Role=Home }\n\nRecord Record\n";
 const snippetPath = "Snippets/BuiltIn/transport.snippet";
 const surfacePath = "Surfaces/Vendor/test-surface.txt";
 const targetZonePath = "Zones/User/test-profile/Main/Home.zon";
@@ -61,7 +61,7 @@ describe("format 2 snippet workflow", () => {
     });
 
     test("does not automatically map an exact Widget with incompatible input", async () => {
-        await writeFile(path.join(productRoot, snippetPath), "@Meta { Version=2 }\n\n(Increase)+Play Play\n", "utf8");
+        await writeFile(path.join(productRoot, snippetPath), "@Snippet { Version=2 }\n\n(Increase)+Play Play\n", "utf8");
         const preview = await previewSnippetApplication(await createStore(), knownActions, applicationRequest());
         expect(preview.valid).toBeFalse();
         expect(preview.bindings[0].automatic).toBeFalse();

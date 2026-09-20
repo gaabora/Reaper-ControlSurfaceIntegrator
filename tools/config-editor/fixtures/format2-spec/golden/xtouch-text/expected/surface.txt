@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=2 Name="X-Touch" }
+@Surface { Version=2 Protocol=MIDI Channels=2 Name="X-Touch" }
 
 TextProfile Display7 {
   Encoding=ASCII7

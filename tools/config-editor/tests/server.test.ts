@@ -38,7 +38,7 @@ describe("local editor server", () => {
             const selected = await fetch(new URL("/api/select-data-path", running.url), { body: JSON.stringify({ path: dataRoot }), headers, method: "POST" });
             expect(selected.status).toBe(200);
             const saved = await fetch(new URL("/api/legacy/draft", running.url), {
-                body: JSON.stringify({ generatedResult: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n", originalSource, originalSourceHash, originalTargetPath: "Surfaces/User/legacysurface.txt", resultDraft: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {}\n", sourceDraft: originalSource + "// source edit\n", sourcePath: "Surfaces/LegacySurface/Surface.txt", stage: "result", surfaceName: "LegacySurface", targetPath: "Surfaces/User/legacysurface.txt", targetProfileId: "legacysurface" }),
+                body: JSON.stringify({ generatedResult: "@Surface { Version=2 Protocol=MIDI Channels=1 }\n", originalSource, originalSourceHash, originalTargetPath: "Surfaces/User/legacysurface.txt", resultDraft: "@Surface { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {}\n", sourceDraft: originalSource + "// source edit\n", sourcePath: "Surfaces/LegacySurface/Surface.txt", stage: "result", surfaceName: "LegacySurface", targetPath: "Surfaces/User/legacysurface.txt", targetProfileId: "legacysurface" }),
                 headers,
                 method: "POST",
             });
@@ -48,7 +48,7 @@ describe("local editor server", () => {
             expect(restored.status).toBe(200);
             const restoredPayload = await restored.json();
             expect(restoredPayload.draftFolder).toBe(path.join(os.tmpdir(), "test-product-legacy-import-conf-editor", "drafts"));
-            expect(restoredPayload.drafts).toEqual([{ generatedResult: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n", originalSourceHash, originalTargetPath: "Surfaces/User/legacysurface.txt", resultDraft: "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {}\n", sourceDraft: originalSource + "// source edit\n", sourcePath: "Surfaces/LegacySurface/Surface.txt", stage: "result", targetPath: "Surfaces/User/legacysurface.txt" }]);
+            expect(restoredPayload.drafts).toEqual([{ generatedResult: "@Surface { Version=2 Protocol=MIDI Channels=1 }\n", originalSourceHash, originalTargetPath: "Surfaces/User/legacysurface.txt", resultDraft: "@Surface { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {}\n", sourceDraft: originalSource + "// source edit\n", sourcePath: "Surfaces/LegacySurface/Surface.txt", stage: "result", targetPath: "Surfaces/User/legacysurface.txt" }]);
         } finally {
             running.server.stop(true);
             if (temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}config-editor-server-legacy-draft-`)) await rm(temporaryRoot, { force: true, recursive: true });
@@ -93,9 +93,9 @@ describe("local editor server", () => {
         await mkdir(path.dirname(zonePath), { recursive: true });
         await mkdir(path.dirname(legacySurfacePath), { recursive: true });
         await writeFile(path.join(productRoot, identity.configFilename), "Device test {\n  Type=MIDI\n  Input=0\n  Output=0\n}\n\nPage Home {\n  Surface test {\n    Device=test\n    Template=test-surface\n    MainProfile=test-profile\n    FXProfile=test-profile\n  }\n}\n", "utf8");
-        await writeFile(snippetPath, "@Meta { Version=2 Name=Transport }\n\nPlay Play\n", "utf8");
-        await writeFile(surfacePath, "@Meta { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5e,0x7f] Off=[0x90,0x5e,0x00] }\n}\n", "utf8");
-        await writeFile(zonePath, "@Meta { Version=2 Role=Home }\n\nPlay Play\n", "utf8");
+        await writeFile(snippetPath, "@Snippet { Version=2 Name=Transport }\n\nPlay Play\n", "utf8");
+        await writeFile(surfacePath, "@Surface { Version=2 Protocol=MIDI Channels=1 }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[0x90,0x5e,0x7f] Off=[0x90,0x5e,0x00] }\n}\n", "utf8");
+        await writeFile(zonePath, "@Zone { Version=2 Role=Home }\n\nPlay Play\n", "utf8");
         await writeFile(legacySurfacePath, "Widget Play\n  Press 90 5e 7f 90 5e 00\nWidgetEnd\n", "utf8");
         const running = startEditorServer({ actions, candidates: [], editorJavascript, identity, settingsSchema, surfaceIoSchema });
         const headers = { "Content-Type": "application/json", "X-Session-Token": running.token };

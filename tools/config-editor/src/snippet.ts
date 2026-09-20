@@ -47,7 +47,7 @@ function appendBinding(bindings: Map<string, SnippetBinding>, binding: ZoneBindi
 }
 
 export function parseSnippet(source: string, documentPath?: string, knownActions?: Set<string>): LosslessDocument<SnippetSemantic> {
-    const zoneDocument = parseZone(source, documentPath, knownActions);
+    const zoneDocument = parseZone(source, documentPath, knownActions, undefined, undefined, "@Snippet");
     const zoneSemantic = zoneDocument.semantic as ZoneSemantic;
     zoneDocument.diagnostics = zoneDocument.diagnostics.filter((diagnostic) => diagnostic.code !== "format2.zone.action.layer-only");
     const metadataSource = zoneDocument.lines.filter((line) => line.kind === "format" || line.kind === "block-end").map((line) => line.text).join(" ");

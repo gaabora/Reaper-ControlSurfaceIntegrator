@@ -1,4 +1,4 @@
-@Meta { Version=2 Target=Tracks }
+@Zone { Version=2 Target=Tracks }
 
 // old comment
 Fader# TrackVolume Range=[0.0, 1.0] AccelerationDeltas=[0.005, 0.02]

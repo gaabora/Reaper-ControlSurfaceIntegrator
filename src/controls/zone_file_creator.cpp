@@ -243,7 +243,7 @@ ZoneFileCreateResult ZoneFileCreator::Create(ZoneManager* zoneManager, const Zon
             result.message = "Zone destination escapes the user profile";
             return result;
         }
-        string source = "@Meta { Version=2 " + metadata;
+        string source = "@Zone { Version=2 " + metadata;
         if (!request.alias.empty()) source += " Alias=\"" + request.alias + "\"";
         source += " }\n";
         if (!ZoneFileCreator::ValidateCandidate(*profileId, targetPath, isFx, source, result.message)) return result;

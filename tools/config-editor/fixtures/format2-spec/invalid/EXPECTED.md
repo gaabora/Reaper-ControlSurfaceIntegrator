@@ -18,4 +18,4 @@
 - `LearnFX.fxzon`: reject the removed free Widget wildcard syntax in `FXWidgets`.
 - `learnfx-body/LearnFX.fxzon`: require a Parameter entry and reject a modifier declaration inside GeneratedBindings.
 - `semantic-wrapper.snippet`: reject the removed semantic Slot wrapper.
-- `single-slash-comment.zon`: interpret as a Main zone and reject data before `@Meta`; offer the legacy-import comment conversion only in import mode.
+- `single-slash-comment.zon`: interpret as a Main zone and reject data before `@Zone`; offer the legacy-import comment conversion only in import mode.

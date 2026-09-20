@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=OSC Channels=1 Name="Imported OSC Surface" }
+@Surface { Version=2 Protocol=OSC Channels=1 Name="Imported OSC Surface" }
 
 ValueProfile X32FaderCurve {
   InputUnit=Normalized

@@ -30,7 +30,7 @@ export function parseLearnFx(source: string, documentPath?: string): LosslessDoc
         const text = initializeLine(line);
         if (!text || line.kind === "comment") continue;
         const delta = braceDelta(text);
-        if (!metadataFound && line.tokens[0] === "@Meta") {
+        if (!metadataFound && line.tokens[0] === "@LearnFX") {
             metadataFound = true;
             line.kind = "format";
             if (!/(?:^|\s)Version=2(?=\s|})/.test(text)) addDiagnostic(diagnostics, "error", "format2.learn-fx.version", "LearnFX.fxzon requires Version=2.", line.lineNumber, documentPath);
@@ -71,7 +71,7 @@ export function parseLearnFx(source: string, documentPath?: string): LosslessDoc
         line.kind = "unknown";
         addDiagnostic(diagnostics, "error", "format2.learn-fx.block", `Unknown Learn FX line: ${text}`, line.lineNumber, documentPath);
     }
-    if (!metadataFound) addDiagnostic(diagnostics, "error", "format2.learn-fx.metadata", "LearnFX.fxzon requires @Meta { Version=2 }.", undefined, documentPath);
+    if (!metadataFound) addDiagnostic(diagnostics, "error", "format2.learn-fx.metadata", "LearnFX.fxzon requires @LearnFX { Version=2 }.", undefined, documentPath);
     if (documentPath && documentPath.replaceAll("\\", "/").split("/").at(-1) !== "LearnFX.fxzon") addDiagnostic(diagnostics, "error", "format2.learn-fx.filename", "A Learn FX document must use the exact filename LearnFX.fxzon.", undefined, documentPath);
     if (!fxWidgetsFound) addDiagnostic(diagnostics, "error", "format2.learn-fx.widgets.required", "LearnFX.fxzon requires one FXWidgets block.", undefined, documentPath);
     if (!widgets.some((widget) => widget.role === "Parameter")) addDiagnostic(diagnostics, "error", "format2.learn-fx.parameter.required", "FXWidgets requires at least one Parameter entry.", undefined, documentPath);

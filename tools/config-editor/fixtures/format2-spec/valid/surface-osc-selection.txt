@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=OSC Channels=2 Name="Shared selection feedback" }
+@Surface { Version=2 Protocol=OSC Channels=2 Name="Shared selection feedback" }
 
 Widget Select1 {
   Input Press { Encoding=OSCInt Address="/-stat/selidx/00" Match=Any }

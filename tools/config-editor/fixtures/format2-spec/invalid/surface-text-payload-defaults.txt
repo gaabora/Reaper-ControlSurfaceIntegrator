@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="Missing text payload defaults" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="Missing text payload defaults" }
 
 TextProfile DynamicText {
   Encoding=ASCII7

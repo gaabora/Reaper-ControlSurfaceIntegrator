@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPortV2" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="FaderPortV2" }
 // MUST be in Studio One mode (hold Next when power on, then press Solo)
 
 EncoderProfile RotaryWidgetClass {

@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="Invalid MIDI character range" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="Invalid MIDI character range" }
 
 TextProfile TenCharacters {
   Encoding=ASCII7

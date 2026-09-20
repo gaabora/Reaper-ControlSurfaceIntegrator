@@ -20,12 +20,23 @@ async function fixturePaths(group: "invalid" | "valid"): Promise<string[]> {
 }
 
 describe("configuration formats", () => {
+    test("requires the explicit header for each format 2 document type", () => {
+        const cases = [
+            ["@Zone { Version=2 }\nPlay Play\n", "Home.zon", "@Zone"],
+            ["@Surface { Version=2 Protocol=MIDI Channels=1 }\nWidget Play {}\n", "Surface.txt", "@Surface"],
+            ["@LearnFX { Version=2 }\nFXWidgets {\n  Parameter Fader\n}\n", "LearnFX.fxzon", "@LearnFX"],
+            ["@Snippet { Version=2 }\nPlay Play\n", "transport.snippet", "@Snippet"],
+        ] as const;
+        for (const [source, filePath] of cases) expect(parseByPath(source, filePath).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+        for (const [, filePath, expectedHeader] of cases) expect(parseByPath("@Meta { Version=2 }\n", filePath).diagnostics.some((diagnostic) => diagnostic.severity === "error" && diagnostic.message.includes(expectedHeader))).toBeTrue();
+    });
+
     test("validates Learn FX selectors against Surface channels and capabilities", () => {
-        const surface = parseByPath('@Meta { Version=2 Protocol=MIDI Channels=2 Name="Learn surface" }\nWidget Fader1 {\n  Input Value { Encoding=MIDI7 Message=[ 0xB0, 0x10 ] }\n}\nWidget Fader2 {\n  Input Value { Encoding=MIDI7 Message=[ 0xB0, 0x11 ] }\n}\nWidget Display1 {\n  Feedback Text { Encoding=MIDISysEx Prefix=[ 0xF0 ] Suffix=[ 0xF7 ] }\n}\nWidget Display2 {\n  Feedback Text { Encoding=MIDISysEx Prefix=[ 0xF0 ] Suffix=[ 0xF7 ] }\n}\n', "/config/Surfaces/User/test.txt");
-        const valid = parseByPath("@Meta { Version=2 }\nFXWidgets {\n  Parameter Fader#\n  NameDisplay Display#\n}\n", "/config/Zones/User/test/LearnFX.fxzon");
+        const surface = parseByPath('@Surface { Version=2 Protocol=MIDI Channels=2 Name="Learn surface" }\nWidget Fader1 {\n  Input Value { Encoding=MIDI7 Message=[ 0xB0, 0x10 ] }\n}\nWidget Fader2 {\n  Input Value { Encoding=MIDI7 Message=[ 0xB0, 0x11 ] }\n}\nWidget Display1 {\n  Feedback Text { Encoding=MIDISysEx Prefix=[ 0xF0 ] Suffix=[ 0xF7 ] }\n}\nWidget Display2 {\n  Feedback Text { Encoding=MIDISysEx Prefix=[ 0xF0 ] Suffix=[ 0xF7 ] }\n}\n', "/config/Surfaces/User/test.txt");
+        const valid = parseByPath("@LearnFX { Version=2 }\nFXWidgets {\n  Parameter Fader#\n  NameDisplay Display#\n}\n", "/config/Zones/User/test/LearnFX.fxzon");
         expect(validateLearnFxSurface(valid, surface)).toEqual([]);
 
-        const invalid = parseByPath("@Meta { Version=2 }\nFXWidgets {\n  Parameter Missing#\n  ValueDisplay Fader1\n}\n", "/config/Zones/User/test/LearnFX.fxzon");
+        const invalid = parseByPath("@LearnFX { Version=2 }\nFXWidgets {\n  Parameter Missing#\n  ValueDisplay Fader1\n}\n", "/config/Zones/User/test/LearnFX.fxzon");
         const diagnostics = validateLearnFxSurface(invalid, surface);
         expect(diagnostics).toContainEqual(expect.objectContaining({ code: "format2.learn-fx.surface.widget.missing", line: 3, message: expect.stringContaining("Fader#") }));
         expect(diagnostics).toContainEqual(expect.objectContaining({ code: "format2.learn-fx.surface.widget.capability", line: 4, message: expect.stringContaining("Display1") }));
@@ -66,7 +77,7 @@ describe("configuration formats", () => {
     });
 
     test("parses format 2 Zone metadata, selectors, bindings, and references without changing source", () => {
-        const source = "// keep this comment\n@Meta { Version=2 Role=Home Alias=\"Home controls\" }\n\nIncludedZones { Channel }\n[Shift]+(Hold)+Play GoZone Mixer DelayMs=1000\n";
+        const source = "// keep this comment\n@Zone { Version=2 Role=Home Alias=\"Home controls\" }\n\nIncludedZones { Channel }\n[Shift]+(Hold)+Play GoZone Mixer DelayMs=1000\n";
         const document = parseByPath(source, "/config/Zones/User/test/Main/Home.zon", new Set(["GoZone"]));
         const semantic = document.semantic as { alias?: string; bindings: Array<{ action: string; modifiers: string[]; widget: string }>; dependencies: string[]; name?: string; role?: string };
         expect(serializeDocument(document)).toBe(source);
@@ -77,7 +88,7 @@ describe("configuration formats", () => {
     });
 
     test("parses a Learn FX profile document without changing source", () => {
-        const source = "@Meta { Version=2 }\n\nFXWidgets {\n  Parameter Fader#\n  ValueDisplay DisplayLower#\n}\n\nGeneratedBindings {\n  On ZoneDeactivation {\n    HideFXSlot\n  }\n}\n";
+        const source = "@LearnFX { Version=2 }\n\nFXWidgets {\n  Parameter Fader#\n  ValueDisplay DisplayLower#\n}\n\nGeneratedBindings {\n  On ZoneDeactivation {\n    HideFXSlot\n  }\n}\n";
         const document = parseByPath(source, "/config/Zones/User/test/LearnFX.fxzon");
         expect(serializeDocument(document)).toBe(source);
         expect(document.format).toBe("learn-fx");
@@ -105,7 +116,7 @@ describe("configuration formats", () => {
     test("uses shared action traits for format 2 gesture diagnostics", async () => {
         const catalog = await loadActionCatalog(repositoryRoot);
         const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
-        const source = "@Meta { Version=2 Role=Home }\n(Press)+Play GoHome RunCount=2\n(Hold)+Play Play DelayMs=1000\n";
+        const source = "@Zone { Version=2 Role=Home }\n(Press)+Play GoHome RunCount=2\n(Hold)+Play Play DelayMs=1000\n";
         const document = parseByPath(source, "/config/Zones/User/test/Main/Home.zon", actionNameSet(catalog), settingsSchema, actionTraitsByName(catalog));
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.context-run-count", line: 2, severity: "error" }));
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.unreachable", line: 2, severity: "error" }));
@@ -118,11 +129,11 @@ describe("configuration formats", () => {
         const actionTraits = actionTraitsByName(catalog);
         const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
         const config = parseByPath("Settings {\n  DefaultButtonTrigger=Tap\n  DoublePressPolicy=Exclusive\n}\nDevice dev {\n  Type=MIDI\n  Input=0\n  Output=0\n  Settings {\n    DefaultButtonTrigger=Press\n    DoublePressPolicy=Additive\n  }\n}\nPage Home {\n  Surface main {\n    Device=dev\n    Template=testsurface\n    MainProfile=testprofile\n  }\n}\n", "/config/ReaControlSurface.conf", knownActions, settingsSchema, actionTraits);
-        const surface = parseByPath("@Meta { Version=2 Protocol=MIDI Channels=1 }\nWidget Play1 {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
-        const duplicateZone = parseByPath("@Meta { Version=2 Role=Home }\nPlay# Play\n(Press)+Play1 Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const surface = parseByPath("@Surface { Version=2 Protocol=MIDI Channels=1 }\nWidget Play1 {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
+        const duplicateZone = parseByPath("@Zone { Version=2 Role=Home }\nPlay# Play\n(Press)+Play1 Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
         const duplicateDiagnostics = validateDocumentSet([config, surface, duplicateZone], { actionTraits, settingsSchema });
         expect(duplicateDiagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.action.duplicate", severity: "warning" }));
-        const policyZone = parseByPath("@Meta { Version=2 Role=Home }\n(Tap)+Play# GoHome\n(DoublePress)+Play# Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const policyZone = parseByPath("@Zone { Version=2 Role=Home }\n(Tap)+Play# GoHome\n(DoublePress)+Play# Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
         const policyDiagnostics = validateDocumentSet([config, surface, policyZone], { actionTraits, settingsSchema });
         expect(policyDiagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.unreachable", line: 2, severity: "error" }));
     });
@@ -141,15 +152,15 @@ describe("configuration formats", () => {
         const knownActions = actionNameSet(catalog);
         const actionTraits = actionTraitsByName(catalog);
         const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
-        const document = parseByPath("@Meta { Version=2 Role=Home }\nShiftButton Modifier Shift Mode=Latch\n(Press)+ShiftButton Play\n", "/config/Zones/User/test/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const document = parseByPath("@Zone { Version=2 Role=Home }\nShiftButton Modifier Shift Mode=Latch\n(Press)+ShiftButton Play\n", "/config/Zones/User/test/Main/Home.zon", knownActions, settingsSchema, actionTraits);
         expect(document.diagnostics).not.toContainEqual(expect.objectContaining({ code: "zone.action.unknown", line: 2 }));
         expect(document.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.gesture.additive", line: 2, severity: "warning" }));
     });
 
     test("accepts modifier blinking with the default or an explicit interval", () => {
-        const defaultBlink = parseByPath("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=Active\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
-        const explicitBlink = parseByPath("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=Active Animation=BlinkSlow\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
-        const invalidBlink = parseByPath("@Meta { Version=2 Role=Home }\nSection Modifier Nudge Blink=fast\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
+        const defaultBlink = parseByPath("@Zone { Version=2 Role=Home }\nSection Modifier Nudge Blink=Active\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
+        const explicitBlink = parseByPath("@Zone { Version=2 Role=Home }\nSection Modifier Nudge Blink=Active Animation=BlinkSlow\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
+        const invalidBlink = parseByPath("@Zone { Version=2 Role=Home }\nSection Modifier Nudge Blink=fast\n", "/config/Zones/User/test/Main/Home.zon", new Set(["Nudge"]));
 
         expect(defaultBlink.diagnostics.some((diagnostic) => diagnostic.code.startsWith("format2.zone.modifier."))).toBeFalse();
         expect(explicitBlink.diagnostics.some((diagnostic) => diagnostic.code.startsWith("format2.zone.modifier."))).toBeFalse();
@@ -162,8 +173,8 @@ describe("configuration formats", () => {
         const actionTraits = actionTraitsByName(catalog);
         const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
         const config = parseByPath("Device dev {\n  Type=MIDI\n  Input=0\n  Output=0\n}\nPage Home {\n  Surface main {\n    Device=dev\n    Template=testsurface\n    MainProfile=testprofile\n  }\n}\n", "/config/ReaControlSurface.conf", knownActions, settingsSchema, actionTraits);
-        const surface = parseByPath("@Meta { Version=2 Protocol=MIDI Channels=1 }\nWidget ShiftButton {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x46, 0x7F ] Off=[ 0x90, 0x46, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
-        const zone = parseByPath("@Meta { Version=2 Role=Home }\nShiftButton Modifier Shift Mode=Momentary\n(Hold)+ShiftButton Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const surface = parseByPath("@Surface { Version=2 Protocol=MIDI Channels=1 }\nWidget ShiftButton {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x46, 0x7F ] Off=[ 0x90, 0x46, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
+        const zone = parseByPath("@Zone { Version=2 Role=Home }\nShiftButton Modifier Shift Mode=Momentary\n(Hold)+ShiftButton Play\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
         const diagnostics = validateDocumentSet([config, surface, zone], { actionTraits, settingsSchema });
         expect(diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.runtime.modifier-hold", line: 3, severity: "error" }));
     });
@@ -174,8 +185,8 @@ describe("configuration formats", () => {
         const actionTraits = actionTraitsByName(catalog);
         const settingsSchema = await loadSettingsSchema(path.join(repositoryRoot, "Scripts", "settings_schema.conf"));
         const config = parseByPath("Device dev {\n  Type=MIDI\n  Input=0\n  Output=0\n}\nPage Home {\n  Surface main {\n    Device=dev\n    Template=testsurface\n    MainProfile=testprofile\n  }\n}\n", "/config/ReaControlSurface.conf", knownActions, settingsSchema, actionTraits);
-        const surface = parseByPath("@Meta { Version=2 Protocol=MIDI Channels=1 }\nWidget LayerB {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x01, 0x7F ] Off=[ 0x90, 0x01, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
-        const zone = parseByPath("@Meta { Version=2 Role=Home }\nLayerB Modifier Option\n(DoublePress)+[Option] ToggleOSK\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
+        const surface = parseByPath("@Surface { Version=2 Protocol=MIDI Channels=1 }\nWidget LayerB {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x01, 0x7F ] Off=[ 0x90, 0x01, 0x00 ] }\n}\n", "/config/Surfaces/Vendor/testsurface.txt", knownActions, settingsSchema, actionTraits);
+        const zone = parseByPath("@Zone { Version=2 Role=Home }\nLayerB Modifier Option\n(DoublePress)+[Option] ToggleOSK\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions, settingsSchema, actionTraits);
         const diagnostics = validateDocumentSet([config, surface, zone], { actionTraits, settingsSchema });
 
         expect((zone.semantic as { bindings: Array<{ widget: string }> }).bindings[0].widget).toBe("LayerB");
@@ -186,7 +197,7 @@ describe("configuration formats", () => {
     test("reports an unknown terminal modifier source", async () => {
         const catalog = await loadActionCatalog(repositoryRoot);
         const knownActions = actionNameSet(catalog);
-        const zone = parseByPath("@Meta { Version=2 Role=Home }\n(DoublePress)+[Fine] ToggleOSK\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions);
+        const zone = parseByPath("@Zone { Version=2 Role=Home }\n(DoublePress)+[Fine] ToggleOSK\n", "/config/Zones/User/testprofile/Main/Home.zon", knownActions);
         expect(zone.diagnostics).toContainEqual(expect.objectContaining({ code: "format2.zone.binding.modifier-source", line: 2, severity: "error" }));
     });
 
@@ -215,7 +226,7 @@ describe("configuration formats", () => {
     });
 
     test("requires a positive channel count in format 2 Surface metadata", () => {
-        const document = parseByPath('@Meta { Version=2 Protocol=MIDI Channels=0 Name="Invalid channels" }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }\n}\n', "surface.txt");
+        const document = parseByPath('@Surface { Version=2 Protocol=MIDI Channels=0 Name="Invalid channels" }\n\nWidget Play {\n  Input Press { Encoding=MIDIExact On=[ 0x90, 0x5E, 0x7F ] Off=[ 0x90, 0x5E, 0x00 ] }\n}\n', "surface.txt");
         expect(document.diagnostics.some((diagnostic) => diagnostic.code === "surface.channels.value" && diagnostic.severity === "error")).toBeTrue();
     });
 
@@ -241,7 +252,7 @@ describe("configuration formats", () => {
     });
 
     test("functional snippets use direct format 2 Zone bindings", () => {
-        const document = parseByPath("@Meta { Version=2 Name=Test }\n\n[Shift]+play Play\n", "test.snippet", new Set(["Play"]));
+        const document = parseByPath("@Snippet { Version=2 Name=Test }\n\n[Shift]+play Play\n", "test.snippet", new Set(["Play"]));
         const errorCodes = document.diagnostics.filter((diagnostic) => diagnostic.severity === "error").map((diagnostic) => diagnostic.code);
         expect(errorCodes).toEqual([]);
         expect((document.semantic as { bindings: Array<{ id: string }> }).bindings[0].id).toBe("play");

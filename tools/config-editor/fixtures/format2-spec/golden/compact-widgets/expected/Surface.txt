@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=OSC Channels=3 Name="Compact Widgets" }
+@Surface { Version=2 Protocol=OSC Channels=3 Name="Compact Widgets" }
 
 // Surface note
 

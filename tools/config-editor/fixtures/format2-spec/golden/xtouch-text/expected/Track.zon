@@ -1,4 +1,4 @@
-@Meta { Version=2 Target=Tracks }
+@Zone { Version=2 Target=Tracks }
 
 DisplayUpper# TrackNameDisplay
 DisplayLower# TrackVolumeDisplay

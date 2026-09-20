@@ -1,4 +1,4 @@
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPort Classic" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="FaderPort Classic" }
 
 Widget Fader1 {
   Input Value { Encoding=MIDISplit MSBMessage=[ 0xB0, 0x00 ] LSBMessage=[ 0xB0, 0x20 ] Bits=10 Commit=LSB }

@@ -44,7 +44,7 @@ Replace the legacy zone and surface syntax and name-based runtime behavior with 
 
 The new custom DSL files use these common lexical rules:
 
-- `@Meta` is the first significant element in versioned zone, surface, Learn FX, and snippet documents and contains file metadata.
+- The first significant element identifies the document type: `@Zone`, `@Surface`, `@LearnFX`, or `@Snippet`. Its brace block contains the version and document metadata.
 - `{` and `}` delimit structural blocks.
 - `[` and `]` delimit a value list only after a named `Property=` or identify a defined selector or index in its grammar position.
 - `//` starts a comment.
@@ -58,7 +58,7 @@ The new custom DSL files use these common lexical rules:
 A short metadata block can stay on one line:
 
 ```text
-@Meta { Version=2 Role=Home }
+@Zone { Version=2 Role=Home }
 
 Play Play
 [Control]+ButtonB1 GoZone SelectedTrack
@@ -67,7 +67,7 @@ Play Play
 The formatter can expand a long metadata block:
 
 ```text
-@Meta {
+@Zone {
   Version=2
   Role=Home
 }
@@ -114,7 +114,7 @@ The Main zone ID is always the `.zon` filename stem. A rename operation in the e
 FX zones use the same `.zon` format and declare external plugin matching in metadata because a plugin identifier is not a safe file ID:
 
 ```text
-@Meta { Version=2 MatchFX="VST3: ReaEQ (Cockos)" Alias="ReaEQ" }
+@Zone { Version=2 MatchFX="VST3: ReaEQ (Cockos)" Alias="ReaEQ" }
 
 Fader FXParam 0
 ```
@@ -134,7 +134,7 @@ Legacy `Fader|` converts directly to `Fader#`. Format 2 does not support free Wi
 The recommended explicit replacement is a channel placeholder:
 
 ```text
-@Meta { Version=2 Target=Tracks }
+@Zone { Version=2 Target=Tracks }
 
 Fader# TrackVolume
 Rotary# TrackPan
@@ -147,7 +147,7 @@ ButtonA# TrackSolo
 A repeated binding can use the same selected track while each channel selects a send from the current bank:
 
 ```text
-@Meta { Version=2 Target=SelectedTrack BankTarget=Sends }
+@Zone { Version=2 Target=SelectedTrack BankTarget=Sends }
 
 Fader# TrackSendVolume
 ```
@@ -206,7 +206,7 @@ The runtime supplies all available modifiers and their valid combinations. The L
 One dedicated `LearnFX.fxzon` file belongs to each zone profile. It contains the editable FX widget whitelist and bindings added to generated FX zones:
 
 ```text
-@Meta { Version=2 }
+@LearnFX { Version=2 }
 
 FXWidgets {
   Parameter Fader#
@@ -252,7 +252,7 @@ FX edit mode works as follows:
 A new draft starts with normal metadata and copied defaults:
 
 ```text
-@Meta { Version=2 MatchFX="VST3: ReaEQ (Cockos)" Alias="ReaEQ" }
+@Zone { Version=2 MatchFX="VST3: ReaEQ (Cockos)" Alias="ReaEQ" }
 
 On ZoneActivation {
   ToggleUseLocalModifiers
@@ -359,7 +359,7 @@ OSK uses the widget processor default for `FXParam`, lets the user select a supp
 `IncludedZones` keeps its existing name but gets an explicit contract:
 
 ```text
-@Meta { Version=2 Role=Home }
+@Zone { Version=2 Role=Home }
 
 IncludedZones {
   Track
@@ -374,7 +374,7 @@ A functional snippet is different. It is an editor-only fragment that uses norma
 A format 2 snippet has no semantic Slot, Role, Requires, Binding wrapper, application ID, or generated marker comments:
 
 ```text
-@Meta { Version=2 Name="Transport controls" }
+@Snippet { Version=2 Name="Transport controls" }
 
 PlayButton Play
 [Shift]+PlayButton Reaper 40044
@@ -462,7 +462,7 @@ Page Home {
 
 `Device` defines one MIDI or OSC endpoint. `Page.Surface` assigns that device to a surface template and zone profiles. Device `Settings` override root product settings for every use of that device. `Page.Surface.Settings` is not valid. `Link` replaces the order-dependent `Broadcaster` and following `Listener` records with one complete relationship.
 
-The root accepts zero or one `Settings` block, one or more `Device` blocks, and one or more `Page` blocks. Block order is not semantic and references can point forward. `@Meta`, `Version`, legacy line records, and `#` comments are invalid. Unknown blocks, properties, enum values, and duplicate singleton properties are errors.
+The root accepts zero or one `Settings` block, one or more `Device` blocks, and one or more `Page` blocks. Block order is not semantic and references can point forward. Format 2 document headers, `Version`, legacy line records, and `#` comments are invalid. Unknown blocks, properties, enum values, and duplicate singleton properties are errors.
 
 Public boolean values use the exact lowercase literals `true` and `false`.
 
@@ -552,7 +552,7 @@ One Device can be reused on several Pages only when every assigned Surface templ
 
 The selected Device `Type` must equal the Surface metadata `Protocol`. A mismatch skips that Page Surface assignment and links both declarations in the diagnostic.
 
-A Surface document accepts these order-independent top-level blocks after `@Meta`:
+A Surface document accepts these order-independent top-level blocks after `@Surface`:
 
 - zero or more `EncoderProfile` blocks;
 - zero or more `ValueProfile`, `ColorProfile`, `RingProfile`, `BarProfile`, `MeterProfile`, and `TextProfile` blocks;
@@ -566,7 +566,7 @@ Block IDs and references are case-sensitive. Duplicate Widget IDs, FeedbackGroup
 The normal MIDI form is:
 
 ```text
-@Meta { Version=2 Protocol=MIDI Channels=1 Name="FaderPort V2" }
+@Surface { Version=2 Protocol=MIDI Channels=1 Name="FaderPort V2" }
 
 EncoderProfile Rotary {
   Delta=0.003
@@ -1081,7 +1081,7 @@ Legacy inline encoder text such as `[ > 01-3f < 41-7f ]` is not copied. With a l
 OSC uses the same Widget, Input, and Feedback structure with OSC-specific universal catalog types and a named `Address` property:
 
 ```text
-@Meta { Version=2 Protocol=OSC Channels=32 Name="OSC Hardware Surface" }
+@Surface { Version=2 Protocol=OSC Channels=32 Name="OSC Hardware Surface" }
 
 Widget ChannelFader1 {
   Input Value { Encoding=OSCFloat Address="/control/1" }
@@ -1249,21 +1249,21 @@ Ready when every current special case has a source-linked explicit replacement a
 
 ## ✅ Phase 2: Format 2 specification
 
-The confirmed format direction above is input to this phase, not the complete grammar. Main zone identity remains the `.zon` filename stem. `@Meta` carries format and behavior metadata. `MatchFX` identifies an external plugin match, not the zone itself. Format 2 uses `#`; legacy `Widget|` is accepted only by the importer and converted during migration.
+The confirmed format direction above is input to this phase, not the complete grammar. Main zone identity remains the `.zon` filename stem. The explicit document header carries format and behavior metadata. `MatchFX` identifies an external plugin match, not the zone itself. Format 2 uses `#`; legacy `Widget|` is accepted only by the importer and converted during migration.
 
 ### ✅ Common lexical grammar
 
 The following rules are normative for format 2 `.zon`, surface `.txt`, `.fxzon`, and `.snippet` files:
 
 - A document is UTF-8 text. UTF-8 BOM is accepted and ignored. `LF` and `CRLF` line endings have the same meaning.
-- Spaces and tabs separate tokens. A newline ends a binding or other line declaration, except inside a brace block whose schema accepts several `Name=Value` entries on one line, such as `@Meta`.
+- Spaces and tabs separate tokens. A newline ends a binding or other line declaration, except inside a document header brace block whose schema accepts several `Name=Value` entries on one line.
 - `//` starts a comment outside a quoted string and discards text through the end of that physical line.
 - A single `/` is normal data. OSC addresses such as `/ch/01/mix/fader` are not comments.
 - `#` is normal data only where the document schema expects a hexadecimal color such as `#FF9900`. It is not a comment marker or directive prefix.
 - `{` opens a named block and `}` closes it. Every opened block must close before EOF. Legacy `BlockNameEnd` tokens are invalid.
 - `[` and `]` contain a comma-separated list after `=` or a selector/index in a grammar position that defines one. A bare anonymous value list after an action is invalid.
 - `(` and `)` contain an input event, direction selector, or value transform as defined by the binding grammar. They are not generic grouping characters.
-- `@Meta` is the document metadata marker. One terminal `#` is the numeric surface-channel placeholder in a Widget reference. No other unquoted `@` marker is defined.
+- `@Zone`, `@Surface`, `@LearnFX`, and `@Snippet` are the document metadata markers. One terminal `#` is the numeric surface-channel placeholder in a Widget reference. No other unquoted `@` marker is defined.
 - `=` separates a property name from its value. `+` joins explicit binding selectors. `,` separates list items.
 - A bare token continues until whitespace, a structural delimiter, or the start of `//`. It can contain protocol characters such as `/`, `:`, `-`, `.`, `*`, and hexadecimal byte text.
 - An identifier starts with an ASCII letter or `_` and then uses ASCII letters, digits, `_`, or `-`. Document schemas can apply stricter stable-ID and case rules.
@@ -1278,8 +1278,8 @@ The shared lexer recognizes structure but does not assign one universal meaning 
 The common document shape is:
 
 ```text
-document        = spacing, metadata, spacing, { statement, spacing }, EOF ;
-metadata        = "@Meta", spacing, "{", spacing, metadata-entry, { spacing, metadata-entry }, spacing, "}" ;
+document        = spacing, document-header, spacing, { statement, spacing }, EOF ;
+document-header = ( "@Zone" | "@Surface" | "@LearnFX" | "@Snippet" ), spacing, "{", spacing, metadata-entry, { spacing, metadata-entry }, spacing, "}" ;
 metadata-entry  = identifier, spacing, "=", spacing, value ;
 block           = identifier, [ spacing, value ], spacing, "{", spacing, { statement, spacing }, "}" ;
 property        = identifier, spacing, "=", spacing, value ;
@@ -1291,27 +1291,27 @@ comment         = "//", { character except line-end }, line-end | EOF ;
 
 This EBNF describes token boundaries only. Each document schema defines its valid statements and values. A parser must keep source file, line, and column locations for all tokens and diagnostics.
 
-`@Meta` rules are:
+Document header rules are:
 
-- It is required in every format 2 `.zon`, surface `.txt`, `.fxzon`, and `.snippet` document.
+- The header must match the file type: `@Zone` for `.zon`, `@Surface` for Surface `.txt`, `@LearnFX` for `LearnFX.fxzon`, and `@Snippet` for `.snippet`.
 - It is the first significant element after an optional BOM, whitespace, and comments.
 - `Version=2` is required exactly once.
 - Duplicate metadata keys are errors, including duplicates that differ only by case.
 - Unknown metadata keys are errors. A newer document therefore cannot be misread with missing behavior by an older runtime.
-- Each metadata entry must fit on one physical line. The expanded `@Meta { ... }` block can place different entries on different lines. Quoted strings cannot span lines.
-- The product `.conf` file is not a versioned format 2 document and does not use `@Meta`.
+- Each metadata entry must fit on one physical line. An expanded document header block can place different entries on different lines. Quoted strings cannot span lines.
+- The product `.conf` file is not a versioned format 2 document and does not use a document header.
 
 Valid lexical examples:
 
 ```text
 // A comment can precede metadata.
-@Meta { Version=2 Target=Tracks }
+@Zone { Version=2 Target=Tracks }
 
 [Shift]+Rotary# TrackPan StepValues=[0.0, 0.5, 1.0]
 ```
 
 ```text
-@Meta { Version=2 }
+@Surface { Version=2 Protocol=OSC Channels=1 }
 
 Widget Encoder1 {
   OSC /ch/01/mix/fader
@@ -1322,14 +1322,14 @@ Widget Encoder1 {
 Invalid lexical examples:
 
 ```text
-@Meta { Version=2
+@Zone { Version=2
 Play Play
 ```
 
 The metadata block is not closed.
 
 ```text
-@Meta { Version=2 }
+@Zone { Version=2 }
 Rotary1 TrackPan [ 0.5 ]
 ```
 
@@ -1337,17 +1337,17 @@ The list has no named property and is invalid in format 2.
 
 ```text
 / old single-slash comment
-@Meta { Version=2 }
+@Zone { Version=2 }
 ```
 
-The first line is data before `@Meta`, not a comment, so the document is invalid. The legacy importer converts recognized old single-slash comment lines to `//`.
+The first line is data before `@Zone`, not a comment, so the document is invalid. The legacy importer converts recognized old single-slash comment lines to `//`.
 
 ### ✅ Surface-channel expansion
 
 `#` is a numeric widget-family placeholder. It always means surface channel and never means track, selected track, send, receive, or FX:
 
 ```text
-@Meta { Version=2 Target=Tracks }
+@Zone { Version=2 Target=Tracks }
 
 Fader# TrackVolume
 [Shift]+Rotary# TrackPan
@@ -1414,13 +1414,13 @@ Legacy import identifies the old anonymous values by their parsed type, not only
 
 Document identity comes from its profile-relative filename. Metadata does not repeat a stable ID.
 
-| Document | Allowed `@Meta` keys |
-|---|---|
-| Main `.zon` | `Version`, `Role`, `Target`, `BankTarget`, `Alias` |
-| FX `.zon` | `Version`, `MatchFX`, `Alias` |
-| Surface `.txt` | `Version`, `Protocol`, `Name`, `Description` |
-| `LearnFX.fxzon` | `Version` |
-| `.snippet` | `Version`, `Name`, `Description` |
+| Document | Header | Allowed metadata keys |
+|---|---|---|
+| Main `.zon` | `@Zone` | `Version`, `Role`, `Target`, `BankTarget`, `Alias` |
+| FX `.zon` | `@Zone` | `Version`, `MatchFX`, `Alias` |
+| Surface `.txt` | `@Surface` | `Version`, `Protocol`, `Name`, `Description` |
+| `LearnFX.fxzon` | `@LearnFX` | `Version` |
+| `.snippet` | `@Snippet` | `Version`, `Name`, `Description` |
 
 `Version=2` is required for every document in this table. `Protocol=MIDI|OSC` is required in a Surface document. `Name`, `Description`, `MatchFX`, and `Alias` are quoted strings. All other values are closed enums. An omitted optional key uses the documented default and does not produce a warning.
 
@@ -1618,11 +1618,11 @@ Lifecycle action lines contain an action, its positional parameters, and its nam
 
 Legacy `SelectedTrackFX` is not converted to a format 2 zone. `GoZone SelectedTrackFX` becomes the typed `ToggleSelectedTrackFX` action. Its action metadata supplies the linked-surface category and prevents a normal zone reference from being created.
 
-Normal FX `.zon` files are activated with one internal typed context: `FocusedFX`, `SelectedTrackChain`, `FXSlot`, or `LearnFX`. These values are runtime state, not `@Meta` values. The same FX file can therefore be reused in every activation context.
+Normal FX `.zon` files are activated with one internal typed context: `FocusedFX`, `SelectedTrackChain`, `FXSlot`, or `LearnFX`. These values are runtime state, not `@Zone` values. The same FX file can therefore be reused in every activation context.
 
 Validation reports an error for an unknown key, unknown enum, invalid property combination, missing required target context, invalid role count, or metadata that is not valid for that document type. The diagnostic points to the metadata key or to the binding that requires missing context.
 
-- ✅ Write the normative lexical grammar for `@Meta`, brace blocks, identifiers, selectors, lists, properties, strings, comments, whitespace, and EOF behavior.
+- ✅ Write the normative lexical grammar for explicit document headers, brace blocks, identifiers, selectors, lists, properties, strings, comments, whitespace, and EOF behavior.
 - ✅ Define the allowed metadata keys, value types, defaults, combinations, and diagnostics for zones, surfaces, snippets, and `LearnFX.fxzon`.
 - ✅ Expose only `Role`, `Target`, and optional `BankTarget`; derive navigator, track set, lifetime, activation scope, link category, banking state, and internal FX context from the completed Phase 1 inventory.
 - ✅ Load each zone document once. Expand `#` bindings across the surface, keep bindings without `#` channel-neutral, let zone layers inherit the activating context, and let the runtime activation context provide navigator and target-index data for FX zones.
@@ -1712,7 +1712,7 @@ The static codec audit intentionally excludes device names that do not select a 
 ### [ ] Shared parser and runtime model
 
 - ✅ Implement one isolated common lexer for UTF-8 BOM, source paths, byte offsets, one-based line and column locations, quoted strings, comments, newlines, bare values, and structural delimiters.
-- ✅ Parse the required first `@Meta` block into typed document metadata and validate delimiter pairs, allowed keys, duplicates, values, required Surface protocol, and Role/Target/BankTarget combinations.
+- ✅ Parse the required typed document header into metadata and validate delimiter pairs, allowed keys, duplicates, values, required Surface protocol, and Role/Target/BankTarget combinations.
 - ✅ Build the shared syntax tree for line declarations and nested brace blocks, parse scalar and list properties, and provide one strict Widget selector parser for exact IDs and one terminal `#` channel placeholder.
 - ✅ Parse the Surface top-level structure, named profile and group IDs, singleton calibration and OSK blocks, Widget identity and local properties, plus typed Input and Feedback block shells without creating runtime objects.
 - ✅ Parse Main zone, FX zone, and snippet bodies into typed bindings, modifier declarations, structural references, and lifecycle actions. Validate binding expression structure, selector combinations, relation entries, modifier declarations, FX matching metadata, and zone-layer restrictions without creating runtime objects.
@@ -1867,7 +1867,7 @@ The initial conversion matrix is:
 | Legacy XTouch display track-color processors that assemble one shared packet | Text feedback on each display Widget plus one Surface-level TrackColor FeedbackGroup with explicit Channel, Slot Source, and Members references |
 | Legacy `OSKLayout Version=1`, Row blocks, and bare hexadecimal colors | Versionless `OSKLayout { Row { ... } }` inside the format 2 Surface for either protocol; colors gain the required `#` prefix |
 | Legacy `ColorCalibration ... ColorCalibrationEnd` | Typed `ColorCalibration { ... }` block |
-| `Snippet Version=1`, semantic Binding blocks, Role/Input/Feedback/Required fields, and nested Action lines | Format 2 `.snippet` with `@Meta` and direct zone binding lines; each old Binding ID becomes its source widget mapping name, `NoMod` is removed, modifier names become selectors, and inferred requirement fields are dropped |
+| `Snippet Version=1`, semantic Binding blocks, Role/Input/Feedback/Required fields, and nested Action lines | Format 2 `.snippet` with `@Snippet` and direct zone binding lines; each old Binding ID becomes its source widget mapping name, `NoMod` is removed, modifier names become selectors, and inferred requirement fields are dropped |
 | Saved `// @snippet` and `// @snippet-end` application markers | Marker comments are removed while their resolved zone statements remain ordinary destination-zone content |
 | `BlockName ... BlockNameEnd` | `BlockName { ... }` |
 | Hash-prefixed Learn FX directives and Learn FX pseudo-zones | `LearnFX.fxzon` plus normal generated FX bindings; `FXRowLayout` is dropped |
@@ -1927,7 +1927,7 @@ If one legacy file is referenced both as a SubZone and as an independent zone, t
   - ✅ Collapse identical repeated FaderPort scribble-strip modes into one Surface InitialValue, remove the repeated imported zone lines, and report differing per-zone modes as unresolved.
 - ✅ Convert fixed display text, margin, font, and constant or state-indexed display colors to the typed Text feedback properties.
 - ✅ Convert every legacy `OSKLayout Version=1` and ColorCalibration block to its format 2 Surface block regardless of protocol. Normalize OSK layout colors to opaque `#RRGGBB` and remove any ignored legacy alpha byte. When no explicit layout exists, generate an initial OSK layout from usable Input widgets. Treat a fader as a seven-row cell, place one or more faders in stable columns, fill remaining cells with buttons and rotaries in source order, combine separately declared push or touch targets when unambiguous, and keep the result editable in the import draft.
-- ✅ Move the surface-channel count from product Device blocks to required Surface `@Meta Channels=N`. Derive legacy imports from the numbered widget families with a fallback of one, remove the field from I/O forms, and reject reuse of one Device with conflicting Surface channel counts.
+- ✅ Move the surface-channel count from product Device blocks to required `@Surface Channels=N`. Derive legacy imports from the numbered widget families with a fallback of one, remove the field from I/O forms, and reject reuse of one Device with conflicting channel counts.
   - ✅ Ensure inferred `Channels` is not smaller than an explicit Widget `Channel` extracted from trusted legacy processor metadata.
 - ✅ Convert legacy anonymous RGB groups to `StateColors` hexadecimal lists. Remove the ignored final alpha byte from every legacy device, action, text, ring, and layout color.
 - ✅ Convert name-based navigator behavior into public `Role`, `Target`, and `BankTarget` metadata.
