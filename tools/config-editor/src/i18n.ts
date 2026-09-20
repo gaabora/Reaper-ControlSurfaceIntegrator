@@ -11,6 +11,7 @@ const english = {
     "action.createUserOverride": "Create User override",
     "action.renameZone": "Rename Zone",
     "action.import": "Import selected files",
+    "action.loading": "Loading",
     "action.insertSnippet": "Insert snippet",
     "action.open": "Open",
     "action.reloadLegacy": "Reload old CSI",

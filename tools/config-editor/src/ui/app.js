@@ -229,17 +229,74 @@ function translate(key, params = {}) {
     return text;
 }
 
-async function api(url, options = {}) {
-    const headers = { "X-Session-Token": token, ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) };
-    const response = await fetch(url, { ...options, headers });
-    const payload = await response.json().catch(() => ({ error: { message: response.statusText } }));
-    if (!response.ok) {
-        const error = new Error(payload.error?.message || translate("error.request"));
-        error.code = payload.error?.code;
-        error.details = payload.error?.details;
-        throw error;
+const asyncControlStates = new WeakMap();
+
+function activeAsyncControl() {
+    const activeElement = document.activeElement;
+    return activeElement instanceof HTMLElement && activeElement.matches("button, select, input, a, [role=button]") && !activeElement.hidden ? activeElement : null;
+}
+
+function beginAsyncControlActivity(control) {
+    if (!control) return () => {};
+    const existing = asyncControlStates.get(control);
+    if (existing) {
+        existing.count++;
+        return () => endAsyncControlActivity(control);
     }
-    return payload;
+    const bounds = control.getBoundingClientRect();
+    const spinner = document.createElement("span");
+    spinner.className = "async-control-spinner";
+    spinner.setAttribute("role", "status");
+    spinner.setAttribute("aria-label", translate("action.loading"));
+    spinner.style.left = `${bounds.left + bounds.width / 2}px`;
+    spinner.style.top = `${bounds.top + bounds.height / 2}px`;
+    const state = { count: 1, previousAriaBusy: control.getAttribute("aria-busy"), previousAriaDisabled: control.getAttribute("aria-disabled"), spinner };
+    asyncControlStates.set(control, state);
+    control.classList.add("async-control-busy");
+    control.setAttribute("aria-busy", "true");
+    control.setAttribute("aria-disabled", "true");
+    document.body.append(spinner);
+    return () => endAsyncControlActivity(control);
+}
+
+function endAsyncControlActivity(control) {
+    const state = asyncControlStates.get(control);
+    if (!state || --state.count > 0) return;
+    asyncControlStates.delete(control);
+    state.spinner.remove();
+    control.classList.remove("async-control-busy");
+    if (state.previousAriaBusy === null) control.removeAttribute("aria-busy");
+    else control.setAttribute("aria-busy", state.previousAriaBusy);
+    if (state.previousAriaDisabled === null) control.removeAttribute("aria-disabled");
+    else control.setAttribute("aria-disabled", state.previousAriaDisabled);
+}
+
+function preventBusyControlInteraction(event) {
+    if (!(event.target instanceof Element) || !event.target.closest(".async-control-busy")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+}
+
+document.addEventListener("click", preventBusyControlInteraction, true);
+document.addEventListener("change", preventBusyControlInteraction, true);
+document.addEventListener("keydown", preventBusyControlInteraction, true);
+
+async function api(url, options = {}) {
+    const endActivity = beginAsyncControlActivity(activeAsyncControl());
+    try {
+        const headers = { "X-Session-Token": token, ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) };
+        const response = await fetch(url, { ...options, headers });
+        const payload = await response.json().catch(() => ({ error: { message: response.statusText } }));
+        if (!response.ok) {
+            const error = new Error(payload.error?.message || translate("error.request"));
+            error.code = payload.error?.code;
+            error.details = payload.error?.details;
+            throw error;
+        }
+        return payload;
+    } finally {
+        endActivity();
+    }
 }
 
 function setFeedback(element, value, tone = "info") {

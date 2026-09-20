@@ -124,6 +124,10 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain('diagnostic-count-warning');
         expect(EDITOR_JAVASCRIPT).toContain('diagnostic-count-error');
         expect(EDITOR_CSS).toContain(".diagnostic-file-group.has-errors > summary");
+        expect(EDITOR_JAVASCRIPT).toContain("beginAsyncControlActivity(activeAsyncControl())");
+        expect(EDITOR_JAVASCRIPT).toContain('control.setAttribute("aria-busy", "true")');
+        expect(EDITOR_JAVASCRIPT).toContain('document.addEventListener("click", preventBusyControlInteraction, true)');
+        expect(EDITOR_CSS).toContain(".async-control-spinner");
         expect(html).toContain('id="legacy-problems-resizer"');
         expect(EDITOR_JAVASCRIPT).toContain('legacyProblemsResizer.addEventListener("pointerdown"');
         expect(EDITOR_JAVASCRIPT).toContain("setLegacyZonesSelected(directoryZones, checkbox.checked)");

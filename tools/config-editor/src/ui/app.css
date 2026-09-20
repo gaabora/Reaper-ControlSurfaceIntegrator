@@ -8,6 +8,9 @@ p { margin: 3px 0 0; }
 button, input, select { font: inherit; }
 button { outline: none; border: 1px solid #4a5060; border-radius: 4px; padding: 5px 8px; background: #303641; color: inherit; cursor: pointer; }
 button:hover:not(:disabled) { background: #3b4351; } button:disabled { cursor: default; opacity: .45; }
+.async-control-busy { cursor: wait !important; opacity: .58; }
+.async-control-spinner { position: fixed; z-index: 1400; width: 16px; height: 16px; margin: -8px 0 0 -8px; border: 2px solid #dbe7ff55; border-top-color: #dbe7ff; border-radius: 50%; pointer-events: none; animation: async-control-spin 700ms linear infinite; }
+@keyframes async-control-spin { to { transform: rotate(360deg); } }
 .primary { border-color: #6d91cf; background: #31517e; }
 .primary:hover:not(:disabled) { background: #3c6195; }
 .danger-button { border-color: #9a5157; background: #70363b; }
