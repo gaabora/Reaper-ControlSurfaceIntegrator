@@ -207,6 +207,14 @@ WidgetEnd
         expect(conversion.source).toContain('(Hold)+Play Reaper 40044 DelayMs=500 RepeatIntervalMs=100 OSD="Repeat action"');
     });
 
+    test("converts legacy hexadecimal state colors and removes alpha", () => {
+        const conversion = convertLegacyZoneToFormat2("Zone MasterTrackFXMenu\nFXBypassL| ToggleFXBypass { #808080FF #1D521EFF }\nFXOfflineL| ToggleFXOffline { #AB120EFF #00000000 }\nZoneEnd\n", { profile: "Main", targetPath: "Zones/User/test/Main/MasterTrackFXMenu.zon" });
+
+        expect(conversion.diagnostics).toEqual([]);
+        expect(conversion.source).toContain("FXBypassL# ToggleFXBypass StateColors=[ #808080, #1D521E ]");
+        expect(conversion.source).toContain("FXOfflineL# ToggleFXOffline StateColors=[ #AB120E, #000000 ]");
+    });
+
     test("best-effort converts commented legacy bindings without diagnostics", () => {
         const source = "Zone Home\n//   InvertFB+MixBusBank1Mute| TrackSendMute\n// / //  MixBusBank1Solo|  &#x20;\n// ordinary explanation stays unchanged\n// Encoder Action [ broken\nZoneEnd\n";
         const conversion = convertLegacyZoneToFormat2(source, { profile: "Main", targetPath: "Zones/User/test/Main/Home.zon" });
@@ -665,6 +673,24 @@ WidgetEnd
         expect(conversion.diagnostics).toEqual([]);
         expect(conversion.source).toContain(`Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=${Number(selectionIndex)} ActiveOnly=true }`);
         expect(conversion.source).not.toContain("//! FB_X32IntProcessor");
+    });
+
+    test("offers widget mapping for missing legacy Learn FX selectors", async () => {
+        const surfaceRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2");
+        await writeFile(path.join(surfaceRoot, "Surface.txt"), `${surfaceSource}Widget PhysicalFader\n  Fader14Bit e0 7f 7f\nWidgetEnd\n`, "utf8");
+        await writeFile(path.join(surfaceRoot, "Zones", "FXWidgetLayout.zon"), "Zone FXWidgetLayout\n  Fader FXParam\nZoneEnd\n\n#WidgetType Fader\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const store = await createStore();
+        const unresolved = await source.preview(store, knownActions, "FaderPortV2", true);
+        const issue = unresolved.widgetMappings.find((candidate) => candidate.sourceWidget === "Fader");
+
+        expect(issue?.candidates.map((candidate) => candidate.name)).toContain("PhysicalFader");
+        expect(unresolved.diagnostics.some((diagnostic) => diagnostic.code === "format2.learn-fx.surface.parameter.required")).toBeFalse();
+        expect(unresolved.diagnostics.some((diagnostic) => diagnostic.code === "format2.learn-fx.surface.widget.missing")).toBeFalse();
+        expect(unresolved.diagnostics.some((diagnostic) => diagnostic.code === "legacy.widget.mapping.required")).toBeTrue();
+        const resolved = await source.preview(store, knownActions, "FaderPortV2", true, unresolved.selectedZonePaths, [{ sourceWidget: "Fader", targetWidget: "PhysicalFader" }]);
+        expect(resolved.items.find((item) => item.kind === "learn-fx")?.source).toContain("Parameter PhysicalFader");
+        expect(resolved.diagnostics.some((diagnostic) => diagnostic.code === "format2.learn-fx.surface.widget.missing" || diagnostic.code === "legacy.widget.mapping.required")).toBeFalse();
     });
 
     test("keeps 32 X32 selection widgets on one shared output address", () => {

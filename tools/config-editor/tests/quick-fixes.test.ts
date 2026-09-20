@@ -8,6 +8,19 @@ import { validateDocumentSet } from "../src/validation.ts";
 const knownActions = new Set(["Bank", "EnterZoneLayer", "ExitZoneLayer", "GoHome", "GoZone", "LearnFocusedFX", "Play", "TrackPan", "TrackPanL", "TrackPanR"]);
 
 describe("diagnostic quick fix registry", () => {
+    test("adds a missing legacy WidgetEnd before the next Widget", () => {
+        const relativePath = "Surfaces/User/test.txt";
+        const source = "Widget First\n  Press 90 01 7f 90 01 00\nWidget Second\n  Press 90 02 7f 90 02 00\nWidgetEnd\n";
+        const conversion = convertLegacySurfaceToFormat2(source, "Test", relativePath);
+        const document = parseByPath(source, relativePath, knownActions);
+        const diagnostic = diagnosticWithQuickFixes(document, conversion.diagnostics.find((entry) => entry.code === "legacy.surface.processor.unsupported" && entry.message.endsWith(": Widget"))!, knownActions, true);
+
+        expect(diagnostic.fixes).toEqual([{ id: "legacy.surface.widget-end.add", label: "Add missing WidgetEnd before this Widget" }]);
+        const result = applyQuickFix(source, relativePath, knownActions, { diagnostic, fix: diagnostic.fixes![0] });
+        expect(result.source).toContain("  Press 90 01 7f 90 01 00\nWidgetEnd\nWidget Second");
+        expect(convertLegacySurfaceToFormat2(result.source, "Test", relativePath).diagnostics.some((entry) => entry.code === "legacy.surface.processor.unsupported" && entry.message.endsWith(": Widget"))).toBeFalse();
+    });
+
     test("offers and applies the zone format marker fix without saving", () => {
         const relativePath = "Zones/User/test/Main/Home.zon";
         const source = "\uFEFFZone Home\r\n  Play Play\r\nZoneEnd\r\n";

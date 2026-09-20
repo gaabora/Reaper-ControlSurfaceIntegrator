@@ -72,6 +72,6 @@ export function validateLearnFxSurface(learnFx: AnyDocument, surface: AnyDocumen
             else resolvedRoles.set(widgetName, entry.role);
         }
     }
-    if (resolvedParameterCount === 0) addDiagnostic(diagnostics, "error", "format2.learn-fx.surface.parameter.required", "LearnFX.fxzon must resolve at least one input-capable Parameter Widget on the selected Surface.", learnFxSemantic.widgets[0]?.line, learnFx.path);
+    if (resolvedParameterCount === 0 && !learnFxSemantic.widgets.some((entry) => entry.role === "Parameter")) addDiagnostic(diagnostics, "error", "format2.learn-fx.surface.parameter.required", "LearnFX.fxzon must resolve at least one input-capable Parameter Widget on the selected Surface.", learnFxSemantic.widgets[0]?.line, learnFx.path);
     return diagnostics;
 }

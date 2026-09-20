@@ -112,6 +112,7 @@ function convertAnonymousValues(tokens: string[], lineNumber: number, documentPa
             }
             const values = tokens.slice(tokenIdx + 1, end);
             if (values.length === 1 && values[0] === "Track") result.push("StateColors=[ Track ]");
+            else if (values.length > 0 && values.every((value) => /^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.test(value))) result.push(propertyList("StateColors", values.map((value) => value.slice(0, 7).toUpperCase()), true));
             else if (values.length > 0 && values.length % 3 === 0) {
                 const colors: string[] = [];
                 for (let colorIdx = 0; colorIdx < values.length; colorIdx += 3) {

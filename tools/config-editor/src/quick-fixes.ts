@@ -106,6 +106,25 @@ function commentOutDocument(context: QuickFixContext): string {
     return serializeDocument(context.document);
 }
 
+function addMissingLegacyWidgetEnd(context: QuickFixContext): string {
+    const lineIdx = (context.diagnostic.line ?? 0) - 1;
+    const nextWidget = context.document.lines[lineIdx];
+    if (lineIdx < 1 || !nextWidget || !/^\s*Widget\s+\S+/i.test(nextWidget.text)) throw new QuickFixError("quick-fix.source", "The next legacy Widget declaration is no longer available");
+    let openWidgetFound = false;
+    for (let searchIdx = lineIdx - 1; searchIdx >= 0; searchIdx--) {
+        const text = context.document.lines[searchIdx].text.trim();
+        if (/^WidgetEnd\b/i.test(text)) break;
+        if (/^Widget\s+\S+/i.test(text)) {
+            openWidgetFound = true;
+            break;
+        }
+    }
+    if (!openWidgetFound) throw new QuickFixError("quick-fix.source", "No open legacy Widget block was found before this line");
+    const lineEnding = nextWidget.ending || context.document.lines.find((line) => line.ending)?.ending || "\n";
+    context.document.lines.splice(lineIdx, 0, { ending: lineEnding, kind: "block-end", lineNumber: lineIdx + 1, text: "WidgetEnd", tokens: ["WidgetEnd"] });
+    return serializeDocument(context.document);
+}
+
 function selectLegacyX32Feedback(context: QuickFixContext, fix: DiagnosticQuickFix): string {
     const feedbackType = fix.data?.feedbackType;
     if (!feedbackType || !["Color", "State", "Text", "Value"].includes(feedbackType)) throw new QuickFixError("quick-fix.value", "The selected X32 feedback type is not available");
@@ -288,6 +307,12 @@ function convertLegacyNamedBank(context: QuickFixContext): string {
 }
 
 const QUICK_FIX_DEFINITIONS: QuickFixDefinition[] = [
+    {
+        acceptsSetDiagnostic: true,
+        apply: (context) => addMissingLegacyWidgetEnd(context),
+        fixes: (context) => context.diagnostic.code === "legacy.surface.processor.unsupported" && context.diagnostic.line && /^\s*Widget\s+\S+/i.test(context.document.lines[context.diagnostic.line - 1]?.text ?? "") ? [{ id: "legacy.surface.widget-end.add", label: "Add missing WidgetEnd before this Widget" }] : [],
+        id: "legacy.surface.widget-end.add",
+    },
     {
         apply: (context) => convertSingleSlashComment(context),
         fixes: (context) => context.diagnostic.code === "comment.single-slash.unsupported" ? [{ id: "comment.single-slash.convert", label: "Convert to // comment" }] : [],

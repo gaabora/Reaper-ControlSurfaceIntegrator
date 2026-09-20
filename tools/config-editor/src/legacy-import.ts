@@ -11,6 +11,7 @@ import { convertLegacySurfaceToFormat2, type LegacyMcuMeterMode } from "./legacy
 import { convertLegacyLearnFxToFormat2, type LegacyLearnFxSource } from "./legacy-learn-fx.ts";
 import { convertLegacyProductConfig } from "./legacy-product-config.ts";
 import { validateLearnFxSurface } from "./learn-fx-surface.ts";
+import type { LearnFxSemantic } from "./learn-fx.ts";
 import { convertLegacyZoneToFormat2, legacyMainBankContext } from "./legacy-zone-format2.ts";
 import { migrateLegacySce24RingColors } from "./legacy-sce24-ring.ts";
 import { migrateLegacySce24StateColors } from "./legacy-sce24-state.ts";
@@ -423,6 +424,59 @@ function replaceMappedWidgets(source: string, document: AnyDocument, mappings: M
     return serializeDocument(document);
 }
 
+function learnFxRequiredCapabilities(selector: string, role: string): WidgetCapability[] {
+    if (role === "NameDisplay" || role === "ValueDisplay") return ["text-feedback"];
+    const normalized = selector.toLowerCase();
+    if (normalized.includes("fader")) return ["absolute-input"];
+    if (normalized.includes("push") || normalized.includes("button")) return ["press-input"];
+    if (normalized.includes("rotary") || normalized.includes("encoder")) return ["relative-input"];
+    return [];
+}
+
+function learnFxCandidateCompatible(capabilities: WidgetCapability[], requiredCapabilities: WidgetCapability[]): boolean {
+    return requiredCapabilities.length ? isCompatible(requiredCapabilities, capabilities) : capabilities.some((capability) => ["absolute-input", "press-input", "relative-input"].includes(capability));
+}
+
+function replaceMappedLearnFxWidgets(document: AnyDocument, mappings: Map<string, string>): string {
+    for (const entry of (document.semantic as LearnFxSemantic).widgets) {
+        const mappedExpression = mappings.get(normalizedWidgetName(entry.selector));
+        const targetWidget = mappedExpression ? mappedTargetWidgetName(mappedExpression) : undefined;
+        const line = document.lines[entry.line - 1];
+        if (!targetWidget || !line) continue;
+        const match = line.text.match(/^(\s*(?:Parameter|NameDisplay|ValueDisplay)\s+)\S+(.*)$/);
+        if (match) line.text = match[1] + targetWidget + match[2];
+    }
+    return serializeDocument(document);
+}
+
+function collectLearnFxWidgetMappings(document: AnyDocument, legacyLayout: LegacyLearnFxSource, targetSurface: AnyDocument, requestedMappings: LegacyWidgetMapping[]): { diagnostics: Diagnostic[]; issues: LegacyWidgetMappingIssue[]; source: string } {
+    const diagnostics: Diagnostic[] = [];
+    const requested = widgetMappingMap(requestedMappings);
+    const validMappings = new Map<string, string>();
+    const issues: LegacyWidgetMappingIssue[] = [];
+    const sourceLines = splitSourceLines(legacyLayout.source);
+    for (const entry of (document.semantic as LearnFxSemantic).widgets) {
+        const family = entry.selector.endsWith("#");
+        const requiredCapabilities = learnFxRequiredCapabilities(entry.selector, entry.role);
+        const slots = surfaceWidgetSlots(targetSurface, family);
+        const sameNameTarget = slots.find((slot) => normalizedWidgetName(slot.name) === normalizedWidgetName(entry.selector));
+        if (sameNameTarget && learnFxCandidateCompatible(sameNameTarget.capabilities, requiredCapabilities)) continue;
+        const candidates = slots.filter((slot) => learnFxCandidateCompatible(slot.capabilities, requiredCapabilities)).map((slot) => ({ capabilities: slot.capabilities, name: slot.name })).sort((left, right) => left.name.localeCompare(right.name));
+        const requestedTarget = requested.get(normalizedWidgetName(entry.selector));
+        const requestedWidgetName = requestedTarget ? mappedTargetWidgetName(requestedTarget) : undefined;
+        const selectedCandidate = requestedWidgetName ? candidates.find((candidate) => normalizedWidgetName(candidate.name) === normalizedWidgetName(requestedWidgetName)) : undefined;
+        if (selectedCandidate && requestedTarget) validMappings.set(normalizedWidgetName(entry.selector), requestedTarget);
+        const sourceLine = sourceLines.find((line) => {
+            initializeLine(line);
+            const directiveSelector = (line.tokens[1] ?? "").replace(/\|$/, "#");
+            return ["#WidgetType", "#DisplayRow"].includes(line.tokens[0] ?? "") && normalizedWidgetName(directiveSelector) === normalizedWidgetName(entry.selector);
+        });
+        issues.push({ candidates, occurrences: [{ line: sourceLine?.lineNumber ?? entry.line, path: legacyLayout.sourcePath }], reason: sameNameTarget ? "incompatible" : "missing", requiredCapabilities, selectedTarget: requestedTarget, sourceWidget: entry.selector });
+        if (!selectedCandidate) addDiagnostic(diagnostics, "error", "legacy.widget.mapping.required", `Learn FX Widget ${entry.selector} is not compatible with the target surface. Choose a compatible target widget.`, entry.line, document.path);
+    }
+    return { diagnostics, issues, source: replaceMappedLearnFxWidgets(document, validMappings) };
+}
+
 function dependencyKey(dependency: LegacyImportDependency): string {
     return `${dependency.from.toLowerCase()}\0${dependency.type.toLowerCase()}\0${dependency.name.toLowerCase()}`;
 }
@@ -731,6 +785,7 @@ export class LegacyCsiSource {
         const widgetTarget = includeSurface && !useExistingSurface ? "imported" : "existing";
         const targetSurface = widgetTarget === "imported" ? surfaceDocument : await this.readExistingTargetSurface(store, knownActions, targetProfileId);
         const widgetMappingResult = collectWidgetMappings(zoneDocuments, selectedPaths, surfaceDocument, targetSurface, requestedWidgetMappings);
+        const widgetMappingIssues = [...widgetMappingResult.issues];
         for (const [sourcePath, document] of zoneDocuments) {
             if (!selectedPaths.has(sourcePath)) continue;
             const source = replaceMappedWidgets(migratedZoneSources.get(sourcePath)!, document, widgetMappingResult.validMappings);
@@ -758,6 +813,7 @@ export class LegacyCsiSource {
         let migratedLearnFx = "";
         let learnFxTargetPath = "";
         const learnFxDiagnostics: Diagnostic[] = [];
+        let learnFxMappingIssues: LegacyWidgetMappingIssue[] = [];
         for (const [zoneName, matchingZones] of learnZonesByName) if (matchingZones.length > 1) addDiagnostic(learnFxDiagnostics, "error", "legacy.learn-fx.source.duplicate", `More than one legacy ${zoneName} file was found. Keep one and comment out each duplicate file.`, undefined, matchingZones[1].sourcePath, matchingZones.map((zone) => ({ path: zone.sourcePath })));
         if (learnLayout) {
             learnFxTargetPath = targetPathMap.get(learnLayout.sourcePath) || `Zones/User/${targetProfileId}/LearnFX.fxzon`;
@@ -770,8 +826,16 @@ export class LegacyCsiSource {
             migratedLearnFx = conversion.source;
             learnFxDiagnostics.push(...conversion.diagnostics);
             learnFxDocument = store.parseDocument(learnFxTargetPath, migratedLearnFx);
+            if (targetSurface) {
+                const learnFxMappingResult = collectLearnFxWidgetMappings(learnFxDocument, { source: draftMap.get(learnLayout.sourcePath)?.source ?? preparedZoneSources.get(learnLayout.sourcePath)!, sourcePath: learnLayout.sourcePath }, targetSurface, requestedWidgetMappings);
+                learnFxMappingIssues = learnFxMappingResult.issues;
+                widgetMappingIssues.push(...learnFxMappingIssues);
+                migratedLearnFx = learnFxMappingResult.source;
+                learnFxDiagnostics.push(...learnFxMappingResult.diagnostics);
+                learnFxDocument = store.parseDocument(learnFxTargetPath, migratedLearnFx);
+            }
             learnFxDocument.diagnostics.push(...learnFxDiagnostics);
-            if (targetSurface) learnFxDocument.diagnostics.push(...validateLearnFxSurface(learnFxDocument, targetSurface));
+            if (targetSurface) learnFxDocument.diagnostics.push(...validateLearnFxSurface(learnFxDocument, targetSurface).filter((diagnostic) => !learnFxMappingIssues.length || !["format2.learn-fx.surface.widget.capability", "format2.learn-fx.surface.widget.missing"].includes(diagnostic.code)));
         }
 
         const matchesByName = new Map<string, string[]>();
@@ -870,7 +934,7 @@ export class LegacyCsiSource {
             surfaceStableId: files.stableId,
             targetProfileId,
             valid: !diagnostics.some((diagnostic) => diagnostic.severity === "error"),
-            widgetMappings: widgetMappingResult.issues,
+            widgetMappings: widgetMappingIssues.sort((left, right) => left.sourceWidget.localeCompare(right.sourceWidget)),
             widgetTarget,
         };
     }
