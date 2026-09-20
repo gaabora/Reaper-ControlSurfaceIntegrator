@@ -187,7 +187,7 @@ private:
             return;
         }
         this->deviceLines_[canonicalId] = block.location.line;
-        const PropertyMap properties = this->CollectProperties(block, {"Type", "Input", "Output", "RefreshRate", "MaxMessagesPerRun", "Protocol", "ReceivePort", "TransmitPort", "Address", "MaxPacketsPerRun"});
+        const PropertyMap properties = this->CollectProperties(block, {"Type", "Input", "Output", "RefreshRate", "MaxMessagesPerRun", "ReceivePort", "TransmitPort", "Address", "MaxPacketsPerRun"});
         std::string type;
         const bool commonValid = this->ReadScalar(this->RequireProperty(properties, "Type", block.location.line), type);
         SettingOverrides settings;
@@ -205,7 +205,7 @@ private:
             device.refreshRate = 15;
             device.maxMessagesPerRun = 200;
             const bool valid = this->ReadInteger(this->RequireProperty(properties, "Input", block.location.line), device.inputPort, 0, 65535) && this->ReadInteger(this->RequireProperty(properties, "Output", block.location.line), device.outputPort, 0, 65535) && (!properties.count("RefreshRate") || this->ReadInteger(properties.at("RefreshRate"), device.refreshRate, 1, 65535)) && (!properties.count("MaxMessagesPerRun") || this->ReadInteger(properties.at("MaxMessagesPerRun"), device.maxMessagesPerRun, 1, 1000000));
-            if (properties.count("Protocol") || properties.count("ReceivePort") || properties.count("TransmitPort") || properties.count("Address") || properties.count("MaxPacketsPerRun")) this->AddIssue(block.location.line, "MIDI Device contains an OSC-only property");
+            if (properties.count("ReceivePort") || properties.count("TransmitPort") || properties.count("Address") || properties.count("MaxPacketsPerRun")) this->AddIssue(block.location.line, "MIDI Device contains an OSC-only property");
             device.settingOverrides = std::move(settings);
             if (valid) this->config_.midiIo.push_back(std::move(device));
         } else if (type == "OSC") {
@@ -214,10 +214,6 @@ private:
             device.name = id;
             device.type = "OSC";
             device.maxPacketsPerRun = 200;
-            std::string protocol = "Generic";
-            if (properties.count("Protocol")) this->ReadScalar(properties.at("Protocol"), protocol);
-            if (protocol == "X32") device.type = "OSCX32";
-            else if (protocol != "Generic") this->AddIssue(properties.at("Protocol")->nameLocation.line, "OSC Protocol must be Generic or X32");
             int receivePort = 0;
             int transmitPort = 0;
             const bool valid = this->ReadInteger(this->RequireProperty(properties, "ReceivePort", block.location.line), receivePort, 1, 65535) && this->ReadInteger(this->RequireProperty(properties, "TransmitPort", block.location.line), transmitPort, 1, 65535) && this->ReadScalar(this->RequireProperty(properties, "Address", block.location.line), device.transmitToIpAddress) && (!properties.count("MaxPacketsPerRun") || this->ReadInteger(properties.at("MaxPacketsPerRun"), device.maxPacketsPerRun, 1, 1000000));

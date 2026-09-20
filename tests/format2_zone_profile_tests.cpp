@@ -2,6 +2,7 @@
 #include "format2_zone_profile_loader.h"
 #include "format2_zone_source_editor.h"
 #include "format2_learn_fx_surface.h"
+#include "format2_surface_document.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -243,6 +244,21 @@ static void TestModifierAndChannelFamilySourceEditRejection() {
     Require(!result.success, "exact Modifier and channel-family source edit rejection");
 }
 
+static void TestCompactWidgetPropertiesBeforePrimitive() {
+    const std::string source = "@Surface { Version=2 Protocol=OSC Channels=1 }\nWidget TrackFaderB1 { Channel=1 Alias=\"Track 17\" Input Value { Encoding=OSCFloat Address=\"/ch/17/mix/fader\" } Feedback Value { Encoding=OSCFloat Address=\"/ch/17/mix/fader\" EchoGuardMs=30 } }\n";
+    const Format2SurfaceParseResult result = ParseFormat2SurfaceSource(source, "Surface.txt");
+    Require(result.IsValid(), "compact Widget Channel and Alias properties before primitive");
+    Require(result.surface.widgets.size() == 1 && result.surface.widgets[0].channel == 1 && result.surface.widgets[0].alias == "Track 17", "compact Widget properties parsed");
+}
+
+static void TestOscKeepAliveParsing() {
+    const std::string source = "@Surface { Version=2 Protocol=OSC Channels=1 }\nKeepAlive {\n  OSC Address=\"/xremote\" IntervalMs=5000\n}\nWidget Select1 {\n  Input Press { Encoding=OSCInt Address=\"/-stat/selidx\" Match=Exact OnValue=0 }\n}\n";
+    const Format2SurfaceParseResult result = ParseFormat2SurfaceSource(source, "Surface.txt");
+    Require(result.IsValid(), "OSC KeepAlive Surface");
+    Require(result.surface.keepAlive && result.surface.keepAlive->oscMessages.size() == 1, "OSC KeepAlive message parsed");
+    Require(result.surface.keepAlive->oscMessages[0].address == "/xremote" && result.surface.keepAlive->oscMessages[0].intervalMs == 5000, "OSC KeepAlive values parsed");
+}
+
 int main() {
     TestValidProfile();
     TestHomeRules();
@@ -267,6 +283,8 @@ int main() {
     TestInvalidWidgetSourceEditRejection();
     TestModifierSourceEdit();
     TestModifierAndChannelFamilySourceEditRejection();
+    TestCompactWidgetPropertiesBeforePrimitive();
+    TestOscKeepAliveParsing();
     std::cout << "Format2ZoneProfile tests passed\n";
     return 0;
 }

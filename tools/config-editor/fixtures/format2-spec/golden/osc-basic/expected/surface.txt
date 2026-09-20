@@ -1,5 +1,9 @@
 @Surface { Version=2 Protocol=OSC Channels=1 Name="Imported OSC controls" }
 
+KeepAlive {
+  OSC Address="/xremote" IntervalMs=5000
+}
+
 Widget Trigger {
   Input Press { Encoding=OSCFloat Address="/trigger" Match=Any }
 }

@@ -386,6 +386,17 @@ struct Format2SurfaceInitialization {
     std::vector<Format2MidiInitializationMessage> midiMessages;
 };
 
+struct Format2OscKeepAliveMessage {
+    std::string address;
+    int intervalMs = 0;
+    Format2SourceLocation location;
+};
+
+struct Format2SurfaceKeepAlive {
+    std::vector<Format2OscKeepAliveMessage> oscMessages;
+    Format2SourceLocation location;
+};
+
 struct Format2SurfaceDocument {
     std::vector<Format2SurfaceNamedBlock> profiles;
     std::vector<Format2EncoderProfile> encoderProfiles;
@@ -399,6 +410,7 @@ struct Format2SurfaceDocument {
     std::vector<Format2SurfaceWidget> widgets;
     std::optional<Format2ColorCalibration> colorCalibration;
     std::optional<Format2SurfaceInitialization> initialization;
+    std::optional<Format2SurfaceKeepAlive> keepAlive;
     std::optional<Format2OskLayout> oskLayout;
 };
 

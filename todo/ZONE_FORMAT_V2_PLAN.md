@@ -496,7 +496,6 @@ An OSC device accepts:
 ```text
 Device x32 {
   Type=OSC
-  Protocol=X32
   ReceivePort=8000
   TransmitPort=9000
   Address=192.168.1.20
@@ -1703,7 +1702,7 @@ Ready when the normative specification and fixtures let C++, Bun, Lua, and docum
   - ✅ Build the universal MIDI and OSC runtime plus the representative fixture sources without adding a device-specific C++ class.
   - [ ] Load the representative MIDI and OSC Surface fixtures in REAPER and exercise their input and feedback paths.
 
-The static codec audit intentionally excludes device names that do not select a Surface primitive encoding. `OSC_X32ControlSurfaceIO` owns the X32 connection heartbeat, not Widget value conversion. `MCUTimeDisplay` and the XTouch display-color actions are Action-layer migration work. The SCE24 name check is confined to the native Learn FX dialog and remains until OSK FX edit mode replaces that dialog. These names do not justify a device-specific MIDI or OSC Feedback class.
+The static codec audit intentionally excludes device names that do not select a Surface primitive encoding. The generic OSC I/O runtime sends periodic messages declared by a Surface `KeepAlive` block. X32 imports declare `/xremote` there and use exact OSCInt value matching for `/-stat/selidx`, so the runtime does not need an X32 device type. `MCUTimeDisplay` and the XTouch display-color actions are Action-layer migration work. The SCE24 name check is confined to the native Learn FX dialog and remains until OSK FX edit mode replaces that dialog. These names do not justify a device-specific MIDI or OSC Feedback class.
 
 - ✅ Split processors that generate REAPER-specific content from device encoding. Actions supply values or formatted text; universal Feedback primitives encode and send them. Remaining device-named actions are Phase 4 rename and migration work, not protocol codecs.
 - ✅ Parse and publish `OSKLayout` through common ControlSurface initialization so MIDI and OSC Surfaces use the same OSK path.

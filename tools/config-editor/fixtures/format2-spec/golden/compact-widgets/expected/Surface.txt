@@ -2,11 +2,11 @@
 
 // Surface note
 
-Widget TrackSelectB1 { Input Press { Encoding=OSCFloat Address="/-stat/selidx/16" Match=Any } Feedback Value { Encoding=OSCInt Address="/-stat/selidx/16" } }
-Widget TrackSelectB2 { Input Press { Encoding=OSCFloat Address="/-stat/selidx/17" Match=Any } Feedback Value { Encoding=OSCInt Address="/-stat/selidx/17" } }
+Widget TrackSelectB1 { Input Press { Encoding=OSCInt Address="/-stat/selidx" Match=Exact OnValue=16 } Feedback Value { Encoding=OSCInt Address="/-stat/selidx/16" } }
+Widget TrackSelectB2 { Input Press { Encoding=OSCInt Address="/-stat/selidx" Match=Exact OnValue=17 } Feedback Value { Encoding=OSCInt Address="/-stat/selidx/17" } }
 
 Widget TrackSelectB3 {
-  Input Press { Encoding=OSCFloat Address="/-stat/selidx/18" Match=Any }
+  Input Press { Encoding=OSCInt Address="/-stat/selidx" Match=Exact OnValue=18 }
   // Keep this comment between commands.
   Feedback Value { Encoding=OSCInt Address="/-stat/selidx/18" }
 }

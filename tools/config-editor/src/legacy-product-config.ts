@@ -38,7 +38,6 @@ function deviceLines(properties: Map<string, string>, diagnostics: Diagnostic[],
         output.push("  Type=MIDI", `  Input=${property(properties, "MidiInput", "0")}`, `  Output=${property(properties, "MidiOutput", "0")}`, `  RefreshRate=${property(properties, "MIDISurfaceRefreshRate", "15")}`, `  MaxMessagesPerRun=${property(properties, "MaxMIDIMesssagesPerRun", "200")}`);
     } else if (legacyType === "OSC" || legacyType === "OSCX32") {
         output.push("  Type=OSC");
-        if (legacyType === "OSCX32") output.push("  Protocol=X32");
         output.push(`  ReceivePort=${property(properties, "ReceiveOnPort", "8000")}`, `  TransmitPort=${property(properties, "TransmitToPort", "9000")}`, `  Address=${property(properties, "TransmitToIPAddress", "127.0.0.1")}`, `  MaxPacketsPerRun=${property(properties, "MaxPacketsPerRun", "200")}`);
     } else addDiagnostic(diagnostics, "error", "legacy.config.device.type", `Unsupported legacy SurfaceType: ${legacyType || "(empty)"}`, line, documentPath);
     output.push("}");

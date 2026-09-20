@@ -12,6 +12,10 @@ ValueProfile X32FaderCurve {
   Point Input=1.0 Output=10.0
 }
 
+KeepAlive {
+  OSC Address="/xremote" IntervalMs=5000
+}
+
 Widget Fader1 {
   Channel=1
   Input Value { Encoding=OSCFloat Address="/ch/01/mix/fader" ValueProfile=X32FaderCurve }

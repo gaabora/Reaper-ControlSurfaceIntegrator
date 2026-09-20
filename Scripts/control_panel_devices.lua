@@ -276,10 +276,8 @@ end
 
 local function renderOscEditor(ctx, data, device, deviceIdx, fonts)
     sectionHeader(ctx, "OSC device", fonts)
-    local typeItems = { { label = "OSC", value = "OSC" }, { label = "OSCX32", value = "OSCX32" } }
     if beginForm(ctx, "##OscMasterForm") then
         fieldRow(ctx, "Name", function() local changed, value = textField(ctx, "OscName", device.name) if changed then renameIo(data, device.name, value) device.name = value end end)
-        fieldRow(ctx, "Type", function() local changed; changed, device.type = ui.ComboEnum(ctx, "##OscType", device.type, typeItems) end)
         fieldRow(ctx, "Receive port", function() local changed; changed, device.receivePort = textField(ctx, "OscReceive", device.receivePort) end)
         fieldRow(ctx, "Transmit address", function() local changed; changed, device.address = textField(ctx, "OscAddress", device.address) end)
         fieldRow(ctx, "Transmit port", function() local changed; changed, device.transmitPort = textField(ctx, "OscTransmit", device.transmitPort) end)

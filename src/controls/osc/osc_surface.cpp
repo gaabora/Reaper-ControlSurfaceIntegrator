@@ -72,10 +72,6 @@ static oscpkt::UdpSocket* GetOutputSocketForAddressAndPort(const string& surface
 // OSC_ControlSurfaceIO
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-OSC_X32ControlSurfaceIO::OSC_X32ControlSurfaceIO(CSurfIntegrator* const csi, const char* surfaceName, int channelCount, const char* receiveOnPort, const char* transmitToPort, const char* transmitToIpAddress, int maxPacketsPerRun)
-    : OSC_ControlSurfaceIO(csi, surfaceName, channelCount, receiveOnPort, transmitToPort, transmitToIpAddress, maxPacketsPerRun) {
-}
-
 OSC_ControlSurfaceIO::OSC_ControlSurfaceIO(CSurfIntegrator* const csi, const char* surfaceName, int channelCount, const char* receiveOnPort, const char* transmitToPort, const char* transmitToIpAddress, int maxPacketsPerRun)
     : csi_(csi), name_(surfaceName), channelCount_(channelCount) {
     // private:
@@ -100,6 +96,15 @@ OSC_ControlSurfaceIO::OSC_ControlSurfaceIO(CSurfIntegrator* const csi, const cha
         inSocket_ = inSocket;
         outSocket_ = inSocket;
     }
+}
+
+void OSC_ControlSurfaceIO::AddKeepAliveMessage(const string& address, int intervalMs) {
+    for (KeepAliveMessage& message : this->keepAliveMessages_) {
+        if (message.address != address) continue;
+        message.intervalMs = (std::min)(message.intervalMs, (DWORD) intervalMs);
+        return;
+    }
+    this->keepAliveMessages_.push_back({address, (DWORD) intervalMs, GetTickCount() - (DWORD) intervalMs});
 }
 
 OSC_ControlSurfaceIO::~OSC_ControlSurfaceIO() {
@@ -148,39 +153,6 @@ void OSC_ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface* surface) {
     }
 }
 
-void OSC_X32ControlSurfaceIO::HandleExternalInput(OSC_ControlSurface* surface) {
-    if (inSocket_ != NULL && inSocket_->isOk()) {
-        while (inSocket_->receiveNextPacket(0)) {
-            packetReader_.init(inSocket_->packetData(), inSocket_->packetSize());
-            oscpkt::Message* message;
-
-            while (packetReader_.isOk() && (message = packetReader_.popMessage()) != 0) {
-                if (message->arg().isFloat()) {
-                    float value = 0;
-                    message->arg().popFloat(value);
-                    surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
-                } else if (message->arg().isInt32()) {
-                    int value;
-                    message->arg().popInt32(value);
-
-                    if (message->addressPattern() == "/-stat/selidx") {
-                        string x32Select = message->addressPattern() + "/";
-
-                        if (value < 10) x32Select += "0";
-
-                        char buf[64];
-                        snprintf(buf, sizeof(buf), "%d", value);
-                        x32Select += buf;
-
-                        surface->ProcessOSCMessage(x32Select.c_str(), 1.0);
-                    } else
-                        surface->ProcessOSCMessage(message->addressPattern().c_str(), value);
-                }
-            }
-        }
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // OSC_ControlSurface
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -194,9 +166,13 @@ OSC_ControlSurface::OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext*
 }
 
 void OSC_ControlSurface::ProcessOSCMessage(const char* message, double value) {
-    if (MessageGeneratorsByMessage_.find(message) != MessageGeneratorsByMessage_.end())
-        MessageGeneratorsByMessage_[message]->ProcessMessage(value);
+    const auto range = this->oscMessageGeneratorsByAddress_.equal_range(message);
+    for (auto generator = range.first; generator != range.second; ++generator) generator->second->ProcessMessage(value);
     if (g_surfaceInDisplay) LogToConsole("[DEBUG] OSC received: Surface=%s Address=%s Value=%f\n", name_.c_str(), message, value);
+}
+
+void OSC_ControlSurface::AddOSCMessageGenerator(const string& address, unique_ptr<MessageGenerator> generator) {
+    this->oscMessageGeneratorsByAddress_.emplace(address, std::move(generator));
 }
 
 void OSC_ControlSurface::SendOSCMessage(const char* zoneName) {

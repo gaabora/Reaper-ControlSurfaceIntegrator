@@ -429,6 +429,7 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
     }
     if (hasUnsupportedPrimitives) return Format2OscRuntimeLoadResult::Rejected;
     if (parsed.surface.colorCalibration) surface->ApplyFormat2ColorCalibration(*parsed.surface.colorCalibration);
+    if (parsed.surface.keepAlive) for (const Format2OscKeepAliveMessage& message : parsed.surface.keepAlive->oscMessages) surface->AddKeepAliveMessage(message.address, message.intervalMs);
 
     for (const Format2SurfaceWidget& definition : parsed.surface.widgets) {
         surface->AddWidget(surface, definition.id.c_str());
@@ -439,16 +440,16 @@ Format2OscRuntimeLoadResult Format2OscRuntimeLoader::Load(const string& filePath
             const string address = ReadAddress(primitive);
             if (address.empty()) continue;
             if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Press") {
-                surface->MessageGeneratorsByMessage_.insert(std::make_pair(address, make_unique<Format2OscPressMessageGenerator>(surface->csi_, widget, primitive)));
+                surface->AddOSCMessageGenerator(address, make_unique<Format2OscPressMessageGenerator>(surface->csi_, widget, primitive));
                 widget->MarkOskPressInput();
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Touch") {
-                surface->MessageGeneratorsByMessage_.insert(std::make_pair(address, make_unique<Format2OscTouchMessageGenerator>(surface->csi_, widget, primitive)));
+                surface->AddOSCMessageGenerator(address, make_unique<Format2OscTouchMessageGenerator>(surface->csi_, widget, primitive));
                 widget->MarkOskTouchInput();
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Value") {
-                surface->MessageGeneratorsByMessage_.insert(std::make_pair(address, make_unique<Format2OscValueMessageGenerator>(surface->csi_, widget, FindFormat2ValueProfile(parsed.surface, primitive))));
+                surface->AddOSCMessageGenerator(address, make_unique<Format2OscValueMessageGenerator>(surface->csi_, widget, FindFormat2ValueProfile(parsed.surface, primitive)));
                 widget->MarkOskAbsoluteInput();
             } else if (primitive.direction == Format2PrimitiveDirection::Input && primitive.type == "Encoder") {
-                surface->MessageGeneratorsByMessage_.insert(std::make_pair(address, make_unique<Format2OscEncoderMessageGenerator>(surface->csi_, surface, widget, parsed.surface, primitive)));
+                surface->AddOSCMessageGenerator(address, make_unique<Format2OscEncoderMessageGenerator>(surface->csi_, surface, widget, parsed.surface, primitive));
                 widget->MarkOskRelativeInput();
             } else if (primitive.direction == Format2PrimitiveDirection::Feedback && primitive.type == "Value") {
                 const Format2PropertySyntax* suppressProperty = FindProperty(primitive, "SuppressWhileTouched");

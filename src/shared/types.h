@@ -70,8 +70,6 @@ inline constexpr const char* s_CSIVersionDisplay = "v7.0";
 inline constexpr const char* s_MajorVersionToken = "7.0";
 inline constexpr const char* s_PageToken = "Page";
 inline constexpr const char* s_MidiSurfaceToken = "MIDI";
-inline constexpr const char* s_OSCSurfaceToken = "OSC";
-inline constexpr const char* s_OSCX32SurfaceToken = "OSCX32";
 
 inline constexpr const char* s_BadFileChars = " \\:*?<>|.,()/";
 inline constexpr const char* s_BeginAutoSection = "#Begin auto generated section";

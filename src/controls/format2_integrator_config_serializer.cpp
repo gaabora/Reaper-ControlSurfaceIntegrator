@@ -79,12 +79,11 @@ static bool AppendSerializedMidiDevice(std::ostringstream& stream, const MidiIoC
 
 static bool AppendSerializedOscDevice(std::ostringstream& stream, const OscIoConfig& device, std::string& errorMessage) {
     if (!AppendSerializedBlockId(stream, "Device", device.name, errorMessage)) return false;
-    if (device.type != "OSC" && device.type != "OSCX32") {
-        errorMessage = "OSC Device " + device.name + " has an unsupported protocol type";
+    if (device.type != "OSC") {
+        errorMessage = "OSC Device " + device.name + " has an unsupported type";
         return false;
     }
     stream << "  Type=OSC\n";
-    stream << "  Protocol=" << (device.type == "OSCX32" ? "X32" : "Generic") << '\n';
     if (!AppendSerializedProperty(stream, "  ", "ReceivePort", device.receiveOnPort, errorMessage)) return false;
     if (!AppendSerializedProperty(stream, "  ", "TransmitPort", device.transmitToPort, errorMessage)) return false;
     if (!AppendSerializedProperty(stream, "  ", "Address", device.transmitToIpAddress, errorMessage)) return false;

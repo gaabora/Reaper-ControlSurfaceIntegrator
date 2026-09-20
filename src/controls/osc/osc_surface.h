@@ -7,6 +7,12 @@
 class OSC_ControlSurfaceIO
 {
 protected:
+    struct KeepAliveMessage {
+        string address;
+        DWORD intervalMs;
+        DWORD lastSentTime;
+    };
+
     CSurfIntegrator* const csi_;
     string const name_;
     int const channelCount_;
@@ -19,6 +25,7 @@ protected:
     int maxPacketsPerRun_; // 0 = no limit
     int sentPacketCount_ = 0; // count of packets sent this Run() slice, after maxPacketsPerRun_ packtees go into packetQueue_
     WDL_Queue packetQueue_;
+    vector<KeepAliveMessage> keepAliveMessages_;
 
 public:
     OSC_ControlSurfaceIO(CSurfIntegrator* const csi, const char* name, int channelCount, const char* receiveOnPort, const char* transmitToPort, const char* transmitToIpAddress, int maxPacketsPerRun);
@@ -29,6 +36,8 @@ public:
     const int GetChannelCount() { return channelCount_; }
 
     virtual void HandleExternalInput(OSC_ControlSurface* surface);
+
+    void AddKeepAliveMessage(const string& address, int intervalMs);
 
     void QueuePacket(const void* p, int sz) {
         if (WDL_NOT_NORMALLY(!outSocket_)) return;
@@ -138,31 +147,13 @@ public:
     }
 
     virtual void Run() {
-        QueueOSCMessage(NULL); // flush any latent bundles
-    }
-};
-
-class OSC_X32ControlSurfaceIO : public OSC_ControlSurfaceIO
-{
-protected:
-    DWORD X32HeartBeatRefreshInterval_ = 5000;
-    DWORD X32HeartBeatLastRefreshTime_ = GetTickCount() - 30000;
-
-public:
-    OSC_X32ControlSurfaceIO(CSurfIntegrator* const csi, const char* name, int channelCount, const char* receiveOnPort, const char* transmitToPort, const char* transmitToIpAddress, int maxPacketsPerRun);
-    virtual ~OSC_X32ControlSurfaceIO() {}
-
-    virtual void HandleExternalInput(OSC_ControlSurface* surface) override;
-
-    void Run() override {
-        DWORD currentTime = GetTickCount();
-
-        if ((currentTime - X32HeartBeatLastRefreshTime_) > X32HeartBeatRefreshInterval_) {
-            X32HeartBeatLastRefreshTime_ = currentTime;
-            SendOSCMessage("/xremote");
+        const DWORD currentTime = GetTickCount();
+        for (KeepAliveMessage& message : this->keepAliveMessages_) {
+            if ((currentTime - message.lastSentTime) < message.intervalMs) continue;
+            message.lastSentTime = currentTime;
+            this->SendOSCMessage(message.address.c_str());
         }
-
-        OSC_ControlSurfaceIO::Run();
+        QueueOSCMessage(NULL); // flush any latent bundles
     }
 };
 
@@ -170,6 +161,7 @@ class OSC_ControlSurface : public ControlSurface
 {
 private:
     OSC_ControlSurfaceIO* const surfaceIO_;
+    multimap<string, unique_ptr<MessageGenerator>> oscMessageGeneratorsByAddress_;
 
 public:
     OSC_ControlSurface(CSurfIntegrator* const csi, IPageContext* page, const char* name, int channelOffset, const char* templateFilename, const char* zoneFolder, const char* vendorFxZoneFolder, const char* userFxZoneFolder, OSC_ControlSurfaceIO* surfaceIO, const SettingsValues& settings, const SettingOverrides& settingOverrides, ZoneProfileSourceMode mainSourceMode, ZoneProfileSourceMode fxSourceMode);
@@ -177,6 +169,8 @@ public:
     virtual ~OSC_ControlSurface() {}
 
     void ProcessOSCMessage(const char* message, double value);
+    void AddOSCMessageGenerator(const string& address, unique_ptr<MessageGenerator> generator);
+    void AddKeepAliveMessage(const string& address, int intervalMs) { this->surfaceIO_->AddKeepAliveMessage(address, intervalMs); }
     virtual void SendOSCMessage(const char* zoneName) override;
     virtual void SendOSCMessage(const char* zoneName, int value) override;
     virtual void SendOSCMessage(const char* zoneName, double value) override;

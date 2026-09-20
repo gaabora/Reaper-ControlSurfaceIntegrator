@@ -116,8 +116,7 @@ static void CreateConfiguredIo(CSurfIntegrator* integrator, const IntegratorConf
     for (const OscIoConfig& io : config.oscIo) {
         if (io.channelCount < 1) continue;
         try {
-            if (IsSameString(io.type, s_OSCSurfaceToken)) oscIo.push_back(make_unique<OSC_ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.receiveOnPort.c_str(), io.transmitToPort.c_str(), io.transmitToIpAddress.c_str(), io.maxPacketsPerRun));
-            else oscIo.push_back(make_unique<OSC_X32ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.receiveOnPort.c_str(), io.transmitToPort.c_str(), io.transmitToIpAddress.c_str(), io.maxPacketsPerRun));
+            oscIo.push_back(make_unique<OSC_ControlSurfaceIO>(integrator, io.name.c_str(), io.channelCount, io.receiveOnPort.c_str(), io.transmitToPort.c_str(), io.transmitToIpAddress.c_str(), io.maxPacketsPerRun));
         } catch (const std::exception& error) {
             summary.issueCount++;
             LogToConsole("[ERROR] Skipping OSC SurfaceType '%s' from %s at line %d: %s\n", io.name.c_str(), GetRelativePath(configPath.c_str()).c_str(), io.lineNumber, error.what());

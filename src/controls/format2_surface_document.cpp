@@ -169,6 +169,7 @@ private:
             else if (blockType == "FeedbackGroup") this->ParseFeedbackGroup(node);
             else if (blockType == "ColorCalibration") this->ParseColorCalibration(node);
             else if (blockType == "Initialize") this->ParseInitialization(node);
+            else if (blockType == "KeepAlive") this->ParseKeepAlive(node);
             else if (blockType == "OSKLayout") this->ParseOskLayout(node);
             else this->AddDiagnostic("format2.surface.block.unknown", "Unknown Surface block: " + blockType, node.location);
         }
@@ -1059,6 +1060,38 @@ private:
         this->result_.surface.initialization = std::move(initialization);
     }
 
+    void ParseKeepAlive(const Format2SyntaxNode& node) {
+        if (node.positionalTokens.size() != 1 || !node.properties.empty()) {
+            this->AddDiagnostic("format2.surface.keep-alive.header", "KeepAlive does not accept an ID or header properties", node.location);
+            return;
+        }
+        if (this->result_.surface.keepAlive) {
+            this->AddDiagnostic("format2.surface.keep-alive.duplicate", "KeepAlive can occur only once", node.location);
+            return;
+        }
+        if (this->result_.document.metadata.protocol != Format2SurfaceProtocol::Osc) {
+            this->AddDiagnostic("format2.surface.keep-alive.protocol", "KeepAlive requires Protocol=OSC", node.location);
+            return;
+        }
+        Format2ParsedProfileBody body;
+        if (!this->ParseSurfaceBlockBody(node, "KeepAlive", body)) return;
+        Format2SurfaceKeepAlive keepAlive;
+        keepAlive.location = node.location;
+        const auto messages = body.lines.find("OSC");
+        if (messages != body.lines.end()) {
+            for (const Format2SyntaxNode* messageNode : messages->second) {
+                const Format2PropertySyntax* addressProperty = FindFormat2NodeProperty(*messageNode, "Address");
+                const Format2PropertySyntax* intervalProperty = FindFormat2NodeProperty(*messageNode, "IntervalMs");
+                if (!addressProperty || addressProperty->value.list || !intervalProperty || intervalProperty->value.list) continue;
+                Format2OscKeepAliveMessage message;
+                message.address = addressProperty->value.scalar.text;
+                message.location = messageNode->location;
+                if (ParseFormat2IntegerScalar(intervalProperty->value.scalar, message.intervalMs)) keepAlive.oscMessages.push_back(std::move(message));
+            }
+        }
+        this->result_.surface.keepAlive = std::move(keepAlive);
+    }
+
     void ParseFeedbackGroup(const Format2SyntaxNode& node) {
         std::vector<Format2SurfaceNamedBlock> declaration;
         this->ParseNamedBlock(node, declaration);
@@ -1429,7 +1462,7 @@ private:
                 this->ParseWidgetProperties(child, widget, aliasSeen, channelSeen);
                 continue;
             }
-            this->ParsePrimitive(child, widget);
+            this->ParsePrimitive(child, widget, aliasSeen, channelSeen);
         }
         for (const Format2SurfacePrimitive& primitive : widget.primitives) {
             for (Format2Capability capability : primitive.capabilities) {
@@ -1443,7 +1476,11 @@ private:
 
     void ParseWidgetProperties(const Format2SyntaxNode& node, Format2SurfaceWidget& widget, bool& aliasSeen, bool& channelSeen) {
         if (!node.positionalTokens.empty()) this->AddDiagnostic("format2.surface.widget.line", "Widget lines can contain only Alias and Channel properties", node.positionalTokens.front().location);
-        for (const Format2PropertySyntax& property : node.properties) {
+        this->ParseWidgetPropertyList(node.properties, widget, aliasSeen, channelSeen);
+    }
+
+    void ParseWidgetPropertyList(const std::vector<Format2PropertySyntax>& properties, Format2SurfaceWidget& widget, bool& aliasSeen, bool& channelSeen) {
+        for (const Format2PropertySyntax& property : properties) {
             if (property.name == "Alias") {
                 if (aliasSeen) {
                     this->AddDiagnostic("format2.surface.widget.alias.duplicate", "Widget Alias is duplicated", property.nameLocation);
@@ -1469,8 +1506,9 @@ private:
         }
     }
 
-    void ParsePrimitive(const Format2SyntaxNode& node, Format2SurfaceWidget& widget) {
-        if (node.positionalTokens.size() != 2 || node.positionalTokens[0].kind != Format2TokenKind::Bare || node.positionalTokens[1].kind != Format2TokenKind::Bare || !node.properties.empty()) {
+    void ParsePrimitive(const Format2SyntaxNode& node, Format2SurfaceWidget& widget, bool& aliasSeen, bool& channelSeen) {
+        this->ParseWidgetPropertyList(node.properties, widget, aliasSeen, channelSeen);
+        if (node.positionalTokens.size() != 2 || node.positionalTokens[0].kind != Format2TokenKind::Bare || node.positionalTokens[1].kind != Format2TokenKind::Bare) {
             this->AddDiagnostic("format2.surface.primitive.header", "Widget child block must use Input Type or Feedback Type", node.location);
             return;
         }

@@ -305,7 +305,7 @@ export function parseProductConfig(source: string, documentPath?: string, settin
             }
             requireProperties(block, ["Type"], diagnostics, documentPath);
             const type = block.properties.get("Type")?.value;
-            const allowed = new Set(type === "MIDI" ? ["Type", "Input", "Output", "RefreshRate", "MaxMessagesPerRun"] : ["Type", "Protocol", "ReceivePort", "TransmitPort", "Address", "MaxPacketsPerRun"]);
+            const allowed = new Set(type === "MIDI" ? ["Type", "Input", "Output", "RefreshRate", "MaxMessagesPerRun"] : ["Type", "ReceivePort", "TransmitPort", "Address", "MaxPacketsPerRun"]);
             rejectUnknownProperties(block, allowed, diagnostics, documentPath);
             if (type === "MIDI") requireProperties(block, ["Input", "Output"], diagnostics, documentPath);
             else if (type === "OSC") requireProperties(block, ["ReceivePort", "TransmitPort", "Address"], diagnostics, documentPath);
@@ -319,8 +319,6 @@ export function parseProductConfig(source: string, documentPath?: string, settin
                 validateIntegerProperty(block, "ReceivePort", 1, 65535, diagnostics, documentPath);
                 validateIntegerProperty(block, "TransmitPort", 1, 65535, diagnostics, documentPath);
                 validateIntegerProperty(block, "MaxPacketsPerRun", 1, 1000000, diagnostics, documentPath);
-                const protocol = block.properties.get("Protocol");
-                if (protocol && protocol.value !== "Generic" && protocol.value !== "X32") addDiagnostic(diagnostics, "error", "product.device.protocol", "OSC Protocol must be Generic or X32", protocol.line, documentPath);
             }
             const settingsBlocks = block.children.filter((child) => child.name === "Settings");
             if (settingsBlocks.length > 1) addDiagnostic(diagnostics, "error", "product.device.settings.duplicate", "Device Settings block is duplicated", settingsBlocks[1].line, documentPath);

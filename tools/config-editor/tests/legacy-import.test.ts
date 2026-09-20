@@ -716,7 +716,11 @@ WidgetEnd
         expect(conversion.diagnostics).toEqual([]);
         expect(document.diagnostics).toEqual([]);
         expect(document.semantic.widgets).toHaveLength(32);
-        for (let idx = 0; idx < 32; idx++) expect(conversion.source).toContain(`Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=${idx} ActiveOnly=true }`);
+        expect(conversion.source).toContain('KeepAlive {\n  OSC Address="/xremote" IntervalMs=5000\n}');
+        for (let idx = 0; idx < 32; idx++) {
+            expect(conversion.source).toContain(`Input Press { Encoding=OSCInt Address="/-stat/selidx" Match=Exact OnValue=${idx} }`);
+            expect(conversion.source).toContain(`Feedback State { Encoding=OSCInt Address="/-stat/selidx" OnValue=${idx} ActiveOnly=true }`);
+        }
     });
 
     test.each(["invalid", "-1", "1.5", "2147483648"])("preserves an invalid X32 selection number %s for correction", (selectionIndex) => {

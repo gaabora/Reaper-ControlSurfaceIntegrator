@@ -11,7 +11,7 @@ Migration scenarios compare every file under `legacy/` with `expected/` and any 
 - `learn-fx`: converts FXWidgetLayout, FXPrologue, FXEpilogue, and supported hash directives, and drops FXRowLayout with notices.
 - `snippet`: converts a version 1 semantic snippet to a direct format 2 zone fragment.
 - `unresolved`: covers a non-standard encoder range, missing channel metadata, command-shaped MFT colors, conflicting per-zone display modes, and a file used as both a layer and an independent zone.
-- `osc-x32`: converts an OSCX32 Device, Page assignment, X32 fader curve, exact rotary delta profile and acknowledgement, and an OSC OSK layout. A focused check rejects an acknowledgement without its paired rotary input.
+- `osc-x32`: migrates a legacy OSCX32 Device to generic OSC, moves `/xremote` keepalive into the Surface, converts the Page assignment, X32 fader curve, exact rotary delta profile and acknowledgement, and creates an OSC OSK layout. A focused check rejects an acknowledgement without its paired rotary input.
 - `osc-basic`: converts OSC `AnyPress`, `Touch`, `FB_IntProcessor`, and `FB_X32IntProcessor` feedback to universal typed primitives while preserving every explicit address and the OSC OSK layout. Focused checks convert X32 selection-address feedback to active-only State output on the shared selection address, convert X32 feedback paired with Control plus documented name and color addresses, and offer source-draft type choices for other X32 feedback.
 - `links`: converts an order-dependent Broadcaster and Listener record to one explicit same-Page Link with only enabled share categories.
 - `magic-targets`: converts every current magic Main zone name to explicit Role, Target, and optional BankTarget metadata.

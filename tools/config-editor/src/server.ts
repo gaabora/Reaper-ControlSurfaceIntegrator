@@ -259,7 +259,7 @@ function errorResponse(error: unknown): Response {
         return jsonResponse({ error: { code: error.code, details: error.details, message: error.message } }, status);
     }
     const errorCode = (error as NodeJS.ErrnoException).code;
-    if (errorCode === "ENOENT") return jsonResponse({ error: { code: "path.missing", message: "Configuration path does not exist" } }, 404);
+    if (errorCode === "ENOENT") return jsonResponse({ error: { code: "path.missing", message: "Configuration path does not exist" } }, 404); ///FIXME: wtf?
     if (errorCode === "EACCES" || errorCode === "EPERM") return jsonResponse({ error: { code: "path.permission", message: "Configuration path is not accessible" } }, 403);
     const message = error instanceof Error ? error.message : String(error);
     return jsonResponse({ error: { code: "server.error", message } }, 500);

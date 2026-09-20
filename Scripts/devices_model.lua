@@ -94,7 +94,6 @@ function module.Serialize(data)
         if not address then return nil, "OSC Address must be one unquoted value" end
         lines[#lines + 1] = "Device " .. device.name .. " {"
         lines[#lines + 1] = "  Type=OSC"
-        lines[#lines + 1] = "  Protocol=" .. (device.type == "OSCX32" and "X32" or "Generic")
         lines[#lines + 1] = "  ReceivePort=" .. tostring(device.receivePort)
         lines[#lines + 1] = "  TransmitPort=" .. tostring(device.transmitPort)
         lines[#lines + 1] = "  Address=" .. address

@@ -487,7 +487,11 @@ function convertProcessor(widget: SurfaceWidget, tokens: string[], lineNumber: n
         addDiagnostic(diagnostics, "error", "legacy.surface.processor.unsupported", `Legacy Surface processor is not converted yet: ${tokens[0]}`, lineNumber, documentPath);
         return undefined;
     }
-    if (conversion.kind === "anyPress" && tokens.length === 2 && tokens[1].startsWith("/")) return `Input Press { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} Match=Any }`;
+    if (conversion.kind === "anyPress" && tokens.length === 2 && tokens[1].startsWith("/")) {
+        const selectionIndex = tokens[1].match(/^\/-stat\/selidx\/(\d+)$/)?.[1];
+        if (selectionIndex !== undefined && Number(selectionIndex) <= 2147483647) return `Input Press { Encoding=OSCInt Address="/-stat/selidx" Match=Exact OnValue=${Number(selectionIndex)} }`;
+        return `Input Press { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} Match=Any }`;
+    }
     if (conversion.kind === "anyPress" && tokens[1] && tokens[2]) return `Input Press { Encoding=MIDIPrefix Message=${midiList(tokens.slice(1, 3))} }`;
     if (conversion.kind === "oscControl" && tokens[1]) return `Input Value { Encoding=OSCFloat Address=${JSON.stringify(tokens[1])} }`;
     if (conversion.kind === "oscFeedback" && tokens[1]) {
@@ -868,6 +872,14 @@ function legacyWidgetAlias(sourceLines: ReturnType<typeof splitSourceLines>, wid
     return alias || undefined;
 }
 
+function x32KeepAlive(widgets: SurfaceWidget[]): string[] {
+    const usesX32 = widgets.some((widget) => widget.body.some((line) => {
+        const processor = (line.tokens[0] ?? "").toLowerCase();
+        return processor.startsWith("x32") || processor.startsWith("fb_x32");
+    }));
+    return usesX32 ? ["KeepAlive {", "  OSC Address=\"/xremote\" IntervalMs=5000", "}", ""] : [];
+}
+
 interface ConvertedSurfaceWidget {
     body: string[];
     compact: boolean;
@@ -928,7 +940,7 @@ export function convertLegacySurfaceToFormat2(source: string, surfaceName: strin
     const diagnostics: Diagnostic[] = document.diagnostics.filter((diagnostic) => diagnostic.code !== "surface.format.missing");
     const sourceLines = splitSourceLines(source);
     const blocks = legacyBlocks(source);
-    const output: string[] = [`@Surface { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...x32ColorProfile(sourceLines), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets)];
+    const output: string[] = [`@Surface { Version=2 Protocol=${legacyProtocol(document)} Channels=${inferredChannelCount(document)} Name=${JSON.stringify(surfaceName)} }`, "", ...encoderProfiles(blocks), ...colorCalibration(blocks), ...x32ValueProfiles(document.semantic.widgets), ...ringProfiles(document.semantic.widgets), ...barProfiles(document.semantic.widgets), ...paletteProfiles(document.semantic.widgets), ...x32ColorProfile(sourceLines), ...textProfiles(document.semantic.widgets), ...xTouchColorProfile(document.semantic.widgets), ...mcuTimeTextProfile(document.semantic.widgets), ...asparionTextProfiles(document.semantic.widgets), ...dynamicTextProfiles(document.semantic.widgets), ...faderportScribbleProfiles(document.semantic.widgets), ...faderportMeterProfile(document.semantic.widgets), ...asparionMeterProfile(document.semantic.widgets), ...qconMasterMeterProfile(document.semantic.widgets), ...meterProfile(document.semantic.widgets, meterMode), ...meterInitialization(document.semantic.widgets), ...x32KeepAlive(document.semantic.widgets)];
     const usedCommentLines = new Set<number>();
     const convertedWidgets: ConvertedSurfaceWidget[] = [];
     for (const [widgetIdx, widget] of document.semantic.widgets.entries()) {
