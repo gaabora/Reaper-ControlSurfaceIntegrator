@@ -120,6 +120,10 @@ describe("browser UI bindings", () => {
         expect(EDITOR_JAVASCRIPT).toContain('legacySourceEditorPanel.hidden = !visible');
         expect(EDITOR_JAVASCRIPT).toContain("{ groupByFile: true }");
         expect(EDITOR_CSS).toContain(".diagnostic-file-group");
+        expect(EDITOR_JAVASCRIPT).toContain('details.open = hasErrors || groupedDiagnostics.size === 1 || previouslyOpenPaths.has(groupPath)');
+        expect(EDITOR_JAVASCRIPT).toContain('diagnostic-count-warning');
+        expect(EDITOR_JAVASCRIPT).toContain('diagnostic-count-error');
+        expect(EDITOR_CSS).toContain(".diagnostic-file-group.has-errors > summary");
         expect(html).toContain('id="legacy-problems-resizer"');
         expect(EDITOR_JAVASCRIPT).toContain('legacyProblemsResizer.addEventListener("pointerdown"');
         expect(EDITOR_JAVASCRIPT).toContain("setLegacyZonesSelected(directoryZones, checkbox.checked)");

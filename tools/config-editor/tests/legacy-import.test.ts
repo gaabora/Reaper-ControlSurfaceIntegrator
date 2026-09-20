@@ -693,6 +693,21 @@ WidgetEnd
         expect(resolved.diagnostics.some((diagnostic) => diagnostic.code === "format2.learn-fx.surface.widget.missing" || diagnostic.code === "legacy.widget.mapping.required")).toBeFalse();
     });
 
+    test("automatically resolves legacy Learn FX names to matching numbered Widget families", async () => {
+        const surfaceRoot = path.join(legacyRoot, "Surfaces", "FaderPortV2");
+        const familySurface = `${surfaceSource}Widget RotaryA1\n  Encoder b0 01 7f\nWidgetEnd\nWidget RotaryA2\n  Encoder b0 02 7f\nWidgetEnd\nWidget RotaryPushA1\n  Press 90 01 7f 90 01 00\nWidgetEnd\nWidget RotaryPushA2\n  Press 90 02 7f 90 02 00\nWidgetEnd\nWidget DisplayUpperA1\n  FB_C4DisplayUpper 0 0\nWidgetEnd\nWidget DisplayUpperA2\n  FB_C4DisplayUpper 0 1\nWidgetEnd\n`;
+        await writeFile(path.join(surfaceRoot, "Surface.txt"), familySurface, "utf8");
+        await writeFile(path.join(surfaceRoot, "Zones", "FXWidgetLayout.zon"), "Zone FXWidgetLayout\n  RotaryA FXParam\n  DisplayUpperA FixedTextDisplay\nZoneEnd\n\n#WidgetType RotaryA RingStyle=Dot\n#WidgetType RotaryPushA\n#DisplayRow DisplayUpperA\n", "utf8");
+        const source = await LegacyCsiSource.create(legacyRoot);
+        const preview = await source.preview(await createStore(), knownActions, "FaderPortV2", true);
+        const learnFx = preview.items.find((item) => item.kind === "learn-fx");
+
+        expect(preview.widgetMappings.some((issue) => ["RotaryA", "RotaryPushA", "DisplayUpperA"].includes(issue.sourceWidget))).toBeFalse();
+        expect(learnFx?.source).toContain("Parameter RotaryA# RingStyle=Dot");
+        expect(learnFx?.source).toContain("Parameter RotaryPushA#");
+        expect(learnFx?.source).toContain("NameDisplay DisplayUpperA#");
+    });
+
     test("keeps 32 X32 selection widgets on one shared output address", () => {
         const source = Array.from({ length: 32 }, (unusedEntry, idx) => `Widget TrackSelect${idx + 1}\n  AnyPress /-stat/selidx/${String(idx).padStart(2, "0")}\n  FB_X32IntProcessor /-stat/selidx/${String(idx).padStart(2, "0")}\nWidgetEnd\n`).join("");
         const conversion = convertLegacySurfaceToFormat2(source, "X32 selection", "Surfaces/User/x32-selection.txt");

@@ -456,9 +456,17 @@ function collectLearnFxWidgetMappings(document: AnyDocument, legacyLayout: Legac
     const issues: LegacyWidgetMappingIssue[] = [];
     const sourceLines = splitSourceLines(legacyLayout.source);
     for (const entry of (document.semantic as LearnFxSemantic).widgets) {
-        const family = entry.selector.endsWith("#");
         const requiredCapabilities = learnFxRequiredCapabilities(entry.selector, entry.role);
-        const slots = surfaceWidgetSlots(targetSurface, family);
+        const directSlots = surfaceWidgetSlots(targetSurface, false);
+        const familySlots = surfaceWidgetSlots(targetSurface, true);
+        const family = entry.selector.endsWith("#");
+        const implicitFamily = family ? undefined : familySlots.find((slot) => normalizedWidgetName(slot.name) === normalizedWidgetName(`${entry.selector}#`) && learnFxCandidateCompatible(slot.capabilities, requiredCapabilities));
+        if (implicitFamily) {
+            validMappings.set(normalizedWidgetName(entry.selector), implicitFamily.name);
+            continue;
+        }
+        const relatedFamilies = family ? familySlots : familySlots.filter((slot) => normalizedWidgetName(slot.name).startsWith(normalizedWidgetName(entry.selector)));
+        const slots = family || !directSlots.some((slot) => normalizedWidgetName(slot.name) === normalizedWidgetName(entry.selector)) && relatedFamilies.length ? relatedFamilies : directSlots;
         const sameNameTarget = slots.find((slot) => normalizedWidgetName(slot.name) === normalizedWidgetName(entry.selector));
         if (sameNameTarget && learnFxCandidateCompatible(sameNameTarget.capabilities, requiredCapabilities)) continue;
         const candidates = slots.filter((slot) => learnFxCandidateCompatible(slot.capabilities, requiredCapabilities)).map((slot) => ({ capabilities: slot.capabilities, name: slot.name })).sort((left, right) => left.name.localeCompare(right.name));

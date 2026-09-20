@@ -530,17 +530,30 @@ function renderDiagnosticsIn(container, diagnostics = [], navigate = navigateDia
         groupedDiagnostics.set(groupPath, group);
     }
     for (const [groupPath, group] of groupedDiagnostics) {
+        const errorCount = group.filter((diagnostic) => diagnostic.severity === "error").length;
+        const warningCount = group.filter((diagnostic) => diagnostic.severity === "warning").length;
+        const hasErrors = errorCount > 0;
         const details = document.createElement("details");
         details.className = "diagnostic-file-group";
+        details.classList.toggle("has-errors", hasErrors);
         details.dataset.problemPath = groupPath;
-        details.open = groupedDiagnostics.size === 1 || previouslyOpenPaths.has(groupPath);
+        details.open = hasErrors || groupedDiagnostics.size === 1 || previouslyOpenPaths.has(groupPath);
         const summary = document.createElement("summary");
+        if (hasErrors) {
+            summary.addEventListener("click", (event) => event.preventDefault());
+            details.addEventListener("toggle", () => { if (!details.open) details.open = true; });
+        }
         const pathLabel = document.createElement("span");
         pathLabel.textContent = groupPath;
-        const count = document.createElement("span");
-        count.className = "badge";
-        count.textContent = String(group.length);
-        summary.append(pathLabel, count);
+        const warningBadge = document.createElement("span");
+        warningBadge.className = "badge diagnostic-count-warning";
+        warningBadge.textContent = String(warningCount);
+        warningBadge.title = translate("problems.warnings");
+        const errorBadge = document.createElement("span");
+        errorBadge.className = "badge diagnostic-count-error";
+        errorBadge.textContent = String(errorCount);
+        errorBadge.title = translate("problems.errors");
+        summary.append(pathLabel, warningBadge, errorBadge);
         const list = document.createElement("div");
         list.className = "diagnostic-file-list";
         for (const diagnostic of group) appendDiagnostic(list, diagnostic, false);
